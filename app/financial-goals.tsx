@@ -128,8 +128,9 @@ export default function FinancialGoalsScreen() {
               <Edit3 color="#6B7280" size={16} />
             </TouchableOpacity>
             <TouchableOpacity 
-              style={styles.actionButton}
+              style={[styles.actionButton, styles.deleteButton]}
               onPress={() => {
+                console.log('Delete button pressed for goal:', goal.id, goal.title);
                 Alert.alert(
                   'Smazat cíl',
                   `Opravdu chceš smazat cíl "${goal.title}"?`,
@@ -138,13 +139,22 @@ export default function FinancialGoalsScreen() {
                     { 
                       text: 'Smazat', 
                       style: 'destructive',
-                      onPress: () => setGoals(prev => prev.filter(g => g.id !== goal.id))
+                      onPress: () => {
+                        console.log('Deleting goal:', goal.id);
+                        setGoals(prev => {
+                          const newGoals = prev.filter(g => g.id !== goal.id);
+                          console.log('Goals after deletion:', newGoals.length);
+                          return newGoals;
+                        });
+                        Alert.alert('Úspěch! 🗑️', `Cíl "${goal.title}" byl smazán.`);
+                      }
                     }
                   ]
                 );
               }}
+              testID={`delete-goal-${goal.id}`}
             >
-              <Trash2 color="#EF4444" size={16} />
+              <Trash2 color="#EF4444" size={18} />
             </TouchableOpacity>
           </View>
         </View>
@@ -538,12 +548,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#FEE2E2',
   },
   goalProgress: {
     gap: 8,
