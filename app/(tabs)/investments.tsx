@@ -124,28 +124,41 @@ export default function InvestmentsScreen() {
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
 
-  // Výpočet portfolia z obchodů
+  // Výpočet portfolia z obchodů - pouze aktuálně držené pozice
   const portfolioData = trades.reduce((acc, trade) => {
     const existing = acc.find(item => item.symbol === trade.symbol);
     if (existing) {
       if (trade.type === 'buy') {
-        existing.amount += trade.total;
+        existing.totalInvested += trade.total;
         existing.shares += trade.amount;
       } else {
-        existing.amount -= trade.total;
+        // Při prodeji snižujeme počet akcií a počítáme realizovaný zisk/ztrátu
         existing.shares -= trade.amount;
+        existing.realizedPnL += trade.total - (trade.amount * (existing.totalInvested / (existing.shares + trade.amount)));
       }
     } else {
       acc.push({
         symbol: trade.symbol,
         name: trade.name,
-        amount: trade.type === 'buy' ? trade.total : -trade.total,
+        totalInvested: trade.type === 'buy' ? trade.total : 0,
         shares: trade.type === 'buy' ? trade.amount : -trade.amount,
+        realizedPnL: trade.type === 'sell' ? trade.total : 0,
         color: SUGGESTED_INVESTMENTS.find(s => s.symbol === trade.symbol)?.color || '#6B7280',
       });
     }
     return acc;
-  }, [] as any[]);
+  }, [] as any[])
+  // Filtrujeme pouze pozice s kladným počtem akcií (aktuálně držené)
+  .filter(item => item.shares > 0)
+  // Přidáme aktuální hodnotu pozice (pro jednoduchost použijeme původní investici + simulovaný růst)
+  .map(item => {
+    const currentValue = item.totalInvested * (1 + (Math.random() * 0.4 - 0.2)); // Simulace změny -20% až +20%
+    return {
+      ...item,
+      amount: currentValue,
+      unrealizedPnL: currentValue - item.totalInvested,
+    };
+  });
 
   // Vypočítáme portfolio metriky včetně TWR a XIRR
   const portfolioMetrics = useMemo(() => {
@@ -199,7 +212,10 @@ export default function InvestmentsScreen() {
           ]} 
         />
       </View>
-      <Text style={styles.percentageText}>{item.percentage}% portfolia</Text>
+      <View style={styles.portfolioFooter}>
+        <Text style={styles.percentageText}>{item.percentage}% portfolia</Text>
+        <Text style={styles.sharesText}>{item.shares.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })} ks</Text>
+      </View>
     </View>
   );
 
@@ -949,10 +965,40 @@ export default function InvestmentsScreen() {
           type: 'buy',
           symbol: 'AAPL',
           name: 'Apple Inc.',
-          amount: 8,
+          amount: 10,
           price: 4200,
           date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-          total: 33600,
+          total: 42000,
+        },
+        {
+          id: (Date.now() + 2).toString(),
+          type: 'sell',
+          symbol: 'AAPL',
+          name: 'Apple Inc.',
+          amount: 2,
+          price: 4500,
+          date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          total: 9000,
+        },
+        {
+          id: (Date.now() + 3).toString(),
+          type: 'buy',
+          symbol: 'MSFT',
+          name: 'Microsoft Corp.',
+          amount: 5,
+          price: 8000,
+          date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+          total: 40000,
+        },
+        {
+          id: (Date.now() + 4).toString(),
+          type: 'sell',
+          symbol: 'MSFT',
+          name: 'Microsoft Corp.',
+          amount: 5,
+          price: 8200,
+          date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          total: 41000,
         },
       ],
       'Trading212': [
@@ -1950,9 +1996,19 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
+  portfolioFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   percentageText: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  sharesText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
   },
   recommendationsContainer: {
     gap: 16,
