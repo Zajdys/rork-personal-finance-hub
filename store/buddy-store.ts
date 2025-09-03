@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 interface BuddyState {
   level: number;
@@ -60,6 +61,20 @@ export const useBuddyStore = create<BuddyState>((set, get) => ({
 
   showBuddyMessage: (message: string) => {
     set({ currentMessage: message });
+    
+    // Zkontrolujeme, zda jsou push notifikace povolené
+    // Importujeme settings store dynamicky, abychom se vyhnuli circular dependency
+    import('@/store/settings-store').then(({ useSettingsStore }) => {
+      const { notifications } = useSettingsStore.getState();
+      
+      if (notifications.pushNotifications) {
+        // Zobrazíme push notifikaci jako Alert
+        Alert.alert('MoneyBuddy 💰', message, [
+          { text: 'OK', style: 'default' }
+        ]);
+      }
+    });
+    
     setTimeout(() => {
       get().clearBuddyMessage();
     }, 5000);

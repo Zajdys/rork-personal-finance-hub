@@ -31,10 +31,67 @@ import { useRouter } from 'expo-router';
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
-  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses } = useFinanceStore();
+  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals } = useFinanceStore();
   const { level, points, dailyTip } = useBuddyStore();
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t } = useLanguageStore();
+  
+  // Získáme aktuální měsíční report pro rozpočtová varování
+  const currentMonthReport = getCurrentMonthReport();
+  
+  // Funkce pro generování rozpočtových varování
+  const getBudgetWarnings = () => {
+    const warnings = [];
+    
+    // Varování při záporném zůstatku
+    if (currentMonthReport.balance < 0) {
+      warnings.push({
+        type: 'danger',
+        title: 'Záporný zůstatek',
+        message: `Tento měsíc jste utratili ${Math.abs(currentMonthReport.balance).toLocaleString('cs-CZ')} Kč více než vydělali!`,
+        icon: '🚨'
+      });
+    }
+    
+    // Varování při nízké míře úspor
+    if (currentMonthReport.savingsRate < 10 && currentMonthReport.totalIncome > 0) {
+      warnings.push({
+        type: 'warning',
+        title: 'Nízká míra úspor',
+        message: `Šetříte pouze ${currentMonthReport.savingsRate}% příjmů. Doporučujeme alespoň 20%.`,
+        icon: '⚠️'
+      });
+    }
+    
+    // Varování při vysokých výdajích v jedné kategorii
+    const topCategory = currentMonthReport.categoryBreakdown[0];
+    if (topCategory && topCategory.percentage > 40) {
+      warnings.push({
+        type: 'info',
+        title: 'Vysoké výdaje v kategorii',
+        message: `${topCategory.category} tvoří ${topCategory.percentage}% vašich výdajů.`,
+        icon: '💡'
+      });
+    }
+    
+    // Varování při překročení finančních cílů
+    const overspentGoals = financialGoals.filter(goal => 
+      goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount
+    );
+    
+    overspentGoals.forEach(goal => {
+      warnings.push({
+        type: 'danger',
+        title: 'Překročen limit',
+        message: `Překročili jste limit pro "${goal.title}" o ${(goal.currentAmount - goal.targetAmount).toLocaleString('cs-CZ')} Kč.`,
+        icon: '🎯'
+      });
+    });
+    
+    return warnings;
+  };
+  
+  const budgetWarnings = getBudgetWarnings();
   const router = useRouter();
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
   
@@ -155,6 +212,44 @@ export default function DashboardScreen() {
               <MessageCircle color="#F59E0B" size={20} />
             </TouchableOpacity>
           </LinearGradient>
+        </View>
+      )}
+      
+      {/* Budget Warnings - pouze když jsou povolené */}
+      {notifications.budgetWarnings && budgetWarnings.length > 0 && (
+        <View style={styles.warningsContainer}>
+          {budgetWarnings.map((warning, index) => (
+            <View key={index} style={styles.warningContainer}>
+              <LinearGradient
+                colors={
+                  warning.type === 'danger' ? ['#FEE2E2', '#FECACA'] :
+                  warning.type === 'warning' ? ['#FEF3C7', '#FDE68A'] :
+                  ['#DBEAFE', '#BFDBFE']
+                }
+                style={styles.warningGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.warningIcon}>{warning.icon}</Text>
+                <View style={styles.warningContent}>
+                  <Text style={[
+                    styles.warningTitle,
+                    {
+                      color: warning.type === 'danger' ? '#DC2626' :
+                             warning.type === 'warning' ? '#D97706' : '#2563EB'
+                    }
+                  ]}>{warning.title}</Text>
+                  <Text style={[
+                    styles.warningText,
+                    {
+                      color: warning.type === 'danger' ? '#991B1B' :
+                             warning.type === 'warning' ? '#92400E' : '#1E40AF'
+                    }
+                  ]}>{warning.message}</Text>
+                </View>
+              </LinearGradient>
+            </View>
+          ))}
         </View>
       )}
 
@@ -635,5 +730,40 @@ const styles = StyleSheet.create({
   progressBar: {
     height: '100%',
     borderRadius: 3,
+  },
+  warningsContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    gap: 12,
+  },
+  warningContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  warningGradient: {
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  warningIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  warningContent: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

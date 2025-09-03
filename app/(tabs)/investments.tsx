@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { calculatePortfolioMetrics } from '@/services/financial-calculations';
 import { runAllTests } from '@/tests/financial-calculations.test';
+import { useSettingsStore } from '@/store/settings-store';
 
 const { width } = Dimensions.get('window');
 
@@ -107,6 +108,7 @@ interface Trade {
 }
 
 export default function InvestmentsScreen() {
+  const { notifications } = useSettingsStore();
   const [selectedTab, setSelectedTab] = useState<'portfolio' | 'recommendations' | 'trades'>('portfolio');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showTradeModal, setShowTradeModal] = useState<boolean>(false);
@@ -1213,9 +1215,19 @@ export default function InvestmentsScreen() {
           </View>
         ) : (
           <View style={styles.recommendationsContainer}>
-            {RECOMMENDATIONS.map((recommendation, index) => (
-              <RecommendationCard key={index} recommendation={recommendation} />
-            ))}
+            {notifications.investmentAlerts ? (
+              RECOMMENDATIONS.map((recommendation, index) => (
+                <RecommendationCard key={index} recommendation={recommendation} />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <AlertCircle color="#9CA3AF" size={48} />
+                <Text style={styles.emptyStateTitle}>Investiční upozornění vypnuta</Text>
+                <Text style={styles.emptyStateText}>
+                  Zapněte investiční upozornění v nastavení pro zobrazení doporučení a varování
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </View>
