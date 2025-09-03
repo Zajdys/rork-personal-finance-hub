@@ -9,14 +9,24 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import { Bell, MessageCircle, TrendingUp, AlertTriangle } from 'lucide-react-native';
+import { useSettingsStore } from '../store/settings-store';
 
 export default function NotificationsSettingsScreen() {
-  const [pushNotifications, setPushNotifications] = React.useState(true);
-  const [dailyTips, setDailyTips] = React.useState(true);
-  const [investmentAlerts, setInvestmentAlerts] = React.useState(true);
-  const [budgetWarnings, setBudgetWarnings] = React.useState(true);
+  const { notifications, setNotificationSetting } = useSettingsStore();
 
-  const NotificationItem = ({ icon: Icon, title, subtitle, value, onValueChange }: any) => (
+  const NotificationItem = ({ 
+    icon: Icon, 
+    title, 
+    subtitle, 
+    value, 
+    onValueChange 
+  }: {
+    icon: React.ComponentType<any>;
+    title: string;
+    subtitle: string;
+    value: boolean;
+    onValueChange: (value: boolean) => void;
+  }) => (
     <View style={styles.notificationItem}>
       <View style={styles.notificationContent}>
         <View style={styles.iconContainer}>
@@ -63,32 +73,32 @@ export default function NotificationsSettingsScreen() {
             icon={Bell}
             title="Push notifikace"
             subtitle="Základní upozornění aplikace"
-            value={pushNotifications}
-            onValueChange={setPushNotifications}
+            value={notifications.pushNotifications}
+            onValueChange={(value) => setNotificationSetting('pushNotifications', value)}
           />
 
           <NotificationItem
             icon={MessageCircle}
             title="Denní tipy"
             subtitle="MoneyBuddy tipy každý den"
-            value={dailyTips}
-            onValueChange={setDailyTips}
+            value={notifications.dailyTips}
+            onValueChange={(value) => setNotificationSetting('dailyTips', value)}
           />
 
           <NotificationItem
             icon={TrendingUp}
             title="Investiční upozornění"
             subtitle="Změny v portfoliu a doporučení"
-            value={investmentAlerts}
-            onValueChange={setInvestmentAlerts}
+            value={notifications.investmentAlerts}
+            onValueChange={(value) => setNotificationSetting('investmentAlerts', value)}
           />
 
           <NotificationItem
             icon={AlertTriangle}
             title="Rozpočtová varování"
             subtitle="Upozornění na překročení limitů"
-            value={budgetWarnings}
-            onValueChange={setBudgetWarnings}
+            value={notifications.budgetWarnings}
+            onValueChange={(value) => setNotificationSetting('budgetWarnings', value)}
           />
         </View>
       </ScrollView>

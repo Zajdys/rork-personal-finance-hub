@@ -6,6 +6,13 @@ export type Theme = 'light' | 'dark' | 'auto';
 export type Currency = 'CZK' | 'EUR' | 'USD' | 'GBP';
 export type CurrencyScope = 'wholeApp' | 'investmentsOnly';
 
+export interface NotificationSettings {
+  pushNotifications: boolean;
+  dailyTips: boolean;
+  investmentAlerts: boolean;
+  budgetWarnings: boolean;
+}
+
 export interface CurrencyInfo {
   code: Currency;
   name: string;
@@ -25,9 +32,11 @@ interface SettingsState {
   currency: Currency;
   currencyScope: CurrencyScope;
   isDarkMode: boolean;
+  notifications: NotificationSettings;
   setTheme: (theme: Theme) => void;
   setCurrency: (currency: Currency) => void;
   setCurrencyScope: (scope: CurrencyScope) => void;
+  setNotificationSetting: (key: keyof NotificationSettings, value: boolean) => void;
   loadSettings: () => Promise<void>;
   getCurrentCurrency: () => CurrencyInfo;
 }
@@ -44,6 +53,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   currency: 'CZK',
   currencyScope: 'wholeApp',
   isDarkMode: false,
+  notifications: {
+    pushNotifications: true,
+    dailyTips: true,
+    investmentAlerts: true,
+    budgetWarnings: true,
+  },
 
   setTheme: async (theme: Theme) => {
     const isDarkMode = getEffectiveTheme(theme);
@@ -68,12 +83,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     console.log('Currency scope changed to:', currencyScope);
   },
 
+  setNotificationSetting: async (key: keyof NotificationSettings, value: boolean) => {
+    const currentNotifications = get().notifications;
+    const updatedNotifications = { ...currentNotifications, [key]: value };
+    set({ notifications: updatedNotifications });
+    try {
+      await AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications));
+      console.log(`Notification setting ${key} changed to:`, value);
+    } catch (error) {
+      console.error('Failed to save notification setting:', error);
+    }
+  },
+
   loadSettings: async () => {
     try {
-      const [savedTheme, savedCurrency, savedCurrencyScope] = await Promise.all([
+      const [savedTheme, savedCurrency, savedCurrencyScope, savedNotifications] = await Promise.all([
         AsyncStorage.getItem('theme'),
         AsyncStorage.getItem('currency'),
         AsyncStorage.getItem('currencyScope'),
+        AsyncStorage.getItem('notifications'),
       ]);
       
       const theme = (savedTheme as Theme) || 'light';
@@ -81,8 +109,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const currencyScope = (savedCurrencyScope as CurrencyScope) || 'wholeApp';
       const isDarkMode = getEffectiveTheme(theme);
       
-      set({ theme, currency, currencyScope, isDarkMode });
-      console.log('Settings loaded:', { theme, currency, currencyScope, isDarkMode });
+      let notifications: NotificationSettings = {
+        pushNotifications: true,
+        dailyTips: true,
+        investmentAlerts: true,
+        budgetWarnings: true,
+      };
+      
+      if (savedNotifications) {
+        try {
+          notifications = JSON.parse(savedNotifications);
+        } catch (error) {
+          console.error('Failed to parse saved notifications:', error);
+        }
+      }
+      
+      set({ theme, currency, currencyScope, isDarkMode, notifications });
+      console.log('Settings loaded:', { theme, currency, currencyScope, isDarkMode, notifications });
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
