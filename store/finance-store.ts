@@ -266,10 +266,25 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   },
 
   deleteFinancialGoal: (id: string) => {
+    console.log('Store: Deleting financial goal with ID:', id);
+    const state = get();
+    const goalToDelete = state.financialGoals.find(goal => goal.id === id);
+    console.log('Store: Goal to delete:', goalToDelete);
+    
+    if (!goalToDelete) {
+      console.warn('Store: Goal not found for deletion:', id);
+      return;
+    }
+    
+    const updatedGoals = state.financialGoals.filter(goal => goal.id !== id);
+    console.log('Store: Updated goals count:', updatedGoals.length, 'vs original:', state.financialGoals.length);
+    
     set((state) => ({
-      financialGoals: state.financialGoals.filter(goal => goal.id !== id),
+      financialGoals: updatedGoals,
     }));
+    
     get().saveData();
+    console.log('Store: Financial goal deleted and data saved');
   },
 
   loadData: async () => {

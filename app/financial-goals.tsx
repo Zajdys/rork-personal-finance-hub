@@ -111,10 +111,16 @@ export default function FinancialGoalsScreen() {
                     { 
                       text: 'Smazat', 
                       style: 'destructive',
-                      onPress: () => {
+                      onPress: async () => {
                         console.log('Deleting goal:', goal.id);
-                        deleteFinancialGoal(goal.id);
-                        Alert.alert('Úspěch! 🗑️', `Cíl "${goal.title}" byl smazán.`);
+                        try {
+                          deleteFinancialGoal(goal.id);
+                          console.log('Goal deleted successfully');
+                          Alert.alert('Úspěch! 🗑️', `Cíl "${goal.title}" byl smazán.`);
+                        } catch (error) {
+                          console.error('Error deleting goal:', error);
+                          Alert.alert('Chyba', 'Nepodařilo se smazat cíl. Zkus to znovu.');
+                        }
                       }
                     }
                   ]
