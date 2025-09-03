@@ -375,10 +375,7 @@ export default function InvestmentsScreen() {
       
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else if (char === ';' && !inQuotes) {
+      } else if ((char === ',' || char === ';' || char === '\t') && !inQuotes) {
         result.push(current.trim());
         current = '';
       } else {
@@ -387,30 +384,45 @@ export default function InvestmentsScreen() {
     }
     
     result.push(current.trim());
-    return result.map(field => field.replace(/^"|"$/g, ''));
+    return result.map(field => field.replace(/^"|"$/g, '').trim());
   };
 
   const detectBrokerFormat = (headers: string[], firstDataRow: string[]): string => {
     const headerStr = headers.join('|').toLowerCase();
     const dataStr = firstDataRow.join('|').toLowerCase();
     
-    // XTB detection
-    if (headerStr.includes('symbol') && headerStr.includes('side') && headerStr.includes('volume')) {
+    console.log('Detecting format from headers:', headerStr);
+    console.log('First data row:', dataStr);
+    
+    // XTB detection - více variant
+    if ((headerStr.includes('symbol') || headerStr.includes('instrument')) && 
+        (headerStr.includes('side') || headerStr.includes('type')) && 
+        (headerStr.includes('volume') || headerStr.includes('quantity'))) {
       return 'XTB';
     }
     
-    // Trading212 detection
-    if (headerStr.includes('action') && headerStr.includes('ticker') && headerStr.includes('quantity')) {
+    // Trading212 detection - více variant
+    if ((headerStr.includes('action') || headerStr.includes('type')) && 
+        (headerStr.includes('ticker') || headerStr.includes('symbol')) && 
+        (headerStr.includes('quantity') || headerStr.includes('shares'))) {
       return 'Trading212';
     }
     
     // Anycoin detection
-    if (headerStr.includes('type') && headerStr.includes('amount') && (headerStr.includes('btc') || headerStr.includes('crypto'))) {
+    if (headerStr.includes('type') && headerStr.includes('amount') && 
+        (headerStr.includes('btc') || headerStr.includes('crypto') || headerStr.includes('coin'))) {
       return 'Anycoin';
     }
     
-    // Generic CSV detection
-    if (headerStr.includes('datum') || headerStr.includes('date')) {
+    // Obecné CSV s minimálními požadavky
+    if (headerStr.includes('datum') || headerStr.includes('date') || 
+        headerStr.includes('symbol') || headerStr.includes('ticker') ||
+        headerStr.includes('akcie') || headerStr.includes('stock')) {
+      return 'Generic';
+    }
+    
+    // Pokud má aspoň 3 sloupce, zkusíme generické parsování
+    if (headers.length >= 3) {
       return 'Generic';
     }
     
@@ -536,79 +548,227 @@ export default function InvestmentsScreen() {
 
   const parseGenericFormat = (rows: string[][]): Trade[] => {
     const trades: Trade[] = [];
-    const headers = rows[0].map(h => h.toLowerCase());
+    const headers = rows[0].map(h => h.toLowerCase().trim());
     
-    // Pokus o automatickou detekci sloupců
+    console.log('Generic parsing - headers:', headers);
+    
+    // Pokus o automatickou detekci sloupců s více variantami
     const symbolIndex = headers.findIndex(h => 
-      h.includes('symbol') || h.includes('ticker') || h.includes('akcie') || h.includes('instrument')
+      h.includes('symbol') || h.includes('ticker') || h.includes('akcie') || 
+      h.includes('instrument') || h.includes('název') || h.includes('name') ||
+      h.includes('stock') || h.includes('etf')
     );
     const typeIndex = headers.findIndex(h => 
-      h.includes('type') || h.includes('action') || h.includes('side') || h.includes('typ')
+      h.includes('type') || h.includes('action') || h.includes('side') || 
+      h.includes('typ') || h.includes('operace') || h.includes('transaction')
     );
     const amountIndex = headers.findIndex(h => 
-      h.includes('amount') || h.includes('quantity') || h.includes('volume') || h.includes('množství')
+      h.includes('amount') || h.includes('quantity') || h.includes('volume') || 
+      h.includes('množství') || h.includes('počet') || h.includes('shares') ||
+      h.includes('ks') || h.includes('kusy')
     );
     const priceIndex = headers.findIndex(h => 
-      h.includes('price') || h.includes('cena')
+      h.includes('price') || h.includes('cena') || h.includes('rate') ||
+      h.includes('kurz') || h.includes('hodnota')
     );
     const dateIndex = headers.findIndex(h => 
-      h.includes('date') || h.includes('time') || h.includes('datum')
+      h.includes('date') || h.includes('time') || h.includes('datum') ||
+      h.includes('čas') || h.includes('when')
     );
+    const totalIndex = headers.findIndex(h => 
+      h.includes('total') || h.includes('value') || h.includes('celkem') ||
+      h.includes('suma') || h.includes('částka')
+    );
+    
+    console.log('Column indices:', {
+      symbol: symbolIndex,
+      type: typeIndex,
+      amount: amountIndex,
+      price: priceIndex,
+      date: dateIndex,
+      total: totalIndex
+    });
     
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      if (row.length < 3) continue;
+      if (row.length < 2) continue;
       
-      const symbol = row[symbolIndex] || row[0] || '';
-      const type = row[typeIndex] || row[1] || 'buy';
-      const amount = parseFloat(row[amountIndex] || row[2] || '0');
-      const price = parseFloat(row[priceIndex] || row[3] || '0');
-      const dateStr = row[dateIndex] || row[4] || '';
+      console.log(`Processing row ${i}:`, row);
       
-      if (symbol && amount > 0 && price > 0) {
+      // Flexibilnější přístup k získání hodnot
+      let symbol = '';
+      let type = 'buy';
+      let amount = 0;
+      let price = 0;
+      let dateStr = '';
+      let total = 0;
+      
+      // Symbol - zkusíme různé indexy
+      if (symbolIndex >= 0 && row[symbolIndex]) {
+        symbol = row[symbolIndex].trim();
+      } else {
+        // Hledáme první neprázdný řetězec, který vypadá jako symbol
+        for (let j = 0; j < Math.min(row.length, 3); j++) {
+          const candidate = row[j]?.trim() || '';
+          if (candidate && /^[A-Z]{1,5}$/.test(candidate.toUpperCase())) {
+            symbol = candidate;
+            break;
+          }
+        }
+      }
+      
+      // Type
+      if (typeIndex >= 0 && row[typeIndex]) {
+        type = row[typeIndex].toLowerCase().includes('sell') || 
+               row[typeIndex].toLowerCase().includes('prodej') ? 'sell' : 'buy';
+      }
+      
+      // Amount
+      if (amountIndex >= 0 && row[amountIndex]) {
+        amount = parseFloat(row[amountIndex].replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+      } else {
+        // Hledáme první číslo, které vypadá jako množství
+        for (let j = 1; j < Math.min(row.length, 5); j++) {
+          const candidate = parseFloat(row[j]?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
+          if (candidate > 0 && candidate < 10000) { // Rozumné množství akcií
+            amount = candidate;
+            break;
+          }
+        }
+      }
+      
+      // Price
+      if (priceIndex >= 0 && row[priceIndex]) {
+        price = parseFloat(row[priceIndex].replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+      } else {
+        // Hledáme číslo, které vypadá jako cena
+        for (let j = 1; j < row.length; j++) {
+          const candidate = parseFloat(row[j]?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
+          if (candidate > 10 && candidate < 1000000) { // Rozumná cena za akcii
+            price = candidate;
+            break;
+          }
+        }
+      }
+      
+      // Total value
+      if (totalIndex >= 0 && row[totalIndex]) {
+        total = parseFloat(row[totalIndex].replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+      }
+      
+      // Date
+      if (dateIndex >= 0 && row[dateIndex]) {
+        dateStr = row[dateIndex];
+      } else {
+        // Hledáme řetězec, který vypadá jako datum
+        for (let j = 0; j < row.length; j++) {
+          const candidate = row[j] || '';
+          if (candidate.match(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/) || 
+              candidate.match(/\d{4}[./-]\d{1,2}[./-]\d{1,2}/)) {
+            dateStr = candidate;
+            break;
+          }
+        }
+      }
+      
+      // Pokud nemáme total, vypočítáme ho
+      if (total === 0 && amount > 0 && price > 0) {
+        total = amount * price;
+      }
+      
+      console.log(`Parsed values:`, { symbol, type, amount, price, total, dateStr });
+      
+      // Validace - potřebujeme aspoň symbol a nějakou hodnotu
+      if (symbol && (amount > 0 || total > 0)) {
+        // Pokud nemáme amount ale máme total a price, vypočítáme amount
+        if (amount === 0 && total > 0 && price > 0) {
+          amount = total / price;
+        }
+        // Pokud nemáme price ale máme total a amount, vypočítáme price
+        if (price === 0 && total > 0 && amount > 0) {
+          price = total / amount;
+        }
+        // Pokud stále nemáme price, použijeme rozumnou defaultní hodnotu
+        if (price === 0) {
+          price = 100; // Default price
+        }
+        if (amount === 0) {
+          amount = 1; // Default amount
+        }
+        if (total === 0) {
+          total = amount * price;
+        }
+        
         trades.push({
           id: `${Date.now()}_${i}`,
-          type: type.toLowerCase().includes('sell') || type.toLowerCase().includes('prodej') ? 'sell' : 'buy',
+          type: type as 'buy' | 'sell',
           symbol: symbol.toUpperCase(),
           name: getCompanyName(symbol),
           amount: amount,
           price: price,
           date: parseDate(dateStr),
-          total: amount * price,
+          total: Math.abs(total),
         });
       }
     }
     
+    console.log(`Generic parsing result: ${trades.length} trades found`);
     return trades;
   };
 
   const parseDate = (dateStr: string): Date => {
-    if (!dateStr) return new Date();
+    if (!dateStr || dateStr.trim() === '') return new Date();
     
-    // Různé formáty datumu
+    const cleanDateStr = dateStr.trim();
+    
+    // Různé formáty datumu s více variantami
     const formats = [
-      /^(\d{4})-(\d{2})-(\d{2})/, // YYYY-MM-DD
-      /^(\d{2})\.(\d{2})\.(\d{4})/, // DD.MM.YYYY
-      /^(\d{2})\/(\d{2})\/(\d{4})/, // MM/DD/YYYY
-      /^(\d{4})\/(\d{2})\/(\d{2})/, // YYYY/MM/DD
+      { regex: /^(\d{4})-(\d{1,2})-(\d{1,2})/, type: 'YYYY-MM-DD' }, // YYYY-MM-DD
+      { regex: /^(\d{1,2})\.(\d{1,2})\.(\d{4})/, type: 'DD.MM.YYYY' }, // DD.MM.YYYY
+      { regex: /^(\d{1,2})\/(\d{1,2})\/(\d{4})/, type: 'DD/MM/YYYY' }, // DD/MM/YYYY (evropský)
+      { regex: /^(\d{4})\/(\d{1,2})\/(\d{1,2})/, type: 'YYYY/MM/DD' }, // YYYY/MM/DD
+      { regex: /^(\d{1,2})-(\d{1,2})-(\d{4})/, type: 'DD-MM-YYYY' }, // DD-MM-YYYY
+      { regex: /^(\d{4})\.(\d{1,2})\.(\d{1,2})/, type: 'YYYY.MM.DD' }, // YYYY.MM.DD
     ];
     
     for (const format of formats) {
-      const match = dateStr.match(format);
+      const match = cleanDateStr.match(format.regex);
       if (match) {
-        if (format.source.includes('YYYY-MM-DD')) {
-          return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
-        } else if (format.source.includes('DD.MM.YYYY')) {
-          return new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
-        } else if (format.source.includes('MM/DD/YYYY')) {
-          return new Date(parseInt(match[3]), parseInt(match[1]) - 1, parseInt(match[2]));
-        } else if (format.source.includes('YYYY/MM/DD')) {
-          return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+        const [, part1, part2, part3] = match;
+        const num1 = parseInt(part1);
+        const num2 = parseInt(part2);
+        const num3 = parseInt(part3);
+        
+        try {
+          switch (format.type) {
+            case 'YYYY-MM-DD':
+            case 'YYYY/MM/DD':
+            case 'YYYY.MM.DD':
+              return new Date(num1, num2 - 1, num3);
+            case 'DD.MM.YYYY':
+            case 'DD/MM/YYYY':
+            case 'DD-MM-YYYY':
+              return new Date(num3, num2 - 1, num1);
+          }
+        } catch (e) {
+          console.warn('Failed to parse date:', cleanDateStr, e);
         }
       }
     }
     
-    return new Date(dateStr) || new Date();
+    // Pokus o parsování pomocí Date konstruktoru
+    try {
+      const parsed = new Date(cleanDateStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse date with Date constructor:', cleanDateStr, e);
+    }
+    
+    // Fallback na současné datum
+    console.warn('Using current date as fallback for:', cleanDateStr);
+    return new Date();
   };
 
   const getCompanyName = (symbol: string): string => {
@@ -714,8 +874,18 @@ export default function InvestmentsScreen() {
       
       console.log('Parsed trades:', importedTrades.length);
       
+      console.log('Final imported trades count:', importedTrades.length);
+      
       if (importedTrades.length === 0) {
-        throw new Error('Nepodařilo se najít žádné platné obchody v souboru');
+        // Pokusíme se zobrazit více informací o problému
+        const sampleRows = rows.slice(0, 3).map((row, i) => `Řádek ${i}: ${row.join(' | ')}`).join('\n');
+        throw new Error(
+          `Nepodařilo se najít žádné platné obchody v souboru.\n\n` +
+          `Detekovaný formát: ${brokerFormat}\n` +
+          `Počet řádků: ${rows.length}\n` +
+          `Ukázka dat:\n${sampleRows}\n\n` +
+          `Zkontrolujte, zda soubor obsahuje správné sloupce s daty o obchodech.`
+        );
       }
       
       // Přidání obchodů do stavu
