@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,8 @@ import {
   Edit3,
   FileText,
 } from 'lucide-react-native';
+import { calculatePortfolioMetrics } from '@/services/financial-calculations';
+import { runAllTests } from '@/tests/financial-calculations.test';
 
 const { width } = Dimensions.get('window');
 
@@ -143,9 +145,14 @@ export default function InvestmentsScreen() {
     return acc;
   }, [] as any[]);
 
-  const totalValue = portfolioData.reduce((sum, item) => sum + Math.abs(item.amount), 0);
-  const totalChange = Math.random() * 1000 - 500; // Simulace změny
-  const totalChangePercent = totalValue > 0 ? (totalChange / totalValue) * 100 : 0;
+  // Vypočítáme portfolio metriky včetně TWR a XIRR
+  const portfolioMetrics = useMemo(() => {
+    return calculatePortfolioMetrics(trades);
+  }, [trades]);
+
+  const totalValue = portfolioMetrics.totalValue;
+  const totalChange = portfolioMetrics.totalReturns;
+  const totalChangePercent = portfolioMetrics.totalInvested > 0 ? (totalChange / portfolioMetrics.totalInvested) * 100 : 0;
 
   // Přidání procent pro každou položku portfolia
   portfolioData.forEach(item => {
@@ -1065,7 +1072,12 @@ export default function InvestmentsScreen() {
         
         <TouchableOpacity 
           style={styles.quickActionButton}
-          onPress={() => setShowAnalysisModal(true)}
+          onPress={() => {
+            // Spustíme testy při kliknutí na analýzu
+            console.log('🧪 Spouštím testy finančních výpočtů...');
+            runAllTests();
+            setShowAnalysisModal(true);
+          }}
         >
           <LinearGradient
             colors={['#F59E0B', '#D97706']}
@@ -1517,16 +1529,22 @@ export default function InvestmentsScreen() {
 
               <View style={styles.metricsContainer}>
                 <View style={styles.metricCard}>
-                  <Text style={styles.metricValue}>8.2%</Text>
-                  <Text style={styles.metricLabel}>Roční výnos</Text>
+                  <Text style={styles.metricValue}>
+                    {(portfolioMetrics.xirr * 100).toFixed(1)}%
+                  </Text>
+                  <Text style={styles.metricLabel}>XIRR (roční)</Text>
                 </View>
                 <View style={styles.metricCard}>
-                  <Text style={styles.metricValue}>15.4%</Text>
-                  <Text style={styles.metricLabel}>Volatilita</Text>
+                  <Text style={styles.metricValue}>
+                    {(portfolioMetrics.twr * 100).toFixed(1)}%
+                  </Text>
+                  <Text style={styles.metricLabel}>TWR (celkový)</Text>
                 </View>
                 <View style={styles.metricCard}>
-                  <Text style={styles.metricValue}>0.53</Text>
-                  <Text style={styles.metricLabel}>Sharpe ratio</Text>
+                  <Text style={styles.metricValue}>
+                    {portfolioMetrics.totalInvested.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })}
+                  </Text>
+                  <Text style={styles.metricLabel}>Investováno (Kč)</Text>
                 </View>
               </View>
 
