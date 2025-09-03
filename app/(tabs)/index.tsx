@@ -33,7 +33,7 @@ const { width } = Dimensions.get('window');
 export default function DashboardScreen() {
   const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses } = useFinanceStore();
   const { level, points, dailyTip } = useBuddyStore();
-  const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t } = useLanguageStore();
   const router = useRouter();
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
@@ -134,27 +134,29 @@ export default function DashboardScreen() {
         </View>
       </LinearGradient>
 
-      {/* Daily Tip */}
-      <View style={styles.tipContainer}>
-        <LinearGradient
-          colors={['#ffecd2', '#fcb69f']}
-          style={styles.tipGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-        >
-          <Lightbulb color="#F59E0B" size={24} />
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>{t('dailyTip')}</Text>
-            <Text style={styles.tipText}>{dailyTip}</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.chatButton}
-            onPress={() => router.push('/chat')}
+      {/* Daily Tip - pouze když jsou povolené */}
+      {notifications.dailyTips && (
+        <View style={styles.tipContainer}>
+          <LinearGradient
+            colors={['#ffecd2', '#fcb69f']}
+            style={styles.tipGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
           >
-            <MessageCircle color="#F59E0B" size={20} />
-          </TouchableOpacity>
-        </LinearGradient>
-      </View>
+            <Lightbulb color="#F59E0B" size={24} />
+            <View style={styles.tipContent}>
+              <Text style={styles.tipTitle}>{t('dailyTip')}</Text>
+              <Text style={styles.tipText}>{dailyTip}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.chatButton}
+              onPress={() => router.push('/chat')}
+            >
+              <MessageCircle color="#F59E0B" size={20} />
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      )}
 
       {/* Balance Overview */}
       <View style={styles.balanceContainer}>
