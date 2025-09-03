@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
   Edit3,
   Trash2,
   DollarSign,
-  Calendar,
+
   TrendingUp,
   PiggyBank,
   Car,
@@ -27,18 +27,9 @@ import {
   Fuel,
 } from 'lucide-react-native';
 import { Stack } from 'expo-router';
+import { useFinanceStore, FinancialGoal } from '@/store/finance-store';
 
-interface FinancialGoal {
-  id: string;
-  title: string;
-  targetAmount: number;
-  currentAmount: number;
-  category: string;
-  deadline: Date;
-  type: 'saving' | 'spending_limit';
-  icon: string;
-  color: string;
-}
+
 
 const GOAL_CATEGORIES = {
   'Bydlení': { icon: Home, color: '#8B5CF6' },
@@ -51,44 +42,18 @@ const GOAL_CATEGORIES = {
   'Ostatní': { icon: Target, color: '#6B7280' },
 };
 
-const SAMPLE_GOALS: FinancialGoal[] = [
-  {
-    id: '1',
-    title: 'Benzín do auta',
-    targetAmount: 4000,
-    currentAmount: 2800,
-    category: 'Benzín',
-    deadline: new Date(2024, 11, 31),
-    type: 'spending_limit',
-    icon: 'Fuel',
-    color: '#F59E0B',
-  },
-  {
-    id: '2',
-    title: 'Jídlo na měsíc',
-    targetAmount: 8200,
-    currentAmount: 6500,
-    category: 'Jídlo',
-    deadline: new Date(2024, 11, 31),
-    type: 'spending_limit',
-    icon: 'Utensils',
-    color: '#EF4444',
-  },
-  {
-    id: '3',
-    title: 'Dovolená',
-    targetAmount: 50000,
-    currentAmount: 32000,
-    category: 'Spoření',
-    deadline: new Date(2024, 5, 15),
-    type: 'saving',
-    icon: 'PiggyBank',
-    color: '#06B6D4',
-  },
-];
+
 
 export default function FinancialGoalsScreen() {
-  const [goals, setGoals] = useState<FinancialGoal[]>(SAMPLE_GOALS);
+  const { 
+    financialGoals: goals, 
+    addFinancialGoal, 
+    updateFinancialGoal, 
+    deleteFinancialGoal, 
+    loadData, 
+    isLoaded 
+  } = useFinanceStore();
+  
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingGoal, setEditingGoal] = useState<FinancialGoal | null>(null);
   const [goalTitle, setGoalTitle] = useState<string>('');
@@ -96,21 +61,28 @@ export default function FinancialGoalsScreen() {
   const [goalCategory, setGoalCategory] = useState<string>('Ostatní');
   const [goalType, setGoalType] = useState<'saving' | 'spending_limit'>('saving');
 
+  useEffect(() => {
+    if (!isLoaded) {
+      loadData();
+    }
+  }, [isLoaded, loadData]);
+
   const GoalCard = ({ goal }: { goal: FinancialGoal }) => {
     const progress = (goal.currentAmount / goal.targetAmount) * 100;
-    const IconComponent = GOAL_CATEGORIES[goal.category as keyof typeof GOAL_CATEGORIES]?.icon || Target;
+    const IconComponent = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.icon || Target;
     const isOverLimit = goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount;
+    const goalColor = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.color || '#6B7280';
     
     return (
       <View style={styles.goalCard}>
         <View style={styles.goalHeader}>
           <View style={styles.goalInfo}>
-            <View style={[styles.goalIcon, { backgroundColor: goal.color + '20' }]}>
-              <IconComponent color={goal.color} size={24} />
+            <View style={[styles.goalIcon, { backgroundColor: goalColor + '20' }]}>
+              <IconComponent color={goalColor} size={24} />
             </View>
             <View style={styles.goalDetails}>
               <Text style={styles.goalTitle}>{goal.title}</Text>
-              <Text style={styles.goalCategory}>{goal.category}</Text>
+              <Text style={styles.goalCategory}>{goal.category || 'Ostatní'}</Text>
             </View>
           </View>
           <View style={styles.goalActions}>
@@ -120,7 +92,7 @@ export default function FinancialGoalsScreen() {
                 setEditingGoal(goal);
                 setGoalTitle(goal.title);
                 setGoalAmount(goal.targetAmount.toString());
-                setGoalCategory(goal.category);
+                setGoalCategory(goal.category || 'Ostatní');
                 setGoalType(goal.type);
                 setShowAddModal(true);
               }}
@@ -141,11 +113,7 @@ export default function FinancialGoalsScreen() {
                       style: 'destructive',
                       onPress: () => {
                         console.log('Deleting goal:', goal.id);
-                        setGoals(prev => {
-                          const newGoals = prev.filter(g => g.id !== goal.id);
-                          console.log('Goals after deletion:', newGoals.length);
-                          return newGoals;
-                        });
+                        deleteFinancialGoal(goal.id);
                         Alert.alert('Úspěch! 🗑️', `Cíl "${goal.title}" byl smazán.`);
                       }
                     }
@@ -176,14 +144,14 @@ export default function FinancialGoalsScreen() {
                   styles.progressBar, 
                   { 
                     width: `${Math.min(progress, 100)}%`, 
-                    backgroundColor: isOverLimit ? '#EF4444' : goal.color
+                    backgroundColor: isOverLimit ? '#EF4444' : goalColor
                   }
                 ]} 
               />
             </View>
             <Text style={[
               styles.progressText,
-              { color: isOverLimit ? '#EF4444' : goal.color }
+              { color: isOverLimit ? '#EF4444' : goalColor }
             ]}>
               {Math.round(progress)}%
             </Text>
@@ -225,14 +193,12 @@ export default function FinancialGoalsScreen() {
       category: goalCategory,
       deadline: new Date(2024, 11, 31),
       type: goalType,
-      icon: goalCategory,
-      color: GOAL_CATEGORIES[goalCategory as keyof typeof GOAL_CATEGORIES]?.color || '#6B7280',
     };
 
     if (editingGoal) {
-      setGoals(prev => prev.map(g => g.id === editingGoal.id ? goalData : g));
+      updateFinancialGoal(editingGoal.id, goalData);
     } else {
-      setGoals(prev => [...prev, goalData]);
+      addFinancialGoal(goalData);
     }
 
     setGoalTitle('');
