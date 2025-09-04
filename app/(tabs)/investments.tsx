@@ -499,7 +499,7 @@ export default function InvestmentsScreen() {
       }
 
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain'],
+        type: ['text/csv', 'text/plain', 'text/*'],
         copyToCacheDirectory: true,
       });
 
@@ -1063,19 +1063,94 @@ export default function InvestmentsScreen() {
     try {
       console.log('Processing file:', selectedFile.name, selectedFile.mimeType);
       
+      // Kontrola typu souboru
+      const fileName = selectedFile.name.toLowerCase();
+      const isExcelFile = fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || 
+                         selectedFile.mimeType?.includes('spreadsheet') || 
+                         selectedFile.mimeType?.includes('excel');
+      
+      if (isExcelFile) {
+        // Excel soubory nejsou podporovány pro přímé čtení
+        throw new Error(
+          'Excel soubory (.xlsx, .xls) nejsou aktuálně podporovány.\n\n' +
+          'Prosím exportujte data z Excelu jako CSV soubor:\n' +
+          '1. Otevřete soubor v Excelu\n' +
+          '2. Klikněte na "Soubor" → "Uložit jako"\n' +
+          '3. Vyberte formát "CSV (oddělené čárkami)"\n' +
+          '4. Uložte a zkuste importovat znovu'
+        );
+      }
+      
       // Čtení souboru
       let fileContent = '';
       
       if (Platform.OS === 'web') {
         // Web implementace - čtení přes FileReader
-        const response = await fetch(selectedFile.uri);
-        fileContent = await response.text();
+        try {
+          const response = await fetch(selectedFile.uri);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          fileContent = await response.text();
+        } catch (fetchError) {
+          console.error('Web fetch error:', fetchError);
+          throw new Error('Nepodařilo se načíst soubor na webu. Zkuste jiný soubor nebo použijte mobilní aplikaci.');
+        }
       } else {
-        // Mobile implementace - čtení přes FileSystem
-        const FileSystem = require('expo-file-system');
-        fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        // Mobile implementace - čtení přes FileSystem s lepším error handlingem
+        try {
+          const FileSystem = require('expo-file-system');
+          
+          // Nejdříve zkontrolujeme, zda soubor existuje
+          const fileInfo = await FileSystem.getInfoAsync(selectedFile.uri);
+          console.log('File info:', fileInfo);
+          
+          if (!fileInfo.exists) {
+            throw new Error('Soubor nebyl nalezen. Zkuste vybrat soubor znovu.');
+          }
+          
+          if (fileInfo.size === 0) {
+            throw new Error('Soubor je prázdný.');
+          }
+          
+          // Pokusíme se číst soubor jako UTF-8 text
+          fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          
+          // Pokud je obsah prázdný, zkusíme jiné kódování
+          if (!fileContent || fileContent.trim().length === 0) {
+            console.log('UTF-8 reading failed, trying Base64...');
+            const base64Content = await FileSystem.readAsStringAsync(selectedFile.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            
+            // Pokusíme se dekódovat Base64 jako text
+            try {
+              fileContent = atob(base64Content);
+            } catch (decodeError) {
+              throw new Error('Soubor obsahuje neplatná data nebo není textový soubor.');
+            }
+          }
+          
+        } catch (fsError: any) {
+          console.error('FileSystem error:', fsError);
+          
+          if (fsError.message?.includes('not readable')) {
+            throw new Error(
+              'Soubor nelze přečíst. Možné příčiny:\n\n' +
+              '• Soubor je poškozený\n' +
+              '• Soubor je v nepodporovaném formátu\n' +
+              '• Soubor je příliš velký\n\n' +
+              'Zkuste:\n' +
+              '• Exportovat data jako CSV\n' +
+              '• Použít menší soubor\n' +
+              '• Zkontrolovat, že soubor obsahuje textová data'
+            );
+          }
+          
+          throw new Error(`Chyba při čtení souboru: ${fsError.message || 'Neznámá chyba'}`);
+        }
       }
       
       console.log('📄 File content length:', fileContent.length);
@@ -1998,8 +2073,9 @@ export default function InvestmentsScreen() {
                 <View style={styles.supportedFormatsContainer}>
                   <Text style={styles.supportedFormatsTitle}>Podporované formáty:</Text>
                   <Text style={styles.supportedFormatsText}>• CSV soubory (.csv)</Text>
-                  <Text style={styles.supportedFormatsText}>• Excel soubory (.xlsx, .xls)</Text>
                   <Text style={styles.supportedFormatsText}>• Textové soubory (.txt)</Text>
+                  <Text style={styles.supportedFormatsText}>• TSV soubory (oddělené tabulátory)</Text>
+                  <Text style={styles.supportedFormatsNote}>⚠️ Excel soubory (.xlsx) nejsou podporovány - exportujte jako CSV</Text>
                 </View>
 
                 <View style={styles.expectedDataContainer}>
@@ -2857,6 +2933,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     marginBottom: 4,
+  },
+  supportedFormatsNote: {
+    fontSize: 12,
+    color: '#F59E0B',
+    marginTop: 8,
+    fontWeight: '600',
   },
   expectedDataContainer: {
     alignSelf: 'stretch',
