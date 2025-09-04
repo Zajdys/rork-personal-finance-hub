@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -196,7 +197,10 @@ Kontextové informace o uživateli:
         {message.isUser ? (
           <User color="#667eea" size={16} />
         ) : (
-          <Bot color="#10B981" size={16} />
+          <Image 
+            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/i8pqfufwbqzz9xq46kmzx' }}
+            style={styles.moneyBuddyAvatar}
+          />
         )}
         <Text style={styles.messageAuthor}>
           {message.isUser ? 'Ty' : 'MoneyBuddy'}
@@ -245,7 +249,10 @@ Kontextové informace o uživateli:
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <Bot color="white" size={28} />
+          <Image 
+            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/i8pqfufwbqzz9xq46kmzx' }}
+            style={styles.headerMoneyBuddyAvatar}
+          />
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>MoneyBuddy</Text>
             <Text style={styles.headerSubtitle}>AI Finanční Poradce</Text>
@@ -518,5 +525,17 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  moneyBuddyAvatar: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  headerMoneyBuddyAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'white',
   },
 });
