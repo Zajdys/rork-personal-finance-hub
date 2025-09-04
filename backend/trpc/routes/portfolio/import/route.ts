@@ -27,6 +27,9 @@ export default publicProcedure
 
     for (const row of input.rows) {
       const tx = parseRow(String(input.broker), row.cols, input.baseCurrency);
+      if (!tx.isin) {
+        throw new Error("ISIN missing. Provide manual mapping.");
+      }
       const rawHash = await sha256(row.raw);
       try {
         await db.run(
@@ -50,7 +53,11 @@ export default publicProcedure
           ]
         );
         added += 1;
-      } catch (e) {
+      } catch (e: any) {
+        const msg = String(e?.message ?? "");
+        if (msg.includes("ISIN missing")) {
+          throw e;
+        }
         deduped += 1;
       }
     }
@@ -69,7 +76,7 @@ export default publicProcedure
           last_price: p.marketPrice ?? p.avgCost,
           fx: rate,
           market_value_czk: p.marketValueCZK,
-          percent: Math.round(((p.marketValueCZK / total) * 100) * 10) / 10,
+          percent: Math.round(((p.marketValueCZK / total) * 100) * 100) / 100,
         };
       })
     );

@@ -49,7 +49,8 @@ export async function recomputePositions(db: DB, userId: string, priceOverrides?
   const positions = buildPositionsFIFO(trades);
   const priceProvider = new StaticPriceProvider(priceOverrides);
   const fx = new StaticFxProvider(fxOverrides);
-  const enriched = await enrichWithMarket(positions, priceProvider, fx);
+  const valuationDate = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
+  const enriched = await enrichWithMarket(positions, priceProvider, fx, valuationDate);
 
   await db.run(`delete from positions where user_id = ?`, [userId]);
   for (const p of enriched) {

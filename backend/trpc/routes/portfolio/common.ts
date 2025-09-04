@@ -1,4 +1,5 @@
 import { z } from "zod";
+import Decimal from "decimal.js";
 
 export const CurrencySchema = z.enum(["CZK", "EUR", "USD", "GBP"]);
 export type Currency = z.infer<typeof CurrencySchema>;
@@ -44,7 +45,7 @@ export class StaticPriceProvider implements PriceProvider {
   constructor(map?: Record<string, number>) {
     this.map = map ?? {};
   }
-  async getPrice(key: string) {
+  async getPrice(key: string, _date?: Date) {
     return this.map[key] ?? undefined;
   }
   set(key: string, value: number) {
@@ -73,7 +74,7 @@ export class StaticFxProvider implements FxProvider {
   set(key: string, value: number) {
     this.table[key] = value;
   }
-  async getRate(from: Currency, to: Currency) {
+  async getRate(from: Currency, to: Currency, _date?: Date) {
     if (from === to) return 1;
     return this.table[`${from}_${to}`] ?? 1;
   }
@@ -101,7 +102,7 @@ export function instrumentKey(isin?: string | null, ticker?: string | null, symb
 }
 
 export function buildPositionsFIFO(trades: Trade[]): Position[] {
-  type Lot = { qty: number; costPerUnit: number };
+  type Lot = { qty: Decimal; costPerUnit: Decimal };
   const lotsByKey = new Map<string, Lot[]>();
   const metaByKey = new Map<string, { name: string; isin?: string; currency: Currency }>();
 
@@ -113,23 +114,26 @@ export function buildPositionsFIFO(trades: Trade[]): Position[] {
     const lots = lotsByKey.get(key)!;
 
     if (t.type === "split") {
-      const factor = t.qty !== 0 ? t.qty : 1;
-      lots.forEach((l) => (l.qty *= factor));
+      const factor = new Decimal(t.qty !== 0 ? t.qty : 1);
+      lots.forEach((l) => (l.qty = l.qty.mul(factor)));
       continue;
     }
 
     if (t.type === "buy") {
-      const totalCost = t.qty * t.price + (t.fee ?? 0);
-      const costPerUnit = totalCost / t.qty;
-      lots.push({ qty: t.qty, costPerUnit });
+      const qty = new Decimal(t.qty);
+      const price = new Decimal(t.price);
+      const fee = new Decimal(t.fee ?? 0);
+      const totalCost = qty.mul(price).add(fee);
+      const costPerUnit = totalCost.div(qty);
+      lots.push({ qty, costPerUnit });
     } else if (t.type === "sell") {
-      let remaining = t.qty;
-      while (remaining > 0 && lots.length) {
+      let remaining = new Decimal(t.qty);
+      while (remaining.gt(0) && lots.length) {
         const lot = lots[0];
-        const take = Math.min(remaining, lot.qty);
-        lot.qty -= take;
-        remaining -= take;
-        if (lot.qty <= 0.0000001) lots.shift();
+        const take = Decimal.min(remaining, lot.qty);
+        lot.qty = lot.qty.sub(take);
+        remaining = remaining.sub(take);
+        if (lot.qty.lte(new Decimal("0.00000001"))) lots.shift();
       }
     }
   }
@@ -137,34 +141,45 @@ export function buildPositionsFIFO(trades: Trade[]): Position[] {
   const positions: Position[] = [];
   for (const [key, lots] of lotsByKey.entries()) {
     const meta = metaByKey.get(key)!;
-    const qty = lots.reduce((s, l) => s + l.qty, 0);
-    if (qty <= 0) continue;
-    const totalCost = lots.reduce((s, l) => s + l.qty * l.costPerUnit, 0);
-    const avgCost = totalCost / qty;
+    const qtyD = lots.reduce((s, l) => s.add(l.qty), new Decimal(0));
+    if (qtyD.lte(0)) continue;
+    const totalCostD = lots.reduce((s, l) => s.add(l.qty.mul(l.costPerUnit)), new Decimal(0));
+    const avgCostD = totalCostD.div(qtyD);
+    const qty = Number(qtyD.toDecimalPlaces(8).toString());
+    const avgCost = Number(avgCostD.toDecimalPlaces(8).toString());
     positions.push({ symbol: key, name: meta.name, isin: meta.isin, qty, avgCost, currency: meta.currency, marketValueCZK: 0, unrealizedPnLCZK: 0 });
   }
   return positions;
 }
 
-export async function enrichWithMarket(positions: Position[], priceProvider: PriceProvider, fx: FxProvider): Promise<Position[]> {
+export async function enrichWithMarket(positions: Position[], priceProvider: PriceProvider, fx: FxProvider, valuationDate?: Date): Promise<Position[]> {
   const out: Position[] = [];
   for (const p of positions) {
-    const px = (await priceProvider.getPrice(p.isin ?? p.symbol)) ?? p.avgCost;
-    const rate = await fx.getRate(p.currency, "CZK");
-    const mvCzk = p.qty * px * rate;
-    const costCzk = p.qty * p.avgCost * rate;
-    out.push({ ...p, marketPrice: px, marketValueCZK: mvCzk, unrealizedPnLCZK: mvCzk - costCzk });
+    const px = (await priceProvider.getPrice(p.isin ?? p.symbol, valuationDate)) ?? p.avgCost;
+    const rate = await fx.getRate(p.currency, "CZK", valuationDate);
+    const qtyD = new Decimal(p.qty);
+    const pxD = new Decimal(px);
+    const rateD = new Decimal(rate);
+    const mvCzkD = qtyD.mul(pxD).mul(rateD);
+    const costCzkD = qtyD.mul(new Decimal(p.avgCost)).mul(rateD);
+    const marketValueCZK = Number(mvCzkD.toDecimalPlaces(8).toString());
+    const unrealizedPnLCZK = Number(mvCzkD.sub(costCzkD).toDecimalPlaces(8).toString());
+    out.push({ ...p, marketPrice: Number(pxD.toDecimalPlaces(8).toString()), marketValueCZK, unrealizedPnLCZK });
   }
   return out;
 }
 
 export function calcAllocations(positions: Array<Position & { marketValueBase?: number }>) {
   const getMV = (p: Position & { marketValueBase?: number }) => (p as any).marketValueBase ?? p.marketValueCZK;
-  const total = positions.reduce((s, p) => s + getMV(p), 0) || 1;
-  const byInstrument = positions.map((p) => ({ key: p.symbol, label: p.name, percent: Math.round(((getMV(p) / total) * 100) * 10) / 10 }));
-  const byCurrencyMap = new Map<Currency, number>();
-  positions.forEach((p) => byCurrencyMap.set(p.currency, (byCurrencyMap.get(p.currency) ?? 0) + getMV(p)));
-  const byCurrency = Array.from(byCurrencyMap.entries()).map(([c, v]) => ({ key: c, label: c, percent: Math.round(((v / total) * 100) * 10) / 10 }));
+  const totalD = positions.reduce((s, p) => s.add(new Decimal(getMV(p))), new Decimal(0));
+  const total = totalD.eq(0) ? new Decimal(1) : totalD;
+  const byInstrument = positions.map((p) => {
+    const pct = new Decimal(getMV(p)).div(total).mul(100);
+    return { key: p.symbol, label: p.name, percent: Number(pct.toDecimalPlaces(2).toString()) };
+  });
+  const byCurrencyMap = new Map<Currency, Decimal>();
+  positions.forEach((p) => byCurrencyMap.set(p.currency, (byCurrencyMap.get(p.currency) ?? new Decimal(0)).add(new Decimal(getMV(p)))));
+  const byCurrency = Array.from(byCurrencyMap.entries()).map(([c, v]) => ({ key: c, label: c, percent: Number(v.div(total).mul(100).toDecimalPlaces(2).toString()) }));
   return { byInstrument, byCurrency };
 }
 
