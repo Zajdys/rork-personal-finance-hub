@@ -1,15 +1,19 @@
 import { Txn } from "./importCsv";
 
-// 1) změna počtu akcií podle typu akce
 export function sharesDelta(action: string | undefined, shares: number | null): number {
-  const s = shares ?? 0;
+  const s: number = shares ?? 0;
   const a = (action || "").toLowerCase();
   if (/buy/.test(a)) return +Math.abs(s);
   if (/sell/.test(a)) return -Math.abs(s);
   return 0;
 }
 
-// 2) aktuální držby po tickeru
+function parseTimeMs(t?: string): number | null {
+  if (!t) return null;
+  const ms = new Date(t).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
 export function buildPositions(txns: Txn[]) {
   type Pos = {
     ticker: string;
@@ -17,13 +21,14 @@ export function buildPositions(txns: Txn[]) {
     shares: number;
     lastPrice?: number | null;
     ccyPrice: string;
-    lastTime?: string;
+    lastTime?: number; // ms epoch
   };
   const pos = new Map<string, Pos>();
 
   for (const t of txns) {
     const key = (t.ticker || t.name || "N/A").trim();
     if (!key) continue;
+
     const d = sharesDelta(t.action, t.shares ?? null);
     if (!pos.has(key)) {
       pos.set(key, {
@@ -38,11 +43,13 @@ export function buildPositions(txns: Txn[]) {
     const p = pos.get(key)!;
     p.shares += d;
 
-    if (t.price != null && Number.isFinite(t.price)) {
-      if (!p.lastTime || (t.time && p.lastTime && t.time > p.lastTime) || (!p.lastTime && t.time)) {
-        p.lastPrice = t.price ?? null;
+    const price = t.price;
+    const tMs = parseTimeMs(t.time);
+    if (price != null && Number.isFinite(price) && tMs != null) {
+      if (!p.lastTime || tMs > p.lastTime) {
+        p.lastPrice = price;
         p.ccyPrice = t.ccyPrice || p.ccyPrice || "";
-        p.lastTime = t.time;
+        p.lastTime = tMs;
       }
     }
   }
@@ -50,15 +57,22 @@ export function buildPositions(txns: Txn[]) {
   return [...pos.values()].filter((p) => (p.shares ?? 0) > 0);
 }
 
-// 3) ocenění pozic a váhy – per měna (bez FX)
 export function valueAndWeightsByCurrency(txns: Txn[]) {
   const positions = buildPositions(txns);
 
   const valued = positions.map((p) => {
     const price = p.lastPrice ?? 0;
+    const hasPrice = p.lastPrice != null && Number.isFinite(p.lastPrice);
+    const mv = (p.shares ?? 0) * (hasPrice ? price : 0);
+    if (!hasPrice) {
+      console.warn("[positions.valueAndWeightsByCurrency] Missing last price for ticker; weight set to 0", {
+        ticker: p.ticker,
+      });
+    }
     return {
       ...p,
-      marketValue: (p.shares ?? 0) * price,
+      marketValue: mv,
+      missingPrice: !hasPrice,
     } as const;
   });
 
@@ -69,7 +83,7 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
     cashByCcy.set(c, (cashByCcy.get(c) ?? 0) + amt);
   }
 
-  type Row = { label: string; ccy: string; value: number; weightPct: number };
+  type Row = { label: string; ccy: string; value: number; weightPct: number; missingPrice?: boolean };
   const out: Row[] = [];
 
   const byCcy = new Map<string, number>();
@@ -85,7 +99,7 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
   for (const v of valued) {
     const total = totals.get(v.ccyPrice || "") ?? 0;
     const w = total ? (v.marketValue / total) * 100 : 0;
-    out.push({ label: v.ticker, ccy: v.ccyPrice || "", value: v.marketValue, weightPct: w });
+    out.push({ label: v.ticker, ccy: v.ccyPrice || "", value: v.marketValue, weightPct: w, missingPrice: v.missingPrice });
   }
   for (const [ccy, cash] of cashByCcy.entries()) {
     const total = totals.get(ccy) ?? 0;
