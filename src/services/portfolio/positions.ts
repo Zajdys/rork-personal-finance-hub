@@ -51,7 +51,6 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
     stale: p.lastPriceSource !== 'quote' && (p.lastPrice ?? null) !== null,
   }));
 
-  // CASH po měnách (podle měny Amount)
   const cashByCcy = new Map<string, number>();
   for (const t of txns) {
     const ccy = t.ccyAmount || "";
@@ -59,7 +58,6 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
     cashByCcy.set(ccy, (cashByCcy.get(ccy) ?? 0) + net);
   }
 
-  // celkové součty po měně: pozice (měna ceny) + cash (měna amount)
   const totalByCcy = new Map<string, number>();
   for (const v of valued) {
     const c = v.ccyPrice || "";
@@ -80,6 +78,25 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
   }
 
   return rows.sort((a,b)=> a.ccy.localeCompare(b.ccy) || b.weightPct - a.weightPct);
+}
+
+export function logWeightsCheck(txns: Txn[], tolerance: number = 0.01) {
+  const rows = valueAndWeightsByCurrency(txns);
+  console.table(rows);
+  const sums = new Map<string, number>();
+  for (const r of rows) {
+    const c = r.ccy || "";
+    sums.set(c, (sums.get(c) ?? 0) + r.weightPct);
+  }
+  for (const [ccy, sum] of sums) {
+    const diff = Math.abs(sum - 100);
+    if (diff > tolerance) {
+      console.warn(`[weights] Sum for ${ccy} = ${sum.toFixed(6)}% (Δ ${diff.toFixed(6)} > tol ${tolerance})`);
+    } else {
+      console.log(`[weights] Sum for ${ccy} OK: ${sum.toFixed(6)}%`);
+    }
+  }
+  return rows;
 }
 
 // váhy převedené do base měny po FX konverzi po výpočtu hodnot
