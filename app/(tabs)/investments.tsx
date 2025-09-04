@@ -31,6 +31,7 @@ import {
   FileText,
 } from 'lucide-react-native';
 import { calculatePortfolioMetrics } from '@/services/financial-calculations';
+import { mapRow, Txn } from '@/src/services/portfolio/importCsv';
 import { runAllTests } from '@/tests/financial-calculations.test';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
 
@@ -1431,9 +1432,75 @@ export default function InvestmentsScreen() {
         case 'XTB':
           importedTrades = parseXTBFormat(rows);
           break;
-        case 'Trading212':
-          importedTrades = parseTrading212Format(rows);
+        case 'Trading212': {
+          const headers = rows[0];
+          const warnings: string[] = [];
+          const trades: Trade[] = [];
+
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
+
+            const raw: Record<string, string | undefined> = {};
+            for (let c = 0; c < headers.length; c++) {
+              const key = headers[c]?.trim();
+              if (key) raw[key] = row[c];
+            }
+
+            try {
+              const txn: Txn = mapRow(raw);
+              const action = (txn.action || '').toLowerCase();
+
+              const hasCurrency = !!((txn.ccyAmount && txn.ccyAmount.trim()) || (txn.ccyPrice && txn.ccyPrice.trim()));
+              const isCashflow = /withdrawal|deposit|interest|dividend/.test(action);
+
+              if (!hasCurrency) {
+                warnings.push(`Řádek ${i + 1}: neznámá měna – přeskočeno`);
+                continue;
+              }
+
+              if (isCashflow) {
+                if (txn.amount == null) {
+                  warnings.push(`Řádek ${i + 1}: nečíselná částka u cashflow – přeskočeno`);
+                }
+                // Cashflow zatím do Trades nenačítáme – pouze validujeme a přeskočíme
+                continue;
+              }
+
+              const shares = txn.shares ?? null;
+              const price = txn.price ?? null;
+              const ticker = txn.ticker ?? txn.name ?? '';
+
+              if (!ticker || shares == null || price == null) {
+                warnings.push(`Řádek ${i + 1}: chybí ticker/počet/cena – přeskočeno`);
+                continue;
+              }
+
+              const tradeType: 'buy' | 'sell' = action.includes('sell') ? 'sell' : 'buy';
+              const total = Math.abs(shares * price);
+
+              trades.push({
+                id: `${Date.now()}_${i}`,
+                type: tradeType,
+                symbol: (txn.ticker || ticker).toUpperCase(),
+                name: txn.name || ticker,
+                amount: shares,
+                price: price,
+                date: txn.time ? new Date(txn.time) : new Date(),
+                total,
+              });
+            } catch (e) {
+              warnings.push(`Řádek ${i + 1}: chyba mapování – přeskočeno`);
+              continue;
+            }
+          }
+
+          importedTrades = trades;
+          if (warnings.length) {
+            Alert.alert('Upozornění při importu', `${warnings.length} řádků bylo přeskočeno.\n\n` + warnings.slice(0, 10).join('\n'));
+          }
           break;
+        }
         case 'Degiro':
           importedTrades = parseDegiroFormat(rows);
           break;

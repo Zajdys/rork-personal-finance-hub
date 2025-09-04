@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,26 @@ export default function MonthlyReportScreen() {
   
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [report, setReport] = useState<MonthlyReport>(getCurrentMonthReport());
+
+  const prevMonth = useMemo(() => {
+    const d = new Date(selectedMonth + '-01');
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 7);
+  }, [selectedMonth]);
+
+  const prevReport = useMemo<MonthlyReport>(() => generateMonthlyReport(prevMonth), [generateMonthlyReport, prevMonth]);
+
+  const mom = useMemo(() => {
+    const pct = (curr: number, prev: number) => {
+      if (!prev || prev === 0) return null;
+      return ((curr - prev) / prev) * 100;
+    };
+    return {
+      income: pct(report.totalIncome, prevReport.totalIncome),
+      expenses: pct(report.totalExpenses, prevReport.totalExpenses),
+      balance: pct(report.balance, prevReport.balance),
+    } as { income: number | null; expenses: number | null; balance: number | null };
+  }, [report, prevReport]);
 
   const styles = getStyles(isDarkMode);
 
@@ -93,6 +113,9 @@ export default function MonthlyReportScreen() {
             <Text style={[styles.summaryAmount, { color: '#10B981' }]}>
               {formatAmount(report.totalIncome)}
             </Text>
+            <Text style={[styles.momText, { color: mom.income != null ? (mom.income >= 0 ? '#10B981' : '#EF4444') : (isDarkMode ? '#9CA3AF' : '#6B7280') }]}>
+              {mom.income == null ? '—' : `${mom.income >= 0 ? '+' : ''}${mom.income.toFixed(1)}% MoM`}
+            </Text>
           </View>
           
           <View style={[styles.summaryCard, styles.expenseCard]}>
@@ -100,6 +123,9 @@ export default function MonthlyReportScreen() {
             <Text style={styles.summaryLabel}>Výdaje</Text>
             <Text style={[styles.summaryAmount, { color: '#EF4444' }]}>
               {formatAmount(report.totalExpenses)}
+            </Text>
+            <Text style={[styles.momText, { color: mom.expenses != null ? (mom.expenses <= 0 ? '#10B981' : '#EF4444') : (isDarkMode ? '#9CA3AF' : '#6B7280') }]}>
+              {mom.expenses == null ? '—' : `${mom.expenses >= 0 ? '+' : ''}${mom.expenses.toFixed(1)}% MoM`}
             </Text>
           </View>
           
@@ -111,6 +137,9 @@ export default function MonthlyReportScreen() {
               { color: report.balance >= 0 ? '#10B981' : '#EF4444' }
             ]}>
               {formatAmount(report.balance)}
+            </Text>
+            <Text style={[styles.momText, { color: mom.balance != null ? (mom.balance >= 0 ? '#10B981' : '#EF4444') : (isDarkMode ? '#9CA3AF' : '#6B7280') }]}>
+              {mom.balance == null ? '—' : `${mom.balance >= 0 ? '+' : ''}${mom.balance.toFixed(1)}% MoM`}
             </Text>
           </View>
         </View>
@@ -240,6 +269,11 @@ const getStyles = (isDarkMode: boolean) => StyleSheet.create({
   summaryAmount: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  momText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
   },
   savingsRateContainer: {
     paddingHorizontal: 16,
