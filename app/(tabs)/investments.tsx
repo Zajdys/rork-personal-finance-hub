@@ -172,12 +172,16 @@ export default function InvestmentsScreen() {
       const currentPrice = item.avgPrice * (1 + priceChange);
       const currentValue = item.shares * currentPrice;
       
+      // Správný výpočet zisku/ztráty v procentech
+      const unrealizedPnL = currentValue - item.totalInvested;
+      const unrealizedPnLPercent = item.totalInvested > 0 ? (unrealizedPnL / item.totalInvested) * 100 : 0;
+      
       return {
         ...item,
         currentPrice,
         amount: currentValue,
-        unrealizedPnL: currentValue - item.totalInvested,
-        change: priceChange * 100, // Procentní změna
+        unrealizedPnL,
+        change: unrealizedPnLPercent, // Správné procento zisku/ztráty
       };
     });
     
@@ -218,11 +222,13 @@ export default function InvestmentsScreen() {
 
   // Přidání procent pro každou položku portfolia
   const portfolioDataWithPercentages = useMemo(() => {
+    const totalCurrentValue = portfolioData.reduce((sum, item) => sum + item.amount, 0);
+    
     return portfolioData.map(item => ({
       ...item,
-      percentage: totalValue > 0 ? Math.round((item.amount / totalValue) * 100) : 0
+      percentage: totalCurrentValue > 0 ? Math.round((item.amount / totalCurrentValue) * 100) : 0
     }));
-  }, [portfolioData, totalValue]);
+  }, [portfolioData]);
 
   // Funkce pro převod měny (simulace - v reálné aplikaci by se používaly aktuální kurzy)
   const convertCurrency = (amount: number, fromCurrency: Currency = 'CZK', toCurrency: Currency = currency): number => {
