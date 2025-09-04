@@ -1,7 +1,8 @@
 import { Txn, calcNetCash } from "./importCsv";
+import { getFxRates } from "../fx";
 
 // změna počtu kusů podle akce
-function sharesDelta(action: string | undefined, shares: number | null): number {
+function sharesDelta(action: string | undefined, shares: number | null | undefined): number {
   const s = shares ?? 0;
   const a = (action || "").toLowerCase();
   if (/buy/.test(a))  return +Math.abs(s);
@@ -10,16 +11,17 @@ function sharesDelta(action: string | undefined, shares: number | null): number 
 }
 
 // sestav aktuální držby a nejnovější cenu dle času
+export type Position = { key: string; name?: string; shares: number; lastPrice?: number | null; ccyPrice: string; lastTime?: string; lastPriceSource: 'quote' | 'txn' | 'none' };
+
 export function buildPositions(txns: Txn[]) {
-  type Pos = { key: string; name?: string; shares: number; lastPrice?: number|null; ccyPrice: string; lastTime?: string };
-  const pos = new Map<string, Pos>();
+  const pos = new Map<string, Position>();
 
   for (const t of txns) {
     const key = (t.ticker || t.name || "").trim();
     if (!key) continue;
 
     const d = sharesDelta(t.action, t.shares);
-    if (!pos.has(key)) pos.set(key, { key, name: t.name, shares: 0, lastPrice: null, ccyPrice: t.ccyPrice || "", lastTime: undefined });
+    if (!pos.has(key)) pos.set(key, { key, name: t.name, shares: 0, lastPrice: null, ccyPrice: t.ccyPrice || "", lastTime: undefined, lastPriceSource: 'none' });
     const p = pos.get(key)!;
     p.shares += d;
 
@@ -28,6 +30,7 @@ export function buildPositions(txns: Txn[]) {
         p.lastPrice = t.price!;
         p.ccyPrice = t.ccyPrice || p.ccyPrice || "";
         p.lastTime = t.time;
+        p.lastPriceSource = 'txn';
       }
     }
   }
@@ -36,13 +39,16 @@ export function buildPositions(txns: Txn[]) {
   return [...pos.values()].filter(p => p.shares > 0);
 }
 
+export type ValuedPosition = Position & { marketValue: number; stale: boolean };
+
 // ocenění a váhy v rámci každé měny (pozice + cash)
 export function valueAndWeightsByCurrency(txns: Txn[]) {
   const positions = buildPositions(txns);
 
-  const valued = positions.map(p => ({
+  const valued: ValuedPosition[] = positions.map(p => ({
     ...p,
-    marketValue: (p.lastPrice ?? 0) * p.shares, // v měně ceny
+    marketValue: (p.lastPrice ?? 0) * p.shares,
+    stale: p.lastPriceSource !== 'quote' && (p.lastPrice ?? null) !== null,
   }));
 
   // CASH po měnách (podle měny Amount)
@@ -63,10 +69,10 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
     totalByCcy.set(c, (totalByCcy.get(c) ?? 0) + csh);
   }
 
-  const rows: { ccy: string; label: string; value: number; weightPct: number }[] = [];
+  const rows: { ccy: string; label: string; value: number; weightPct: number; stale?: boolean }[] = [];
   for (const v of valued) {
     const total = totalByCcy.get(v.ccyPrice || "") ?? 0;
-    rows.push({ ccy: v.ccyPrice || "", label: v.key, value: v.marketValue, weightPct: total ? (v.marketValue / total) * 100 : 0 });
+    rows.push({ ccy: v.ccyPrice || "", label: v.key, value: v.marketValue, weightPct: total ? (v.marketValue / total) * 100 : 0, stale: v.stale });
   }
   for (const [ccy, csh] of cashByCcy.entries()) {
     const total = totalByCcy.get(ccy) ?? 0;
@@ -74,4 +80,31 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
   }
 
   return rows.sort((a,b)=> a.ccy.localeCompare(b.ccy) || b.weightPct - a.weightPct);
+}
+
+// váhy převedené do base měny po FX konverzi po výpočtu hodnot
+export async function valueAndWeightsInBase(txns: Txn[], baseCcy: string) {
+  console.log('[valueAndWeightsInBase] start', { baseCcy, txns: txns.length });
+  const perCcy = valueAndWeightsByCurrency(txns);
+  const fx = await getFxRates(baseCcy);
+  console.log('[valueAndWeightsInBase] fx', fx);
+
+  type Row = { ccy: string; label: string; value: number; valueBase: number; weightPct: number; stale?: boolean };
+  const rowsBase: Row[] = perCcy.map(r => {
+    const ccy = r.ccy || baseCcy;
+    const rate = ccy.toUpperCase() === baseCcy.toUpperCase() ? 1 : (fx.rates[ccy.toUpperCase()] ?? null);
+    let valueBase = r.value;
+    if (rate && rate > 0) {
+      valueBase = r.value / rate;
+    } else if (ccy && ccy.toUpperCase() !== baseCcy.toUpperCase()) {
+      console.warn('[FX] Missing rate for', ccy, '->', baseCcy, 'keeping nominal value');
+    }
+    return { ...r, valueBase } as Row;
+  });
+
+  const totalBase = rowsBase.reduce((s, r) => s + (r.valueBase ?? 0), 0);
+  const final = rowsBase.map(r => ({ ...r, weightPct: totalBase ? (r.valueBase / totalBase) * 100 : 0 }));
+  final.sort((a, b) => b.weightPct - a.weightPct);
+  console.table(final);
+  return final;
 }
