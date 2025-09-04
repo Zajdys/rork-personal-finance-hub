@@ -116,7 +116,7 @@ export default function AddTransactionScreen() {
       setImportError(null);
       setImporting(true);
       const res = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel'],
+        type: ['text/*', 'application/pdf', 'application/vnd.ms-excel', 'text/csv', 'text/comma-separated-values'],
         multiple: false,
         copyToCacheDirectory: true,
       });
@@ -130,11 +130,23 @@ export default function AddTransactionScreen() {
         setImporting(false);
         return;
       }
+
+      const mime = (asset as any).mimeType as string | undefined;
+      const name = asset.name ?? '';
+      const isPdf = (mime?.includes('pdf')) || /\.pdf$/i.test(name);
+
+      if (isPdf) {
+        console.log('Selected PDF bank statement:', { name, mime });
+        setImportError('PDF výpisy zatím nejsou podporované. V internetovém bankovnictví prosím vyexportujte výpis jako CSV a zkuste to znovu.');
+        setImporting(false);
+        return;
+      }
+
       const text = await readUriText(asset.uri);
       const parsed = parseBankCsvToTransactions(text);
-      console.log('Bank CSV parsed count:', parsed.length);
+      console.log('Bank statement parsed count:', parsed.length);
       if (!parsed.length) {
-        setImportError('V souboru jsme nenašli žádné čitelné transakce.');
+        setImportError('V souboru jsme nenašli žádné čitelné transakce. Zkuste jiný formát CSV.');
       } else {
         setPreview(parsed);
         setPreviewOpen(true);
@@ -270,7 +282,7 @@ export default function AddTransactionScreen() {
               {importing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.importText}>Import z bankovního výpisu (CSV)</Text>
+                <Text style={styles.importText}>Import z bankovního výpisu (CSV/PDF)</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
