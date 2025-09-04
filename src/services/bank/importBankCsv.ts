@@ -199,3 +199,118 @@ export async function readUriText(uri: string): Promise<string> {
     throw e;
   }
 }
+
+function unescapePdfString(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "\\") {
+      const next = s[i + 1];
+      if (next === "n") { out += "\n"; i++; continue; }
+      if (next === "r") { out += "\r"; i++; continue; }
+      if (next === "t") { out += "\t"; i++; continue; }
+      if (next === "b") { out += "\b"; i++; continue; }
+      if (next === "f") { out += "\f"; i++; continue; }
+      if (next === "\\" || next === "(" || next === ")") { out += next; i++; continue; }
+      out += next; i++; continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function extractTextFromPdfRaw(raw: string): string {
+  try {
+    const parts: string[] = [];
+    const tjRe = /\((?:\\.|[^\\])*?\)\s*Tj/gm;
+    const tjArrayRe = /\[((?:\s*\((?:\\.|[^\\])*?\)\s*|\s*-?\d+\s*)+)\]\s*TJ/gm;
+
+    let m: RegExpExecArray | null;
+    while ((m = tjRe.exec(raw)) !== null) {
+      const inner = m[0].replace(/\)\s*Tj$/, "").slice(1);
+      parts.push(unescapePdfString(inner));
+    }
+    while ((m = tjArrayRe.exec(raw)) !== null) {
+      const arr = m[1];
+      const sub = [...arr.matchAll(/\((?:\\.|[^\\])*?\)/gm)].map(s => unescapePdfString(s[0].slice(1, -1))).join("");
+      parts.push(sub);
+    }
+
+    const text = parts.join("\n");
+    return text;
+  } catch (e) {
+    console.error('extractTextFromPdfRaw error', e);
+    return "";
+  }
+}
+
+export async function readPdfText(uri: string): Promise<string> {
+  try {
+    if (Platform.OS === 'web') {
+      const res = await fetch(uri);
+      const buf = await res.arrayBuffer();
+      const raw = new TextDecoder('latin1').decode(new Uint8Array(buf));
+      const text = extractTextFromPdfRaw(raw);
+      return text;
+    } else {
+      const FS = await import('expo-file-system');
+      const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+      const binary = decodeBase64Latin1(b64);
+      const text = extractTextFromPdfRaw(binary);
+      return text;
+    }
+  } catch (e) {
+    console.error('readPdfText error', e);
+    throw e;
+  }
+}
+
+function decodeBase64Latin1(b64: string): string {
+  try {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    let output = '';
+    let buffer = 0;
+    let bits = 0;
+    for (let i = 0; i < b64.length; i++) {
+      const c = chars.indexOf(b64[i]);
+      if (c < 0) continue;
+      buffer = (buffer << 6) | c;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        const byte = (buffer >> bits) & 0xff;
+        output += String.fromCharCode(byte);
+      }
+    }
+    return output;
+  } catch (e) {
+    console.error('decodeBase64Latin1 error', e);
+    return '';
+  }
+}
+
+export function parseBankPdfTextToTransactions(text: string): ParsedTxn[] {
+  try {
+    const lines = text.split(/\r?\n+/).map(l => l.trim()).filter(l => l.length > 0);
+    const out: ParsedTxn[] = [];
+    const dateRe = /(\d{1,2}[\.\/-]\d{1,2}[\.\/-]\d{2,4})/;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!dateRe.test(line)) continue;
+      const dateStr = (line.match(dateRe)?.[1]) ?? '';
+      const date = parseDateFlexible(dateStr) ?? null;
+      const amtMatch = line.match(/([+-]?\s?\d{1,3}(?:[\s\u00A0]?\d{3})*(?:[\.,]\d{1,2})?)\s?(Kč|CZK|EUR|USD)?/i);
+      const amtNum = toNum(amtMatch?.[1] ?? '');
+      if (!date || amtNum == null) continue;
+      const title = line.replace(dateRe, '').replace(amtMatch?.[0] ?? '', '').replace(/\s{2,}/g, ' ').trim() || 'Transakce';
+      const type: 'income' | 'expense' = (amtNum ?? 0) < 0 ? 'expense' : 'income';
+      const amount = Math.abs(amtNum ?? 0);
+      const category = guessCategory(title.toLowerCase(), type);
+      out.push({ type, amount, title, category, date });
+    }
+    return out;
+  } catch (e) {
+    console.error('parseBankPdfTextToTransactions error', e);
+    return [];
+  }
+}

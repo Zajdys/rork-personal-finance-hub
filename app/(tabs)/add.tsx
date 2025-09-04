@@ -27,7 +27,7 @@ import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/store/
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import * as DocumentPicker from 'expo-document-picker';
-import { parseBankCsvToTransactions, readUriText, ParsedTxn } from '../../src/services/bank/importBankCsv';
+import { parseBankCsvToTransactions, readUriText, readPdfText, parseBankPdfTextToTransactions, ParsedTxn } from '../../src/services/bank/importBankCsv';
 
 const EXPENSE_CATEGORY_ICONS = {
   'Jídlo a nápoje': Coffee,
@@ -137,7 +137,20 @@ export default function AddTransactionScreen() {
 
       if (isPdf) {
         console.log('Selected PDF bank statement:', { name, mime });
-        setImportError('PDF výpisy zatím nejsou podporované. V internetovém bankovnictví prosím vyexportujte výpis jako CSV a zkuste to znovu.');
+        try {
+          const pdfText = await readPdfText(asset.uri);
+          const parsedFromPdf = parseBankPdfTextToTransactions(pdfText);
+          console.log('PDF parsed count:', parsedFromPdf.length);
+          if (!parsedFromPdf.length) {
+            setImportError('PDF se podařilo načíst, ale nenašli jsme žádné transakce. Zkuste prosím CSV.');
+          } else {
+            setPreview(parsedFromPdf);
+            setPreviewOpen(true);
+          }
+        } catch (err) {
+          console.error('PDF parse error', err);
+          setImportError('Nepodařilo se přečíst PDF výpis. Zkuste prosím CSV.');
+        }
         setImporting(false);
         return;
       }
