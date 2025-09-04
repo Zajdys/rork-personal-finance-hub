@@ -127,7 +127,11 @@ export default function InvestmentsScreen() {
 
   // Výpočet portfolia z obchodů - pouze aktuálně držené pozice
   const portfolioData = useMemo(() => {
+    console.log('🔄 Recalculating portfolio from trades:', trades.length);
+    
     const positions = trades.reduce((acc, trade) => {
+      console.log(`Processing trade: ${trade.type} ${trade.amount} ${trade.symbol} @ ${trade.price} = ${trade.total}`);
+      
       const existing = acc.find(item => item.symbol === trade.symbol);
       if (existing) {
         if (trade.type === 'buy') {
@@ -137,6 +141,7 @@ export default function InvestmentsScreen() {
           existing.totalInvested = newTotalInvested;
           existing.shares = newTotalShares;
           existing.avgPrice = newTotalInvested / newTotalShares;
+          console.log(`Updated ${trade.symbol}: ${newTotalShares} shares, avg price ${existing.avgPrice.toFixed(2)}, invested ${newTotalInvested}`);
         } else {
           // Při prodeji: snížíme počet akcií a upravíme investovanou částku
           const soldShares = Math.min(trade.amount, existing.shares);
@@ -144,11 +149,12 @@ export default function InvestmentsScreen() {
           existing.shares -= soldShares;
           existing.totalInvested -= soldInvestment;
           existing.realizedPnL += trade.total - soldInvestment;
+          console.log(`Sold ${soldShares} ${trade.symbol}: remaining ${existing.shares} shares, realized P&L ${existing.realizedPnL}`);
         }
       } else {
         // Nová pozice
         if (trade.type === 'buy') {
-          acc.push({
+          const newPosition = {
             symbol: trade.symbol,
             name: trade.name,
             totalInvested: trade.total,
@@ -156,14 +162,22 @@ export default function InvestmentsScreen() {
             avgPrice: trade.price,
             realizedPnL: 0,
             color: SUGGESTED_INVESTMENTS.find(s => s.symbol === trade.symbol)?.color || '#6B7280',
-          });
+          };
+          acc.push(newPosition);
+          console.log(`New position ${trade.symbol}: ${trade.amount} shares @ ${trade.price}`);
         }
         // Prodej bez předchozího nákupu ignorujeme (short selling není podporován)
       }
       return acc;
     }, [] as any[])
     // Filtrujeme pouze pozice s kladným počtem akcií (aktuálně držené)
-    .filter(item => item.shares > 0)
+    .filter(item => {
+      const hasShares = item.shares > 0;
+      if (!hasShares) {
+        console.log(`Filtering out ${item.symbol}: no shares remaining`);
+      }
+      return hasShares;
+    })
     // Přidáme aktuální hodnotu pozice s konzistentní simulací
     .map((item, index) => {
       // Používáme deterministickou simulaci založenou na symbolu pro konzistentní výsledky
@@ -176,15 +190,18 @@ export default function InvestmentsScreen() {
       const unrealizedPnL = currentValue - item.totalInvested;
       const unrealizedPnLPercent = item.totalInvested > 0 ? (unrealizedPnL / item.totalInvested) * 100 : 0;
       
+      console.log(`${item.symbol}: ${item.shares} shares @ ${currentPrice.toFixed(2)} = ${currentValue.toFixed(2)} (${unrealizedPnLPercent.toFixed(2)}%)`);
+      
       return {
         ...item,
-        currentPrice,
-        amount: currentValue,
-        unrealizedPnL,
-        change: unrealizedPnLPercent, // Správné procento zisku/ztráty
+        currentPrice: Math.round(currentPrice * 100) / 100,
+        amount: Math.round(currentValue * 100) / 100,
+        unrealizedPnL: Math.round(unrealizedPnL * 100) / 100,
+        change: Math.round(unrealizedPnLPercent * 100) / 100, // Správné procento zisku/ztráty
       };
     });
     
+    console.log('📊 Final portfolio positions:', positions.length);
     return positions;
   }, [trades]);
 
@@ -222,6 +239,8 @@ export default function InvestmentsScreen() {
 
   // Přidání procent pro každou položku portfolia - opravený výpočet
   const portfolioDataWithPercentages = useMemo(() => {
+    if (portfolioData.length === 0) return [];
+    
     // Používáme aktuální hodnotu pozic (item.amount) pro výpočet procent
     const totalCurrentValue = portfolioData.reduce((sum, item) => sum + (item.amount || 0), 0);
     
@@ -686,7 +705,10 @@ export default function InvestmentsScreen() {
     if (!value || typeof value !== 'string') return 0;
     
     // Odstranění všech nečíselných znaků kromě čárek, teček a znamének
-    let cleaned = value.replace(/[^0-9.,-]/g, '');
+    let cleaned = value.trim().replace(/[^0-9.,-]/g, '');
+    
+    // Pokud je prázdný po čištění, vrátíme 0
+    if (!cleaned) return 0;
     
     // Pokud obsahuje čárku i tečku, určíme který je desetinný oddělovač
     if (cleaned.includes(',') && cleaned.includes('.')) {
@@ -694,27 +716,27 @@ export default function InvestmentsScreen() {
       const lastDot = cleaned.lastIndexOf('.');
       
       if (lastComma > lastDot) {
-        // Čárka je desetinný oddělovač
+        // Čárka je desetinný oddělovač (evropský formát: 1.234,56)
         cleaned = cleaned.replace(/\./g, '').replace(',', '.');
       } else {
-        // Tečka je desetinný oddělovač
+        // Tečka je desetinný oddělovač (americký formát: 1,234.56)
         cleaned = cleaned.replace(/,/g, '');
       }
     } else if (cleaned.includes(',')) {
-      // Pouze čárka - může být tisícový nebo desetinný oddělovač
+      // Pouze čárka - rozlišíme podle pozice a délky
       const parts = cleaned.split(',');
-      if (parts.length === 2 && parts[1].length <= 2) {
-        // Pravděpodobně desetinný oddělovač
+      if (parts.length === 2 && parts[1].length <= 3 && parts[1].length > 0) {
+        // Pravděpodobně desetinný oddělovač (např. 123,45)
         cleaned = cleaned.replace(',', '.');
       } else {
-        // Pravděpodobně tisícový oddělovač
+        // Pravděpodobně tisícový oddělovač (např. 1,234 nebo 12,345)
         cleaned = cleaned.replace(/,/g, '');
       }
     }
     
     const result = parseFloat(cleaned) || 0;
     console.log(`parseNumber: "${value}" -> "${cleaned}" -> ${result}`);
-    return result;
+    return Math.abs(result); // Vždy vrátíme kladné číslo
   };
 
   const parseGenericFormat = (rows: string[][]): Trade[] => {
@@ -811,46 +833,57 @@ export default function InvestmentsScreen() {
         }
       }
       
-      // Amount - vylepšené parsování čísel
+      // Inteligentní parsování číselných hodnot
+      const numericValues: { value: number; index: number; type: 'amount' | 'price' | 'total' }[] = [];
+      
+      // Projdeme všechny sloupce a najdeme číselné hodnoty
+      for (let j = 1; j < row.length; j++) {
+        const candidate = parseNumber(row[j] || '0');
+        if (candidate > 0) {
+          numericValues.push({ value: candidate, index: j, type: 'amount' });
+        }
+      }
+      
+      console.log(`Row ${i} numeric values:`, numericValues);
+      
+      // Amount - priorita: explicitní index, pak heuristika
       if (amountIndex >= 0 && row[amountIndex]) {
         amount = parseNumber(row[amountIndex]);
       } else {
-        // Hledáme první číslo, které vypadá jako množství
-        for (let j = 1; j < Math.min(row.length, 6); j++) {
-          const candidate = parseNumber(row[j] || '0');
-          if (candidate > 0 && candidate < 100000) { // Rozumné množství akcií
-            amount = candidate;
-            break;
-          }
+        // Hledáme hodnotu, která vypadá jako počet akcií (obvykle menší číslo)
+        const amountCandidates = numericValues.filter(v => 
+          v.value > 0 && v.value < 10000 && // Rozumný počet akcií
+          !Number.isInteger(v.value) === false || v.value < 1000 // Preferujeme celá čísla nebo malá čísla
+        );
+        if (amountCandidates.length > 0) {
+          amount = amountCandidates[0].value;
         }
       }
       
-      // Price - vylepšené parsování čísel
+      // Price - priorita: explicitní index, pak heuristika
       if (priceIndex >= 0 && row[priceIndex]) {
         price = parseNumber(row[priceIndex]);
       } else {
-        // Hledáme číslo, které vypadá jako cena
-        for (let j = 1; j < row.length; j++) {
-          const candidate = parseNumber(row[j] || '0');
-          if (candidate > 0.01 && candidate < 10000000) { // Rozumná cena za akcii
-            // Pokud už máme amount, zkontrolujeme jestli to dává smysl
-            if (amount > 0) {
-              const potentialTotal = candidate * amount;
-              if (potentialTotal > 10 && potentialTotal < 100000000) {
-                price = candidate;
-                break;
-              }
-            } else {
-              price = candidate;
-              break;
-            }
-          }
+        // Hledáme hodnotu, která vypadá jako cena za akcii
+        const priceCandidates = numericValues.filter(v => 
+          v.value > 0.01 && v.value < 100000 && // Rozumná cena za akcii
+          (amount === 0 || Math.abs(v.value * amount) < 10000000) // Kontrola rozumnosti celkové částky
+        );
+        if (priceCandidates.length > 0) {
+          // Preferujeme vyšší hodnoty jako cenu (obvykle cena > počet akcií)
+          price = priceCandidates.sort((a, b) => b.value - a.value)[0].value;
         }
       }
       
-      // Total value - vylepšené parsování
+      // Total value - priorita: explicitní index, pak největší hodnota
       if (totalIndex >= 0 && row[totalIndex]) {
-        total = Math.abs(parseNumber(row[totalIndex])); // Absolutní hodnota
+        total = parseNumber(row[totalIndex]);
+      } else {
+        // Hledáme největší hodnotu jako celkovou částku
+        const totalCandidates = numericValues.filter(v => v.value > 10); // Minimálně 10 jednotek
+        if (totalCandidates.length > 0) {
+          total = Math.max(...totalCandidates.map(v => v.value));
+        }
       }
       
       // Date
@@ -869,7 +902,7 @@ export default function InvestmentsScreen() {
         }
       }
       
-      // Inteligentní výpočet chybějících hodnot
+      // Inteligentní výpočet chybějících hodnot s lepší logikou
       if (total === 0 && amount > 0 && price > 0) {
         total = amount * price;
       } else if (amount === 0 && total > 0 && price > 0) {
@@ -878,35 +911,50 @@ export default function InvestmentsScreen() {
         price = total / amount;
       }
       
-      console.log(`✅ Parsed values:`, { symbol, type, amount, price, total, dateStr });
+      // Pokud stále chybí hodnoty, zkusíme inteligentní odhad
+      if (symbol && total > 0) {
+        if (amount === 0 && price === 0) {
+          // Máme jen celkovou částku - odhad na základě typické ceny akcií
+          if (total > 1000) {
+            // Pravděpodobně více akcií za nižší cenu
+            amount = Math.round(total / 100); // Odhad: 100 jednotek za akcii
+            price = total / amount;
+          } else {
+            // Pravděpodobně méně akcií za vyšší cenu
+            amount = 1;
+            price = total;
+          }
+        } else if (amount === 0) {
+          amount = total / price;
+        } else if (price === 0) {
+          price = total / amount;
+        }
+      }
       
-      // Validace - potřebujeme aspoň symbol a nějakou hodnotu
-      if (symbol && (amount > 0 || total > 0)) {
-        // Finální kontrola a oprava hodnot
-        if (amount === 0 && total > 0) {
-          amount = 1; // Default amount pokud nemáme
-          price = total; // Celková částka jako cena
-        }
-        if (price === 0 && total > 0) {
-          price = total / (amount || 1);
-        }
-        if (total === 0 && amount > 0 && price > 0) {
-          total = amount * price;
-        }
-        
-        // Minimální validace
-        if (total > 0 && amount > 0 && price > 0) {
-          trades.push({
-            id: `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
-            type: type as 'buy' | 'sell',
-            symbol: symbol.toUpperCase(),
-            name: getCompanyName(symbol),
-            amount: Math.abs(amount),
-            price: Math.abs(price),
-            date: parseDate(dateStr),
-            total: Math.abs(total),
-          });
-        }
+      // Zaokrouhlení a validace
+      amount = Math.abs(amount);
+      price = Math.abs(price);
+      total = Math.abs(total);
+      
+      // Finální přepočet pro konzistenci
+      if (amount > 0 && price > 0) {
+        total = amount * price;
+      }
+      
+      console.log(`✅ Final parsed values:`, { symbol, type, amount, price, total, dateStr });
+      
+      // Validace - potřebujeme symbol a všechny tři hodnoty
+      if (symbol && amount > 0 && price > 0 && total > 0) {
+        trades.push({
+          id: `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+          type: type as 'buy' | 'sell',
+          symbol: symbol.toUpperCase(),
+          name: getCompanyName(symbol),
+          amount: Math.round(amount * 100) / 100, // Zaokrouhlení na 2 desetinná místa
+          price: Math.round(price * 100) / 100,
+          date: parseDate(dateStr),
+          total: Math.round(total * 100) / 100,
+        });
       }
     }
     
