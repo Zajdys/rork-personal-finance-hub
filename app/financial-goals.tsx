@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   Alert,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -17,7 +18,7 @@ import {
   Edit3,
   Trash2,
   DollarSign,
-
+  Calendar,
   TrendingUp,
   PiggyBank,
   Car,
@@ -25,9 +26,10 @@ import {
   Utensils,
   ShoppingBag,
   Fuel,
+  RefreshCcw,
 } from 'lucide-react-native';
 import { Stack } from 'expo-router';
-import { useFinanceStore, FinancialGoal } from '@/store/finance-store';
+import { useFinanceStore, FinancialGoal, RecurrenceFrequency } from '@/store/finance-store';
 
 
 
@@ -43,7 +45,9 @@ const GOAL_CATEGORIES = {
 };
 
 
-const TEMPLATES = [
+type TemplateGoal = { title: string; targetAmount: number; category: keyof typeof GOAL_CATEGORIES | 'Ostatní'; type: 'saving' | 'spending_limit'; recurring?: { isRecurring: boolean; frequency: RecurrenceFrequency; dayOfMonth?: number } };
+
+const TEMPLATES: Array<{ id: string; title: string; description: string; color: string; goals: ReadonlyArray<TemplateGoal> }> = [
   {
     id: 'starter',
     title: 'Startér',
@@ -51,9 +55,9 @@ const TEMPLATES = [
     color: '#10B981',
     goals: [
       { title: 'Nouzová rezerva 20 000 Kč', targetAmount: 20000, category: 'Spoření', type: 'saving' as const },
-      { title: 'Nájem (měsíčně)', targetAmount: 12000, category: 'Bydlení', type: 'spending_limit' as const },
-      { title: 'Energie a služby (měsíčně)', targetAmount: 2500, category: 'Bydlení', type: 'spending_limit' as const },
-      { title: 'Internet/telefon (měsíčně)', targetAmount: 800, category: 'Bydlení', type: 'spending_limit' as const },
+      { title: 'Nájem (měsíčně)', targetAmount: 12000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 1 } },
+      { title: 'Energie a služby (měsíčně)', targetAmount: 2500, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 15 } },
+      { title: 'Internet/telefon (měsíčně)', targetAmount: 800, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 10 } },
       { title: 'Jídlo (měsíční limit)', targetAmount: 6000, category: 'Jídlo', type: 'spending_limit' as const },
       { title: 'Doprava (MHD/benzín)', targetAmount: 1200, category: 'Doprava', type: 'spending_limit' as const },
       { title: 'Dovolená', targetAmount: 30000, category: 'Ostatní', type: 'saving' as const },
@@ -66,11 +70,11 @@ const TEMPLATES = [
     description: 'Šablona pro nájem/hypotéku a provoz domácnosti',
     color: '#8B5CF6',
     goals: [
-      { title: 'Hypotéka/nájem (měsíčně)', targetAmount: 18000, category: 'Bydlení', type: 'spending_limit' as const },
-      { title: 'Energie (měsíčně)', targetAmount: 3500, category: 'Bydlení', type: 'spending_limit' as const },
+      { title: 'Hypotéka (měsíčně)', targetAmount: 18000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 15 } },
+      { title: 'Energie (měsíčně)', targetAmount: 3500, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 5 } },
       { title: 'Pojištění domácnosti/majetku (roční)', targetAmount: 3000, category: 'Bydlení', type: 'saving' as const },
       { title: 'FO fond (opravy bytu/domu)', targetAmount: 20000, category: 'Bydlení', type: 'saving' as const },
-      { title: 'Internet/TV (měsíčně)', targetAmount: 900, category: 'Bydlení', type: 'spending_limit' as const },
+      { title: 'Internet/TV (měsíčně)', targetAmount: 900, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 20 } },
       { title: 'Rezerva 3× měsíční náklady', targetAmount: 60000, category: 'Spoření', type: 'saving' as const },
       { title: 'Nákupy drogerie (měsíčně)', targetAmount: 1200, category: 'Nákupy', type: 'spending_limit' as const },
       { title: 'Jídlo (měsíčně)', targetAmount: 8000, category: 'Jídlo', type: 'spending_limit' as const },
@@ -83,10 +87,10 @@ const TEMPLATES = [
     color: '#6366F1',
     goals: [
       { title: 'Rezerva 6× měsíčních nákladů', targetAmount: 120000, category: 'Spoření', type: 'saving' as const },
-      { title: 'Hypotéka/nájem (měsíčně)', targetAmount: 20000, category: 'Bydlení', type: 'spending_limit' as const },
-      { title: 'Energie (měsíčně)', targetAmount: 4000, category: 'Bydlení', type: 'spending_limit' as const },
+      { title: 'Nájem (měsíčně)', targetAmount: 20000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 1 } },
+      { title: 'Energie (měsíčně)', targetAmount: 4000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 10 } },
       { title: 'Jídlo (měsíční limit)', targetAmount: 10000, category: 'Jídlo', type: 'spending_limit' as const },
-      { title: 'Auto: servis/pojistka (roční)', targetAmount: 15000, category: 'Doprava', type: 'saving' as const },
+      { title: 'Auto: servis/pojistka (roční)', targetAmount: 15000, category: 'Doprava', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'yearly' as RecurrenceFrequency, dayOfMonth: 1 } },
       { title: 'Benzín (měsíčně)', targetAmount: 3000, category: 'Benzín', type: 'spending_limit' as const },
       { title: 'Dětské potřeby (měsíčně)', targetAmount: 2000, category: 'Nákupy', type: 'spending_limit' as const },
       { title: 'Dovolená', targetAmount: 40000, category: 'Ostatní', type: 'saving' as const },
@@ -123,6 +127,9 @@ export default function FinancialGoalsScreen() {
   const [goalAmount, setGoalAmount] = useState<string>('');
   const [goalCategory, setGoalCategory] = useState<string>('Ostatní');
   const [goalType, setGoalType] = useState<'saving' | 'spending_limit'>('saving');
+  const [isRecurring, setIsRecurring] = useState<boolean>(false);
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
+  const [dayOfMonth, setDayOfMonth] = useState<string>('1');
 
   useEffect(() => {
     if (!isLoaded) {
@@ -161,6 +168,7 @@ export default function FinancialGoalsScreen() {
                   category: g.category,
                   deadline: deadlineDefault,
                   type: g.type,
+                  recurring: g.recurring,
                 };
                 addFinancialGoal(goalData);
               });
@@ -202,6 +210,9 @@ export default function FinancialGoalsScreen() {
                 setGoalAmount(goal.targetAmount.toString());
                 setGoalCategory(goal.category || 'Ostatní');
                 setGoalType(goal.type);
+                setIsRecurring(Boolean(goal.recurring?.isRecurring));
+                setFrequency((goal.recurring?.frequency ?? 'monthly') as RecurrenceFrequency);
+                setDayOfMonth(goal.recurring?.dayOfMonth ? String(goal.recurring.dayOfMonth) : '1');
                 setShowAddModal(true);
               }}
             >
@@ -282,6 +293,15 @@ export default function FinancialGoalsScreen() {
               Zbývá: {(goal.targetAmount - goal.currentAmount).toLocaleString('cs-CZ')} Kč
             </Text>
           )}
+
+          {goal.recurring?.isRecurring && (
+            <View style={styles.recurringChip}>
+              <Calendar color={goalColor} size={14} />
+              <Text style={[styles.recurringText, { color: goalColor }]}>
+                {goal.recurring.frequency === 'monthly' ? 'měsíčně' : 'ročně'}{goal.recurring.dayOfMonth ? `, den ${goal.recurring.dayOfMonth}` : ''}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -307,6 +327,7 @@ export default function FinancialGoalsScreen() {
       category: goalCategory,
       deadline: new Date(2024, 11, 31),
       type: goalType,
+      recurring: isRecurring ? { isRecurring: true, frequency, dayOfMonth: Number(dayOfMonth) || 1 } : undefined,
     };
 
     if (editingGoal) {
@@ -394,8 +415,12 @@ export default function FinancialGoalsScreen() {
               setGoalAmount('');
               setGoalCategory('Ostatní');
               setGoalType('saving');
+              setIsRecurring(false);
+              setFrequency('monthly');
+              setDayOfMonth('1');
               setShowAddModal(true);
             }}
+            testID="open-add-goal"
           >
             <LinearGradient
               colors={['#10B981', '#059669']}
@@ -432,7 +457,7 @@ export default function FinancialGoalsScreen() {
           animationType="slide"
           presentationStyle="pageSheet"
         >
-          <View style={styles.modalContainer}>
+          <View style={styles.modalContainer} testID="goal-modal">
             <LinearGradient
               colors={['#10B981', '#059669']}
               style={styles.modalHeader}
@@ -496,7 +521,8 @@ export default function FinancialGoalsScreen() {
                     style={styles.textInput}
                     value={goalTitle}
                     onChangeText={setGoalTitle}
-                    placeholder={goalType === 'saving' ? 'Dovolená' : 'Max za benzín'}
+                    placeholder={goalType === 'saving' ? 'Dovolená' : 'Nájem / Hypotéka / Předplatné'}
+                    testID="goal-title-input"
                   />
                 </View>
 
@@ -510,6 +536,7 @@ export default function FinancialGoalsScreen() {
                     onChangeText={setGoalAmount}
                     placeholder="50000"
                     keyboardType="numeric"
+                    testID="goal-amount-input"
                   />
                 </View>
 
@@ -525,6 +552,7 @@ export default function FinancialGoalsScreen() {
                           { borderColor: color }
                         ]}
                         onPress={() => setGoalCategory(category)}
+                        testID={`select-category-${category}`}
                       >
                         <IconComponent 
                           color={goalCategory === category ? 'white' : color} 
@@ -540,6 +568,57 @@ export default function FinancialGoalsScreen() {
                     ))}
                   </ScrollView>
                 </View>
+
+                {goalType === 'spending_limit' && (
+                  <View style={styles.recurringContainer}>
+                    <View style={styles.recurringHeader}>
+                      <View style={styles.recurringHeaderLeft}>
+                        <RefreshCcw color="#10B981" size={18} />
+                        <Text style={styles.recurringLabel}>Pravidelná platba</Text>
+                      </View>
+                      <Switch
+                        value={isRecurring}
+                        onValueChange={(v) => setIsRecurring(v)}
+                        testID="toggle-recurring"
+                      />
+                    </View>
+
+                    {isRecurring && (
+                      <View style={styles.recurringFields}>
+                        <View style={styles.frequencyRow}>
+                          <TouchableOpacity
+                            style={[styles.freqButton, frequency === 'monthly' && styles.freqButtonActive]}
+                            onPress={() => setFrequency('monthly')}
+                            testID="freq-monthly"
+                          >
+                            <Calendar color={frequency === 'monthly' ? 'white' : '#374151'} size={16} />
+                            <Text style={[styles.freqButtonText, frequency === 'monthly' && styles.freqButtonTextActive]}>Měsíčně</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.freqButton, frequency === 'yearly' && styles.freqButtonActive]}
+                            onPress={() => setFrequency('yearly')}
+                            testID="freq-yearly"
+                          >
+                            <Calendar color={frequency === 'yearly' ? 'white' : '#374151'} size={16} />
+                            <Text style={[styles.freqButtonText, frequency === 'yearly' && styles.freqButtonTextActive]}>Ročně</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                          <Text style={styles.inputLabel}>Den v měsíci</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            value={dayOfMonth}
+                            onChangeText={setDayOfMonth}
+                            keyboardType="numeric"
+                            placeholder="1"
+                            testID="day-of-month-input"
+                          />
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
             </ScrollView>
 
@@ -547,6 +626,7 @@ export default function FinancialGoalsScreen() {
               <TouchableOpacity
                 style={styles.submitButton}
                 onPress={handleSaveGoal}
+                testID="save-goal"
               >
                 <LinearGradient
                   colors={['#10B981', '#059669']}
@@ -768,6 +848,21 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'right',
   },
+  recurringChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginTop: 6,
+  },
+  recurringText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   overLimitText: {
     fontSize: 12,
     color: '#EF4444',
@@ -905,6 +1000,57 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   categoryButtonTextActive: {
+    color: 'white',
+  },
+  recurringContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+    gap: 12,
+  },
+  recurringHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  recurringHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recurringLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  recurringFields: {
+    gap: 12,
+  },
+  frequencyRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  freqButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  freqButtonActive: {
+    backgroundColor: '#10B981',
+  },
+  freqButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  freqButtonTextActive: {
     color: 'white',
   },
   modalFooter: {

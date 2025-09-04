@@ -22,6 +22,14 @@ export interface MonthlyReport {
   insights: string[];
 }
 
+export type RecurrenceFrequency = 'monthly' | 'yearly';
+
+export interface RecurringConfig {
+  isRecurring: boolean;
+  frequency: RecurrenceFrequency; // currently supported: monthly/yearly
+  dayOfMonth?: number; // 1-31 for monthly/yearly billing day
+}
+
 export interface FinancialGoal {
   id: string;
   title: string;
@@ -30,6 +38,7 @@ export interface FinancialGoal {
   category?: string;
   deadline?: Date;
   type: 'saving' | 'spending_limit';
+  recurring?: RecurringConfig;
 }
 
 export interface CategoryExpense {
@@ -302,7 +311,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       
       const financialGoals = goalsData ? JSON.parse(goalsData).map((g: any) => ({
         ...g,
-        deadline: g.deadline ? new Date(g.deadline) : undefined
+        deadline: g.deadline ? new Date(g.deadline) : undefined,
+        recurring: g.recurring ? {
+          isRecurring: Boolean(g.recurring.isRecurring),
+          frequency: (g.recurring.frequency ?? 'monthly') as RecurrenceFrequency,
+          dayOfMonth: typeof g.recurring.dayOfMonth === 'number' ? g.recurring.dayOfMonth : undefined,
+        } : undefined,
       })) : [];
       
       const monthlyReports = reportsData ? JSON.parse(reportsData) : [];
