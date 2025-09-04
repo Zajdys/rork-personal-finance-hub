@@ -19,41 +19,47 @@ export function getDB(): DB {
     if (url) {
       pgClient = new PGClient({ connectionString: url, ssl: getSSL() });
     } else {
-      if (!sqlPromise) sqlPromise = initSqlJs({ locateFile: (f) => `https://sql.js.org/dist/${f}` });
+      if (!sqlPromise) sqlPromise = initSqlJs({ locateFile: (f: string) => `https://sql.js.org/dist/${f}` });
     }
     initialized = true;
   }
 
+  const run = async (sql: string, params: any[] = []) => {
+    if (pgClient) {
+      await ensurePg();
+      await pgClient!.query(sqlToPg(sql), params);
+    } else {
+      await ensureSqlJs();
+      sqlDb!.run(sql, params);
+    }
+  };
+
+  const all = async <T = any>(sql: string, params: any[] = []) => {
+    if (pgClient) {
+      await ensurePg();
+      const res = await pgClient!.query(sqlToPg(sql), params);
+      return res.rows as T[];
+    } else {
+      await ensureSqlJs();
+      const stmt = sqlDb!.prepare(sql);
+      stmt.bind(params);
+      const rows: any[] = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+      return rows as T[];
+    }
+  };
+
+  const get = async <T = any>(sql: string, params: any[] = []) => {
+    const rows = await all<T>(sql, params);
+    return rows[0];
+  };
+
   return {
     dialect: pgClient ? 'postgres' : 'sqljs',
-    run: async (sql, params = []) => {
-      if (pgClient) {
-        await ensurePg();
-        await pgClient!.query(sqlToPg(sql), params);
-      } else {
-        await ensureSqlJs();
-        sqlDb!.run(sql, params);
-      }
-    },
-    all: async <T>(sql: string, params: any[] = []) => {
-      if (pgClient) {
-        await ensurePg();
-        const res = await pgClient!.query(sqlToPg(sql), params);
-        return res.rows as T[];
-      } else {
-        await ensureSqlJs();
-        const stmt = sqlDb!.prepare(sql);
-        stmt.bind(params);
-        const rows: any[] = [];
-        while (stmt.step()) rows.push(stmt.getAsObject());
-        stmt.free();
-        return rows as T[];
-      }
-    },
-    get: async <T>(sql: string, params: any[] = []) => {
-      const rows = await this.all<T>(sql, params);
-      return rows[0];
-    },
+    run,
+    all,
+    get,
   } as DB;
 }
 

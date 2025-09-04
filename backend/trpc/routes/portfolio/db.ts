@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DB } from '../../utils/db';
+import type { DB } from '../../utils/db';
 import { Currency, Trade, TradeSchema, buildPositionsFIFO, enrichWithMarket, StaticFxProvider, StaticPriceProvider } from './common';
 
 export const ImportInputSchema = z.object({
@@ -7,8 +7,8 @@ export const ImportInputSchema = z.object({
   rows: z.array(z.object({ raw: z.string(), cols: z.array(z.string()) })),
   baseCurrency: z.enum(["CZK", "EUR", "USD", "GBP"]).default("EUR"),
   userId: z.string().default('demo-user'),
-  priceOverrides: z.record(z.number()).optional(),
-  fxOverrides: z.record(z.number()).optional(),
+  priceOverrides: z.record(z.string(), z.number()).optional(),
+  fxOverrides: z.record(z.string(), z.number()).optional(),
 });
 
 export type ImportInput = z.infer<typeof ImportInputSchema>;
