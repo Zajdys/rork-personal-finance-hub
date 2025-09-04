@@ -220,14 +220,25 @@ export default function InvestmentsScreen() {
   const totalChange = portfolioMetrics.totalReturns;
   const totalChangePercent = portfolioMetrics.totalInvested > 0 ? (totalChange / portfolioMetrics.totalInvested) * 100 : 0;
 
-  // Přidání procent pro každou položku portfolia
+  // Přidání procent pro každou položku portfolia - opravený výpočet
   const portfolioDataWithPercentages = useMemo(() => {
+    // Používáme aktuální hodnotu pozic (item.amount) pro výpočet procent
     const totalCurrentValue = portfolioData.reduce((sum, item) => sum + item.amount, 0);
     
-    return portfolioData.map(item => ({
-      ...item,
-      percentage: totalCurrentValue > 0 ? Math.round((item.amount / totalCurrentValue) * 100) : 0
-    }));
+    console.log('📊 Portfolio percentage calculation:');
+    console.log('Total current value:', totalCurrentValue);
+    
+    return portfolioData.map(item => {
+      const percentage = totalCurrentValue > 0 ? (item.amount / totalCurrentValue) * 100 : 0;
+      const roundedPercentage = Math.round(percentage * 10) / 10; // Zaokrouhlení na 1 desetinné místo
+      
+      console.log(`${item.symbol}: ${item.amount} / ${totalCurrentValue} = ${percentage.toFixed(2)}% (rounded: ${roundedPercentage}%)`);
+      
+      return {
+        ...item,
+        percentage: roundedPercentage
+      };
+    });
   }, [portfolioData]);
 
   // Funkce pro převod měny (simulace - v reálné aplikaci by se používaly aktuální kurzy)
