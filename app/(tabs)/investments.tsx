@@ -32,7 +32,7 @@ import {
 } from 'lucide-react-native';
 import { calculatePortfolioMetrics } from '@/services/financial-calculations';
 import { runAllTests } from '@/tests/financial-calculations.test';
-import { useSettingsStore } from '@/store/settings-store';
+import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
 
 const { width } = Dimensions.get('window');
 
@@ -108,7 +108,8 @@ interface Trade {
 }
 
 export default function InvestmentsScreen() {
-  const { notifications } = useSettingsStore();
+  const { notifications, currency, setCurrency, currencyScope } = useSettingsStore();
+  const [showCurrencyModal, setShowCurrencyModal] = useState<boolean>(false);
   const [selectedTab, setSelectedTab] = useState<'portfolio' | 'recommendations' | 'trades'>('portfolio');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showTradeModal, setShowTradeModal] = useState<boolean>(false);
@@ -223,6 +224,37 @@ export default function InvestmentsScreen() {
     }));
   }, [portfolioData, totalValue]);
 
+  // Funkce pro převod měny (simulace - v reálné aplikaci by se používaly aktuální kurzy)
+  const convertCurrency = (amount: number, fromCurrency: Currency = 'CZK', toCurrency: Currency = currency): number => {
+    if (fromCurrency === toCurrency) return amount;
+    
+    // Simulované kurzy (v reálné aplikaci by se načítaly z API)
+    const exchangeRates: Record<string, number> = {
+      'CZK_EUR': 0.041,
+      'CZK_USD': 0.044,
+      'EUR_CZK': 24.5,
+      'EUR_USD': 1.08,
+      'USD_CZK': 22.8,
+      'USD_EUR': 0.93,
+    };
+    
+    const rateKey = `${fromCurrency}_${toCurrency}`;
+    const rate = exchangeRates[rateKey] || 1;
+    return amount * rate;
+  };
+
+  // Funkce pro formátování částky s měnou
+  const formatCurrency = (amount: number, targetCurrency: Currency = currency): string => {
+    const convertedAmount = convertCurrency(amount, 'CZK', targetCurrency);
+    const currencyInfo = CURRENCIES[targetCurrency];
+    
+    if (targetCurrency === 'CZK') {
+      return `${convertedAmount.toLocaleString('cs-CZ')} ${currencyInfo.symbol}`;
+    } else {
+      return `${currencyInfo.symbol}${convertedAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+    }
+  };
+
   const PortfolioItem = ({ item }: { item: any }) => (
     <View style={styles.portfolioItem}>
       <View style={styles.portfolioHeader}>
@@ -235,7 +267,7 @@ export default function InvestmentsScreen() {
         </View>
         <View style={styles.portfolioValues}>
           <Text style={styles.portfolioAmount}>
-            {item.amount.toLocaleString('cs-CZ')} Kč
+            {formatCurrency(item.amount)}
           </Text>
           <View style={styles.changeContainer}>
             {item.change >= 0 ? (
@@ -342,7 +374,7 @@ export default function InvestmentsScreen() {
           </TouchableOpacity>
           <View style={styles.tradeValues}>
             <Text style={styles.tradeTotal}>
-              {trade.type === 'buy' ? '-' : '+'}{trade.total.toLocaleString('cs-CZ')} Kč
+              {trade.type === 'buy' ? '-' : '+'}{formatCurrency(trade.total)}
             </Text>
             <Text style={styles.tradeDate}>
               {trade.date.toLocaleDateString('cs-CZ')}
@@ -352,7 +384,7 @@ export default function InvestmentsScreen() {
       </View>
       <View style={styles.tradeDetails}>
         <Text style={styles.tradeDetailText}>
-          {trade.amount} ks × {trade.price.toLocaleString('cs-CZ')} Kč
+          {trade.amount} ks × {formatCurrency(trade.price)}
         </Text>
         <View style={[
           styles.tradeTypeBadge,
@@ -975,7 +1007,7 @@ export default function InvestmentsScreen() {
         `✅ Přidáno ${importedTrades.length} obchodů\n` +
         `📈 Nákupy: ${importedTrades.filter(t => t.type === 'buy').length}\n` +
         `📉 Prodeje: ${importedTrades.filter(t => t.type === 'sell').length}\n` +
-        `💰 Celková hodnota: ${importedTrades.reduce((sum, t) => sum + t.total, 0).toLocaleString('cs-CZ')} Kč`
+        `💰 Celková hodnota: ${formatCurrency(importedTrades.reduce((sum, t) => sum + t.total, 0))}`
       );
       
     } catch (error) {
@@ -1130,7 +1162,7 @@ export default function InvestmentsScreen() {
           >
             <Text style={styles.totalValueLabel}>Celková hodnota portfolia</Text>
             <Text style={styles.totalValueAmount}>
-              {totalValue.toLocaleString('cs-CZ')} Kč
+              {formatCurrency(totalValue)}
             </Text>
             <View style={styles.totalChangeContainer}>
               {totalChangePercent >= 0 ? (
@@ -1142,11 +1174,25 @@ export default function InvestmentsScreen() {
                 {totalChangePercent >= 0 ? '+' : ''}{totalChangePercent.toFixed(2)}%
               </Text>
               <Text style={styles.totalChangeAmount}>
-                ({totalChangePercent >= 0 ? '+' : ''}{totalChange.toLocaleString('cs-CZ')} Kč)
+                ({totalChangePercent >= 0 ? '+' : ''}{formatCurrency(totalChange)})
               </Text>
             </View>
           </LinearGradient>
         </View>
+      </View>
+
+      {/* Currency Selector */}
+      <View style={styles.currencyContainer}>
+        <TouchableOpacity 
+          style={styles.currencySelector}
+          onPress={() => setShowCurrencyModal(true)}
+        >
+          <Text style={styles.currencyLabel}>Měna:</Text>
+          <View style={styles.currencyValue}>
+            <Text style={styles.currencyFlag}>{CURRENCIES[currency].flag}</Text>
+            <Text style={styles.currencyCode}>{currency}</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Quick Actions */}
@@ -1556,7 +1602,7 @@ export default function InvestmentsScreen() {
                 </View>
 
                 <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.inputLabel}>Cena za kus (Kč)</Text>
+                  <Text style={styles.inputLabel}>Cena za kus ({CURRENCIES[currency].symbol})</Text>
                   <TextInput
                     style={styles.textInput}
                     value={tradePrice}
@@ -1571,7 +1617,7 @@ export default function InvestmentsScreen() {
                 <View style={styles.totalContainer}>
                   <Text style={styles.totalLabel}>Celková částka:</Text>
                   <Text style={styles.totalAmount}>
-                    {(parseFloat(tradeAmount) * parseFloat(tradePrice)).toLocaleString('cs-CZ')} Kč
+                    {formatCurrency(parseFloat(tradeAmount) * parseFloat(tradePrice))}
                   </Text>
                 </View>
               )}
@@ -1648,9 +1694,9 @@ export default function InvestmentsScreen() {
                 </View>
                 <View style={styles.metricCard}>
                   <Text style={styles.metricValue}>
-                    {portfolioMetrics.totalInvested.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })}
+                    {formatCurrency(portfolioMetrics.totalInvested).replace(/[^0-9.,]/g, '').replace(',', ' ')}
                   </Text>
-                  <Text style={styles.metricLabel}>Investováno (Kč)</Text>
+                  <Text style={styles.metricLabel}>Investováno ({CURRENCIES[currency].symbol})</Text>
                 </View>
               </View>
 
@@ -1843,6 +1889,78 @@ export default function InvestmentsScreen() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+      </Modal>
+
+      {/* Currency Selection Modal */}
+      <Modal
+        visible={showCurrencyModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            style={styles.modalHeader}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.modalHeaderContent}>
+              <TouchableOpacity
+                onPress={() => setShowCurrencyModal(false)}
+                style={styles.closeButton}
+              >
+                <X color="white" size={24} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Vybrat měnu</Text>
+              <View style={styles.modalProgress} />
+            </View>
+          </LinearGradient>
+
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.currencyModalDescription}>
+              Vyberte měnu pro zobrazení investic. Částky budou přepočítány podle aktuálních kurzů.
+            </Text>
+            
+            <View style={styles.currencyOptionsContainer}>
+              {Object.values(CURRENCIES).map((currencyInfo) => (
+                <TouchableOpacity 
+                  key={currencyInfo.code}
+                  style={[
+                    styles.currencyOption,
+                    currency === currencyInfo.code && styles.currencyOptionActive
+                  ]}
+                  onPress={() => {
+                    setCurrency(currencyInfo.code);
+                    setShowCurrencyModal(false);
+                  }}
+                >
+                  <View style={styles.currencyOptionContent}>
+                    <Text style={styles.currencyOptionFlag}>{currencyInfo.flag}</Text>
+                    <View style={styles.currencyOptionInfo}>
+                      <Text style={[
+                        styles.currencyOptionName,
+                        currency === currencyInfo.code && styles.currencyOptionNameActive
+                      ]}>
+                        {currencyInfo.name}
+                      </Text>
+                      <Text style={[
+                        styles.currencyOptionCode,
+                        currency === currencyInfo.code && styles.currencyOptionCodeActive
+                      ]}>
+                        {currencyInfo.code} ({currencyInfo.symbol})
+                      </Text>
+                    </View>
+                    {currency === currencyInfo.code && (
+                      <View style={styles.currencyOptionCheck}>
+                        <Text style={styles.currencyOptionCheckText}>✓</Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </ScrollView>
@@ -2597,5 +2715,106 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#3730A3',
     marginBottom: 4,
+  },
+  currencyContainer: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  currencySelector: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  currencyLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  currencyValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currencyFlag: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  currencyCode: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#667eea',
+  },
+  currencyModalDescription: {
+    fontSize: 16,
+    color: '#4B5563',
+    lineHeight: 24,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  currencyOptionsContainer: {
+    gap: 12,
+  },
+  currencyOption: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  currencyOptionActive: {
+    borderColor: '#667eea',
+    backgroundColor: '#F0F4FF',
+  },
+  currencyOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currencyOptionFlag: {
+    fontSize: 32,
+    marginRight: 16,
+  },
+  currencyOptionInfo: {
+    flex: 1,
+  },
+  currencyOptionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  currencyOptionNameActive: {
+    color: '#667eea',
+  },
+  currencyOptionCode: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  currencyOptionCodeActive: {
+    color: '#667eea',
+  },
+  currencyOptionCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#667eea',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currencyOptionCheckText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
