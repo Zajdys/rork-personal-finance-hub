@@ -7,10 +7,11 @@ export default publicProcedure
   .input(
     z.object({
       userId: z.string().default("demo-user"),
+      baseCurrency: z.enum(["CZK", "EUR", "USD", "GBP"]).default("CZK"),
     })
   )
   .query(async ({ input }) => {
     const db = getDB();
-    const rows = await loadPositions(db, input.userId);
-    return { positions: rows, asOf: new Date() };
+    const rows = await loadPositions(db, input.userId, input.baseCurrency);
+    return { positions: rows, baseCurrency: input.baseCurrency, asOf: new Date() };
   });

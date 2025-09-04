@@ -158,11 +158,12 @@ export async function enrichWithMarket(positions: Position[], priceProvider: Pri
   return out;
 }
 
-export function calcAllocations(positions: Position[]) {
-  const total = positions.reduce((s, p) => s + p.marketValueCZK, 0) || 1;
-  const byInstrument = positions.map((p) => ({ key: p.symbol, label: p.name, percent: Math.round(((p.marketValueCZK / total) * 100) * 10) / 10 }));
+export function calcAllocations(positions: Array<Position & { marketValueBase?: number }>) {
+  const getMV = (p: Position & { marketValueBase?: number }) => (p as any).marketValueBase ?? p.marketValueCZK;
+  const total = positions.reduce((s, p) => s + getMV(p), 0) || 1;
+  const byInstrument = positions.map((p) => ({ key: p.symbol, label: p.name, percent: Math.round(((getMV(p) / total) * 100) * 10) / 10 }));
   const byCurrencyMap = new Map<Currency, number>();
-  positions.forEach((p) => byCurrencyMap.set(p.currency, (byCurrencyMap.get(p.currency) ?? 0) + p.marketValueCZK));
+  positions.forEach((p) => byCurrencyMap.set(p.currency, (byCurrencyMap.get(p.currency) ?? 0) + getMV(p)));
   const byCurrency = Array.from(byCurrencyMap.entries()).map(([c, v]) => ({ key: c, label: c, percent: Math.round(((v / total) * 100) * 10) / 10 }));
   return { byInstrument, byCurrency };
 }

@@ -114,8 +114,19 @@ async function migratePg(client: PGClient) {
       market_price numeric,
       market_value_czk numeric not null,
       unrealized_pnl_czk numeric not null,
+      base_currency text default 'CZK',
+      market_value_base numeric,
+      unrealized_pnl_base numeric,
       updated_at timestamptz default now(),
       primary key(user_id, symbol)
+    );
+    create table if not exists fx_rates (
+      id serial primary key,
+      date date not null,
+      base text not null,
+      quote text not null,
+      rate numeric not null,
+      unique(date, base, quote)
     );
   `);
 }
@@ -154,8 +165,21 @@ function migrateSqlJs(db: Database) {
       market_price real,
       market_value_czk real not null,
       unrealized_pnl_czk real not null,
+      base_currency text default 'CZK',
+      market_value_base real,
+      unrealized_pnl_base real,
       updated_at text default (datetime('now')),
       primary key(user_id, symbol)
+    );
+  `);
+  db.run(`
+    create table if not exists fx_rates (
+      id integer primary key autoincrement,
+      date text not null,
+      base text not null,
+      quote text not null,
+      rate real not null,
+      unique(date, base, quote)
     );
   `);
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { DB } from '../../utils/db';
-import { Currency, Trade, TradeSchema, buildPositionsFIFO, enrichWithMarket, StaticFxProvider, StaticPriceProvider } from './common';
+import { Currency, Trade, buildPositionsFIFO, enrichWithMarket, StaticFxProvider, StaticPriceProvider } from './common';
 
 export const ImportInputSchema = z.object({
   broker: z.enum(["XTB", "Trading212", "Anycoin", "Degiro"]).or(z.string()),
@@ -44,7 +44,7 @@ export async function recomputePositions(db: DB, userId: string, priceOverrides?
       ticker: r.ticker ?? undefined,
       symbol: r.symbol ?? undefined,
       name: r.name ?? undefined,
-    } as Trade));
+    }));
 
   const positions = buildPositionsFIFO(trades);
   const priceProvider = new StaticPriceProvider(priceOverrides);
@@ -63,19 +63,56 @@ export async function recomputePositions(db: DB, userId: string, priceOverrides?
   return enriched;
 }
 
-export async function loadPositions(db: DB, userId: string) {
+export async function getFxRate(db: DB, from: Currency, to: Currency): Promise<number> {
+  if (from === to) return 1;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const row = await db.get<any>(
+      `select rate from fx_rates where date <= ? and base = ? and quote = ? order by date desc limit 1`,
+      [today, from, to]
+    );
+    if (row?.rate) return Number(row.rate);
+  } catch (e) {}
+  const fallback = new StaticFxProvider();
+  return fallback.getRate(from, to);
+}
+
+export async function loadPositions(db: DB, userId: string, baseCurrency: Currency = 'CZK') {
   const rows = await db.all<any>(`select * from positions where user_id = ?`, [userId]);
-  return rows.map((r) => ({
-    symbol: r.symbol,
-    name: r.name,
-    isin: r.isin ?? undefined,
-    qty: Number(r.qty),
-    avgCost: Number(r.avg_cost),
-    currency: r.currency as Currency,
-    marketPrice: r.market_price ? Number(r.market_price) : undefined,
-    marketValueCZK: Number(r.market_value_czk),
-    unrealizedPnLCZK: Number(r.unrealized_pnl_czk),
-  }));
+  const out = [] as Array<{
+    symbol: string;
+    name: string;
+    isin?: string;
+    qty: number;
+    avgCost: number;
+    currency: Currency;
+    marketPrice?: number;
+    marketValueCZK: number;
+    unrealizedPnLCZK: number;
+    baseCurrency: Currency;
+    marketValueBase: number;
+    unrealizedPnLBase: number;
+  }>;
+  for (const r of rows) {
+    const mvCzk = Number(r.market_value_czk);
+    const pnlCzk = Number(r.unrealized_pnl_czk);
+    const rate = await getFxRate(db, 'CZK' as Currency, baseCurrency);
+    out.push({
+      symbol: r.symbol,
+      name: r.name,
+      isin: r.isin ?? undefined,
+      qty: Number(r.qty),
+      avgCost: Number(r.avg_cost),
+      currency: r.currency as Currency,
+      marketPrice: r.market_price ? Number(r.market_price) : undefined,
+      marketValueCZK: mvCzk,
+      unrealizedPnLCZK: pnlCzk,
+      baseCurrency,
+      marketValueBase: mvCzk * rate,
+      unrealizedPnLBase: pnlCzk * rate,
+    });
+  }
+  return out;
 }
 
 export async function sha256(message: string) {
