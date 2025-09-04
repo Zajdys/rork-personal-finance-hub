@@ -258,7 +258,7 @@ export default function FinancialGoalsScreen() {
               {goal.currentAmount.toLocaleString('cs-CZ')} Kč
             </Text>
             <Text style={styles.targetAmount}>
-              {goal.type === 'spending_limit' ? 'limit' : 'cíl'}: {goal.targetAmount.toLocaleString('cs-CZ')} Kč
+              {goal.type === 'spending_limit' ? (goal.recurring?.isRecurring ? 'částka k úhradě' : 'limit') : 'cíl'}: {goal.targetAmount.toLocaleString('cs-CZ')} Kč
             </Text>
           </View>
           
@@ -528,7 +528,7 @@ export default function FinancialGoalsScreen() {
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>
-                    {goalType === 'saving' ? 'Cílová částka' : 'Maximální částka'} (Kč)
+                    {goalType === 'saving' ? 'Cílová částka' : (isRecurring ? 'Částka k úhradě' : 'Maximální částka')} (Kč)
                   </Text>
                   <TextInput
                     style={styles.textInput}
