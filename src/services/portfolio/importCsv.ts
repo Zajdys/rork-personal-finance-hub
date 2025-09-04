@@ -4,9 +4,9 @@ import { normalizeCashSign } from "@/src/lib/sign";
 export type Txn = {
   time?: string;
   action?: string;
-  ccyAmount?: string;
-  ccyPrice?: string;
-  amount?: number | null;    // po normalizaci znaménka
+  ccyAmount?: string;  // měna cash toků
+  ccyPrice?: string;   // měna ceny akcie
+  amount?: number | null; // už po normalizaci znaménka
   fees?: number;
   taxes?: number;
   price?: number | null;
@@ -17,8 +17,13 @@ export type Txn = {
 
 type Raw = Record<string, string | undefined>;
 
+function field(r: Raw, keys: string[]) {
+  for (const k of keys) if (r[k] != null) return r[k];
+  return undefined;
+}
+
 function pickAmountKey(r: Raw) {
-  return r["Amount"] ?? r["Amount value"] ?? r["Total amount"] ?? null;
+  return field(r, ["Amount", "Amount value", "Total amount"]);
 }
 
 export function mapRow(r: Raw): Txn {
