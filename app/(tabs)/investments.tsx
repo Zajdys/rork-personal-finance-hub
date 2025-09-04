@@ -223,16 +223,24 @@ export default function InvestmentsScreen() {
   // Přidání procent pro každou položku portfolia - opravený výpočet
   const portfolioDataWithPercentages = useMemo(() => {
     // Používáme aktuální hodnotu pozic (item.amount) pro výpočet procent
-    const totalCurrentValue = portfolioData.reduce((sum, item) => sum + item.amount, 0);
+    const totalCurrentValue = portfolioData.reduce((sum, item) => sum + (item.amount || 0), 0);
     
     console.log('📊 Portfolio percentage calculation:');
     console.log('Total current value:', totalCurrentValue);
+    console.log('Portfolio items:', portfolioData.map(item => ({ 
+      symbol: item.symbol, 
+      amount: item.amount, 
+      shares: item.shares,
+      currentPrice: item.currentPrice,
+      totalInvested: item.totalInvested
+    })));
     
     return portfolioData.map(item => {
-      const percentage = totalCurrentValue > 0 ? (item.amount / totalCurrentValue) * 100 : 0;
+      const itemValue = item.amount || 0;
+      const percentage = totalCurrentValue > 0 ? (itemValue / totalCurrentValue) * 100 : 0;
       const roundedPercentage = Math.round(percentage * 10) / 10; // Zaokrouhlení na 1 desetinné místo
       
-      console.log(`${item.symbol}: ${item.amount} / ${totalCurrentValue} = ${percentage.toFixed(2)}% (rounded: ${roundedPercentage}%)`);
+      console.log(`${item.symbol}: ${itemValue} / ${totalCurrentValue} = ${percentage.toFixed(2)}% (rounded: ${roundedPercentage}%)`);
       
       return {
         ...item,
@@ -506,7 +514,13 @@ export default function InvestmentsScreen() {
     }
     
     result.push(current.trim());
-    return result.map(field => field.replace(/^"|"$/g, '').trim());
+    return result.map(field => {
+      // Odstranění uvozovek a čištění dat
+      let cleaned = field.replace(/^"|"$/g, '').trim();
+      // Odstranění BOM (Byte Order Mark) pokud existuje
+      cleaned = cleaned.replace(/^\uFEFF/, '');
+      return cleaned;
+    });
   };
 
   const detectBrokerFormat = (headers: string[], firstDataRow: string[]): string => {
@@ -668,41 +682,81 @@ export default function InvestmentsScreen() {
     return trades;
   };
 
+  const parseNumber = (value: string): number => {
+    if (!value || typeof value !== 'string') return 0;
+    
+    // Odstranění všech nečíselných znaků kromě čárek, teček a znamének
+    let cleaned = value.replace(/[^0-9.,-]/g, '');
+    
+    // Pokud obsahuje čárku i tečku, určíme který je desetinný oddělovač
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+      const lastComma = cleaned.lastIndexOf(',');
+      const lastDot = cleaned.lastIndexOf('.');
+      
+      if (lastComma > lastDot) {
+        // Čárka je desetinný oddělovač
+        cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+      } else {
+        // Tečka je desetinný oddělovač
+        cleaned = cleaned.replace(/,/g, '');
+      }
+    } else if (cleaned.includes(',')) {
+      // Pouze čárka - může být tisícový nebo desetinný oddělovač
+      const parts = cleaned.split(',');
+      if (parts.length === 2 && parts[1].length <= 2) {
+        // Pravděpodobně desetinný oddělovač
+        cleaned = cleaned.replace(',', '.');
+      } else {
+        // Pravděpodobně tisícový oddělovač
+        cleaned = cleaned.replace(/,/g, '');
+      }
+    }
+    
+    const result = parseFloat(cleaned) || 0;
+    console.log(`parseNumber: "${value}" -> "${cleaned}" -> ${result}`);
+    return result;
+  };
+
   const parseGenericFormat = (rows: string[][]): Trade[] => {
     const trades: Trade[] = [];
-    const headers = rows[0].map(h => h.toLowerCase().trim());
+    const headers = rows[0].map(h => h.toLowerCase().trim().replace(/^\uFEFF/, ''));
     
-    console.log('Generic parsing - headers:', headers);
+    console.log('🔍 Generic parsing - headers:', headers);
     
-    // Pokus o automatickou detekci sloupců s více variantami
+    // Rozšířená detekce sloupců s více variantami
     const symbolIndex = headers.findIndex(h => 
       h.includes('symbol') || h.includes('ticker') || h.includes('akcie') || 
       h.includes('instrument') || h.includes('název') || h.includes('name') ||
-      h.includes('stock') || h.includes('etf')
+      h.includes('stock') || h.includes('etf') || h.includes('isin') ||
+      h.includes('security') || h.includes('asset')
     );
     const typeIndex = headers.findIndex(h => 
       h.includes('type') || h.includes('action') || h.includes('side') || 
-      h.includes('typ') || h.includes('operace') || h.includes('transaction')
+      h.includes('typ') || h.includes('operace') || h.includes('transaction') ||
+      h.includes('buy') || h.includes('sell') || h.includes('nákup') || h.includes('prodej')
     );
     const amountIndex = headers.findIndex(h => 
       h.includes('amount') || h.includes('quantity') || h.includes('volume') || 
       h.includes('množství') || h.includes('počet') || h.includes('shares') ||
-      h.includes('ks') || h.includes('kusy')
+      h.includes('ks') || h.includes('kusy') || h.includes('units') || h.includes('qty')
     );
     const priceIndex = headers.findIndex(h => 
       h.includes('price') || h.includes('cena') || h.includes('rate') ||
-      h.includes('kurz') || h.includes('hodnota')
+      h.includes('kurz') || h.includes('hodnota') || h.includes('unit price') ||
+      h.includes('avg price') || h.includes('execution price')
     );
     const dateIndex = headers.findIndex(h => 
       h.includes('date') || h.includes('time') || h.includes('datum') ||
-      h.includes('čas') || h.includes('when')
+      h.includes('čas') || h.includes('when') || h.includes('executed') ||
+      h.includes('settlement') || h.includes('trade date')
     );
     const totalIndex = headers.findIndex(h => 
       h.includes('total') || h.includes('value') || h.includes('celkem') ||
-      h.includes('suma') || h.includes('částka')
+      h.includes('suma') || h.includes('částka') || h.includes('amount') ||
+      h.includes('net amount') || h.includes('gross amount')
     );
     
-    console.log('Column indices:', {
+    console.log('📊 Column indices:', {
       symbol: symbolIndex,
       type: typeIndex,
       amount: amountIndex,
@@ -715,7 +769,7 @@ export default function InvestmentsScreen() {
       const row = rows[i];
       if (row.length < 2) continue;
       
-      console.log(`Processing row ${i}:`, row);
+      console.log(`🔄 Processing row ${i}:`, row);
       
       // Flexibilnější přístup k získání hodnot
       let symbol = '';
@@ -730,52 +784,73 @@ export default function InvestmentsScreen() {
         symbol = row[symbolIndex].trim();
       } else {
         // Hledáme první neprázdný řetězec, který vypadá jako symbol
-        for (let j = 0; j < Math.min(row.length, 3); j++) {
+        for (let j = 0; j < Math.min(row.length, 4); j++) {
           const candidate = row[j]?.trim() || '';
-          if (candidate && /^[A-Z]{1,5}$/.test(candidate.toUpperCase())) {
+          // Rozšířené regex pro symboly (včetně ISIN kódů)
+          if (candidate && (
+            /^[A-Z]{1,5}$/.test(candidate.toUpperCase()) || // Klasické symboly
+            /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(candidate.toUpperCase()) || // ISIN
+            /^[A-Z]{3,6}\.[A-Z]{2}$/.test(candidate.toUpperCase()) // Evropské symboly
+          )) {
             symbol = candidate;
             break;
           }
         }
       }
       
-      // Type
+      // Type - rozšířená detekce
       if (typeIndex >= 0 && row[typeIndex]) {
-        type = row[typeIndex].toLowerCase().includes('sell') || 
-               row[typeIndex].toLowerCase().includes('prodej') ? 'sell' : 'buy';
+        const typeStr = row[typeIndex].toLowerCase();
+        type = (typeStr.includes('sell') || typeStr.includes('prodej') || 
+               typeStr.includes('sale') || typeStr.includes('s') && typeStr.length === 1) ? 'sell' : 'buy';
+      } else {
+        // Hledáme indikátory typu v celém řádku
+        const rowStr = row.join(' ').toLowerCase();
+        if (rowStr.includes('sell') || rowStr.includes('prodej') || rowStr.includes('sale')) {
+          type = 'sell';
+        }
       }
       
-      // Amount
+      // Amount - vylepšené parsování čísel
       if (amountIndex >= 0 && row[amountIndex]) {
-        amount = parseFloat(row[amountIndex].replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+        amount = parseNumber(row[amountIndex]);
       } else {
         // Hledáme první číslo, které vypadá jako množství
-        for (let j = 1; j < Math.min(row.length, 5); j++) {
-          const candidate = parseFloat(row[j]?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
-          if (candidate > 0 && candidate < 10000) { // Rozumné množství akcií
+        for (let j = 1; j < Math.min(row.length, 6); j++) {
+          const candidate = parseNumber(row[j] || '0');
+          if (candidate > 0 && candidate < 100000) { // Rozumné množství akcií
             amount = candidate;
             break;
           }
         }
       }
       
-      // Price
+      // Price - vylepšené parsování čísel
       if (priceIndex >= 0 && row[priceIndex]) {
-        price = parseFloat(row[priceIndex].replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+        price = parseNumber(row[priceIndex]);
       } else {
         // Hledáme číslo, které vypadá jako cena
         for (let j = 1; j < row.length; j++) {
-          const candidate = parseFloat(row[j]?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
-          if (candidate > 10 && candidate < 1000000) { // Rozumná cena za akcii
-            price = candidate;
-            break;
+          const candidate = parseNumber(row[j] || '0');
+          if (candidate > 0.01 && candidate < 10000000) { // Rozumná cena za akcii
+            // Pokud už máme amount, zkontrolujeme jestli to dává smysl
+            if (amount > 0) {
+              const potentialTotal = candidate * amount;
+              if (potentialTotal > 10 && potentialTotal < 100000000) {
+                price = candidate;
+                break;
+              }
+            } else {
+              price = candidate;
+              break;
+            }
           }
         }
       }
       
-      // Total value
+      // Total value - vylepšené parsování
       if (totalIndex >= 0 && row[totalIndex]) {
-        total = parseFloat(row[totalIndex].replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+        total = Math.abs(parseNumber(row[totalIndex])); // Absolutní hodnota
       }
       
       // Date
@@ -786,55 +861,56 @@ export default function InvestmentsScreen() {
         for (let j = 0; j < row.length; j++) {
           const candidate = row[j] || '';
           if (candidate.match(/\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/) || 
-              candidate.match(/\d{4}[./-]\d{1,2}[./-]\d{1,2}/)) {
+              candidate.match(/\d{4}[./-]\d{1,2}[./-]\d{1,2}/) ||
+              candidate.match(/\d{1,2}\.\d{1,2}\.\d{4}/)) {
             dateStr = candidate;
             break;
           }
         }
       }
       
-      // Pokud nemáme total, vypočítáme ho
+      // Inteligentní výpočet chybějících hodnot
       if (total === 0 && amount > 0 && price > 0) {
         total = amount * price;
+      } else if (amount === 0 && total > 0 && price > 0) {
+        amount = total / price;
+      } else if (price === 0 && total > 0 && amount > 0) {
+        price = total / amount;
       }
       
-      console.log(`Parsed values:`, { symbol, type, amount, price, total, dateStr });
+      console.log(`✅ Parsed values:`, { symbol, type, amount, price, total, dateStr });
       
       // Validace - potřebujeme aspoň symbol a nějakou hodnotu
       if (symbol && (amount > 0 || total > 0)) {
-        // Pokud nemáme amount ale máme total a price, vypočítáme amount
-        if (amount === 0 && total > 0 && price > 0) {
-          amount = total / price;
+        // Finální kontrola a oprava hodnot
+        if (amount === 0 && total > 0) {
+          amount = 1; // Default amount pokud nemáme
+          price = total; // Celková částka jako cena
         }
-        // Pokud nemáme price ale máme total a amount, vypočítáme price
-        if (price === 0 && total > 0 && amount > 0) {
-          price = total / amount;
+        if (price === 0 && total > 0) {
+          price = total / (amount || 1);
         }
-        // Pokud stále nemáme price, použijeme rozumnou defaultní hodnotu
-        if (price === 0) {
-          price = 100; // Default price
-        }
-        if (amount === 0) {
-          amount = 1; // Default amount
-        }
-        if (total === 0) {
+        if (total === 0 && amount > 0 && price > 0) {
           total = amount * price;
         }
         
-        trades.push({
-          id: `${Date.now()}_${i}`,
-          type: type as 'buy' | 'sell',
-          symbol: symbol.toUpperCase(),
-          name: getCompanyName(symbol),
-          amount: amount,
-          price: price,
-          date: parseDate(dateStr),
-          total: Math.abs(total),
-        });
+        // Minimální validace
+        if (total > 0 && amount > 0 && price > 0) {
+          trades.push({
+            id: `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+            type: type as 'buy' | 'sell',
+            symbol: symbol.toUpperCase(),
+            name: getCompanyName(symbol),
+            amount: Math.abs(amount),
+            price: Math.abs(price),
+            date: parseDate(dateStr),
+            total: Math.abs(total),
+          });
+        }
       }
     }
     
-    console.log(`Generic parsing result: ${trades.length} trades found`);
+    console.log(`🎯 Generic parsing result: ${trades.length} trades found`);
     return trades;
   };
 
@@ -954,17 +1030,35 @@ export default function InvestmentsScreen() {
         });
       }
       
-      console.log('File content length:', fileContent.length);
+      console.log('📄 File content length:', fileContent.length);
+      console.log('📄 First 500 chars:', fileContent.substring(0, 500));
       
-      // Parsování CSV
-      const lines = fileContent.split('\n').filter(line => line.trim().length > 0);
+      // Parsování CSV s lepším čištěním
+      const lines = fileContent
+        .replace(/\r\n/g, '\n') // Normalizace line endings
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+        
+      console.log('📄 Total lines:', lines.length);
+      console.log('📄 First few lines:', lines.slice(0, 5));
+      
       if (lines.length < 2) {
-        throw new Error('Soubor neobsahuje dostatečná data');
+        throw new Error('Soubor neobsahuje dostatečná data (méně než 2 řádky)');
       }
       
-      const rows = lines.map(line => parseCSVLine(line));
+      const rows = lines.map((line, index) => {
+        const parsed = parseCSVLine(line);
+        console.log(`📄 Line ${index}: "${line}" -> [${parsed.join(', ')}]`);
+        return parsed;
+      });
+      
       const headers = rows[0];
       const firstDataRow = rows[1] || [];
+      
+      console.log('📄 Headers:', headers);
+      console.log('📄 First data row:', firstDataRow);
       
       console.log('Headers:', headers);
       console.log('First data row:', firstDataRow);
