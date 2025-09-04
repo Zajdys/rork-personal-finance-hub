@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
 import { getDB } from "../../../utils/db";
-import { normalizeNumber } from "../common";
+import { normalizeNumber, StaticFxProvider } from "../common";
 import { recomputePositions, sha256 } from "../db";
 
 const RowSchema = z.object({
@@ -26,7 +26,7 @@ export default publicProcedure
     let deduped = 0;
 
     for (const row of input.rows) {
-      const tx = parseRow(input.broker, row.cols, input.baseCurrency);
+      const tx = parseRow(String(input.broker), row.cols, input.baseCurrency);
       const rawHash = await sha256(row.raw);
       try {
         await db.run(
@@ -58,14 +58,16 @@ export default publicProcedure
     const enriched = await recomputePositions(db, input.userId, input.priceOverrides, input.fxOverrides);
     const total = enriched.reduce((s, p) => s + p.marketValueCZK, 0) || 1;
 
+    const fx = new StaticFxProvider(input.fxOverrides);
+
     const debug = await Promise.all(
       enriched.map(async (p) => {
-        const fxKey = `${p.currency}_CZK`;
+        const rate = await fx.getRate(p.currency as any, "CZK" as any);
         return {
           key: p.symbol,
           qty: p.qty,
           last_price: p.marketPrice ?? p.avgCost,
-          fx: fxKey,
+          fx: rate,
           market_value_czk: p.marketValueCZK,
           percent: Math.round(((p.marketValueCZK / total) * 100) * 10) / 10,
         };
@@ -105,26 +107,39 @@ function parseRow(broker: string, cols: string[], baseCurrency: string) {
   let qtyStr = pick(2);
   let priceStr = pick(3);
   let feeStr = pick(4);
-  let currency = (flat[5] as any) || baseCurrency;
+
+  const currencyGuess = flat.find((c) => /^(czk|eur|usd|gbp)$/i.test(c));
+  let currency = (currencyGuess as any) || (flat[5] as any) || baseCurrency;
+
   let dateStr = pick(6) || new Date().toISOString();
-  const isin = flat[7];
+  const isin = flat.find((c) => /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(c)) || flat[7];
   const ticker = flat[8];
-  const symbol = flat[1] || ticker || isin || undefined;
+  const symbol = flat[1] || ticker || (isin ?? undefined) || undefined;
   const name = flat[1] || symbol || undefined;
 
   let qty = normalizeNumber(qtyStr);
-  const price = normalizeNumber(priceStr);
-  const fee = normalizeNumber(feeStr);
+  let price = normalizeNumber(priceStr);
+  let fee = normalizeNumber(feeStr);
+
+  if (isNaN(qty) || qty === 0) {
+    const numericCol = flat.find((c) => /[0-9]/.test(c));
+    qty = normalizeNumber(numericCol ?? "0");
+  }
+
+  if (isNaN(price)) price = 0;
+  if (isNaN(fee)) fee = 0;
 
   if (qty < 0) qty = Math.abs(qty);
 
   const b = toLower(broker);
   if (b.includes("xtb") || b.includes("trading212") || b.includes("degiro")) {
+    // qty stays positive, type dictates direction
   }
   if (b.includes("anycoin")) {
+    // fees remain in fee column
   }
 
   const date = new Date(!isNaN(Date.parse(dateStr)) ? dateStr : new Date().toISOString());
 
-  return { type, qty, price, fee, currency, date, isin, ticker, symbol, name };
+  return { type, qty, price, fee, currency: String(currency).toUpperCase(), date, isin, ticker, symbol, name };
 }
