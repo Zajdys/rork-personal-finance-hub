@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
+import { trpc, trpcClient } from '@/lib/trpc';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,6 +42,7 @@ function RootLayoutNav() {
       <Stack.Screen name="privacy-settings" options={{ title: t('privacy') }} />
       <Stack.Screen name="help-support" options={{ title: t('help') }} />
       <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport') }} />
+      <Stack.Screen name="backend-test" options={{ title: 'Backend Test' }} />
     </Stack>
   );
 }
@@ -81,10 +83,12 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <RootLayoutNav />
-      </GestureHandlerRootView>
-    </QueryClientProvider>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <RootLayoutNav />
+        </GestureHandlerRootView>
+      </QueryClientProvider>
+    </trpc.Provider>
   );
 }
