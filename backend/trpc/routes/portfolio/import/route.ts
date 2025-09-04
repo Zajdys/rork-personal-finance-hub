@@ -26,18 +26,21 @@ export default publicProcedure
     let deduped = 0;
 
     for (const row of input.rows) {
-      const tx = parseRow(String(input.broker), row.cols, input.baseCurrency);
-      if (!tx.isin) {
-        throw new Error("ISIN missing. Provide manual mapping.");
+      const broker = String(input.broker);
+      const tx = parseRow(broker, row.cols, input.baseCurrency);
+      if (tx.type === 'buy' || tx.type === 'sell') {
+        if (!tx.isin) {
+          throw new Error("ISIN missing. Provide manual mapping.");
+        }
       }
-      const rawHash = await sha256(row.raw);
+      const rawHash = await getRawHash(broker, row.cols, row.raw);
       try {
         await db.run(
           `insert into transactions (user_id, broker, raw_hash, raw, type, qty, price, fee, currency, date, symbol, name, isin, ticker)
            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             input.userId,
-            String(input.broker),
+            broker,
             rawHash,
             row.raw,
             tx.type,
@@ -71,11 +74,11 @@ export default publicProcedure
       enriched.map(async (p) => {
         const rate = await fx.getRate(p.currency as any, "CZK" as any);
         return {
-          key: p.symbol,
+          ISIN: p.isin ?? null,
           qty: p.qty,
-          last_price: p.marketPrice ?? p.avgCost,
-          fx: rate,
-          market_value_czk: p.marketValueCZK,
+          lastPrice: p.marketPrice ?? p.avgCost,
+          FX: rate,
+          marketValueCZK: p.marketValueCZK,
           percent: Math.round(((p.marketValueCZK / total) * 100) * 100) / 100,
         };
       })
@@ -92,18 +95,35 @@ export default publicProcedure
     };
   });
 
+async function getRawHash(broker: string, cols: string[], raw: string) {
+  const b = broker.toLowerCase();
+  if (b.includes('trading212')) {
+    const candidates = cols
+      .map((c) => (c ?? '').trim())
+      .filter((c) => /[a-z0-9]/i.test(c))
+      .filter((c) => /^[-a-z0-9]+$/i.test(c))
+      .filter((c) => c.length >= 6);
+    const id = candidates[candidates.length - 1];
+    if (id) return id;
+  }
+  return await sha256(raw);
+}
+
 function parseRow(broker: string, cols: string[], baseCurrency: string) {
   const toLower = (s?: string) => (s ? s.toLowerCase() : "");
   const flat = cols.map((c) => (c ?? "").trim());
   const joined = toLower(flat.join("|"));
 
   const guessType = () => {
-    if (/sell|prodej/.test(joined)) return "sell" as const;
-    if (/buy|nakup|nákup/.test(joined)) return "buy" as const;
-    if (/dividend|dividenda/.test(joined)) return "dividend" as const;
+    if (/^market\s*sell|^limit\s*sell|\|\s*sell\s*\|/.test(joined)) return "sell" as const;
+    if (/^market\s*buy|^limit\s*buy|\|\s*buy\s*\|/.test(joined)) return "buy" as const;
+    if (/dividend/.test(joined)) return "dividend" as const;
+    if (/interest/.test(joined)) return "interest" as const;
     if (/fee|poplatek/.test(joined)) return "fee" as const;
     if (/deposit|vklad/.test(joined)) return "deposit" as const;
     if (/withdraw|vyber|výběr/.test(joined)) return "withdrawal" as const;
+    if (/sell|prodej/.test(joined)) return "sell" as const;
+    if (/buy|nakup|nákup/.test(joined)) return "buy" as const;
     return "buy" as const;
   };
 
@@ -139,7 +159,23 @@ function parseRow(broker: string, cols: string[], baseCurrency: string) {
   if (qty < 0) qty = Math.abs(qty);
 
   const b = toLower(broker);
-  if (b.includes("xtb") || b.includes("trading212") || b.includes("degiro")) {
+  if (b.includes("trading212")) {
+    const action = toLower(flat[0] || joined);
+    if (/(^|\|)market\s*buy|(^|\|)limit\s*buy/.test(action)) {
+      // buy
+    } else if (/(^|\|)market\s*sell|(^|\|)limit\s*sell/.test(action)) {
+      // sell
+    } else if (/withdrawal/.test(action)) {
+      return { type: 'withdrawal' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin: undefined, ticker, symbol: undefined, name };
+    } else if (/deposit/.test(action)) {
+      return { type: 'deposit' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin: undefined, ticker, symbol: undefined, name };
+    } else if (/interest/.test(action)) {
+      return { type: 'interest' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin, ticker, symbol, name } as any;
+    } else if (/dividend/.test(action)) {
+      return { type: 'dividend' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin, ticker, symbol, name };
+    }
+  }
+  if (b.includes("xtb") || b.includes("degiro")) {
     // qty stays positive, type dictates direction
   }
   if (b.includes("anycoin")) {
