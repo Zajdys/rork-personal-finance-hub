@@ -184,13 +184,13 @@ function calculateNPVAndDerivative(
  * Pomocná funkce pro vytvoření equity series z obchodů
  */
 export function createEquitySeries(
-  trades: Array<{
+  trades: {
     date: Date;
     type: 'buy' | 'sell';
     amount: number;
     price: number;
     total: number;
-  }>
+  }[]
 ): EquityPoint[] {
   if (trades.length === 0) {
     return [];
@@ -231,11 +231,11 @@ export function createEquitySeries(
  * Pomocná funkce pro vytvoření cash flows z obchodů
  */
 export function createCashFlows(
-  trades: Array<{
+  trades: {
     date: Date;
     type: 'buy' | 'sell';
     total: number;
-  }>,
+  }[],
   finalEquity: number
 ): CashFlow[] {
   const cashflows: CashFlow[] = [];
@@ -263,13 +263,14 @@ export function createCashFlows(
  * Vypočítá portfolio metriky včetně TWR a XIRR
  */
 export function calculatePortfolioMetrics(
-  trades: Array<{
+  trades: {
     date: Date;
     type: 'buy' | 'sell';
+    symbol: string;
     amount: number;
     price: number;
     total: number;
-  }>
+  }[]
 ): {
   totalValue: number;
   totalInvested: number;
@@ -287,23 +288,41 @@ export function calculatePortfolioMetrics(
     };
   }
 
-  // Vypočítáme celkovou investovanou částku a současnou hodnotu
-  let totalInvested = 0;
-  let totalValue = 0;
-  
-  for (const trade of trades) {
-    if (trade.type === 'buy') {
-      totalInvested += trade.total;
-      totalValue += trade.total; // Zjednodušeno - v reálné aplikaci by se použily aktuální ceny
-    } else {
-      totalInvested -= trade.total;
-      totalValue -= trade.total;
+  // Vypočítáme aktuálně držené pozice
+  const currentPositions = trades.reduce((acc, trade) => {
+    const existing = acc.find(item => item.symbol === trade.symbol);
+    if (existing) {
+      if (trade.type === 'buy') {
+        const newTotalShares = existing.shares + trade.amount;
+        const newTotalInvested = existing.totalInvested + trade.total;
+        existing.totalInvested = newTotalInvested;
+        existing.shares = newTotalShares;
+        existing.avgPrice = newTotalInvested / newTotalShares;
+      } else {
+        const soldShares = Math.min(trade.amount, existing.shares);
+        const soldInvestment = soldShares * existing.avgPrice;
+        existing.shares -= soldShares;
+        existing.totalInvested -= soldInvestment;
+      }
+    } else if (trade.type === 'buy') {
+      acc.push({
+        symbol: trade.symbol,
+        totalInvested: trade.total,
+        shares: trade.amount,
+        avgPrice: trade.price,
+      });
     }
-  }
+    return acc;
+  }, [] as any[]).filter(item => item.shares > 0);
   
-  // Simulujeme růst portfolia (v reálné aplikaci by se použily aktuální tržní ceny)
-  const growthFactor = 1 + (Math.random() * 0.2 - 0.1); // -10% až +10%
-  totalValue *= growthFactor;
+  // Vypočítáme celkovou investovanou částku a současnou hodnotu z aktuálně držených pozic
+  let totalInvested = currentPositions.reduce((sum, pos) => sum + pos.totalInvested, 0);
+  let totalValue = currentPositions.reduce((sum, pos) => {
+    // Simulujeme aktuální cenu s realistickou změnou od průměrné nákupní ceny
+    const priceChange = (Math.random() * 0.3 - 0.15); // -15% až +15%
+    const currentPrice = pos.avgPrice * (1 + priceChange);
+    return sum + (pos.shares * currentPrice);
+  }, 0);
   
   const totalReturns = totalValue - totalInvested;
   

@@ -129,34 +129,52 @@ export default function InvestmentsScreen() {
     const existing = acc.find(item => item.symbol === trade.symbol);
     if (existing) {
       if (trade.type === 'buy') {
-        existing.totalInvested += trade.total;
-        existing.shares += trade.amount;
+        // Při nákupu: přidáme investici a akcie
+        const newTotalShares = existing.shares + trade.amount;
+        const newTotalInvested = existing.totalInvested + trade.total;
+        existing.totalInvested = newTotalInvested;
+        existing.shares = newTotalShares;
+        existing.avgPrice = newTotalInvested / newTotalShares;
       } else {
-        // Při prodeji snižujeme počet akcií a počítáme realizovaný zisk/ztrátu
-        existing.shares -= trade.amount;
-        existing.realizedPnL += trade.total - (trade.amount * (existing.totalInvested / (existing.shares + trade.amount)));
+        // Při prodeji: snížíme počet akcií a upravíme investovanou částku
+        const soldShares = Math.min(trade.amount, existing.shares);
+        const soldInvestment = soldShares * existing.avgPrice;
+        existing.shares -= soldShares;
+        existing.totalInvested -= soldInvestment;
+        existing.realizedPnL += trade.total - soldInvestment;
       }
     } else {
-      acc.push({
-        symbol: trade.symbol,
-        name: trade.name,
-        totalInvested: trade.type === 'buy' ? trade.total : 0,
-        shares: trade.type === 'buy' ? trade.amount : -trade.amount,
-        realizedPnL: trade.type === 'sell' ? trade.total : 0,
-        color: SUGGESTED_INVESTMENTS.find(s => s.symbol === trade.symbol)?.color || '#6B7280',
-      });
+      // Nová pozice
+      if (trade.type === 'buy') {
+        acc.push({
+          symbol: trade.symbol,
+          name: trade.name,
+          totalInvested: trade.total,
+          shares: trade.amount,
+          avgPrice: trade.price,
+          realizedPnL: 0,
+          color: SUGGESTED_INVESTMENTS.find(s => s.symbol === trade.symbol)?.color || '#6B7280',
+        });
+      }
+      // Prodej bez předchozího nákupu ignorujeme (short selling není podporován)
     }
     return acc;
   }, [] as any[])
   // Filtrujeme pouze pozice s kladným počtem akcií (aktuálně držené)
   .filter(item => item.shares > 0)
-  // Přidáme aktuální hodnotu pozice (pro jednoduchost použijeme původní investici + simulovaný růst)
+  // Přidáme aktuální hodnotu pozice s realistickým výpočtem
   .map(item => {
-    const currentValue = item.totalInvested * (1 + (Math.random() * 0.4 - 0.2)); // Simulace změny -20% až +20%
+    // Simulujeme aktuální cenu s malou změnou od průměrné nákupní ceny
+    const priceChange = (Math.random() * 0.3 - 0.15); // -15% až +15%
+    const currentPrice = item.avgPrice * (1 + priceChange);
+    const currentValue = item.shares * currentPrice;
+    
     return {
       ...item,
+      currentPrice,
       amount: currentValue,
       unrealizedPnL: currentValue - item.totalInvested,
+      change: priceChange * 100, // Procentní změna
     };
   });
 
@@ -171,8 +189,7 @@ export default function InvestmentsScreen() {
 
   // Přidání procent pro každou položku portfolia
   portfolioData.forEach(item => {
-    item.percentage = totalValue > 0 ? Math.round((Math.abs(item.amount) / totalValue) * 100) : 0;
-    item.change = (Math.random() * 20) - 10; // Simulace změny
+    item.percentage = totalValue > 0 ? Math.round((item.amount / totalValue) * 100) : 0;
   });
 
   const PortfolioItem = ({ item }: { item: any }) => (
@@ -199,7 +216,7 @@ export default function InvestmentsScreen() {
               styles.changeText,
               { color: item.change >= 0 ? '#10B981' : '#EF4444' }
             ]}>
-              {item.change >= 0 ? '+' : ''}{item.change}%
+              {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
             </Text>
           </View>
         </View>
