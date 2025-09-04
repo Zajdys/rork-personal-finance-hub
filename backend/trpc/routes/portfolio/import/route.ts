@@ -127,6 +127,49 @@ function parseRow(broker: string, cols: string[], baseCurrency: string) {
     return "buy" as const;
   };
 
+  const b = toLower(broker);
+
+  // Specialized parser for Trading212 exported CSV structure
+  if (b.includes("trading212")) {
+    const actionRaw = flat[0] ?? "";
+    const action = toLower(actionRaw);
+
+    const dateStr = flat[1] || new Date().toISOString();
+    const isin = (flat[2] && /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(flat[2]) ? flat[2] : undefined) ?? undefined;
+    const ticker = flat[3] || undefined;
+    const name = flat[4] || undefined;
+    const qtyStr = flat[7] || "";
+    const priceStr = flat[8] || "";
+    const currency = (flat[9] || baseCurrency).toString().toUpperCase();
+
+    const qtyAbs = Math.abs(normalizeNumber(qtyStr));
+    const price = isNaN(normalizeNumber(priceStr)) ? 0 : normalizeNumber(priceStr);
+    const fee = 0;
+
+    if (/withdrawal/.test(action)) {
+      return { type: 'withdrawal' as const, qty: 0, price: 0, fee, currency, date: new Date(dateStr), isin: undefined, ticker, symbol: undefined, name };
+    }
+    if (/deposit/.test(action)) {
+      return { type: 'deposit' as const, qty: 0, price: 0, fee, currency, date: new Date(dateStr), isin: undefined, ticker, symbol: undefined, name };
+    }
+    if (/interest/.test(action)) {
+      return { type: 'interest' as const, qty: 0, price: 0, fee, currency, date: new Date(dateStr), isin: undefined, ticker: undefined, symbol: undefined, name } as any;
+    }
+    if (/dividend/.test(action)) {
+      return { type: 'dividend' as const, qty: 0, price: 0, fee, currency, date: new Date(dateStr), isin, ticker, symbol: ticker, name };
+    }
+
+    const type: 'buy' | 'sell' = /(^|\|)market\s*buy|(^|\|)limit\s*buy/.test(action)
+      ? 'buy'
+      : 'sell';
+
+    const date = new Date(!isNaN(Date.parse(dateStr)) ? dateStr : new Date().toISOString());
+    const symbol = ticker || isin || name || undefined;
+
+    return { type, qty: qtyAbs, price, fee, currency, date, isin, ticker, symbol, name };
+  }
+
+  // Generic fallback
   const type = guessType();
 
   const pick = (idxFallback: number) => flat[idxFallback] ?? "";
@@ -157,30 +200,6 @@ function parseRow(broker: string, cols: string[], baseCurrency: string) {
   if (isNaN(fee)) fee = 0;
 
   if (qty < 0) qty = Math.abs(qty);
-
-  const b = toLower(broker);
-  if (b.includes("trading212")) {
-    const action = toLower(flat[0] || joined);
-    if (/(^|\|)market\s*buy|(^|\|)limit\s*buy/.test(action)) {
-      // buy
-    } else if (/(^|\|)market\s*sell|(^|\|)limit\s*sell/.test(action)) {
-      // sell
-    } else if (/withdrawal/.test(action)) {
-      return { type: 'withdrawal' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin: undefined, ticker, symbol: undefined, name };
-    } else if (/deposit/.test(action)) {
-      return { type: 'deposit' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin: undefined, ticker, symbol: undefined, name };
-    } else if (/interest/.test(action)) {
-      return { type: 'interest' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin, ticker, symbol, name } as any;
-    } else if (/dividend/.test(action)) {
-      return { type: 'dividend' as const, qty: 0, price: 0, fee, currency: String(currency).toUpperCase(), date: new Date(dateStr), isin, ticker, symbol, name };
-    }
-  }
-  if (b.includes("xtb") || b.includes("degiro")) {
-    // qty stays positive, type dictates direction
-  }
-  if (b.includes("anycoin")) {
-    // fees remain in fee column
-  }
 
   const date = new Date(!isNaN(Date.parse(dateStr)) ? dateStr : new Date().toISOString());
 
