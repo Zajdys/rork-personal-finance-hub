@@ -1,20 +1,20 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
-import { StaticFxProvider, StaticPriceProvider, buildPositionsFIFO, enrichWithMarket, TradeSchema, calcAllocations, calcTWRXIRR } from "../common";
+import { getDB } from "../../../utils/db";
+import { loadPositions } from "../db";
+import { calcAllocations, calcTWRXIRR } from "../common";
 
 export default publicProcedure
   .input(
     z.object({
-      trades: z.array(TradeSchema).default([]),
+      userId: z.string().default("demo-user"),
     })
   )
   .query(async ({ input }) => {
-    const positions = buildPositionsFIFO(input.trades);
-    const priceProvider = new StaticPriceProvider();
-    const fx = new StaticFxProvider();
-    const enriched = await enrichWithMarket(positions, priceProvider, fx);
-    const equityCZK = enriched.reduce((s, p) => s + p.marketValueCZK, 0);
-    const allocations = calcAllocations(enriched);
+    const db = getDB();
+    const positions = await loadPositions(db, input.userId);
+    const equityCZK = positions.reduce((s, p) => s + p.marketValueCZK, 0);
+    const allocations = calcAllocations(positions);
     const { twr, xirr } = calcTWRXIRR();
     return { equityCZK, twr, xirr, allocations, asOf: new Date() };
   });

@@ -1,17 +1,16 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
-import { StaticFxProvider, StaticPriceProvider, buildPositionsFIFO, enrichWithMarket, TradeSchema } from "../common";
+import { getDB } from "../../../utils/db";
+import { loadPositions } from "../db";
 
 export default publicProcedure
   .input(
     z.object({
-      trades: z.array(TradeSchema).default([]),
+      userId: z.string().default("demo-user"),
     })
   )
   .query(async ({ input }) => {
-    const positions = buildPositionsFIFO(input.trades);
-    const priceProvider = new StaticPriceProvider();
-    const fx = new StaticFxProvider();
-    const enriched = await enrichWithMarket(positions, priceProvider, fx);
-    return { positions: enriched, asOf: new Date() };
+    const db = getDB();
+    const rows = await loadPositions(db, input.userId);
+    return { positions: rows, asOf: new Date() };
   });
