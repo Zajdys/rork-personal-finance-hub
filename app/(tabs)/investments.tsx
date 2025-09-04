@@ -125,72 +125,103 @@ export default function InvestmentsScreen() {
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
 
   // Výpočet portfolia z obchodů - pouze aktuálně držené pozice
-  const portfolioData = trades.reduce((acc, trade) => {
-    const existing = acc.find(item => item.symbol === trade.symbol);
-    if (existing) {
-      if (trade.type === 'buy') {
-        // Při nákupu: přidáme investici a akcie
-        const newTotalShares = existing.shares + trade.amount;
-        const newTotalInvested = existing.totalInvested + trade.total;
-        existing.totalInvested = newTotalInvested;
-        existing.shares = newTotalShares;
-        existing.avgPrice = newTotalInvested / newTotalShares;
+  const portfolioData = useMemo(() => {
+    const positions = trades.reduce((acc, trade) => {
+      const existing = acc.find(item => item.symbol === trade.symbol);
+      if (existing) {
+        if (trade.type === 'buy') {
+          // Při nákupu: přidáme investici a akcie
+          const newTotalShares = existing.shares + trade.amount;
+          const newTotalInvested = existing.totalInvested + trade.total;
+          existing.totalInvested = newTotalInvested;
+          existing.shares = newTotalShares;
+          existing.avgPrice = newTotalInvested / newTotalShares;
+        } else {
+          // Při prodeji: snížíme počet akcií a upravíme investovanou částku
+          const soldShares = Math.min(trade.amount, existing.shares);
+          const soldInvestment = soldShares * existing.avgPrice;
+          existing.shares -= soldShares;
+          existing.totalInvested -= soldInvestment;
+          existing.realizedPnL += trade.total - soldInvestment;
+        }
       } else {
-        // Při prodeji: snížíme počet akcií a upravíme investovanou částku
-        const soldShares = Math.min(trade.amount, existing.shares);
-        const soldInvestment = soldShares * existing.avgPrice;
-        existing.shares -= soldShares;
-        existing.totalInvested -= soldInvestment;
-        existing.realizedPnL += trade.total - soldInvestment;
+        // Nová pozice
+        if (trade.type === 'buy') {
+          acc.push({
+            symbol: trade.symbol,
+            name: trade.name,
+            totalInvested: trade.total,
+            shares: trade.amount,
+            avgPrice: trade.price,
+            realizedPnL: 0,
+            color: SUGGESTED_INVESTMENTS.find(s => s.symbol === trade.symbol)?.color || '#6B7280',
+          });
+        }
+        // Prodej bez předchozího nákupu ignorujeme (short selling není podporován)
       }
-    } else {
-      // Nová pozice
-      if (trade.type === 'buy') {
-        acc.push({
-          symbol: trade.symbol,
-          name: trade.name,
-          totalInvested: trade.total,
-          shares: trade.amount,
-          avgPrice: trade.price,
-          realizedPnL: 0,
-          color: SUGGESTED_INVESTMENTS.find(s => s.symbol === trade.symbol)?.color || '#6B7280',
-        });
-      }
-      // Prodej bez předchozího nákupu ignorujeme (short selling není podporován)
-    }
-    return acc;
-  }, [] as any[])
-  // Filtrujeme pouze pozice s kladným počtem akcií (aktuálně držené)
-  .filter(item => item.shares > 0)
-  // Přidáme aktuální hodnotu pozice s realistickým výpočtem
-  .map(item => {
-    // Simulujeme aktuální cenu s malou změnou od průměrné nákupní ceny
-    const priceChange = (Math.random() * 0.3 - 0.15); // -15% až +15%
-    const currentPrice = item.avgPrice * (1 + priceChange);
-    const currentValue = item.shares * currentPrice;
+      return acc;
+    }, [] as any[])
+    // Filtrujeme pouze pozice s kladným počtem akcií (aktuálně držené)
+    .filter(item => item.shares > 0)
+    // Přidáme aktuální hodnotu pozice s konzistentní simulací
+    .map((item, index) => {
+      // Používáme deterministickou simulaci založenou na symbolu pro konzistentní výsledky
+      const seed = item.symbol.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+      const priceChange = ((seed % 31) - 15) / 100; // -15% až +15% na základě symbolu
+      const currentPrice = item.avgPrice * (1 + priceChange);
+      const currentValue = item.shares * currentPrice;
+      
+      return {
+        ...item,
+        currentPrice,
+        amount: currentValue,
+        unrealizedPnL: currentValue - item.totalInvested,
+        change: priceChange * 100, // Procentní změna
+      };
+    });
     
-    return {
-      ...item,
-      currentPrice,
-      amount: currentValue,
-      unrealizedPnL: currentValue - item.totalInvested,
-      change: priceChange * 100, // Procentní změna
-    };
-  });
+    return positions;
+  }, [trades]);
 
   // Vypočítáme portfolio metriky včetně TWR a XIRR
   const portfolioMetrics = useMemo(() => {
-    return calculatePortfolioMetrics(trades);
-  }, [trades]);
+    if (portfolioData.length === 0) {
+      return {
+        totalValue: 0,
+        totalInvested: 0,
+        totalReturns: 0,
+        twr: 0,
+        xirr: 0
+      };
+    }
+    
+    const totalValue = portfolioData.reduce((sum, item) => sum + item.amount, 0);
+    const totalInvested = portfolioData.reduce((sum, item) => sum + item.totalInvested, 0);
+    const totalReturns = totalValue - totalInvested;
+    
+    // Pro TWR a XIRR použijeme původní funkci s opravenými daty
+    const metrics = calculatePortfolioMetrics(trades);
+    
+    return {
+      totalValue,
+      totalInvested,
+      totalReturns,
+      twr: metrics.twr,
+      xirr: metrics.xirr
+    };
+  }, [portfolioData, trades]);
 
   const totalValue = portfolioMetrics.totalValue;
   const totalChange = portfolioMetrics.totalReturns;
   const totalChangePercent = portfolioMetrics.totalInvested > 0 ? (totalChange / portfolioMetrics.totalInvested) * 100 : 0;
 
   // Přidání procent pro každou položku portfolia
-  portfolioData.forEach(item => {
-    item.percentage = totalValue > 0 ? Math.round((item.amount / totalValue) * 100) : 0;
-  });
+  const portfolioDataWithPercentages = useMemo(() => {
+    return portfolioData.map(item => ({
+      ...item,
+      percentage: totalValue > 0 ? Math.round((item.amount / totalValue) * 100) : 0
+    }));
+  }, [portfolioData, totalValue]);
 
   const PortfolioItem = ({ item }: { item: any }) => (
     <View style={styles.portfolioItem}>
@@ -1226,7 +1257,7 @@ export default function InvestmentsScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              portfolioData.map((item, index) => (
+              portfolioDataWithPercentages.map((item, index) => (
                 <PortfolioItem key={index} item={item} />
               ))
             )}

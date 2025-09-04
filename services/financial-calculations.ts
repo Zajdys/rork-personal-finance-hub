@@ -318,8 +318,9 @@ export function calculatePortfolioMetrics(
   // Vypočítáme celkovou investovanou částku a současnou hodnotu z aktuálně držených pozic
   let totalInvested = currentPositions.reduce((sum, pos) => sum + pos.totalInvested, 0);
   let totalValue = currentPositions.reduce((sum, pos) => {
-    // Simulujeme aktuální cenu s realistickou změnou od průměrné nákupní ceny
-    const priceChange = (Math.random() * 0.3 - 0.15); // -15% až +15%
+    // Používáme deterministickou simulaci založenou na symbolu pro konzistentní výsledky
+    const seed = pos.symbol.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+    const priceChange = ((seed % 31) - 15) / 100; // -15% až +15% na základě symbolu
     const currentPrice = pos.avgPrice * (1 + priceChange);
     return sum + (pos.shares * currentPrice);
   }, 0);
