@@ -45,14 +45,17 @@ export class StaticPriceProvider implements PriceProvider {
     this.map = map ?? {};
   }
   async getPrice(key: string) {
-    return this.map[key];
+    return this.map[key] ?? undefined;
+  }
+  set(key: string, value: number) {
+    this.map[key] = value;
   }
 }
 
 export class StaticFxProvider implements FxProvider {
-  async getRate(from: Currency, to: Currency) {
-    if (from === to) return 1;
-    const table: Record<string, number> = {
+  private table: Record<string, number>;
+  constructor(table?: Record<string, number>) {
+    this.table = table ?? {
       "EUR_CZK": 24.5,
       "USD_CZK": 22.8,
       "GBP_CZK": 28.7,
@@ -66,7 +69,13 @@ export class StaticFxProvider implements FxProvider {
       "USD_GBP": 0.79,
       "GBP_USD": 1.26,
     };
-    return table[`${from}_${to}`] ?? 1;
+  }
+  set(key: string, value: number) {
+    this.table[key] = value;
+  }
+  async getRate(from: Currency, to: Currency) {
+    if (from === to) return 1;
+    return this.table[`${from}_${to}`] ?? 1;
   }
 }
 
