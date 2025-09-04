@@ -555,38 +555,62 @@ export default function InvestmentsScreen() {
     console.log('Detecting format from headers:', headerStr);
     console.log('First data row:', dataStr);
     
-    // XTB detection - více variant
-    if ((headerStr.includes('symbol') || headerStr.includes('instrument')) && 
-        (headerStr.includes('side') || headerStr.includes('type')) && 
-        (headerStr.includes('volume') || headerStr.includes('quantity'))) {
+    // XTB detection - rozšířené varianty
+    if ((headerStr.includes('symbol') || headerStr.includes('instrument') || headerStr.includes('ticker')) && 
+        (headerStr.includes('side') || headerStr.includes('type') || headerStr.includes('operation')) && 
+        (headerStr.includes('volume') || headerStr.includes('quantity') || headerStr.includes('amount'))) {
+      console.log('✅ Detected XTB format');
       return 'XTB';
     }
     
-    // Trading212 detection - více variant
-    if ((headerStr.includes('action') || headerStr.includes('type')) && 
-        (headerStr.includes('ticker') || headerStr.includes('symbol')) && 
-        (headerStr.includes('quantity') || headerStr.includes('shares'))) {
+    // Trading212 detection - rozšířené varianty
+    if ((headerStr.includes('action') || headerStr.includes('type') || headerStr.includes('transaction')) && 
+        (headerStr.includes('ticker') || headerStr.includes('symbol') || headerStr.includes('instrument')) && 
+        (headerStr.includes('quantity') || headerStr.includes('shares') || headerStr.includes('no. of shares'))) {
+      console.log('✅ Detected Trading212 format');
       return 'Trading212';
     }
     
-    // Anycoin detection
-    if (headerStr.includes('type') && headerStr.includes('amount') && 
-        (headerStr.includes('btc') || headerStr.includes('crypto') || headerStr.includes('coin'))) {
+    // Degiro detection - nová detekce
+    if ((headerStr.includes('product') || headerStr.includes('produkt') || headerStr.includes('instrument')) && 
+        (headerStr.includes('isin') || headerStr.includes('symbol')) && 
+        (headerStr.includes('quantity') || headerStr.includes('počet') || headerStr.includes('amount')) &&
+        (headerStr.includes('price') || headerStr.includes('cena') || headerStr.includes('kurs'))) {
+      console.log('✅ Detected Degiro format');
+      return 'Degiro';
+    }
+    
+    // Anycoin detection - rozšířené varianty
+    if ((headerStr.includes('type') || headerStr.includes('transaction type')) && 
+        (headerStr.includes('amount') || headerStr.includes('quantity')) && 
+        (headerStr.includes('btc') || headerStr.includes('crypto') || headerStr.includes('coin') || 
+         headerStr.includes('currency') || headerStr.includes('asset'))) {
+      console.log('✅ Detected Anycoin format');
       return 'Anycoin';
+    }
+    
+    // Monero/Monery detection - nová detekce pro krypto
+    if ((headerStr.includes('monero') || headerStr.includes('xmr') || headerStr.includes('monery')) ||
+        (headerStr.includes('crypto') && headerStr.includes('privacy'))) {
+      console.log('✅ Detected Monero/Monery format');
+      return 'Monero';
     }
     
     // Obecné CSV s minimálními požadavky
     if (headerStr.includes('datum') || headerStr.includes('date') || 
         headerStr.includes('symbol') || headerStr.includes('ticker') ||
         headerStr.includes('akcie') || headerStr.includes('stock')) {
+      console.log('✅ Detected Generic format');
       return 'Generic';
     }
     
     // Pokud má aspoň 3 sloupce, zkusíme generické parsování
     if (headers.length >= 3) {
+      console.log('✅ Using Generic format (fallback)');
       return 'Generic';
     }
     
+    console.log('❌ Unknown format detected');
     return 'Unknown';
   };
 
@@ -668,16 +692,83 @@ export default function InvestmentsScreen() {
     return trades;
   };
 
+  const parseDegiroFormat = (rows: string[][]): Trade[] => {
+    const trades: Trade[] = [];
+    const headers = rows[0].map(h => h.toLowerCase());
+    
+    console.log('🔍 Parsing Degiro format, headers:', headers);
+    
+    const productIndex = headers.findIndex(h => h.includes('product') || h.includes('produkt') || h.includes('instrument'));
+    const isinIndex = headers.findIndex(h => h.includes('isin'));
+    const symbolIndex = headers.findIndex(h => h.includes('symbol') || h.includes('ticker'));
+    const quantityIndex = headers.findIndex(h => h.includes('quantity') || h.includes('počet') || h.includes('amount'));
+    const priceIndex = headers.findIndex(h => h.includes('price') || h.includes('cena') || h.includes('kurs'));
+    const dateIndex = headers.findIndex(h => h.includes('date') || h.includes('datum') || h.includes('time'));
+    const totalIndex = headers.findIndex(h => h.includes('total') || h.includes('value') || h.includes('celkem'));
+    const typeIndex = headers.findIndex(h => h.includes('type') || h.includes('typ') || h.includes('direction'));
+    
+    console.log('📊 Degiro column indices:', {
+      product: productIndex,
+      isin: isinIndex,
+      symbol: symbolIndex,
+      quantity: quantityIndex,
+      price: priceIndex,
+      date: dateIndex,
+      total: totalIndex,
+      type: typeIndex
+    });
+    
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row.length < 3) continue;
+      
+      console.log(`🔄 Processing Degiro row ${i}:`, row);
+      
+      const product = row[productIndex] || '';
+      const isin = row[isinIndex] || '';
+      const symbol = row[symbolIndex] || extractSymbolFromProduct(product) || isin;
+      const quantity = parseNumber(row[quantityIndex] || '0');
+      const price = parseNumber(row[priceIndex] || '0');
+      const dateStr = row[dateIndex] || '';
+      const total = parseNumber(row[totalIndex] || '0') || (quantity * price);
+      const type = row[typeIndex] || '';
+      
+      // Degiro často používá záporné hodnoty pro prodeje
+      const isNegativeQuantity = quantity < 0;
+      const tradeType = type.toLowerCase().includes('sell') || type.toLowerCase().includes('prodej') || isNegativeQuantity ? 'sell' : 'buy';
+      
+      if (symbol && Math.abs(quantity) > 0 && price > 0) {
+        trades.push({
+          id: `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+          type: tradeType,
+          symbol: symbol.toUpperCase(),
+          name: getCompanyName(symbol) || product || symbol,
+          amount: Math.abs(quantity),
+          price: price,
+          date: parseDate(dateStr),
+          total: Math.abs(total),
+        });
+        
+        console.log(`✅ Added Degiro trade: ${tradeType} ${Math.abs(quantity)} ${symbol} @ ${price}`);
+      }
+    }
+    
+    console.log(`🎯 Degiro parsing result: ${trades.length} trades found`);
+    return trades;
+  };
+
   const parseAnycoinFormat = (rows: string[][]): Trade[] => {
     const trades: Trade[] = [];
     const headers = rows[0].map(h => h.toLowerCase());
     
-    const typeIndex = headers.findIndex(h => h.includes('type'));
-    const currencyIndex = headers.findIndex(h => h.includes('currency') || h.includes('coin'));
-    const amountIndex = headers.findIndex(h => h.includes('amount'));
-    const priceIndex = headers.findIndex(h => h.includes('price') || h.includes('rate'));
-    const dateIndex = headers.findIndex(h => h.includes('date') || h.includes('time'));
-    const totalIndex = headers.findIndex(h => h.includes('total') || h.includes('value'));
+    console.log('🔍 Parsing Anycoin format, headers:', headers);
+    
+    const typeIndex = headers.findIndex(h => h.includes('type') || h.includes('transaction type'));
+    const currencyIndex = headers.findIndex(h => h.includes('currency') || h.includes('coin') || h.includes('asset'));
+    const amountIndex = headers.findIndex(h => h.includes('amount') || h.includes('quantity'));
+    const priceIndex = headers.findIndex(h => h.includes('price') || h.includes('rate') || h.includes('exchange rate'));
+    const dateIndex = headers.findIndex(h => h.includes('date') || h.includes('time') || h.includes('timestamp'));
+    const totalIndex = headers.findIndex(h => h.includes('total') || h.includes('value') || h.includes('eur amount'));
     
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
@@ -685,15 +776,15 @@ export default function InvestmentsScreen() {
       
       const type = row[typeIndex] || '';
       const currency = row[currencyIndex] || '';
-      const amount = parseFloat(row[amountIndex] || '0');
-      const price = parseFloat(row[priceIndex] || '0');
+      const amount = parseNumber(row[amountIndex] || '0');
+      const price = parseNumber(row[priceIndex] || '0');
       const dateStr = row[dateIndex] || '';
-      const total = parseFloat(row[totalIndex] || '0') || (amount * price);
+      const total = parseNumber(row[totalIndex] || '0') || (amount * price);
       
       if (currency && amount > 0 && price > 0) {
         trades.push({
-          id: `${Date.now()}_${i}`,
-          type: type.toLowerCase().includes('sell') ? 'sell' : 'buy',
+          id: `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+          type: type.toLowerCase().includes('sell') || type.toLowerCase().includes('withdrawal') ? 'sell' : 'buy',
           symbol: currency.toUpperCase(),
           name: getCryptoName(currency),
           amount: amount,
@@ -704,6 +795,47 @@ export default function InvestmentsScreen() {
       }
     }
     
+    console.log(`🎯 Anycoin parsing result: ${trades.length} trades found`);
+    return trades;
+  };
+
+  const parseMoneroFormat = (rows: string[][]): Trade[] => {
+    const trades: Trade[] = [];
+    const headers = rows[0].map(h => h.toLowerCase());
+    
+    console.log('🔍 Parsing Monero/Monery format, headers:', headers);
+    
+    const typeIndex = headers.findIndex(h => h.includes('type') || h.includes('transaction'));
+    const amountIndex = headers.findIndex(h => h.includes('amount') || h.includes('xmr'));
+    const priceIndex = headers.findIndex(h => h.includes('price') || h.includes('rate') || h.includes('usd') || h.includes('eur'));
+    const dateIndex = headers.findIndex(h => h.includes('date') || h.includes('time'));
+    const totalIndex = headers.findIndex(h => h.includes('total') || h.includes('value'));
+    
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row.length < 3) continue;
+      
+      const type = row[typeIndex] || '';
+      const amount = parseNumber(row[amountIndex] || '0');
+      const price = parseNumber(row[priceIndex] || '0');
+      const dateStr = row[dateIndex] || '';
+      const total = parseNumber(row[totalIndex] || '0') || (amount * price);
+      
+      if (amount > 0 && price > 0) {
+        trades.push({
+          id: `${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}`,
+          type: type.toLowerCase().includes('sell') || type.toLowerCase().includes('out') ? 'sell' : 'buy',
+          symbol: 'XMR',
+          name: 'Monero',
+          amount: amount,
+          price: price,
+          date: parseDate(dateStr),
+          total: Math.abs(total),
+        });
+      }
+    }
+    
+    console.log(`🎯 Monero parsing result: ${trades.length} trades found`);
     return trades;
   };
 
@@ -1044,6 +1176,69 @@ export default function InvestmentsScreen() {
     return companies[symbol.toUpperCase()] || symbol;
   };
 
+  const extractSymbolFromProduct = (product: string): string => {
+    if (!product) return '';
+    
+    // Extrakce symbolu z názvu produktu (např. "Apple Inc. (AAPL)" -> "AAPL")
+    const symbolMatch = product.match(/\(([A-Z]{1,5})\)/);
+    if (symbolMatch) {
+      return symbolMatch[1];
+    }
+    
+    // Pokus o extrakci z názvu společnosti
+    const companySymbols: { [key: string]: string } = {
+      'apple': 'AAPL',
+      'microsoft': 'MSFT',
+      'google': 'GOOGL',
+      'alphabet': 'GOOGL',
+      'amazon': 'AMZN',
+      'tesla': 'TSLA',
+      'meta': 'META',
+      'facebook': 'META',
+      'nvidia': 'NVDA',
+      'netflix': 'NFLX',
+      'adobe': 'ADBE',
+      'salesforce': 'CRM',
+      'oracle': 'ORCL',
+      'intel': 'INTC',
+      'cisco': 'CSCO',
+      'paypal': 'PYPL',
+      'visa': 'V',
+      'mastercard': 'MA',
+      'coca cola': 'KO',
+      'pepsi': 'PEP',
+      'johnson': 'JNJ',
+      'procter': 'PG',
+      'walmart': 'WMT',
+      'disney': 'DIS',
+      'nike': 'NKE',
+      'mcdonald': 'MCD',
+      'boeing': 'BA',
+      'caterpillar': 'CAT',
+      'general electric': 'GE',
+      'ford': 'F',
+      'general motors': 'GM',
+      'exxon': 'XOM',
+      'chevron': 'CVX',
+      'jpmorgan': 'JPM',
+      'bank of america': 'BAC',
+      'wells fargo': 'WFC',
+      'goldman sachs': 'GS',
+      'morgan stanley': 'MS',
+    };
+    
+    const productLower = product.toLowerCase();
+    for (const [company, symbol] of Object.entries(companySymbols)) {
+      if (productLower.includes(company)) {
+        return symbol;
+      }
+    }
+    
+    // Pokud nic nenajdeme, vrátíme první slovo jako symbol
+    const firstWord = product.split(' ')[0].toUpperCase();
+    return firstWord.length <= 5 ? firstWord : product.substring(0, 5).toUpperCase();
+  };
+
   const getCryptoName = (symbol: string): string => {
     const cryptos: { [key: string]: string } = {
       'BTC': 'Bitcoin',
@@ -1056,6 +1251,40 @@ export default function InvestmentsScreen() {
       'BCH': 'Bitcoin Cash',
       'BNB': 'Binance Coin',
       'SOL': 'Solana',
+      'XMR': 'Monero',
+      'DASH': 'Dash',
+      'ZEC': 'Zcash',
+      'ATOM': 'Cosmos',
+      'AVAX': 'Avalanche',
+      'MATIC': 'Polygon',
+      'UNI': 'Uniswap',
+      'AAVE': 'Aave',
+      'COMP': 'Compound',
+      'MKR': 'Maker',
+      'SNX': 'Synthetix',
+      'YFI': 'Yearn Finance',
+      'SUSHI': 'SushiSwap',
+      'CRV': 'Curve DAO',
+      'BAL': 'Balancer',
+      '1INCH': '1inch',
+      'ALGO': 'Algorand',
+      'VET': 'VeChain',
+      'FTM': 'Fantom',
+      'NEAR': 'NEAR Protocol',
+      'LUNA': 'Terra Luna',
+      'ICP': 'Internet Computer',
+      'FLOW': 'Flow',
+      'EGLD': 'Elrond',
+      'THETA': 'Theta Network',
+      'FIL': 'Filecoin',
+      'XTZ': 'Tezos',
+      'EOS': 'EOS',
+      'TRX': 'TRON',
+      'NEO': 'NEO',
+      'IOTA': 'IOTA',
+      'XLM': 'Stellar',
+      'DOGE': 'Dogecoin',
+      'SHIB': 'Shiba Inu',
     };
     
     return cryptos[symbol.toUpperCase()] || symbol;
@@ -1205,8 +1434,14 @@ export default function InvestmentsScreen() {
         case 'Trading212':
           importedTrades = parseTrading212Format(rows);
           break;
+        case 'Degiro':
+          importedTrades = parseDegiroFormat(rows);
+          break;
         case 'Anycoin':
           importedTrades = parseAnycoinFormat(rows);
+          break;
+        case 'Monero':
+          importedTrades = parseMoneroFormat(rows);
           break;
         case 'Generic':
           importedTrades = parseGenericFormat(rows);
@@ -1310,37 +1545,69 @@ export default function InvestmentsScreen() {
           date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
           total: 1667, // EUR
         },
-        {
-          id: (Date.now() + 4).toString(),
-          type: 'sell',
-          symbol: 'MSFT',
-          name: 'Microsoft Corp.',
-          amount: 5,
-          price: 341.6, // EUR
-          date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          total: 1708, // EUR
-        },
       ],
       'Trading212': [
         {
           id: Date.now().toString(),
           type: 'buy',
-          symbol: 'MSFT',
-          name: 'Microsoft Corp.',
-          amount: 6,
-          price: 354.2, // EUR
-          date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
-          total: 2125, // EUR
+          symbol: 'GOOGL',
+          name: 'Alphabet Inc.',
+          amount: 8,
+          price: 125, // EUR
+          date: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+          total: 1000, // EUR
         },
         {
           id: (Date.now() + 1).toString(),
           type: 'buy',
           symbol: 'VEA',
-          name: 'Evropské akcie',
+          name: 'Evropské akcie ETF',
           amount: 25,
           price: 50, // EUR
           date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
           total: 1250, // EUR
+        },
+        {
+          id: (Date.now() + 2).toString(),
+          type: 'buy',
+          symbol: 'TSLA',
+          name: 'Tesla Inc.',
+          amount: 3,
+          price: 200, // EUR
+          date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          total: 600, // EUR
+        },
+      ],
+      'Degiro': [
+        {
+          id: Date.now().toString(),
+          type: 'buy',
+          symbol: 'ASML',
+          name: 'ASML Holding',
+          amount: 2,
+          price: 650, // EUR
+          date: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000),
+          total: 1300, // EUR
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'buy',
+          symbol: 'NESN',
+          name: 'Nestlé SA',
+          amount: 12,
+          price: 110, // EUR
+          date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+          total: 1320, // EUR
+        },
+        {
+          id: (Date.now() + 2).toString(),
+          type: 'buy',
+          symbol: 'SAP',
+          name: 'SAP SE',
+          amount: 8,
+          price: 125, // EUR
+          date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000),
+          total: 1000, // EUR
         },
       ],
       'Anycoin': [
@@ -1354,19 +1621,49 @@ export default function InvestmentsScreen() {
           date: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
           total: 25000, // EUR
         },
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'buy',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          amount: 5,
+          price: 2500, // EUR
+          date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          total: 12500, // EUR
+        },
+        {
+          id: (Date.now() + 2).toString(),
+          type: 'sell',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          amount: 1,
+          price: 2700, // EUR
+          date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+          total: 2700, // EUR
+        },
       ],
-      'Other': [
+      'Monero': [
         {
           id: Date.now().toString(),
           type: 'buy',
-          symbol: 'GLD',
-          name: 'Zlato ETF',
-          amount: 20,
-          price: 187.5, // EUR
+          symbol: 'XMR',
+          name: 'Monero',
+          amount: 10,
+          price: 150, // EUR
           date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
-          total: 3750, // EUR
+          total: 1500, // EUR
         },
-      ]
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'buy',
+          symbol: 'XMR',
+          name: 'Monero',
+          amount: 5,
+          price: 180, // EUR
+          date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+          total: 900, // EUR
+        },
+      ],
     };
 
     const sampleTrades = brokerPortfolios[broker] || [];
@@ -1713,12 +2010,16 @@ export default function InvestmentsScreen() {
                                   onPress: () => handleBrokerImport('Trading212')
                                 },
                                 { 
+                                  text: 'Degiro', 
+                                  onPress: () => handleBrokerImport('Degiro')
+                                },
+                                { 
                                   text: 'Anycoin', 
                                   onPress: () => handleBrokerImport('Anycoin')
                                 },
                                 { 
-                                  text: 'Jiný broker', 
-                                  onPress: () => handleBrokerImport('Other')
+                                  text: 'Monero/Monery', 
+                                  onPress: () => handleBrokerImport('Monero')
                                 },
                                 { text: 'Zrušit', style: 'cancel' }
                               ]
@@ -2077,11 +2378,13 @@ export default function InvestmentsScreen() {
                 )}
 
                 <View style={styles.supportedFormatsContainer}>
-                  <Text style={styles.supportedFormatsTitle}>Podporované formáty:</Text>
-                  <Text style={styles.supportedFormatsText}>• CSV soubory (.csv)</Text>
-                  <Text style={styles.supportedFormatsText}>• Textové soubory (.txt)</Text>
-                  <Text style={styles.supportedFormatsText}>• TSV soubory (oddělené tabulátory)</Text>
-                  <Text style={styles.supportedFormatsNote}>⚠️ Excel soubory (.xlsx) nejsou podporovány - exportujte jako CSV</Text>
+                  <Text style={styles.supportedFormatsTitle}>Podporované brokery:</Text>
+                  <Text style={styles.supportedFormatsText}>• XTB - výpisy obchodů</Text>
+                  <Text style={styles.supportedFormatsText}>• Trading212 - historie transakcí</Text>
+                  <Text style={styles.supportedFormatsText}>• Degiro - přehled obchodů</Text>
+                  <Text style={styles.supportedFormatsText}>• Anycoin - krypto transakce</Text>
+                  <Text style={styles.supportedFormatsText}>• Monero/Monery - XMR transakce</Text>
+                  <Text style={styles.supportedFormatsNote}>📄 Formáty: CSV, TXT, TSV (Excel exportujte jako CSV)</Text>
                 </View>
 
                 <View style={styles.expectedDataContainer}>
