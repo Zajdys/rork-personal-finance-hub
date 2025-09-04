@@ -389,14 +389,28 @@ export default function FinancialGoalsScreen() {
                   end={{ x: 1, y: 1 }}
                   style={styles.templateGradient}
                 >
-                  <Text style={styles.templateTitle}>{t.title}</Text>
-                  <Text style={styles.templateDesc}>{t.description}</Text>
+                  <Text style={styles.templateTitle} numberOfLines={1}>{t.title}</Text>
+                  <Text style={styles.templateDesc} numberOfLines={1}>{t.description}</Text>
                   <View style={styles.templateBadgesRow}>
-                    {t.goals.map((g, i) => (
-                      <View key={i} style={styles.templateBadge}>
-                        <Text style={styles.templateBadgeText}>{g.title}</Text>
-                      </View>
-                    ))}
+                    {(() => {
+                      const maxBadges = 4;
+                      const shown = t.goals.slice(0, maxBadges);
+                      const extra = t.goals.length - shown.length;
+                      return (
+                        <>
+                          {shown.map((g, i) => (
+                            <View key={i} style={styles.templateBadge}>
+                              <Text style={styles.templateBadgeText} numberOfLines={1}>{g.title}</Text>
+                            </View>
+                          ))}
+                          {extra > 0 && (
+                            <View style={styles.templateBadge}>
+                              <Text style={styles.templateBadgeText}>+{extra}</Text>
+                            </View>
+                          )}
+                        </>
+                      );
+                    })()}
                   </View>
                   <Text style={styles.templateApply}>Použít</Text>
                 </LinearGradient>
@@ -688,25 +702,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
   },
   templateGradient: {
-    padding: 8,
-    minHeight: 90,
+    padding: 6,
+    minHeight: 64,
     justifyContent: 'space-between',
   },
   templateTitle: {
     color: 'white',
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   templateDesc: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: 10,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   templateBadgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   templateBadge: {
     paddingVertical: 2,
