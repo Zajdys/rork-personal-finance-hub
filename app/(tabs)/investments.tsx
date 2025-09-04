@@ -269,7 +269,7 @@ export default function InvestmentsScreen() {
   }, [portfolioData]);
 
   // Funkce pro převod měny (simulace - v reálné aplikaci by se používaly aktuální kurzy)
-  const convertCurrency = (amount: number, fromCurrency: Currency = 'CZK', toCurrency: Currency = currency): number => {
+  const convertCurrency = (amount: number, fromCurrency: Currency = 'EUR', toCurrency: Currency = currency): number => {
     if (fromCurrency === toCurrency) return amount;
     
     // Simulované kurzy (v reálné aplikaci by se načítaly z API)
@@ -280,6 +280,12 @@ export default function InvestmentsScreen() {
       'EUR_USD': 1.08,
       'USD_CZK': 22.8,
       'USD_EUR': 0.93,
+      'GBP_EUR': 1.17,
+      'GBP_USD': 1.26,
+      'GBP_CZK': 28.7,
+      'EUR_GBP': 0.85,
+      'USD_GBP': 0.79,
+      'CZK_GBP': 0.035,
     };
     
     const rateKey = `${fromCurrency}_${toCurrency}`;
@@ -287,9 +293,9 @@ export default function InvestmentsScreen() {
     return amount * rate;
   };
 
-  // Funkce pro formátování částky s měnou
-  const formatCurrency = (amount: number, targetCurrency: Currency = currency): string => {
-    const convertedAmount = convertCurrency(amount, 'CZK', targetCurrency);
+  // Funkce pro formátování částky s měnou - nyní předpokládá EUR jako výchozí měnu portfolia
+  const formatCurrency = (amount: number, sourceCurrency: Currency = 'EUR', targetCurrency: Currency = currency): string => {
+    const convertedAmount = convertCurrency(amount, sourceCurrency, targetCurrency);
     const currencyInfo = CURRENCIES[targetCurrency];
     
     if (targetCurrency === 'CZK') {
@@ -311,7 +317,7 @@ export default function InvestmentsScreen() {
         </View>
         <View style={styles.portfolioValues}>
           <Text style={styles.portfolioAmount}>
-            {formatCurrency(item.amount)}
+            {formatCurrency(item.amount, 'EUR')}
           </Text>
           <View style={styles.changeContainer}>
             {item.change >= 0 ? (
@@ -418,7 +424,7 @@ export default function InvestmentsScreen() {
           </TouchableOpacity>
           <View style={styles.tradeValues}>
             <Text style={styles.tradeTotal}>
-              {trade.type === 'buy' ? '-' : '+'}{formatCurrency(trade.total)}
+              {trade.type === 'buy' ? '-' : '+'}{formatCurrency(trade.total, 'EUR')}
             </Text>
             <Text style={styles.tradeDate}>
               {trade.date.toLocaleDateString('cs-CZ')}
@@ -428,7 +434,7 @@ export default function InvestmentsScreen() {
       </View>
       <View style={styles.tradeDetails}>
         <Text style={styles.tradeDetailText}>
-          {trade.amount} ks × {formatCurrency(trade.price)}
+          {trade.amount} ks × {formatCurrency(trade.price, 'EUR')}
         </Text>
         <View style={[
           styles.tradeTypeBadge,
@@ -1241,7 +1247,7 @@ export default function InvestmentsScreen() {
         `✅ Přidáno ${importedTrades.length} obchodů\n` +
         `📈 Nákupy: ${importedTrades.filter(t => t.type === 'buy').length}\n` +
         `📉 Prodeje: ${importedTrades.filter(t => t.type === 'sell').length}\n` +
-        `💰 Celková hodnota: ${formatCurrency(importedTrades.reduce((sum, t) => sum + t.total, 0))}`
+        `💰 Celková hodnota: ${formatCurrency(importedTrades.reduce((sum, t) => sum + t.total, 0), 'EUR')}`
       );
       
     } catch (error) {
@@ -1270,9 +1276,9 @@ export default function InvestmentsScreen() {
           symbol: 'SPY',
           name: 'S&P 500 ETF',
           amount: 15,
-          price: 4800,
+          price: 200, // EUR
           date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          total: 72000,
+          total: 3000, // EUR
         },
         {
           id: (Date.now() + 1).toString(),
@@ -1280,9 +1286,9 @@ export default function InvestmentsScreen() {
           symbol: 'AAPL',
           name: 'Apple Inc.',
           amount: 10,
-          price: 4200,
+          price: 175, // EUR
           date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-          total: 42000,
+          total: 1750, // EUR
         },
         {
           id: (Date.now() + 2).toString(),
@@ -1290,9 +1296,9 @@ export default function InvestmentsScreen() {
           symbol: 'AAPL',
           name: 'Apple Inc.',
           amount: 2,
-          price: 4500,
+          price: 187.5, // EUR
           date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-          total: 9000,
+          total: 375, // EUR
         },
         {
           id: (Date.now() + 3).toString(),
@@ -1300,9 +1306,9 @@ export default function InvestmentsScreen() {
           symbol: 'MSFT',
           name: 'Microsoft Corp.',
           amount: 5,
-          price: 8000,
+          price: 333.4, // EUR
           date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-          total: 40000,
+          total: 1667, // EUR
         },
         {
           id: (Date.now() + 4).toString(),
@@ -1310,9 +1316,9 @@ export default function InvestmentsScreen() {
           symbol: 'MSFT',
           name: 'Microsoft Corp.',
           amount: 5,
-          price: 8200,
+          price: 341.6, // EUR
           date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          total: 41000,
+          total: 1708, // EUR
         },
       ],
       'Trading212': [
@@ -1322,9 +1328,9 @@ export default function InvestmentsScreen() {
           symbol: 'MSFT',
           name: 'Microsoft Corp.',
           amount: 6,
-          price: 8500,
+          price: 354.2, // EUR
           date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
-          total: 51000,
+          total: 2125, // EUR
         },
         {
           id: (Date.now() + 1).toString(),
@@ -1332,9 +1338,9 @@ export default function InvestmentsScreen() {
           symbol: 'VEA',
           name: 'Evropské akcie',
           amount: 25,
-          price: 1200,
+          price: 50, // EUR
           date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-          total: 30000,
+          total: 1250, // EUR
         },
       ],
       'Anycoin': [
@@ -1344,9 +1350,9 @@ export default function InvestmentsScreen() {
           symbol: 'BTC',
           name: 'Bitcoin',
           amount: 0.5,
-          price: 1200000,
+          price: 50000, // EUR
           date: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
-          total: 600000,
+          total: 25000, // EUR
         },
       ],
       'Other': [
@@ -1356,9 +1362,9 @@ export default function InvestmentsScreen() {
           symbol: 'GLD',
           name: 'Zlato ETF',
           amount: 20,
-          price: 4500,
+          price: 187.5, // EUR
           date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
-          total: 90000,
+          total: 3750, // EUR
         },
       ]
     };
@@ -1396,7 +1402,7 @@ export default function InvestmentsScreen() {
           >
             <Text style={styles.totalValueLabel}>Celková hodnota portfolia</Text>
             <Text style={styles.totalValueAmount}>
-              {formatCurrency(totalValue)}
+              {formatCurrency(totalValue, 'EUR')}
             </Text>
             <View style={styles.totalChangeContainer}>
               {totalChangePercent >= 0 ? (
@@ -1408,7 +1414,7 @@ export default function InvestmentsScreen() {
                 {totalChangePercent >= 0 ? '+' : ''}{totalChangePercent.toFixed(2)}%
               </Text>
               <Text style={styles.totalChangeAmount}>
-                ({totalChangePercent >= 0 ? '+' : ''}{formatCurrency(totalChange)})
+                ({totalChangePercent >= 0 ? '+' : ''}{formatCurrency(totalChange, 'EUR')})
               </Text>
             </View>
           </LinearGradient>
@@ -1851,7 +1857,7 @@ export default function InvestmentsScreen() {
                 <View style={styles.totalContainer}>
                   <Text style={styles.totalLabel}>Celková částka:</Text>
                   <Text style={styles.totalAmount}>
-                    {formatCurrency(parseFloat(tradeAmount) * parseFloat(tradePrice))}
+                    {formatCurrency(parseFloat(tradeAmount) * parseFloat(tradePrice), 'EUR')}
                   </Text>
                 </View>
               )}
@@ -1928,7 +1934,7 @@ export default function InvestmentsScreen() {
                 </View>
                 <View style={styles.metricCard}>
                   <Text style={styles.metricValue}>
-                    {formatCurrency(portfolioMetrics.totalInvested).replace(/[^0-9.,]/g, '').replace(',', ' ')}
+                    {formatCurrency(portfolioMetrics.totalInvested, 'EUR').replace(/[^0-9.,]/g, '').replace(',', ' ')}
                   </Text>
                   <Text style={styles.metricLabel}>Investováno ({CURRENCIES[currency].symbol})</Text>
                 </View>
