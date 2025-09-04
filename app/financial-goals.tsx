@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,41 @@ const GOAL_CATEGORIES = {
 };
 
 
+const TEMPLATES = [
+  {
+    id: 'starter',
+    title: 'Startér',
+    description: 'Základní cíle pro rychlý rozjezd',
+    color: '#10B981',
+    goals: [
+      { title: 'Rezerva 20 000 Kč', targetAmount: 20000, category: 'Spoření', type: 'saving' as const },
+      { title: 'Dovolená', targetAmount: 30000, category: 'Ostatní', type: 'saving' as const },
+      { title: 'Limit na jídlo (měsíčně)', targetAmount: 6000, category: 'Jídlo', type: 'spending_limit' as const },
+    ],
+  },
+  {
+    id: 'family',
+    title: 'Rodinný rozpočet',
+    description: 'Vyvážené cíle pro domácnost',
+    color: '#6366F1',
+    goals: [
+      { title: 'Rezerva 3× nájem', targetAmount: 45000, category: 'Bydlení', type: 'saving' as const },
+      { title: 'Auto servis/pojistka', targetAmount: 15000, category: 'Doprava', type: 'saving' as const },
+      { title: 'Limit na nákupy (měsíčně)', targetAmount: 5000, category: 'Nákupy', type: 'spending_limit' as const },
+    ],
+  },
+  {
+    id: 'investor',
+    title: 'Investiční růst',
+    description: 'Dlouhodobé budování majetku',
+    color: '#F59E0B',
+    goals: [
+      { title: 'Investiční kapitál', targetAmount: 100000, category: 'Investice', type: 'saving' as const },
+      { title: 'Rezerva na daně', targetAmount: 20000, category: 'Ostatní', type: 'saving' as const },
+      { title: 'Limit na zbytné výdaje', targetAmount: 3000, category: 'Ostatní', type: 'spending_limit' as const },
+    ],
+  },
+] as const;
 
 export default function FinancialGoalsScreen() {
   const { 
@@ -66,6 +101,51 @@ export default function FinancialGoalsScreen() {
       loadData();
     }
   }, [isLoaded, loadData]);
+
+  const deadlineDefault = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 12);
+    return d;
+  }, []);
+
+  const applyTemplate = useCallback((templateId: string) => {
+    const template = TEMPLATES.find(t => t.id === templateId);
+    if (!template) return;
+
+    Alert.alert(
+      'Použít šablonu',
+      `Nahradit aktuální cíle šablonou "${template.title}"?`,
+      [
+        { text: 'Zrušit', style: 'cancel' },
+        {
+          text: 'Použít',
+          style: 'default',
+          onPress: () => {
+            try {
+              goals.forEach(g => deleteFinancialGoal(g.id));
+              template.goals.forEach((g, idx) => {
+                const id = `${template.id}-${Date.now()}-${idx}`;
+                const goalData: FinancialGoal = {
+                  id,
+                  title: g.title,
+                  targetAmount: g.targetAmount,
+                  currentAmount: 0,
+                  category: g.category,
+                  deadline: deadlineDefault,
+                  type: g.type,
+                };
+                addFinancialGoal(goalData);
+              });
+              Alert.alert('Hotovo', `Šablona "${template.title}" byla použita.`);
+            } catch (e) {
+              Alert.alert('Chyba', 'Nepodařilo se použít šablonu.');
+              console.error(e);
+            }
+          }
+        }
+      ]
+    );
+  }, [goals, deleteFinancialGoal, addFinancialGoal, deadlineDefault]);
 
   const GoalCard = ({ goal }: { goal: FinancialGoal }) => {
     const progress = (goal.currentAmount / goal.targetAmount) * 100;
@@ -242,6 +322,39 @@ export default function FinancialGoalsScreen() {
           <Text style={styles.headerTitle}>Finanční cíle</Text>
           <Text style={styles.headerSubtitle}>Nastav si cíle a sleduj pokrok</Text>
         </LinearGradient>
+
+        {/* Quick Templates */}
+        <View style={styles.templatesContainer}>
+          <Text style={styles.sectionLabel}>Rychlé šablony</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {TEMPLATES.map(t => (
+              <TouchableOpacity
+                key={t.id}
+                style={[styles.templateCard, { borderColor: t.color }]}
+                onPress={() => applyTemplate(t.id)}
+                testID={`apply-template-${t.id}`}
+              >
+                <LinearGradient
+                  colors={[t.color, '#111827']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.templateGradient}
+                >
+                  <Text style={styles.templateTitle}>{t.title}</Text>
+                  <Text style={styles.templateDesc}>{t.description}</Text>
+                  <View style={styles.templateBadgesRow}>
+                    {t.goals.map((g, i) => (
+                      <View key={i} style={styles.templateBadge}>
+                        <Text style={styles.templateBadgeText}>{g.title}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={styles.templateApply}>Použít</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Add Goal Button */}
         <View style={styles.addButtonContainer}>
@@ -447,9 +560,67 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.9,
   },
-  addButtonContainer: {
+  templatesContainer: {
     marginHorizontal: 20,
     marginTop: 20,
+    marginBottom: 8,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#111827',
+    marginBottom: 12,
+  },
+  templateCard: {
+    width: 260,
+    marginRight: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    overflow: 'hidden',
+    backgroundColor: '#111827',
+  },
+  templateGradient: {
+    padding: 16,
+    minHeight: 140,
+    justifyContent: 'space-between',
+  },
+  templateTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  templateDesc: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  templateBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  templateBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 6,
+  },
+  templateBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  templateApply: {
+    color: 'white',
+    fontSize: 12,
+    opacity: 0.9,
+  },
+  addButtonContainer: {
+    marginHorizontal: 20,
+    marginTop: 16,
     marginBottom: 24,
   },
   addButton: {
@@ -725,3 +896,5 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 });
+
+
