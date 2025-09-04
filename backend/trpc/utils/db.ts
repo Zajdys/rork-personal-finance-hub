@@ -1,7 +1,8 @@
 import initSqlJs, { Database } from 'sql.js';
+import type { SqlJsStatic } from 'sql.js';
 import { Client as PGClient } from 'pg';
 
-let sqlPromise: Promise<typeof import('sql.js')> | null = null;
+let sqlPromise: Promise<SqlJsStatic> | null = null;
 let sqlDb: Database | null = null;
 let pgClient: PGClient | null = null;
 let initialized = false;
@@ -76,9 +77,9 @@ async function ensurePg() {
 
 async function ensureSqlJs() {
   if (sqlDb) return;
-  const SQL = await (sqlPromise as Promise<typeof import('sql.js')>);
+  const SQL = await (sqlPromise as Promise<SqlJsStatic>);
   sqlDb = new SQL.Database();
-  migrateSqlJs(sqlDb);
+  migrateSqlJs(sqlDb!);
 }
 
 async function migratePg(client: PGClient) {
