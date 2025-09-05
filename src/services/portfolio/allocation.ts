@@ -1,5 +1,4 @@
 import type { Txn } from "./importCsv";
-import { calcNetCash } from "./importCsv";
 import { buildPositions } from "./holdings";
 
 export type AllocationRow = {
@@ -22,9 +21,22 @@ export function valueAndWeightsByCurrency(txns: Txn[]): AllocationRow[] {
 
     const cashByCcy = new Map<string, number>();
     for (const t of txns) {
-      const ccy = t.ccyAmount || "";
-      const net = calcNetCash(t);
-      cashByCcy.set(ccy, (cashByCcy.get(ccy) ?? 0) + net);
+      const amt = t.amount ?? null;
+      const fees = t.fees ?? 0;
+      const taxes = t.taxes ?? 0;
+
+      if (amt != null) {
+        const ccyAmt = t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyAmt, (cashByCcy.get(ccyAmt) ?? 0) + amt);
+      }
+      if (fees) {
+        const ccyFees = t.feesCurrency || t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyFees, (cashByCcy.get(ccyFees) ?? 0) - fees);
+      }
+      if (taxes) {
+        const ccyTax = t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyTax, (cashByCcy.get(ccyTax) ?? 0) - taxes);
+      }
     }
 
     const totalByCcy = new Map<string, number>();
@@ -81,9 +93,22 @@ export function valueAndWeightsGlobal(txns: Txn[], fx: FxMap, base: string = "CZ
 
     const cashByCcy = new Map<string, number>();
     for (const t of txns) {
-      const ccy = t.ccyAmount || "";
-      const net = calcNetCash(t);
-      cashByCcy.set(ccy, (cashByCcy.get(ccy) ?? 0) + net);
+      const amt = t.amount ?? null;
+      const fees = t.fees ?? 0;
+      const taxes = t.taxes ?? 0;
+
+      if (amt != null) {
+        const ccyAmt = t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyAmt, (cashByCcy.get(ccyAmt) ?? 0) + amt);
+      }
+      if (fees) {
+        const ccyFees = t.feesCurrency || t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyFees, (cashByCcy.get(ccyFees) ?? 0) - fees);
+      }
+      if (taxes) {
+        const ccyTax = t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyTax, (cashByCcy.get(ccyTax) ?? 0) - taxes);
+      }
     }
 
     type Item = { label: string; sourceCcy: string; value: number };

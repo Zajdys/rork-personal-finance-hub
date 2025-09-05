@@ -14,6 +14,7 @@ export type Txn = {
   fees?: number;            // součet všech fee
   taxes?: number;           // součet všech daní
   ccyAmount?: string;       // Currency (Amount)
+  feesCurrency?: string;    // Currency (Fees)
   splitRatio?: number | null; // korporátní akce: násobek počtu kusů (new = old * ratio)
 };
 
@@ -21,6 +22,13 @@ type Raw = Record<string, string | undefined>;
 
 function field(r: Raw, keys: string[]) {
   for (const k of keys) if (r[k] != null) return r[k];
+  // fallback case-insensitive
+  const lowerMap: Record<string, string | undefined> = {};
+  for (const kk in r) lowerMap[kk.toLowerCase()] = r[kk];
+  for (const k of keys) {
+    const v = lowerMap[k.toLowerCase()];
+    if (v != null) return v;
+  }
   return undefined;
 }
 
@@ -44,33 +52,50 @@ function parseSplitRatio(raw?: string): number | null {
 }
 
 export function mapRow(r: Raw): Txn {
-  const amount0 = toNum(pickAmountKey(r));
-  const amount  = normalizeCashSign(r["Action"], amount0);
+  const action = field(r, ["Action", "type"]) || "";
 
-  const fees = (toNum(r["Fee amount"]) ?? 0)
-             + (toNum(r["Deposit fee"]) ?? 0)
-             + (toNum(r["Charge amount"]) ?? 0)
-             + (toNum(r["Currency conversion fee"]) ?? 0);
+  const explicitCashAmount = toNum(pickAmountKey(r));
 
-  const taxes = (toNum(r["Tax amount"]) ?? 0)
-              + (toNum(r["Withholding tax"]) ?? 0)
-              + (toNum(r["French transaction tax"]) ?? 0);
+  let shares = toNum(field(r, ["No. of shares", "amount"]));
+  const price = toNum(field(r, ["Price / share", "unitPrice"]));
+
+  const ccyPrice = field(r, ["Currency (Price / share)", "currency", "Currency (Amount)"]) || "";
+  const ccyAmount = field(r, ["Currency (Amount)", "currency"]) || "";
+
+  const fees = (toNum(field(r, ["Fee amount"])) ?? 0)
+             + (toNum(field(r, ["Deposit fee"])) ?? 0)
+             + (toNum(field(r, ["Charge amount"])) ?? 0)
+             + (toNum(field(r, ["Currency conversion fee"])) ?? 0)
+             + (toNum(field(r, ["fees"])) ?? 0);
+
+  const taxes = (toNum(field(r, ["Tax amount"])) ?? 0)
+              + (toNum(field(r, ["Withholding tax"])) ?? 0)
+              + (toNum(field(r, ["French transaction tax"])) ?? 0)
+              + (toNum(field(r, ["taxes"])) ?? 0);
 
   const splitRatio = parseSplitRatio(field(r, ["Split ratio", "Ratio", "Split", "Reverse split"])) ?? null;
 
+  let amount: number | null = null;
+  if (explicitCashAmount != null) {
+    amount = normalizeCashSign(action, explicitCashAmount);
+  } else if (shares != null && price != null) {
+    amount = normalizeCashSign(action, shares * price);
+  }
+
   return {
-    time: r["Time"] || "",
-    action: r["Action"] || "",
-    ticker: r["Ticker"],
-    isin: r["ISIN"],
-    name: r["Name"],
-    shares: toNum(r["No. of shares"]),
-    price: toNum(r["Price / share"]),
-    ccyPrice: r["Currency (Price / share)"] || r["Currency (Amount)"] || "",
+    time: field(r, ["Time"]) || "",
+    action,
+    ticker: field(r, ["Ticker"]),
+    isin: field(r, ["ISIN"]),
+    name: field(r, ["Name"]),
+    shares,
+    price,
+    ccyPrice,
     amount,
     fees,
     taxes,
-    ccyAmount: r["Currency (Amount)"] || "",
+    ccyAmount,
+    feesCurrency: field(r, ["feesCurrency"]),
     splitRatio,
   };
 }
