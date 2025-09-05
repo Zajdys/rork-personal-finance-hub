@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { calcPortfolioWithLivePrices, type PortfolioRow, type CashRow } from '@/src/services/portfolioCalc';
 import { parseXlsxArrayBuffer, parseCsvText, type ParsedTable } from '@/src/utils/fileParser';
-import { TrendingUp, Wallet } from 'lucide-react-native';
+import { TrendingUp } from 'lucide-react-native';
+import { buildPortfolioFromTrades, type HoldingFifo } from '@/src/services/portfolio/portfolioCalc';
+import { fetchLatestPrices } from '@/src/services/priceService';
 
 export default function LivePortfolioScreen() {
   const [rows, setRows] = useState<ParsedTable>([]);
-  const [result, setResult] = useState<{ portfolio: PortfolioRow[]; cash: CashRow[] } | null>(null);
+  const [holdings, setHoldings] = useState<HoldingFifo[]>([]);
+  const [prices, setPrices] = useState<Record<string, { price: number }>>({});
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -39,13 +41,35 @@ export default function LivePortfolioScreen() {
     }
   }, []);
 
+  const mapRowsToTrades = useCallback(() => {
+    return rows.map((r) => {
+      const symbol = (String(r['Ticker'] ?? r['ISIN'] ?? r['Name'] ?? r['symbol'] ?? '')).trim();
+      const type = String(r['Action'] ?? r['Type'] ?? r['type'] ?? '').trim();
+      const amountRaw = r['No. of shares'] ?? r['Shares'] ?? r['Quantity'] ?? r['amount'];
+      const unitPriceRaw = r['Price / share'] ?? r['Price'] ?? r['unitPrice'];
+      const feesRaw = r['Charge amount'] ?? r['Deposit fee'] ?? r['Currency conversion fee'] ?? r['French transaction tax'] ?? r['Withholding tax'] ?? r['fees'];
+      const amount = amountRaw != null ? Number(String(amountRaw).replace(',', '.')) : 0;
+      const unitPrice = unitPriceRaw != null ? Number(String(unitPriceRaw).replace(',', '.')) : 0;
+      const fees = feesRaw != null ? Number(String(feesRaw).replace(',', '.')) : 0;
+      return { symbol, type, amount, unitPrice, fees };
+    });
+  }, [rows]);
+
   const compute = useCallback(async () => {
     if (!rows || rows.length === 0) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await calcPortfolioWithLivePrices(rows);
-      setResult(res);
+      const trades = mapRowsToTrades();
+      const fifo = buildPortfolioFromTrades(trades);
+      setHoldings(fifo);
+      const symbols = fifo.map((h) => h.symbol).filter(Boolean);
+      if (symbols.length > 0) {
+        const priceMap = await fetchLatestPrices(symbols);
+        setPrices(priceMap);
+      } else {
+        setPrices({});
+      }
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (e) {
       console.error('[LivePortfolioScreen] compute error', e);
@@ -53,31 +77,30 @@ export default function LivePortfolioScreen() {
     } finally {
       setLoading(false);
     }
-  }, [rows]);
+  }, [rows, mapRowsToTrades]);
 
   useEffect(() => {
     if (rows.length) { void compute(); }
   }, [rows, compute]);
 
   useEffect(() => {
-    if (!result) return;
+    if (holdings.length === 0) return;
     const id = setInterval(() => {
       console.log('[LivePortfolioScreen] auto refresh tick');
       void compute();
     }, 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [result, compute]);
+  }, [holdings.length, compute]);
 
-  const totalByCcy = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of result?.portfolio ?? []) {
-      map.set(p.ccy, (map.get(p.ccy) ?? 0) + p.positionValue);
-    }
-    for (const c of result?.cash ?? []) {
-      map.set(c.ccy, (map.get(c.ccy) ?? 0) + c.cashValue);
-    }
-    return Array.from(map.entries()).map(([ccy, total]) => ({ ccy, total }));
-  }, [result]);
+  const calculatePL = useCallback((h: HoldingFifo) => {
+    const key = h.symbol.trim().toLowerCase();
+    const currentPrice = prices[key]?.price ?? h.avgBuyPrice;
+    const currentValue = h.shares * currentPrice;
+    const unrealizedPL = currentValue - h.totalCost;
+    const totalPL = unrealizedPL + h.realizedPL;
+    const changePct = h.totalCost > 0 ? (unrealizedPL / h.totalCost) * 100 : 0;
+    return { currentPrice, currentValue, unrealizedPL, totalPL, changePct };
+  }, [prices]);
 
   const renderHeader = useMemo(() => (
     <View style={styles.header} testID="header">
@@ -90,23 +113,28 @@ export default function LivePortfolioScreen() {
     </View>
   ), [pickFile]);
 
-  const renderItem = useCallback(({ item }: { item: PortfolioRow }) => (
-    <View style={styles.row} testID={`row-${item.symbol}`}>
-      <View style={styles.rowLeft}>
-        <TrendingUp size={18} color="#111" />
-        <View style={styles.rowTextWrap}>
-          <Text style={styles.rowTitle}>{item.symbol}</Text>
-          <Text style={styles.rowSub}>{item.shares.toFixed(4)} ks · {item.ccy}</Text>
+  const renderItem = useCallback(({ item }: { item: HoldingFifo }) => {
+    const { currentPrice, currentValue, unrealizedPL, totalPL, changePct } = calculatePL(item);
+    return (
+      <View style={styles.row} testID={`row-${item.symbol}`}>
+        <View style={styles.rowLeft}>
+          <TrendingUp size={18} color="#111" />
+          <View style={styles.rowTextWrap}>
+            <Text style={styles.rowTitle}>{item.symbol}</Text>
+            <Text style={styles.rowSub}>{item.shares.toFixed(4)} ks</Text>
+            <Text style={styles.rowSub}>Průměr: {item.avgBuyPrice.toFixed(4)}</Text>
+          </View>
+        </View>
+        <View style={styles.rowRight}>
+          <Text style={styles.rowTitle}>{currentValue.toFixed(2)}</Text>
+          <Text style={styles.rowSub}>Cena: {currentPrice.toFixed(4)}</Text>
+          <Text style={[styles.rowSub, { color: totalPL >= 0 ? '#0a0' : '#c00' }]}>PL: {totalPL.toFixed(2)} ({changePct.toFixed(2)}%)</Text>
         </View>
       </View>
-      <View style={styles.rowRight}>
-        <Text style={styles.rowTitle}>{item.positionValue.toFixed(2)}</Text>
-        <Text style={styles.rowSub}>{item.lastPrice.toFixed(4)}</Text>
-      </View>
-    </View>
-  ), []);
+    );
+  }, [calculatePL]);
 
-  const keyExtractor = useCallback((i: PortfolioRow) => i.symbol, []);
+  const keyExtractor = useCallback((i: HoldingFifo) => i.symbol, []);
 
   return (
     <View style={styles.container} testID="LivePortfolioScreen">
@@ -116,28 +144,22 @@ export default function LivePortfolioScreen() {
         <Text style={styles.error} testID="error">{error}</Text>
       ) : null}
 
-      {loading && !result ? (
+      {loading && holdings.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
       ) : null}
 
-      {result ? (
+      {holdings.length > 0 ? (
         <>
-          <View style={styles.summary} testID="summary">
-            {totalByCcy.map((t) => (
-              <View key={t.ccy} style={styles.summaryItem}>
-                <Wallet size={16} color="#444" />
-                <Text style={styles.summaryText}>{t.ccy}: {t.total.toFixed(2)}</Text>
-              </View>
-            ))}
-            {lastUpdated ? (
+          {lastUpdated ? (
+            <View style={styles.summary} testID="summary">
               <Text style={styles.updated} testID="lastUpdated">Aktualizováno: {lastUpdated}</Text>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
 
           <FlatList
-            data={result.portfolio}
+            data={holdings}
             keyExtractor={keyExtractor}
             renderItem={renderItem}
             ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -164,8 +186,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#c00', paddingHorizontal: 16, marginBottom: 8 },
   summary: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 8, alignItems: 'center' },
-  summaryItem: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
-  summaryText: { color: '#333' },
   listContent: { paddingHorizontal: 12, paddingVertical: 8 },
   row: { backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sep: { height: 10 },
