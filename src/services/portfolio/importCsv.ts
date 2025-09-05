@@ -13,6 +13,7 @@ export type Txn = {
   shares?: number | null;
   ticker?: string;
   name?: string;
+  splitRatio?: number | null; // korporátní akce: násobek počtu kusů (new = old * ratio)
 };
 
 type Raw = Record<string, string | undefined>;
@@ -24,6 +25,21 @@ function field(r: Raw, keys: string[]) {
 
 function pickAmountKey(r: Raw) {
   return field(r, ["Amount", "Amount value", "Total amount"]);
+}
+
+function parseSplitRatio(raw?: string): number | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const colon = s.split(":");
+  const slash = s.split("/");
+  const parts = colon.length === 2 ? colon : (slash.length === 2 ? slash : null);
+  if (parts) {
+    const a = toNum(parts[0]);
+    const b = toNum(parts[1]);
+    if ((a ?? 0) > 0 && (b ?? 0) > 0) return (a as number) / (b as number);
+  }
+  const x = toNum(s);
+  return x && x > 0 ? x : null;
 }
 
 export function mapRow(r: Raw): Txn {
@@ -39,6 +55,8 @@ export function mapRow(r: Raw): Txn {
               + (toNum(r["Withholding tax"]) ?? 0)
               + (toNum(r["French transaction tax"]) ?? 0);
 
+  const splitRatio = parseSplitRatio(field(r, ["Split ratio", "Ratio", "Split", "Reverse split"])) ?? null;
+
   return {
     time: r["Time"],
     action: r["Action"],
@@ -51,6 +69,7 @@ export function mapRow(r: Raw): Txn {
     shares: toNum(r["No. of shares"]),
     ticker: r["Ticker"],
     name: r["Name"],
+    splitRatio,
   };
 }
 

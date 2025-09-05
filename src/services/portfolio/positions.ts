@@ -16,6 +16,13 @@ export function buildPositions(txns: Txn[]) {
     const key = (t.ticker || t.name || "").trim();
     if (!key) continue;
 
+    // korporátní akce: split/reverse split
+    if (t.splitRatio && Number.isFinite(t.splitRatio)) {
+      const p = pos.get(key) ?? { key, name: t.name, shares: 0, lastPrice: null, ccyPrice: t.ccyPrice || "", lastTime: undefined };
+      p.shares = p.shares * (t.splitRatio as number);
+      pos.set(key, p);
+    }
+
     const d = sharesDelta(t.action, t.shares);
     if (!pos.has(key)) pos.set(key, { key, name: t.name, shares: 0, lastPrice: null, ccyPrice: t.ccyPrice || "", lastTime: undefined });
     const p = pos.get(key)!;
@@ -38,7 +45,7 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
 
   const valued = positions.map(p => ({
     ...p,
-    marketValue: (p.lastPrice ?? 0) * p.shares, // v měně ceny
+    marketValue: (p.lastPrice ?? 0) * p.shares,
   }));
 
   const cashByCcy = new Map<string, number>();
@@ -57,15 +64,18 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
     totalByCcy.set(c, (totalByCcy.get(c) ?? 0) + csh);
   }
 
-  const rows: { ccy: string; label: string; value: number; weightPct: number }[] = [];
+  type Row = { ccy: string; label: string; value: number; weightPct: number | null };
+  const rows: Row[] = [];
   for (const v of valued) {
     const total = totalByCcy.get(v.ccyPrice || "") ?? 0;
-    rows.push({ ccy: v.ccyPrice || "", label: v.key, value: v.marketValue, weightPct: total ? (v.marketValue / total) * 100 : 0 });
+    const weight = total > 0 ? (v.marketValue / total) * 100 : null;
+    rows.push({ ccy: v.ccyPrice || "", label: v.key, value: v.marketValue, weightPct: weight });
   }
   for (const [ccy, csh] of cashByCcy.entries()) {
     const total = totalByCcy.get(ccy) ?? 0;
-    rows.push({ ccy, label: "CASH", value: csh, weightPct: total ? (csh / total) * 100 : 0 });
+    const weight = total > 0 ? (csh / total) * 100 : null;
+    rows.push({ ccy, label: "CASH", value: csh, weightPct: weight });
   }
 
-  return rows.sort((a,b)=> a.ccy.localeCompare(b.ccy) || b.weightPct - a.weightPct);
+  return rows.sort((a,b)=> a.ccy.localeCompare(b.ccy) || ((b.weightPct ?? -Infinity) - (a.weightPct ?? -Infinity)));
 }
