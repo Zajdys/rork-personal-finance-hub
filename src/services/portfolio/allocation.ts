@@ -57,3 +57,71 @@ export function valueAndWeightsByCurrency(txns: Txn[]): AllocationRow[] {
     return [];
   }
 }
+
+export type FxMap = Record<string, number>;
+
+export function convertToBase(value: number, ccy: string, fx: FxMap, base: string = "CZK"): number | null {
+  try {
+    const rateCcy = fx?.[ccy as keyof FxMap];
+    const rateBase = fx?.[base as keyof FxMap] ?? 1;
+    if (!Number.isFinite(rateCcy as number)) return null;
+    const result = value * (Number(rateCcy) / Number(rateBase));
+    return Number.isFinite(result) ? result : null;
+  } catch (e) {
+    console.error("[allocation] convertToBase error", e);
+    return null;
+  }
+}
+
+export function valueAndWeightsGlobal(txns: Txn[], fx: FxMap, base: string = "CZK"): AllocationRow[] {
+  try {
+    console.log("[allocation] valueAndWeightsGlobal: txns=", txns?.length ?? 0, "base=", base);
+    const positions = buildPositions(txns);
+    const valued = positions.map((p) => ({ ...p, marketValue: (p.lastPrice ?? 0) * p.shares }));
+
+    const cashByCcy = new Map<string, number>();
+    for (const t of txns) {
+      const ccy = t.ccyAmount || "";
+      const net = calcNetCash(t);
+      cashByCcy.set(ccy, (cashByCcy.get(ccy) ?? 0) + net);
+    }
+
+    type Item = { label: string; sourceCcy: string; value: number };
+    const items: Item[] = [];
+    for (const v of valued) {
+      items.push({ label: v.key, sourceCcy: v.ccyPrice || base, value: v.marketValue });
+    }
+    for (const [ccy, csh] of cashByCcy.entries()) {
+      items.push({ label: "CASH", sourceCcy: ccy || base, value: csh });
+    }
+
+    const converted: { label: string; value: number }[] = [];
+    for (const it of items) {
+      const v = convertToBase(it.value, it.sourceCcy || base, fx, base);
+      if (v == null) {
+        console.warn("[allocation] Skipping item without FX rate", it);
+        continue;
+      }
+      converted.push({ label: it.label, value: v });
+    }
+
+    const total = converted.reduce((sum, r) => sum + r.value, 0);
+    if (!(total > 0)) {
+      return converted.map((r) => ({ ccy: base, label: r.label, value: r.value, weightPct: null }));
+    }
+
+    const rows: AllocationRow[] = converted.map((r) => ({
+      ccy: base,
+      label: r.label,
+      value: r.value,
+      weightPct: (r.value / total) * 100,
+    }));
+
+    rows.sort((a, b) => ((b.weightPct ?? -Infinity) - (a.weightPct ?? -Infinity)) || a.label.localeCompare(b.label));
+    console.log("[allocation] global rows sample=", rows.slice(0, 5));
+    return rows;
+  } catch (err) {
+    console.error("[allocation] valueAndWeightsGlobal error:", err);
+    return [];
+  }
+}
