@@ -109,7 +109,7 @@ interface Trade {
 }
 
 export default function InvestmentsScreen() {
-  const { notifications, currency, setCurrency, currencyScope } = useSettingsStore();
+  const { notifications, currency, setCurrency, currencyScope, investmentCurrency, setInvestmentCurrency } = useSettingsStore();
   const [showCurrencyModal, setShowCurrencyModal] = useState<boolean>(false);
   const [selectedTab, setSelectedTab] = useState<'portfolio' | 'recommendations' | 'trades'>('portfolio');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -270,7 +270,7 @@ export default function InvestmentsScreen() {
   }, [portfolioData]);
 
   // Funkce pro převod měny (simulace - v reálné aplikaci by se používaly aktuální kurzy)
-  const convertCurrency = (amount: number, fromCurrency: Currency = 'EUR', toCurrency: Currency = currency): number => {
+  const convertCurrency = (amount: number, fromCurrency: Currency = 'EUR', toCurrency: Currency = (currencyScope === 'investmentsOnly' ? investmentCurrency : currency)): number => {
     if (fromCurrency === toCurrency) return amount;
     
     // Simulované kurzy (v reálné aplikaci by se načítaly z API)
@@ -295,7 +295,7 @@ export default function InvestmentsScreen() {
   };
 
   // Funkce pro formátování částky s měnou - nyní předpokládá EUR jako výchozí měnu portfolia
-  const formatCurrency = (amount: number, sourceCurrency: Currency = 'EUR', targetCurrency: Currency = currency): string => {
+  const formatCurrency = (amount: number, sourceCurrency: Currency = 'EUR', targetCurrency: Currency = (currencyScope === 'investmentsOnly' ? investmentCurrency : currency)): string => {
     const convertedAmount = convertCurrency(amount, sourceCurrency, targetCurrency);
     const currencyInfo = CURRENCIES[targetCurrency];
     
@@ -1793,8 +1793,8 @@ export default function InvestmentsScreen() {
         >
           <Text style={styles.currencyLabel}>Měna:</Text>
           <View style={styles.currencyValue}>
-            <Text style={styles.currencyFlag}>{CURRENCIES[currency].flag}</Text>
-            <Text style={styles.currencyCode}>{currency}</Text>
+            <Text style={styles.currencyFlag}>{CURRENCIES[(currencyScope === 'investmentsOnly' ? investmentCurrency : currency)].flag}</Text>
+            <Text style={styles.currencyCode}>{(currencyScope === 'investmentsOnly' ? investmentCurrency : currency)}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -2542,7 +2542,11 @@ export default function InvestmentsScreen() {
                     currency === currencyInfo.code && styles.currencyOptionActive
                   ]}
                   onPress={() => {
-                    setCurrency(currencyInfo.code);
+                    if (currencyScope === 'investmentsOnly') {
+                      setInvestmentCurrency(currencyInfo.code);
+                    } else {
+                      setCurrency(currencyInfo.code);
+                    }
                     setShowCurrencyModal(false);
                   }}
                 >

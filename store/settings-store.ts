@@ -30,15 +30,18 @@ export const CURRENCIES: Record<Currency, CurrencyInfo> = {
 interface SettingsState {
   theme: Theme;
   currency: Currency;
+  investmentCurrency: Currency;
   currencyScope: CurrencyScope;
   isDarkMode: boolean;
   notifications: NotificationSettings;
   setTheme: (theme: Theme) => void;
   setCurrency: (currency: Currency) => void;
+  setInvestmentCurrency: (currency: Currency) => void;
   setCurrencyScope: (scope: CurrencyScope) => void;
   setNotificationSetting: (key: keyof NotificationSettings, value: boolean) => void;
   loadSettings: () => Promise<void>;
   getCurrentCurrency: () => CurrencyInfo;
+  getInvestmentCurrencyInfo: () => CurrencyInfo;
 }
 
 const getEffectiveTheme = (theme: Theme): boolean => {
@@ -51,6 +54,7 @@ const getEffectiveTheme = (theme: Theme): boolean => {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   theme: 'light',
   currency: 'CZK',
+  investmentCurrency: 'EUR',
   currencyScope: 'wholeApp',
   isDarkMode: false,
   notifications: {
@@ -74,7 +78,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setCurrency: async (currency: Currency) => {
     set({ currency });
     await AsyncStorage.setItem('currency', currency);
-    console.log('Currency changed to:', currency);
+    console.log('Currency (app-wide) changed to:', currency);
+  },
+
+  setInvestmentCurrency: async (currency: Currency) => {
+    set({ investmentCurrency: currency });
+    await AsyncStorage.setItem('investmentCurrency', currency);
+    console.log('Investment currency changed to:', currency);
   },
 
   setCurrencyScope: async (currencyScope: CurrencyScope) => {
@@ -97,25 +107,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const [savedTheme, savedCurrency, savedCurrencyScope, savedNotifications] = await Promise.all([
+      const [savedTheme, savedCurrency, savedInvestmentCurrency, savedCurrencyScope, savedNotifications] = await Promise.all([
         AsyncStorage.getItem('theme'),
         AsyncStorage.getItem('currency'),
+        AsyncStorage.getItem('investmentCurrency'),
         AsyncStorage.getItem('currencyScope'),
         AsyncStorage.getItem('notifications'),
       ]);
-      
+
       const theme = (savedTheme as Theme) || 'light';
       const currency = (savedCurrency as Currency) || 'CZK';
+      const investmentCurrency = (savedInvestmentCurrency as Currency) || 'EUR';
       const currencyScope = (savedCurrencyScope as CurrencyScope) || 'wholeApp';
       const isDarkMode = getEffectiveTheme(theme);
-      
+
       let notifications: NotificationSettings = {
         pushNotifications: true,
         dailyTips: true,
         investmentAlerts: true,
         budgetWarnings: true,
       };
-      
+
       if (savedNotifications) {
         try {
           notifications = JSON.parse(savedNotifications);
@@ -123,9 +135,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           console.error('Failed to parse saved notifications:', error);
         }
       }
-      
-      set({ theme, currency, currencyScope, isDarkMode, notifications });
-      console.log('Settings loaded:', { theme, currency, currencyScope, isDarkMode, notifications });
+
+      set({ theme, currency, investmentCurrency, currencyScope, isDarkMode, notifications });
+      console.log('Settings loaded:', { theme, currency, investmentCurrency, currencyScope, isDarkMode, notifications });
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -135,11 +147,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const { currency } = get();
     return CURRENCIES[currency];
   },
+
+  getInvestmentCurrencyInfo: () => {
+    const { investmentCurrency } = get();
+    return CURRENCIES[investmentCurrency];
+  },
 }));
 
-// Listen to system theme changes
 Appearance.addChangeListener(({ colorScheme }) => {
-  const { theme, setTheme } = useSettingsStore.getState();
+  const { theme } = useSettingsStore.getState();
   if (theme === 'auto') {
     const isDarkMode = colorScheme === 'dark';
     useSettingsStore.setState({ isDarkMode });

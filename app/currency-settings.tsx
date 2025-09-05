@@ -15,7 +15,7 @@ import { useLanguageStore } from '@/store/language-store';
 
 
 export default function CurrencySettingsScreen() {
-  const { currency, currencyScope, isDarkMode, setCurrency, setCurrencyScope } = useSettingsStore();
+  const { currency, currencyScope, isDarkMode, setCurrency, setCurrencyScope, investmentCurrency, setInvestmentCurrency } = useSettingsStore();
   const { t } = useLanguageStore();
   
   const currencyList = Object.values(CURRENCIES);
@@ -86,7 +86,13 @@ export default function CurrencySettingsScreen() {
                 styles.currencyOption,
                 { backgroundColor: isDarkMode ? '#374151' : 'white' }
               ]}
-              onPress={() => setCurrency(currencyItem.code as Currency)}
+              onPress={() => {
+                if (currencyScope === 'investmentsOnly') {
+                  setInvestmentCurrency(currencyItem.code as Currency);
+                } else {
+                  setCurrency(currencyItem.code as Currency);
+                }
+              }}
             >
               <View style={styles.currencyInfo}>
                 <Text style={styles.flag}>{currencyItem.flag}</Text>
@@ -105,7 +111,7 @@ export default function CurrencySettingsScreen() {
                   </Text>
                 </View>
               </View>
-              {currency === currencyItem.code && (
+              {(currencyScope === 'investmentsOnly' ? investmentCurrency : currency) === currencyItem.code && (
                 <Check color="#10B981" size={24} />
               )}
             </TouchableOpacity>
