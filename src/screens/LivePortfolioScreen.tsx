@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { calcPortfolioWithLivePrices, type PortfolioRow, type CashRow } from '@/src/services/portfolioCalc';
 import { parseXlsxArrayBuffer, parseCsvText, type ParsedTable } from '@/src/utils/fileParser';
@@ -10,6 +10,7 @@ export default function LivePortfolioScreen() {
   const [result, setResult] = useState<{ portfolio: PortfolioRow[]; cash: CashRow[] } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const pickFile = useCallback(async () => {
     setError(null);
@@ -45,6 +46,7 @@ export default function LivePortfolioScreen() {
     try {
       const res = await calcPortfolioWithLivePrices(rows);
       setResult(res);
+      setLastUpdated(new Date().toLocaleTimeString());
     } catch (e) {
       console.error('[LivePortfolioScreen] compute error', e);
       setError('Výpočet se nezdařil.');
@@ -56,6 +58,15 @@ export default function LivePortfolioScreen() {
   useEffect(() => {
     if (rows.length) { void compute(); }
   }, [rows, compute]);
+
+  useEffect(() => {
+    if (!result) return;
+    const id = setInterval(() => {
+      console.log('[LivePortfolioScreen] auto refresh tick');
+      void compute();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [result, compute]);
 
   const totalByCcy = useMemo(() => {
     const map = new Map<string, number>();
@@ -120,6 +131,9 @@ export default function LivePortfolioScreen() {
                 <Text style={styles.summaryText}>{t.ccy}: {t.total.toFixed(2)}</Text>
               </View>
             ))}
+            {lastUpdated ? (
+              <Text style={styles.updated} testID="lastUpdated">Aktualizováno: {lastUpdated}</Text>
+            ) : null}
           </View>
 
           <FlatList
@@ -149,7 +163,7 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontWeight: '600' as const },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#c00', paddingHorizontal: 16, marginBottom: 8 },
-  summary: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 8 },
+  summary: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, paddingBottom: 8, alignItems: 'center' },
   summaryItem: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
   summaryText: { color: '#333' },
   listContent: { paddingHorizontal: 12, paddingVertical: 8 },
@@ -161,4 +175,5 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 12, color: '#666', marginTop: 2 },
   rowRight: { alignItems: 'flex-end' as const },
   muted: { color: '#777', paddingHorizontal: 24, textAlign: 'center' as const },
+  updated: { marginLeft: 8, color: '#666', fontSize: 12 },
 });
