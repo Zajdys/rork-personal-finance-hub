@@ -79,3 +79,38 @@ export function valueAndWeightsByCurrency(txns: Txn[]) {
 
   return rows.sort((a,b)=> a.ccy.localeCompare(b.ccy) || ((b.weightPct ?? -Infinity) - (a.weightPct ?? -Infinity)));
 }
+
+export type PositionDetail = {
+  ticker: string;
+  shares: number;
+  lastPrice: number;
+  ccy: string;
+  value: number;
+  lastPriceTime?: string;
+};
+
+export function positionDetail(txns: Txn[], key: string): PositionDetail | null {
+  try {
+    console.log('[positionDetail] start', { key, txnsCount: txns?.length ?? 0 });
+    const pos = buildPositions(txns).find(p => p.key === key);
+    if (!pos) {
+      console.warn('[positionDetail] position not found', { key });
+      return null;
+    }
+    const lastPrice = pos.lastPrice ?? 0;
+    const value = lastPrice * pos.shares;
+    const detail: PositionDetail = {
+      ticker: key,
+      shares: pos.shares,
+      lastPrice,
+      ccy: pos.ccyPrice || "",
+      value,
+      lastPriceTime: pos.lastTime,
+    };
+    console.log('[positionDetail] detail', detail);
+    return detail;
+  } catch (e) {
+    console.error('[positionDetail] error', e);
+    return null;
+  }
+}
