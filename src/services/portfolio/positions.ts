@@ -28,7 +28,8 @@ export function buildPositions(txns: Txn[]) {
     const p = pos.get(key)!;
     p.shares += d;
 
-    if (t.price != null && Number.isFinite(t.price)) {
+    const act = (t.action || "").toLowerCase();
+    if ((/buy|sell/.test(act)) && t.price != null && Number.isFinite(t.price)) {
       if (!p.lastTime || (t.time && new Date(t.time) > new Date(p.lastTime))) {
         p.lastPrice = t.price!;
         p.ccyPrice = t.ccyPrice || p.ccyPrice || "";

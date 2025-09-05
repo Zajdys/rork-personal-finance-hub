@@ -33,7 +33,7 @@ function field(r: Raw, keys: string[]) {
 }
 
 function pickAmountKey(r: Raw) {
-  return field(r, ["Amount", "Amount value", "Total amount"]);
+  return field(r, ["Total", "Result", "Amount", "Amount value", "Total amount"]);
 }
 
 function parseSplitRatio(raw?: string): number | null {
@@ -60,7 +60,12 @@ export function mapRow(r: Raw): Txn {
   const price = toNum(field(r, ["Price / share", "unitPrice"]));
 
   const ccyPrice = field(r, ["Currency (Price / share)", "currency", "Currency (Amount)"]) || "";
-  const ccyAmount = field(r, ["Currency (Amount)", "currency"]) || "";
+  const ccyAmount = field(r, [
+    "Currency (Total)",
+    "Currency (Result)",
+    "Currency (Amount)",
+    "currency",
+  ]) || "";
 
   const fees = (toNum(field(r, ["Fee amount"])) ?? 0)
              + (toNum(field(r, ["Deposit fee"])) ?? 0)
