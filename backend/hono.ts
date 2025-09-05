@@ -97,8 +97,8 @@ app.get("/portfolio", async (c) => {
     }
 
     const csvFile = fs.readFileSync(csvPath, "utf8");
-    const parsed = Papa.parse<TradeRow>(csvFile, { header: true, skipEmptyLines: true });
-    const rows = parsed.data.filter(Boolean);
+    const parsed = Papa.parse(csvFile, { header: true, skipEmptyLines: true }) as unknown as { data: TradeRow[] };
+    const rows: TradeRow[] = parsed.data.filter(Boolean);
 
     const trades = rows.filter((row) =>
       ["Market buy", "Limit buy", "Market sell", "Limit sell"].includes(String(row.Action))
