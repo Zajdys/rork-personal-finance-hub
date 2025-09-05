@@ -2,17 +2,18 @@ import { toNum } from "@/src/lib/num";
 import { normalizeCashSign } from "@/src/lib/sign";
 
 export type Txn = {
-  time?: string;
-  action?: string;
-  ccyAmount?: string;  // měna cash toků
-  ccyPrice?: string;   // měna ceny akcie
-  amount?: number | null; // už po normalizaci znaménka
-  fees?: number;
-  taxes?: number;
-  price?: number | null;
-  shares?: number | null;
+  time: string;             // ISO
+  action: string;           // Buy|Sell|Dividend|Interest|Fee|Tax|...
   ticker?: string;
+  isin?: string;
   name?: string;
+  shares?: number | null;     // z CSV (na transakci)
+  price?: number | null;      // Price / share (měna viz níže)
+  ccyPrice?: string;        // Currency (Price / share)
+  amount?: number | null;      // Amount (cash tok) už po znaménku
+  fees?: number;            // součet všech fee
+  taxes?: number;           // součet všech daní
+  ccyAmount?: string;       // Currency (Amount)
   splitRatio?: number | null; // korporátní akce: násobek počtu kusů (new = old * ratio)
 };
 
@@ -58,17 +59,18 @@ export function mapRow(r: Raw): Txn {
   const splitRatio = parseSplitRatio(field(r, ["Split ratio", "Ratio", "Split", "Reverse split"])) ?? null;
 
   return {
-    time: r["Time"],
-    action: r["Action"],
-    ccyAmount: r["Currency (Amount)"] || "",
+    time: r["Time"] || "",
+    action: r["Action"] || "",
+    ticker: r["Ticker"],
+    isin: r["ISIN"],
+    name: r["Name"],
+    shares: toNum(r["No. of shares"]),
+    price: toNum(r["Price / share"]),
     ccyPrice: r["Currency (Price / share)"] || r["Currency (Amount)"] || "",
     amount,
     fees,
     taxes,
-    price: toNum(r["Price / share"]),
-    shares: toNum(r["No. of shares"]),
-    ticker: r["Ticker"],
-    name: r["Name"],
+    ccyAmount: r["Currency (Amount)"] || "",
     splitRatio,
   };
 }
