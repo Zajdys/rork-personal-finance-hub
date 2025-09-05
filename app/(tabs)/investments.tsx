@@ -30,6 +30,7 @@ import {
   Edit3,
   FileText,
 } from 'lucide-react-native';
+import { read, utils } from 'xlsx';
 import { calculatePortfolioMetrics } from '@/services/financial-calculations';
 import { mapRow, Txn } from '@/src/services/portfolio/importCsv';
 import { runAllTests } from '@/tests/financial-calculations.test';
@@ -497,16 +498,14 @@ export default function InvestmentsScreen() {
 
   const handleFileImport = async () => {
     try {
-      if (Platform.OS === 'web') {
-        Alert.alert(
-          'Nepodporováno na webu',
-          'Import souborů není na webu podporován. Použijte mobilní aplikaci.'
-        );
-        return;
-      }
-
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'text/plain', 'text/*'],
+        type: [
+          'text/csv',
+          'text/plain',
+          'text/*',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel'
+        ],
         copyToCacheDirectory: true,
       });
 
@@ -1306,15 +1305,102 @@ export default function InvestmentsScreen() {
                          selectedFile.mimeType?.includes('excel');
       
       if (isExcelFile) {
-        // Excel soubory nejsou podporovány pro přímé čtení
-        throw new Error(
-          'Excel soubory (.xlsx, .xls) nejsou aktuálně podporovány.\n\n' +
-          'Prosím exportujte data z Excelu jako CSV soubor:\n' +
-          '1. Otevřete soubor v Excelu\n' +
-          '2. Klikněte na "Soubor" → "Uložit jako"\n' +
-          '3. Vyberte formát "CSV (oddělené čárkami)"\n' +
-          '4. Uložte a zkuste importovat znovu'
-        );
+        try {
+          const response = await fetch(selectedFile.uri);
+          const buffer = await response.arrayBuffer();
+          const workbook = read(buffer);
+          const sheetName = workbook.SheetNames.includes('Trades') ? 'Trades' : workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const sheetRows = utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+
+          if (!sheetRows || sheetRows.length === 0) {
+            throw new Error('Excel soubor neobsahuje žádná data nebo list je prázdný.');
+          }
+
+          const headers = Object.keys(sheetRows[0] ?? {}).map((h) => String(h));
+          const firstDataRowObj = sheetRows[0] as Record<string, any>;
+          const firstDataRow = headers.map((h) => String(firstDataRowObj[h] ?? ''));
+
+          const brokerFormat = detectBrokerFormat(headers, firstDataRow);
+          let importedTrades: Trade[] = [];
+
+          if (brokerFormat === 'Trading212') {
+            const warnings: string[] = [];
+            const trades: Trade[] = [];
+            for (let i = 0; i < sheetRows.length; i++) {
+              const raw = sheetRows[i] as Record<string, any>;
+              const normalized: Record<string, string> = {};
+              for (const k of Object.keys(raw)) normalized[String(k).trim()] = String(raw[k] ?? '');
+              try {
+                const txn: Txn = mapRow(normalized);
+                const action = (txn.action || '').toLowerCase();
+                const hasCurrency = !!((txn.ccyAmount && txn.ccyAmount.trim()) || (txn.ccyPrice && txn.ccyPrice.trim()));
+                const isCashflow = /withdrawal|deposit|interest|dividend/.test(action);
+                if (!hasCurrency) continue;
+                if (isCashflow) continue;
+                const shares = txn.shares ?? null;
+                const price = txn.price ?? null;
+                const ticker = txn.ticker ?? txn.name ?? '';
+                if (!ticker || shares == null || price == null) continue;
+                const tradeType: 'buy' | 'sell' = action.includes('sell') ? 'sell' : 'buy';
+                const total = Math.abs(shares * price);
+                trades.push({
+                  id: `${Date.now()}_${i}`,
+                  type: tradeType,
+                  symbol: (txn.ticker || ticker).toUpperCase(),
+                  name: txn.name || ticker,
+                  amount: shares,
+                  price: price,
+                  date: txn.time ? new Date(txn.time) : new Date(),
+                  total,
+                });
+              } catch {
+                continue;
+              }
+            }
+            importedTrades = trades;
+          } else {
+            // Generický převod: pokus o mapRow, jinak heuristiky jako CSV
+            const headersLower = headers.map((h) => h.toLowerCase());
+            const rows: string[][] = [headers, ...sheetRows.map((obj) => headers.map((h) => String((obj as any)[h] ?? '')))] ;
+            switch (brokerFormat) {
+              case 'XTB':
+                importedTrades = parseXTBFormat(rows);
+                break;
+              case 'Degiro':
+                importedTrades = parseDegiroFormat(rows);
+                break;
+              case 'Anycoin':
+                importedTrades = parseAnycoinFormat(rows);
+                break;
+              case 'Monero':
+                importedTrades = parseMoneroFormat(rows);
+                break;
+              default:
+                importedTrades = parseGenericFormat(rows);
+                break;
+            }
+          }
+
+          if (!importedTrades.length) {
+            throw new Error('Nepodařilo se najít žádné platné obchody v Excel souboru.');
+          }
+
+          setTrades((prev) => [...importedTrades, ...prev]);
+          setShowFileImportModal(false);
+          setSelectedFile(null);
+
+          Alert.alert(
+            'Import dokončen! 📊',
+            `Výpis (${sheetName}) byl úspěšně zpracován.\n\n` +
+              `✅ Přidáno ${importedTrades.length} obchodů\n` +
+              `📈 Nákupy: ${importedTrades.filter((t) => t.type === 'buy').length}\n` +
+              `📉 Prodeje: ${importedTrades.filter((t) => t.type === 'sell').length}`
+          );
+          return;
+        } catch (e) {
+          throw e instanceof Error ? e : new Error('Chyba při čtení Excel souboru');
+        }
       }
       
       // Čtení souboru
@@ -1363,7 +1449,7 @@ export default function InvestmentsScreen() {
             
             // Pokusíme se dekódovat Base64 jako text
             try {
-              fileContent = atob(base64Content);
+              fileContent = (typeof atob !== 'undefined' ? atob(base64Content) : Buffer.from(base64Content, 'base64').toString('utf-8'));
             } catch (decodeError) {
               throw new Error('Soubor obsahuje neplatná data nebo není textový soubor.');
             }
