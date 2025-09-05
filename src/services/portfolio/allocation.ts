@@ -8,6 +8,21 @@ export type AllocationRow = {
   weightPct: number | null;
 };
 
+export type PortfolioRow = {
+  symbol: string;
+  shares: number;
+  lastPrice: number;
+  positionValue: number;
+  ccy: string;
+  weightPct: number; // within its currency; 0 when total is 0
+};
+
+export type CashRow = {
+  ccy: string;
+  cashValue: number;
+  weightPct: number; // within its currency; 0 when total is 0
+};
+
 export function valueAndWeightsByCurrency(txns: Txn[]): AllocationRow[] {
   try {
     console.log("[allocation] valueAndWeightsByCurrency: txns count=", txns?.length ?? 0);
@@ -67,6 +82,74 @@ export function valueAndWeightsByCurrency(txns: Txn[]): AllocationRow[] {
   } catch (err) {
     console.error("[allocation] valueAndWeightsByCurrency error:", err);
     return [];
+  }
+}
+
+export function portfolioAndCashByCurrency(txns: Txn[]): { portfolio: PortfolioRow[]; cash: CashRow[] } {
+  try {
+    console.log("[allocation] portfolioAndCashByCurrency: txns count=", txns?.length ?? 0);
+
+    const positions = buildPositions(txns);
+    const valued = positions.map((p) => ({
+      ...p,
+      marketValue: (p.lastPrice ?? 0) * p.shares,
+    }));
+
+    const cashByCcy = new Map<string, number>();
+    for (const t of txns) {
+      const amt = t.amount ?? null;
+      const fees = t.fees ?? 0;
+      const taxes = t.taxes ?? 0;
+
+      if (amt != null) {
+        const ccyAmt = t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyAmt, (cashByCcy.get(ccyAmt) ?? 0) + amt);
+      }
+      if (fees) {
+        const ccyFees = t.feesCurrency || t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyFees, (cashByCcy.get(ccyFees) ?? 0) - fees);
+      }
+      if (taxes) {
+        const ccyTax = t.ccyAmount || t.ccyPrice || "";
+        cashByCcy.set(ccyTax, (cashByCcy.get(ccyTax) ?? 0) - taxes);
+      }
+    }
+
+    const totalByCcy = new Map<string, number>();
+    for (const v of valued) {
+      const c = v.ccyPrice || "";
+      totalByCcy.set(c, (totalByCcy.get(c) ?? 0) + v.marketValue);
+    }
+    for (const [c, csh] of cashByCcy.entries()) {
+      totalByCcy.set(c, (totalByCcy.get(c) ?? 0) + csh);
+    }
+
+    const portfolio: PortfolioRow[] = valued.map((v) => {
+      const total = totalByCcy.get(v.ccyPrice || "") ?? 0;
+      const weightPct = total > 0 ? (v.marketValue / total) * 100 : 0;
+      return {
+        symbol: v.key,
+        shares: v.shares,
+        lastPrice: v.lastPrice ?? 0,
+        positionValue: v.marketValue,
+        ccy: v.ccyPrice || "",
+        weightPct,
+      };
+    }).sort((a, b) => a.ccy.localeCompare(b.ccy) || b.weightPct - a.weightPct || a.symbol.localeCompare(b.symbol));
+
+    const cash: CashRow[] = [...cashByCcy.entries()].map(([ccy, csh]) => {
+      const total = totalByCcy.get(ccy) ?? 0;
+      const weightPct = total > 0 ? (csh / total) * 100 : 0;
+      return { ccy, cashValue: csh, weightPct };
+    }).sort((a, b) => a.ccy.localeCompare(b.ccy) || b.weightPct - a.weightPct);
+
+    console.log("[allocation] portfolio sample=", portfolio.slice(0, 5));
+    console.log("[allocation] cash sample=", cash.slice(0, 5));
+
+    return { portfolio, cash };
+  } catch (err) {
+    console.error("[allocation] portfolioAndCashByCurrency error:", err);
+    return { portfolio: [], cash: [] };
   }
 }
 
