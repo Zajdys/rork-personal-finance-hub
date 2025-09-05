@@ -180,26 +180,19 @@ export default function InvestmentsScreen() {
       }
       return hasShares;
     })
-    // Přidáme aktuální hodnotu pozice s konzistentní simulací
-    .map((item, index) => {
-      // Používáme deterministickou simulaci založenou na symbolu pro konzistentní výsledky
-      const seed = item.symbol.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-      const priceChange = ((seed % 31) - 15) / 100; // -15% až +15% na základě symbolu
-      const currentPrice = item.avgPrice * (1 + priceChange);
+    // Přidáme aktuální hodnotu pozice bez simulace, zobrazíme skutečně drženou hodnotu
+    .map((item) => {
+      const currentPrice = item.avgPrice;
       const currentValue = item.shares * currentPrice;
-      
-      // Správný výpočet zisku/ztráty v procentech
-      const unrealizedPnL = currentValue - item.totalInvested;
-      const unrealizedPnLPercent = item.totalInvested > 0 ? (unrealizedPnL / item.totalInvested) * 100 : 0;
-      
-      console.log(`${item.symbol}: ${item.shares} shares @ ${currentPrice.toFixed(2)} = ${currentValue.toFixed(2)} (${unrealizedPnLPercent.toFixed(2)}%)`);
-      
+      const unrealizedPnL = 0;
+      const unrealizedPnLPercent = 0;
+      console.log(`${item.symbol}: ${item.shares} shares @ ${currentPrice.toFixed(2)} = ${currentValue.toFixed(2)} (no simulation)`);
       return {
         ...item,
         currentPrice: Math.round(currentPrice * 100) / 100,
         amount: Math.round(currentValue * 100) / 100,
         unrealizedPnL: Math.round(unrealizedPnL * 100) / 100,
-        change: Math.round(unrealizedPnLPercent * 100) / 100, // Správné procento zisku/ztráty
+        change: Math.round(unrealizedPnLPercent * 100) / 100,
       };
     });
     
