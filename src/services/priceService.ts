@@ -32,35 +32,9 @@ async function fetchFromYahoo(tickers: string[]): Promise<YahooQuote[]> {
   return list;
 }
 
-async function fetchFromStooq(tickers: string[]): Promise<Record<string, LatestPrice>> {
-  const unique = normalizeTickers(tickers).map((t) => t.toLowerCase());
-  const out: Record<string, LatestPrice> = {};
-  if (!unique.length) return out;
-  const symbols = unique.map((t) => `${encodeURIComponent(t)}.us`).join(',');
-  const url = `https://stooq.com/q/l/?s=${symbols}&f=sd2t2ohlcvn&h&e=csv`;
-  console.log('[priceService] stooq fetch', { url, count: unique.length, platform: Platform.OS });
-  const res = await fetch(url);
-  if (!res.ok) return out;
-  const text = await res.text();
-  const rows = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (rows.length <= 1) return out;
-  const header = rows[0].split(',').map((h) => h.trim().toLowerCase());
-  const symIdx = header.indexOf('symbol');
-  const closeIdx = header.indexOf('close');
-  const dateIdx = header.indexOf('date');
-  const timeIdx = header.indexOf('time');
-  for (let i = 1; i < rows.length; i++) {
-    const cols = rows[i].split(',');
-    const symRaw = (cols[symIdx] ?? '').trim().toLowerCase();
-    const sym = symRaw.replace(/\.us$/, '');
-    const price = Number(cols[closeIdx]);
-    const d = (cols[dateIdx] ?? '').trim();
-    const t = (cols[timeIdx] ?? '').trim();
-    if (Number.isFinite(price)) {
-      out[sym] = { price, time: d && t ? `${d} ${t}` : d || t || null, ccy: null };
-    }
-  }
-  return out;
+async function fetchFromStooq(_tickers: string[]): Promise<Record<string, LatestPrice>> {
+  console.warn('[priceService] stooq fallback disabled to avoid wrong US mapping on EU tickers');
+  return {};
 }
 
 export async function fetchLatestPrices(tickers: string[]): Promise<Record<string, LatestPrice>> {
@@ -92,27 +66,43 @@ export async function fetchLatestPrices(tickers: string[]): Promise<Record<strin
   }
 }
 
+function candidateSymbols(ticker: string): string[] {
+  const t = (ticker || '').trim();
+  const suffixes = ['', '.DE', '.F', '.L', '.MI', '.PA', '.AS', '.SW'];
+  const out: string[] = [];
+  for (const s of suffixes) out.push(`${t}${s}`);
+  return out;
+}
+
 export async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, number>> {
   const unique = normalizeTickers(symbols);
   if (!unique.length) return {};
   try {
-    const quotes = await fetchFromYahoo(unique);
+    const allCandidates = Array.from(new Set(unique.flatMap(candidateSymbols)));
+    const quotes = await fetchFromYahoo(allCandidates);
+    const bySymbol: Record<string, YahooQuote> = {};
+    for (const q of quotes) {
+      const sym = (q.symbol ?? '').trim();
+      if (sym) bySymbol[sym] = q;
+    }
+    const preference = ['', '.DE', '.F', '.PA', '.MI', '.AS', '.SW', '.L'];
     const results: Record<string, number> = {};
-    for (const item of quotes) {
-      const symbol = (item.symbol ?? '').trim();
-      const price = item.regularMarketPrice;
-      if (symbol && typeof price === 'number' && Number.isFinite(price)) {
-        results[symbol] = price;
+    for (const base of unique) {
+      let picked: YahooQuote | undefined;
+      for (const suf of preference) {
+        const key = `${base}${suf}`;
+        const q = bySymbol[key];
+        if (q && typeof q.regularMarketPrice === 'number' && Number.isFinite(q.regularMarketPrice)) {
+          picked = q; break;
+        }
+      }
+      if (picked && typeof picked.regularMarketPrice === 'number') {
+        results[base.toUpperCase()] = picked.regularMarketPrice as number;
       }
     }
-    if (Object.keys(results).length > 0) return results;
+    return results;
   } catch (e) {
-    console.error('[priceService] fetchCurrentPrices yahoo error, falling back to stooq', e);
+    console.error('[priceService] fetchCurrentPrices yahoo error', e);
+    return {};
   }
-  const stooq = await fetchFromStooq(unique);
-  const mapped: Record<string, number> = {};
-  for (const [k, v] of Object.entries(stooq)) {
-    mapped[k.toUpperCase()] = v.price;
-  }
-  return mapped;
 }

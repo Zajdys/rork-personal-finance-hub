@@ -59,8 +59,10 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
     const fifo: Lot[] = [];
 
     for (const row of sorted) {
-      const shares = toNumber(row['No. of shares']);
-      const total = toNumber(row['Total']);
+      const sharesRaw = toNumber(row['No. of shares']);
+      const totalRaw = toNumber(row['Total']);
+      const shares = Math.abs(sharesRaw);
+      const total = Math.abs(totalRaw);
       if (isBuy(row['Action'])) {
         fifo.push({ shares, cost: total });
         sharesHeld += shares;
