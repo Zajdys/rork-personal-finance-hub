@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,8 @@ import { calculatePortfolioMetrics } from '@/services/financial-calculations';
 import { mapRow, Txn } from '@/src/services/portfolio/importCsv';
 import { runAllTests } from '@/tests/financial-calculations.test';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
+import { useRouter } from 'expo-router';
+import { fetchCurrentPrices } from '@/src/services/priceService';
 
 const { width } = Dimensions.get('window');
 
@@ -126,6 +128,8 @@ export default function InvestmentsScreen() {
   const [showFileImportModal, setShowFileImportModal] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+  const router = useRouter();
 
   // Výpočet portfolia z obchodů - pouze aktuálně držené pozice
   const portfolioData = useMemo(() => {
@@ -182,10 +186,12 @@ export default function InvestmentsScreen() {
     })
     // Přidáme aktuální hodnotu pozice bez simulace, zobrazíme skutečně drženou hodnotu
     .map((item) => {
-      const currentPrice = item.avgPrice;
+      const sym = String(item.symbol ?? '').toUpperCase();
+      const price = priceMap[sym] ?? item.avgPrice;
+      const currentPrice = price;
       const currentValue = item.shares * currentPrice;
-      const unrealizedPnL = 0;
-      const unrealizedPnLPercent = 0;
+      const unrealizedPnL = currentValue - (item.totalInvested ?? 0);
+      const unrealizedPnLPercent = (item.totalInvested ?? 0) > 0 ? (unrealizedPnL / (item.totalInvested ?? 1)) * 100 : 0;
       console.log(`${item.symbol}: ${item.shares} shares @ ${currentPrice.toFixed(2)} = ${currentValue.toFixed(2)} (no simulation)`);
       return {
         ...item,
@@ -198,6 +204,23 @@ export default function InvestmentsScreen() {
     
     console.log('📊 Final portfolio positions:', positions.length);
     return positions;
+  }, [trades, priceMap]);
+
+  // Fetch aktuálních cen
+  useEffect(() => {
+    const symbols = Array.from(new Set(trades.map(t => t.symbol.toUpperCase())));
+    if (!symbols.length) { setPriceMap({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        console.log('🟢 Fetching current prices for', symbols);
+        const prices = await fetchCurrentPrices(symbols);
+        if (!cancelled) setPriceMap(prices);
+      } catch (e) {
+        console.warn('Price fetch failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [trades]);
 
   // Vypočítáme portfolio metriky včetně TWR a XIRR
@@ -301,7 +324,23 @@ export default function InvestmentsScreen() {
   };
 
   const PortfolioItem = ({ item }: { item: any }) => (
-    <View style={styles.portfolioItem}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() => {
+        router.push({
+          pathname: '/asset/[symbol]',
+          params: {
+            symbol: String(item.symbol ?? '').toUpperCase(),
+            name: String(item.name ?? item.symbol ?? ''),
+            shares: String(item.shares ?? 0),
+            avgPrice: String(item.avgPrice ?? 0),
+            totalInvested: String(item.totalInvested ?? 0),
+          },
+        });
+      }}
+      style={styles.portfolioItem}
+      testID={`portfolioItem-${String(item.symbol ?? '').toUpperCase()}`}
+    >
       <View style={styles.portfolioHeader}>
         <View style={styles.portfolioInfo}>
           <View style={[styles.colorIndicator, { backgroundColor: item.color }]} />
@@ -341,7 +380,7 @@ export default function InvestmentsScreen() {
         <Text style={styles.percentageText}>{item.percentage}% portfolia</Text>
         <Text style={styles.sharesText}>{item.shares.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })} ks</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const RecommendationCard = ({ recommendation }: { recommendation: any }) => {
