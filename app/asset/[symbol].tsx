@@ -4,43 +4,10 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TrendingUp, TrendingDown, ArrowLeft, Info } from 'lucide-react-native';
 
-interface RouteParams {
-  symbol?: string | string[];
-  name?: string | string[];
-  shares?: string | string[];
-  avgPrice?: string | string[];
-  totalInvested?: string | string[];
-}
-
-interface QuoteSummaryPrice {
-  currency?: string;
-  regularMarketPrice?: { raw?: number };
-  shortName?: string;
-  longName?: string;
-}
-
-interface SummaryDetail {
-  dividendYield?: { raw?: number };
-  trailingAnnualDividendRate?: { raw?: number };
-  trailingAnnualDividendYield?: { raw?: number };
-  marketCap?: { raw?: number };
-}
-
 interface AssetProfile {
   sector?: string;
   industry?: string;
   website?: string;
-}
-
-interface QuoteSummaryResponse {
-  quoteSummary?: {
-    result?: Array<{
-      price?: QuoteSummaryPrice;
-      summaryDetail?: SummaryDetail;
-      assetProfile?: AssetProfile;
-    }>;
-    error?: unknown;
-  };
 }
 
 export default function AssetDetailScreen() {
@@ -61,31 +28,38 @@ export default function AssetDetailScreen() {
   const [dividendRate, setDividendRate] = useState<number | null>(null);
   const [marketCap, setMarketCap] = useState<number | null>(null);
   const [profile, setProfile] = useState<AssetProfile | null>(null);
+  const [pe, setPe] = useState<number | null>(null);
+  const [fpe, setFpe] = useState<number | null>(null);
 
   const fetchDetails = useCallback(async () => {
     if (!symbol) return;
     setLoading(true);
     setError(null);
     try {
-      const modules = 'price,summaryDetail,assetProfile';
-      const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${encodeURIComponent(modules)}`;
+      const base = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+      if (!base) throw new Error('Missing EXPO_PUBLIC_RORK_API_BASE_URL');
+      const url = `${base}/api/finance/summary?symbol=${encodeURIComponent(symbol)}`;
       console.log('[AssetDetail] fetching', url);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as QuoteSummaryResponse;
-      const first = json?.quoteSummary?.result?.[0];
-      const p = first?.price?.regularMarketPrice?.raw ?? null;
-      const curr = first?.price?.currency ?? '';
-      const dy = first?.summaryDetail?.dividendYield?.raw ?? first?.summaryDetail?.trailingAnnualDividendYield?.raw ?? null;
-      const dr = first?.summaryDetail?.trailingAnnualDividendRate?.raw ?? null;
-      const mc = first?.summaryDetail?.marketCap?.raw ?? null;
+      const json = (await res.json()) as any;
+      const p = json?.price ?? null;
+      const curr = json?.currency ?? '';
+      const dy = json?.dividendYield ?? null;
+      const dr = json?.dividendRate ?? null;
+      const mc = json?.marketCap ?? null;
+      const profileObj = json?.assetProfile ?? null;
+      const peV = json?.pe ?? null;
+      const fpeV = json?.forwardPE ?? null;
 
       setPrice(typeof p === 'number' && Number.isFinite(p) ? p : null);
       setCcy(curr || '');
       setDividendYield(typeof dy === 'number' ? dy : null);
       setDividendRate(typeof dr === 'number' ? dr : null);
       setMarketCap(typeof mc === 'number' ? mc : null);
-      setProfile(first?.assetProfile ?? null);
+      setProfile(profileObj ?? null);
+      setPe(typeof peV === 'number' ? peV : null);
+      setFpe(typeof fpeV === 'number' ? fpeV : null);
     } catch (e) {
       console.error('[AssetDetail] fetch error', e);
       setError('Nepodařilo se načíst detail akcie.');
@@ -162,6 +136,11 @@ export default function AssetDetailScreen() {
           <View style={styles.stat} testID="mcapBox">
             <Text style={styles.label}>Market Cap</Text>
             <Text style={styles.value}>{marketCap != null ? formatBillions(marketCap, ccy) : '—'}</Text>
+          </View>
+          <View style={styles.stat} testID="peBox">
+            <Text style={styles.label}>P/E</Text>
+            <Text style={styles.value}>{pe != null ? pe.toFixed(2) : '—'}</Text>
+            <Text style={styles.smallMuted}>{fpe != null ? `Forward ${fpe.toFixed(2)}` : ''}</Text>
           </View>
         </View>
 

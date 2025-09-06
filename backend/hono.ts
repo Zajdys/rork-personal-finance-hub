@@ -179,4 +179,49 @@ app.get("/quotes", async (c) => {
   }
 });
 
+// Detailed fundamentals and summary for an instrument
+app.get("/finance/summary", async (c) => {
+  try {
+    const symbol = (c.req.query("symbol") ?? c.req.query("s") ?? "").trim();
+    if (!symbol) return c.json({ error: "Missing symbol" }, 400);
+
+    const modules = [
+      "price",
+      "summaryDetail",
+      "assetProfile",
+      "defaultKeyStatistics",
+    ] as const;
+
+    const resp = (await (yahooFinance as any).quoteSummary(symbol, {
+      modules: modules as any,
+    })) as any;
+
+    const first = resp?.price || resp?.summaryDetail || resp?.assetProfile ? resp : resp?.quoteSummary?.result?.[0];
+
+    const price = first?.price?.regularMarketPrice ?? null;
+    const currency = first?.price?.currency ?? null;
+    const dividendYield = first?.summaryDetail?.dividendYield ?? first?.summaryDetail?.trailingAnnualDividendYield ?? null;
+    const dividendRate = first?.summaryDetail?.trailingAnnualDividendRate ?? null;
+    const marketCap = first?.summaryDetail?.marketCap ?? null;
+    const pe = first?.summaryDetail?.trailingPE ?? first?.defaultKeyStatistics?.trailingPE ?? null;
+    const forwardPE = first?.summaryDetail?.forwardPE ?? first?.defaultKeyStatistics?.forwardPE ?? null;
+
+    return c.json({
+      symbol,
+      price: typeof price === "object" ? price?.raw ?? null : price,
+      currency,
+      dividendYield: typeof dividendYield === "object" ? dividendYield?.raw ?? null : dividendYield,
+      dividendRate: typeof dividendRate === "object" ? dividendRate?.raw ?? null : dividendRate,
+      marketCap: typeof marketCap === "object" ? marketCap?.raw ?? null : marketCap,
+      pe: typeof pe === "object" ? pe?.raw ?? null : pe,
+      forwardPE: typeof forwardPE === "object" ? forwardPE?.raw ?? null : forwardPE,
+      assetProfile: first?.assetProfile ?? null,
+      name: first?.price?.shortName ?? first?.price?.longName ?? symbol,
+    });
+  } catch (e) {
+    console.error("/finance/summary error", e);
+    return c.json({ error: "Failed to fetch summary" }, 500);
+  }
+});
+
 export default app;
