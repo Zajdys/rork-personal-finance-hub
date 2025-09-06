@@ -150,4 +150,33 @@ app.get("/portfolio", async (c) => {
   }
 });
 
+// Quotes proxy to avoid client-side Yahoo 401s
+app.get("/quotes", async (c) => {
+  try {
+    const raw = c.req.query("symbols") ?? "";
+    const symbols = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (symbols.length === 0) {
+      return c.json({ quotes: [] });
+    }
+
+    const data = (await yahooFinance.quote(symbols as any)) as any;
+    const arr: any[] = Array.isArray(data) ? data : data ? [data] : [];
+    const quotes = arr.map((q) => ({
+      symbol: q?.symbol ?? null,
+      regularMarketPrice: q?.regularMarketPrice ?? null,
+      regularMarketTime: q?.regularMarketTime ?? null,
+      currency: q?.currency ?? null,
+    }));
+
+    return c.json({ quotes });
+  } catch (e) {
+    console.error("/quotes error", e);
+    return c.json({ quotes: [], error: "Failed to fetch quotes" }, 500);
+  }
+});
+
 export default app;

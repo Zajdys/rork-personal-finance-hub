@@ -19,16 +19,23 @@ function normalizeTickers(tickers: string[]): string[] {
   );
 }
 
+function getApiBaseUrl(): string {
+  const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+  if (!url) throw new Error('EXPO_PUBLIC_RORK_API_BASE_URL is not set');
+  return url;
+}
+
 async function fetchFromYahoo(tickers: string[]): Promise<YahooQuote[]> {
   const unique = normalizeTickers(tickers);
   if (!unique.length) return [];
   const joined = encodeURIComponent(unique.join(','));
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${joined}`;
-  console.log('[priceService] yahoo fetch', { url, count: unique.length, platform: Platform.OS });
+  const base = getApiBaseUrl();
+  const url = `${base}/api/quotes?symbols=${joined}`;
+  console.log('[priceService] yahoo proxy fetch', { url, count: unique.length, platform: Platform.OS });
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
-  const json = (await res.json()) as { quoteResponse?: { result?: YahooQuote[] } };
-  const list = json?.quoteResponse?.result ?? [];
+  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+  const json = (await res.json()) as { quotes?: YahooQuote[] };
+  const list = json?.quotes ?? [];
   return list;
 }
 
@@ -103,6 +110,7 @@ export async function fetchCurrentPrices(symbols: string[]): Promise<Record<stri
     return results;
   } catch (e) {
     console.error('[priceService] fetchCurrentPrices yahoo error', e);
+    console.log('Hint: ensure EXPO_PUBLIC_RORK_API_BASE_URL points to your dev server and backend /api/quotes is reachable.');
     return {};
   }
 }
