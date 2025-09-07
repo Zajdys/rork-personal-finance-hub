@@ -243,28 +243,62 @@ function unescapePdfString(s: string): string {
   return out;
 }
 
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.replace(/\s+/g, '').toLowerCase();
+  const len = Math.floor(clean.length / 2);
+  const out = new Uint8Array(len);
+  for (let i = 0; i < len; i++) out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16) & 0xff;
+  return out;
+}
+
+function bytesToText(bytes: Uint8Array): string {
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    let s = '';
+    for (let i = 2; i + 1 < bytes.length; i += 2) {
+      const code = (bytes[i] << 8) | bytes[i + 1];
+      s += String.fromCharCode(code);
+    }
+    return s;
+  }
+  try {
+    const TD: any = (globalThis as any).TextDecoder ? new TextDecoder('utf-8') : null;
+    if (TD) return TD.decode(bytes);
+  } catch {}
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return s;
+}
+
 function extractTextFromPdfRaw(raw: string): string {
   try {
+    const normalized = raw.replace(/\)\s*T\*/gm, ')\n').replace(/\)\s*T[dD]\b/gm, ')\n');
     const parts: string[] = [];
-    const tjRe = /\((?:\\.|[^\\])*?\)\s*Tj/gm;
-    const tjArrayRe = /\[((?:\s*\((?:\\.|[^\\])*?\)\s*|\s*-?\d+\s*)+)\]\s*TJ/gm;
-
+    const re = /\((?:\\.|[^\\])*?\)\s*Tj|\[((?:\s*(?:\((?:\\.|[^\\])*?\)|<[-\da-fA-F\s]+>|-?\d+)\s*)+)\]\s*TJ|<([-\da-fA-F\s]+)>\s*Tj/gm;
     let m: RegExpExecArray | null;
-    while ((m = tjRe.exec(raw)) !== null) {
-      const inner = m[0].replace(/\)\s*Tj$/, "").slice(1);
-      parts.push(unescapePdfString(inner));
+    while ((m = re.exec(normalized)) !== null) {
+      const token = m[0];
+      if (token.startsWith('(')) {
+        const inner = token.replace(/\)\s*Tj$/, '').slice(1);
+        parts.push(unescapePdfString(inner));
+        continue;
+      }
+      if (token.startsWith('[')) {
+        const arr = token.replace(/\]\s*TJ$/, '').slice(1, -1);
+        const segs: string[] = [];
+        const litMatches = [...arr.matchAll(/\((?:\\.|[^\\])*?\)/gm)];
+        const hexMatches = [...arr.matchAll(/<([-\da-fA-F\s]+)>/gm)];
+        for (const lm of litMatches) segs.push(unescapePdfString(lm[0].slice(1, -1)));
+        for (const hm of hexMatches) segs.push(bytesToText(hexToBytes(hm[1])));
+        parts.push(segs.join(''));
+        continue;
+      }
+      const hex = (m[1] ?? '').toString();
+      parts.push(bytesToText(hexToBytes(hex)));
     }
-    while ((m = tjArrayRe.exec(raw)) !== null) {
-      const arr = m[1];
-      const sub = [...arr.matchAll(/\((?:\\.|[^\\])*?\)/gm)].map(s => unescapePdfString(s[0].slice(1, -1))).join("");
-      parts.push(sub);
-    }
-
-    const text = parts.join("\n");
-    return text;
+    return parts.join('\n');
   } catch (e) {
     console.error('extractTextFromPdfRaw error', e);
-    return "";
+    return '';
   }
 }
 
@@ -334,22 +368,51 @@ function decodeBase64Latin1(b64: string): string {
 
 export function parseBankPdfTextToTransactions(text: string): ParsedTxn[] {
   try {
-    const lines = text.split(/\r?\n+/).map(l => l.trim()).filter(l => l.length > 0);
+    const lines = text.split(/\r?\n+/).map(l => l.replace(/[\u202F\u00A0]/g, ' ').trim()).filter(l => l.length > 0);
     const out: ParsedTxn[] = [];
-    const dateRe = /(\d{1,2}[\.\/-]\d{1,2}[\.\/-]\d{2,4})/;
+    const dateRe = /(\d{1,2}[\.\/-]\d{1,2}[\.\/-]\d{2,4}|\d{4}[\.\/-]\d{1,2}[\.\/-]\d{1,2})/;
+    const amtRe = /([+\-−–]?\s?\d{1,3}(?:[\s\u00A0]?\d{3})*(?:[\.,]\d{1,2})?)\s?(Kč|CZK|EUR|USD|€|\$)?/i;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!dateRe.test(line)) continue;
       const dateStr = (line.match(dateRe)?.[1]) ?? '';
       const date = parseDateFlexible(dateStr) ?? null;
-      const amtMatch = line.match(/([+-]?\s?\d{1,3}(?:[\s\u00A0]?\d{3})*(?:[\.,]\d{1,2})?)\s?(Kč|CZK|EUR|USD)?/i);
-      const amtNum = toNum(amtMatch?.[1] ?? '');
+      let amtMatch: RegExpMatchArray | null = line.match(amtRe);
+      if (!amtMatch && i + 1 < lines.length) amtMatch = lines[i + 1].match(amtRe);
+      if (!amtMatch && i > 0) amtMatch = lines[i - 1].match(amtRe);
+      const rawAmt = amtMatch?.[1] ?? '';
+      let amtNum = toNum(rawAmt);
+      if (amtMatch && /^[−–]/.test(amtMatch[1] ?? '')) amtNum = amtNum != null ? -Math.abs(amtNum) : amtNum;
       if (!date || amtNum == null) continue;
-      const title = line.replace(dateRe, '').replace(amtMatch?.[0] ?? '', '').replace(/\s{2,}/g, ' ').trim() || 'Transakce';
+      const titleParts: string[] = [];
+      const cleanedLine = line.replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim();
+      if (cleanedLine) titleParts.push(cleanedLine);
+      if (amtMatch && i + 1 < lines.length) {
+        const nextClean = lines[i + 1].replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim();
+        if (nextClean && nextClean !== cleanedLine) titleParts.push(nextClean);
+      }
+      const title = (titleParts.join(' • ').trim() || 'Transakce');
       const type: 'income' | 'expense' = (amtNum ?? 0) < 0 ? 'expense' : 'income';
       const amount = Math.abs(amtNum ?? 0);
       const category = guessCategory(title.toLowerCase(), type);
       out.push({ type, amount, title, category, date });
+    }
+    if (out.length === 0 && lines.length > 3) {
+      for (let i = 0; i < lines.length - 2; i++) {
+        const blob = [lines[i], lines[i + 1], lines[i + 2]].join(' ');
+        const d = blob.match(dateRe)?.[1] ?? '';
+        const date = parseDateFlexible(d);
+        const a = blob.match(amtRe)?.[1] ?? '';
+        const n = toNum(a);
+        if (date && n != null) {
+          const title = blob.replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim() || 'Transakce';
+          const type: 'income' | 'expense' = n < 0 ? 'expense' : 'income';
+          const amount = Math.abs(n);
+          const category = guessCategory(title.toLowerCase(), type);
+          out.push({ type, amount, title, category, date });
+          i += 2;
+        }
+      }
     }
     return out;
   } catch (e) {
