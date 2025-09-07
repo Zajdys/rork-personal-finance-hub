@@ -69,7 +69,7 @@ export default function ProfileScreen() {
   const { level, points, completedLessons } = useBuddyStore();
   const { totalTransactions, totalIncome } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
-  const { t } = useLanguageStore();
+  const { t, language } = useLanguageStore();
   const router = useRouter();
   
   const currentCurrency = getCurrentCurrency();
@@ -258,14 +258,14 @@ export default function ProfileScreen() {
         <MenuButton
           icon={Target}
           title={t('financialGoals')}
-          subtitle={t('language') === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
+          subtitle={language === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
           onPress={() => router.push('/financial-goals')}
         />
         
         <MenuButton
           icon={Bell}
           title={t('notifications')}
-          subtitle={t('language') === 'cs' ? 'Správa upozornění a tipů' : 'Manage alerts and tips'}
+          subtitle={language === 'cs' ? 'Správa upozornění a tipů' : 'Manage alerts and tips'}
           onPress={() => router.push('/notifications-settings')}
         />
         
@@ -279,7 +279,7 @@ export default function ProfileScreen() {
         <MenuButton
           icon={Globe}
           title={t('language')}
-          subtitle={t('language') === 'cs' ? 'Čeština' : 'English'}
+          subtitle={language === 'cs' ? 'Čeština' : 'English'}
           onPress={() => router.push('/language-settings')}
         />
         
@@ -293,7 +293,7 @@ export default function ProfileScreen() {
         <MenuButton
           icon={Palette}
           title={t('theme')}
-          subtitle={t('language') === 'cs' ? 'Světlé' : 'Light'}
+          subtitle={language === 'cs' ? 'Světlé' : 'Light'}
           onPress={() => router.push('/theme-settings')}
         />
         
