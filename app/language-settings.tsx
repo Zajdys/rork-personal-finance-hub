@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { Check } from 'lucide-react-native';
+
 import { useLanguageStore, LANGUAGES, Language } from '@/store/language-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useBuddyStore } from '@/store/buddy-store';
@@ -86,15 +86,11 @@ export default function LanguageSettingsScreen() {
                     }
                   ]}>{languageItem.name}</Text>
                   {language === languageItem.code && (
-                    <Text style={styles.currentLabel}>{t('language')} ✓</Text>
+                    <Text style={styles.currentLabel}>{t('current')}</Text>
                   )}
                 </View>
               </View>
-              {language === languageItem.code && (
-                <View style={styles.selectedIndicator}>
-                  <Check color="#10B981" size={24} />
-                </View>
-              )}
+
             </TouchableOpacity>
           ))}
         </View>

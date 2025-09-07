@@ -140,6 +140,7 @@ export const TRANSLATIONS = {
     // Language settings
     languageSettings: 'Jazyk aplikace',
     selectLanguage: 'Vyber si preferovaný jazyk',
+    current: 'Aktuální',
     
     // Financial goals
     setGoals: 'Nastavit cíle',
@@ -422,6 +423,7 @@ export const TRANSLATIONS = {
     // Language settings
     languageSettings: 'App Language',
     selectLanguage: 'Select your preferred language',
+    current: 'Current',
     
     // Financial goals
     setGoals: 'Set Goals',
