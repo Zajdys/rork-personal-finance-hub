@@ -49,6 +49,17 @@ export interface CategoryExpense {
   color: string;
 }
 
+export type SubscriptionSource = 'bank' | 'manual';
+export interface SubscriptionItem {
+  id: string;
+  name: string;
+  amount: number;
+  category: string;
+  dayOfMonth: number;
+  source: SubscriptionSource;
+  active: boolean;
+}
+
 export const EXPENSE_CATEGORIES = {
   'Jídlo a nápoje': { icon: '🍽️', color: '#EF4444' },
   'Nájem a bydlení': { icon: '🏠', color: '#8B5CF6' },
@@ -60,7 +71,7 @@ export const EXPENSE_CATEGORIES = {
   'Nákupy': { icon: '🛍️', color: '#F97316' },
   'Služby': { icon: '🔧', color: '#84CC16' },
   'Ostatní': { icon: '📦', color: '#6B7280' },
-};
+} as const;
 
 export const INCOME_CATEGORIES = {
   'Mzda': { icon: '💼', color: '#10B981' },
@@ -68,7 +79,7 @@ export const INCOME_CATEGORIES = {
   'Investice': { icon: '📈', color: '#F59E0B' },
   'Dary': { icon: '🎁', color: '#EC4899' },
   'Ostatní': { icon: '💰', color: '#6B7280' },
-};
+} as const;
 
 interface FinanceState {
   transactions: Transaction[];
@@ -80,6 +91,7 @@ interface FinanceState {
   categoryExpenses: CategoryExpense[];
   monthlyReports: MonthlyReport[];
   financialGoals: FinancialGoal[];
+  subscriptions: SubscriptionItem[];
   isLoaded: boolean;
   addTransaction: (transaction: Transaction) => void;
   updateTotals: () => void;
@@ -91,8 +103,20 @@ interface FinanceState {
   addFinancialGoal: (goal: FinancialGoal) => void;
   updateFinancialGoal: (id: string, updates: Partial<FinancialGoal>) => void;
   deleteFinancialGoal: (id: string) => void;
+  getDetectedSubscriptions: () => SubscriptionItem[];
+  addSubscription: (sub: SubscriptionItem) => void;
+  updateSubscription: (id: string, updates: Partial<SubscriptionItem>) => void;
+  deleteSubscription: (id: string) => void;
   loadData: () => Promise<void>;
   saveData: () => Promise<void>;
+}
+
+function normalizeTitle(s: string): string {
+  return (s || '')
+    .toLowerCase()
+    .replace(/\d{2,}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
@@ -105,6 +129,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   categoryExpenses: [],
   monthlyReports: [],
   financialGoals: [],
+  subscriptions: [],
   isLoaded: false,
 
   addTransaction: (transaction: Transaction) => {
@@ -118,7 +143,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         transactions: newTransactions,
         recentTransactions,
         totalTransactions: newTransactions.length,
-      };
+      } as Partial<FinanceState>;
     });
     get().updateTotals();
     get().saveData();
@@ -142,7 +167,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         totalExpenses,
         balance,
         categoryExpenses,
-      };
+      } as Partial<FinanceState>;
     });
   },
 
@@ -151,7 +176,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const expenseTransactions = state.transactions.filter(t => t.type === 'expense');
     const totalExpenses = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
     
-    if (totalExpenses === 0) return [];
+    if (totalExpenses === 0) return [] as CategoryExpense[];
     
     const categoryTotals: { [key: string]: number } = {};
     
@@ -165,8 +190,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         category,
         amount,
         percentage: Math.round((amount / totalExpenses) * 100),
-        icon: EXPENSE_CATEGORIES[category as keyof typeof EXPENSE_CATEGORIES]?.icon || '📦',
-        color: EXPENSE_CATEGORIES[category as keyof typeof EXPENSE_CATEGORIES]?.color || '#6B7280',
+        icon: (EXPENSE_CATEGORIES as any)[category]?.icon || '📦',
+        color: (EXPENSE_CATEGORIES as any)[category]?.color || '#6B7280',
       }))
       .sort((a, b) => b.amount - a.amount);
   },
@@ -203,7 +228,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const balance = totalIncome - totalExpenses;
     const savingsRate = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
     
-    // Category breakdown for the month
     const expenseTransactions = monthTransactions.filter(t => t.type === 'expense');
     const categoryTotals: { [key: string]: number } = {};
     
@@ -217,14 +241,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         category,
         amount,
         percentage: totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0,
-        icon: EXPENSE_CATEGORIES[category as keyof typeof EXPENSE_CATEGORIES]?.icon || '📦',
-        color: EXPENSE_CATEGORIES[category as keyof typeof EXPENSE_CATEGORIES]?.color || '#6B7280',
+        icon: (EXPENSE_CATEGORIES as any)[category]?.icon || '📦',
+        color: (EXPENSE_CATEGORIES as any)[category]?.color || '#6B7280',
       }))
       .sort((a, b) => b.amount - a.amount);
     
     const topExpenseCategory = categoryBreakdown[0]?.category || 'Žádné výdaje';
     
-    // Generate insights
     const insights: string[] = [];
     if (savingsRate > 20) {
       insights.push('🎉 Skvělá míra úspor! Šetříte více než 20% příjmů.');
@@ -250,7 +273,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       transactionCount: monthTransactions.length,
       categoryBreakdown,
       insights,
-    };
+    } as MonthlyReport;
   },
 
   getCurrentMonthReport: () => {
@@ -288,7 +311,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const updatedGoals = state.financialGoals.filter(goal => goal.id !== id);
     console.log('Store: Updated goals count:', updatedGoals.length, 'vs original:', state.financialGoals.length);
     
-    set((state) => ({
+    set(() => ({
       financialGoals: updatedGoals,
     }));
     
@@ -296,18 +319,85 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     console.log('Store: Financial goal deleted and data saved');
   },
 
+  getDetectedSubscriptions: () => {
+    const state = get();
+    const out: SubscriptionItem[] = [];
+    const groups: Record<string, Transaction[]> = {};
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+
+    state.transactions
+      .filter(t => t.type === 'expense' && t.date >= sixMonthsAgo)
+      .forEach(t => {
+        const key = normalizeTitle(t.title);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(t);
+      });
+
+    Object.entries(groups).forEach(([name, txs]) => {
+      if (txs.length < 3) return;
+      txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const amounts = txs.map(t => t.amount);
+      const avg = amounts.reduce((s, n) => s + n, 0) / amounts.length;
+      const within10pct = amounts.every(a => Math.abs(a - avg) / avg < 0.15);
+      if (!within10pct) return;
+
+      let monthlyCount = 0;
+      for (let i = 1; i < txs.length; i++) {
+        const d1 = new Date(txs[i - 1].date);
+        const d2 = new Date(txs[i].date);
+        const diffDays = Math.abs((+d2 - +d1) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 25 && diffDays <= 35) monthlyCount++;
+      }
+      if (monthlyCount < 2) return;
+
+      const last = txs[txs.length - 1];
+      const item: SubscriptionItem = {
+        id: `detected-${name}`,
+        name: name || 'Předplatné',
+        amount: Math.round(avg * 100) / 100,
+        category: last.category || 'Služby',
+        dayOfMonth: new Date(last.date).getDate(),
+        source: 'bank',
+        active: true,
+      };
+      out.push(item);
+    });
+
+    const existingNames = new Set((state.subscriptions || []).map(s => normalizeTitle(s.name)));
+    return out.filter(s => !existingNames.has(normalizeTitle(s.name)));
+  },
+
+  addSubscription: (sub: SubscriptionItem) => {
+    set((state) => ({ subscriptions: [...state.subscriptions, sub] }));
+    get().saveData();
+  },
+
+  updateSubscription: (id: string, updates: Partial<SubscriptionItem>) => {
+    set((state) => ({
+      subscriptions: state.subscriptions.map(s => s.id === id ? { ...s, ...updates } : s),
+    }));
+    get().saveData();
+  },
+
+  deleteSubscription: (id: string) => {
+    set((state) => ({ subscriptions: state.subscriptions.filter(s => s.id !== id) }));
+    get().saveData();
+  },
+
   loadData: async () => {
     try {
-      const [transactionsData, goalsData, reportsData] = await Promise.all([
+      const [transactionsData, goalsData, reportsData, subsData] = await Promise.all([
         AsyncStorage.getItem('finance_transactions'),
         AsyncStorage.getItem('finance_goals'),
         AsyncStorage.getItem('finance_reports'),
+        AsyncStorage.getItem('finance_subscriptions'),
       ]);
       
       const transactions = transactionsData ? JSON.parse(transactionsData).map((t: any) => ({
         ...t,
         date: new Date(t.date)
-      })) : [];
+      })) : [] as Transaction[];
       
       const financialGoals = goalsData ? JSON.parse(goalsData).map((g: any) => ({
         ...g,
@@ -317,14 +407,17 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           frequency: (g.recurring.frequency ?? 'monthly') as RecurrenceFrequency,
           dayOfMonth: typeof g.recurring.dayOfMonth === 'number' ? g.recurring.dayOfMonth : undefined,
         } : undefined,
-      })) : [];
+      })) : [] as FinancialGoal[];
       
-      const monthlyReports = reportsData ? JSON.parse(reportsData) : [];
+      const monthlyReports = reportsData ? JSON.parse(reportsData) : [] as MonthlyReport[];
+
+      const subscriptions: SubscriptionItem[] = subsData ? JSON.parse(subsData) : [];
       
       set({ 
         transactions, 
         financialGoals, 
         monthlyReports,
+        subscriptions,
         isLoaded: true 
       });
       
@@ -343,6 +436,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         AsyncStorage.setItem('finance_transactions', JSON.stringify(state.transactions)),
         AsyncStorage.setItem('finance_goals', JSON.stringify(state.financialGoals)),
         AsyncStorage.setItem('finance_reports', JSON.stringify(state.monthlyReports)),
+        AsyncStorage.setItem('finance_subscriptions', JSON.stringify(state.subscriptions)),
       ]);
       console.log('Finance data saved successfully');
     } catch (error) {

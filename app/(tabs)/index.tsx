@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import {
   MessageCircle,
   Calendar,
 } from 'lucide-react-native';
-import { useFinanceStore, CategoryExpense } from '@/store/finance-store';
+import { useFinanceStore, CategoryExpense, SubscriptionItem } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -31,24 +31,20 @@ import { useRouter } from 'expo-router';
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
-  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals } = useFinanceStore();
+  const finance = useFinanceStore();
+  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals } = finance;
   const { level, points, dailyTip, refreshDailyTip } = useBuddyStore();
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t, language, updateCounter } = useLanguageStore();
   
-  // Refresh daily tip when language changes
   useEffect(() => {
     refreshDailyTip();
   }, [language, updateCounter, refreshDailyTip]);
   
-  // Získáme aktuální měsíční report pro rozpočtová varování
   const currentMonthReport = getCurrentMonthReport();
   
-  // Funkce pro generování rozpočtových varování
   const getBudgetWarnings = () => {
-    const warnings = [];
-    
-    // Varování při záporném zůstatku
+    const warnings: Array<{ type: 'danger'|'warning'|'info'; title: string; message: string; icon: string }> = [];
     if (currentMonthReport.balance < 0) {
       warnings.push({
         type: 'danger',
@@ -57,8 +53,6 @@ export default function DashboardScreen() {
         icon: '🚨'
       });
     }
-    
-    // Varování při nízké míře úspor
     if (currentMonthReport.savingsRate < 10 && currentMonthReport.totalIncome > 0) {
       warnings.push({
         type: 'warning',
@@ -67,8 +61,6 @@ export default function DashboardScreen() {
         icon: '⚠️'
       });
     }
-    
-    // Varování při vysokých výdajích v jedné kategorii
     const topCategory = currentMonthReport.categoryBreakdown[0];
     if (topCategory && topCategory.percentage > 40) {
       warnings.push({
@@ -78,12 +70,9 @@ export default function DashboardScreen() {
         icon: '💡'
       });
     }
-    
-    // Varování při překročení finančních cílů
     const overspentGoals = financialGoals.filter(goal => 
       goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount
     );
-    
     overspentGoals.forEach(goal => {
       warnings.push({
         type: 'danger',
@@ -92,7 +81,6 @@ export default function DashboardScreen() {
         icon: '🎯'
       });
     });
-    
     return warnings;
   };
   
@@ -174,9 +162,21 @@ export default function DashboardScreen() {
     </View>
   );
 
+  const detectedSubscriptions = useMemo<SubscriptionItem[]>(() => finance.getDetectedSubscriptions(), [finance, recentTransactions]);
+  const totalActiveSubs = useMemo<number>(() => finance.subscriptions.filter(s => s.active).reduce((s, n) => s + n.amount, 0), [finance.subscriptions]);
+
+  const confirmDetected = useCallback((sub: SubscriptionItem) => {
+    finance.addSubscription({ ...sub, id: `${sub.id}-${Date.now()}` });
+  }, [finance]);
+
+  const toggleActive = useCallback((id: string) => {
+    const s = finance.subscriptions.find(x => x.id === id);
+    if (!s) return;
+    finance.updateSubscription(id, { active: !s.active });
+  }, [finance]);
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]} showsVerticalScrollIndicator={false}>
-      {/* Header with MoneyBuddy */}
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={styles.header}
@@ -196,7 +196,6 @@ export default function DashboardScreen() {
         </View>
       </LinearGradient>
 
-      {/* Daily Tip - pouze když jsou povolené */}
       {notifications.dailyTips && (
         <View style={styles.tipContainer}>
           <LinearGradient
@@ -220,7 +219,6 @@ export default function DashboardScreen() {
         </View>
       )}
       
-      {/* Budget Warnings - pouze když jsou povolené */}
       {notifications.budgetWarnings && budgetWarnings.length > 0 && (
         <View style={styles.warningsContainer}>
           {budgetWarnings.map((warning, index) => (
@@ -258,7 +256,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Balance Overview */}
       <View style={styles.balanceContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialOverview')}</Text>
         <View style={styles.balanceCard}>
@@ -276,7 +273,6 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Finance Cards */}
       <View style={styles.financeGrid}>
         <TouchableOpacity onPress={() => router.push('/income-detail')}>
           <FinanceCard
@@ -298,7 +294,6 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('quickActions')}</Text>
         <View style={styles.quickActionsGrid}>
@@ -329,7 +324,55 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Learning Section */}
+      {/* Subscriptions from bank statements */}
+      <View style={styles.subsContainer}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]} testID="subs-title">Měsíční předplatné</Text>
+        <View style={[styles.subsCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+          <View style={styles.subsHeader}>
+            <Text style={styles.subsHeaderText}>Aktivní: {totalActiveSubs.toLocaleString('cs-CZ')} {currentCurrency.symbol}/měs.</Text>
+          </View>
+          {finance.subscriptions.length === 0 && detectedSubscriptions.length === 0 ? (
+            <Text style={styles.subsEmpty} testID="subs-empty">Zatím jsme nenašli žádná předplatné.</Text>
+          ) : (
+            <>
+              {finance.subscriptions.map((s) => (
+                <View key={s.id} style={styles.subRow} testID={`sub-${s.id}`}>
+                  <View style={styles.subMain}>
+                    <Text style={styles.subName}>{s.name}</Text>
+                    <Text style={styles.subMeta}>{s.category} • den {s.dayOfMonth}</Text>
+                  </View>
+                  <View style={styles.subRight}>
+                    <Text style={[styles.subAmount, { color: s.active ? '#10B981' : '#9CA3AF' }]}>{s.amount.toLocaleString('cs-CZ')} {currentCurrency.symbol}</Text>
+                    <TouchableOpacity onPress={() => toggleActive(s.id)} testID={`toggle-sub-${s.id}`} style={styles.subToggle}>
+                      <Text style={{ color: s.active ? '#10B981' : '#9CA3AF', fontWeight: '700' }}>{s.active ? 'ON' : 'OFF'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              {detectedSubscriptions.length > 0 && (
+                <View style={styles.detectedWrap}>
+                  <Text style={styles.detectedTitle}>Nalezeno z výpisů</Text>
+                  {detectedSubscriptions.slice(0, 5).map((s) => (
+                    <View key={s.id} style={styles.detectedRow} testID={`detected-${s.id}`}>
+                      <View style={styles.subMain}>
+                        <Text style={styles.subName}>{s.name}</Text>
+                        <Text style={styles.subMeta}>{s.category} • den {s.dayOfMonth}</Text>
+                      </View>
+                      <View style={styles.subRight}>
+                        <Text style={styles.subAmount}>{s.amount.toLocaleString('cs-CZ')} {currentCurrency.symbol}</Text>
+                        <TouchableOpacity onPress={() => confirmDetected(s)} style={styles.addBtn} accessibilityLabel={`add-${s.id}`}>
+                          <Text style={styles.addBtnText}>Přidat</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+        </View>
+      </View>
+
       <View style={styles.learningContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialEducation')}</Text>
         <TouchableOpacity style={styles.learningCard}>
@@ -348,7 +391,6 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Expense Categories Overview */}
       {categoryExpenses.length > 0 && (
         <View style={styles.categoriesContainer}>
           <View style={styles.sectionHeader}>
@@ -370,7 +412,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Recent Transactions */}
       <View style={styles.transactionsContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('recentTransactions')}</Text>
         {recentTransactions.length === 0 ? (
@@ -573,6 +614,98 @@ const styles = StyleSheet.create({
     color: 'white',
     marginTop: 8,
     textAlign: 'center',
+  },
+  subsContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  subsCard: {
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  subsHeader: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 8,
+  },
+  subsHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  subsEmpty: {
+    color: '#6B7280',
+    padding: 12,
+  },
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomColor: '#E5E7EB',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  subMain: {
+    flex: 1,
+  },
+  subName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  subMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  subRight: {
+    alignItems: 'flex-end',
+  },
+  subAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  subToggle: {
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  detectedWrap: {
+    marginTop: 8,
+  },
+  detectedTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  detectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  addBtn: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#667eea',
+  },
+  addBtnText: {
+    color: 'white',
+    fontWeight: '700',
   },
   learningContainer: {
     marginHorizontal: 20,
