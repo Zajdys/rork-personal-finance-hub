@@ -290,6 +290,13 @@ export const TRANSLATIONS = {
     investorDesc: 'Přidal jsi své první investice',
     consistent: 'Konzistentní',
     consistentDesc: 'Používáš appku 30 dní v řadě',
+    
+    // Daily Tips
+    dailyTip1: 'Utrať dnes o 50 Kč míň = 18 250 Kč ročně 💡',
+    dailyTip2: 'ETF není magie. Je to balíček akcií. A díky tomu máš menší riziko 📦',
+    dailyTip3: 'Inflace je jako zloděj - krade hodnotu tvých peněz každý den 🦹‍♂️',
+    dailyTip4: 'Složený úrok je nejsilnější síla ve vesmíru - Albert Einstein 🚀',
+    dailyTip5: 'Nejlepší čas na investování byl před 20 lety. Druhý nejlepší je dnes 📈',
   },
   en: {
     // Tab names
@@ -565,6 +572,13 @@ export const TRANSLATIONS = {
     investorDesc: 'You added your first investments',
     consistent: 'Consistent',
     consistentDesc: 'Using the app for 30 days in a row',
+    
+    // Daily Tips
+    dailyTip1: 'Spend 50 CZK less today = 18,250 CZK per year 💡',
+    dailyTip2: 'ETF is not magic. It\'s a bundle of stocks. And thanks to that you have less risk 📦',
+    dailyTip3: 'Inflation is like a thief - it steals the value of your money every day 🦹‍♂️',
+    dailyTip4: 'Compound interest is the most powerful force in the universe - Albert Einstein 🚀',
+    dailyTip5: 'The best time to invest was 20 years ago. The second best is today 📈',
   },
 
 };

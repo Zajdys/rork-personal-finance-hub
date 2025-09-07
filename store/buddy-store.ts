@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import { useLanguageStore } from './language-store';
 
 interface BuddyState {
   level: number;
@@ -15,21 +16,28 @@ interface BuddyState {
   clearBuddyMessage: () => void;
   loadData: () => Promise<void>;
   saveData: () => Promise<void>;
+  refreshDailyTip: () => void;
 }
 
-const DAILY_TIPS = [
-  "Utrať dnes o 50 Kč míň = 18 250 Kč ročně 💡",
-  "ETF není magie. Je to balíček akcií. A díky tomu máš menší riziko 📦",
-  "Inflace je jako zloděj - krade hodnotu tvých peněz každý den 🦹‍♂️",
-  "Složený úrok je nejsilnější síla ve vesmíru - Albert Einstein 🚀",
-  "Nejlepší čas na investování byl před 20 lety. Druhý nejlepší je dnes 📈",
-];
+const DAILY_TIP_KEYS = [
+  'dailyTip1',
+  'dailyTip2', 
+  'dailyTip3',
+  'dailyTip4',
+  'dailyTip5',
+] as const;
+
+function getDailyTip(): string {
+  const { t } = useLanguageStore.getState();
+  const randomKey = DAILY_TIP_KEYS[Math.floor(Math.random() * DAILY_TIP_KEYS.length)];
+  return t(randomKey);
+}
 
 export const useBuddyStore = create<BuddyState>((set, get) => ({
   level: 1,
   points: 45,
   completedLessons: [],
-  dailyTip: DAILY_TIPS[Math.floor(Math.random() * DAILY_TIPS.length)],
+  dailyTip: getDailyTip(),
   currentMessage: null,
   isLoaded: false,
 
@@ -122,5 +130,9 @@ export const useBuddyStore = create<BuddyState>((set, get) => ({
     } catch (error) {
       console.error('Failed to save buddy data:', error);
     }
+  },
+
+  refreshDailyTip: () => {
+    set({ dailyTip: getDailyTip() });
   },
 }));

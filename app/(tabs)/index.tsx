@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,9 +32,14 @@ const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals } = useFinanceStore();
-  const { level, points, dailyTip } = useBuddyStore();
+  const { level, points, dailyTip, refreshDailyTip } = useBuddyStore();
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
-  const { t } = useLanguageStore();
+  const { t, language, updateCounter } = useLanguageStore();
+  
+  // Refresh daily tip when language changes
+  useEffect(() => {
+    refreshDailyTip();
+  }, [language, updateCounter, refreshDailyTip]);
   
   // Získáme aktuální měsíční report pro rozpočtová varování
   const currentMonthReport = getCurrentMonthReport();
