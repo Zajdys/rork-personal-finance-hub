@@ -280,6 +280,16 @@ export const TRANSLATIONS = {
     month: 'Měsíc',
     year: 'Rok',
     all: 'Vše',
+    
+    // Achievements
+    firstSteps: 'První kroky',
+    firstStepsDesc: 'Přidal jsi svou první transakci',
+    financeStudent: 'Student financí',
+    financeStudentDesc: 'Dokončil jsi 5 lekcí',
+    investor: 'Investor',
+    investorDesc: 'Přidal jsi své první investice',
+    consistent: 'Konzistentní',
+    consistentDesc: 'Používáš appku 30 dní v řadě',
   },
   en: {
     // Tab names
@@ -545,6 +555,16 @@ export const TRANSLATIONS = {
     month: 'Month',
     year: 'Year',
     all: 'All',
+    
+    // Achievements
+    firstSteps: 'First Steps',
+    firstStepsDesc: 'You added your first transaction',
+    financeStudent: 'Finance Student',
+    financeStudentDesc: 'You completed 5 lessons',
+    investor: 'Investor',
+    investorDesc: 'You added your first investments',
+    consistent: 'Consistent',
+    consistentDesc: 'Using the app for 30 days in a row',
   },
 
 };

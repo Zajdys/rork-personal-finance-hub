@@ -30,35 +30,35 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
 
-const ACHIEVEMENTS = [
+const getAchievements = (t: any) => [
   {
     id: '1',
-    title: 'První kroky',
-    description: 'Přidal jsi svou první transakci',
+    title: t('firstSteps'),
+    description: t('firstStepsDesc'),
     icon: Star,
     unlocked: true,
     color: '#F59E0B',
   },
   {
     id: '2',
-    title: 'Student financí',
-    description: 'Dokončil jsi 5 lekcí',
+    title: t('financeStudent'),
+    description: t('financeStudentDesc'),
     icon: BookOpen,
     unlocked: false,
     color: '#8B5CF6',
   },
   {
     id: '3',
-    title: 'Investor',
-    description: 'Přidal jsi své první investice',
+    title: t('investor'),
+    description: t('investorDesc'),
     icon: TrendingUp,
     unlocked: false,
     color: '#10B981',
   },
   {
     id: '4',
-    title: 'Konzistentní',
-    description: 'Používáš appku 30 dní v řadě',
+    title: t('consistent'),
+    description: t('consistentDesc'),
     icon: Calendar,
     unlocked: false,
     color: '#EF4444',
@@ -245,7 +245,7 @@ export default function ProfileScreen() {
       <View style={styles.achievementsContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('achievements')}</Text>
         <View style={styles.achievementsList}>
-          {ACHIEVEMENTS.map((achievement) => (
+          {getAchievements(t).map((achievement) => (
             <AchievementCard key={achievement.id} achievement={achievement} />
           ))}
         </View>
