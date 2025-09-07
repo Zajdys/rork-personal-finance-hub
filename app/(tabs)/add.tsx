@@ -27,7 +27,7 @@ import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/store/
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import * as DocumentPicker from 'expo-document-picker';
-import { parseBankCsvToTransactions, readUriText, readPdfText, parseBankPdfTextToTransactions, ParsedTxn } from '../../src/services/bank/importBankCsv';
+import { parseBankCsvToTransactions, readUriText, readPdfText, parseBankPdfTextToTransactions, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
 
 const EXPENSE_CATEGORY_ICONS = {
   'Jídlo a nápoje': Coffee,
@@ -134,6 +134,7 @@ export default function AddTransactionScreen() {
       const mime = (asset as any).mimeType as string | undefined;
       const name = asset.name ?? '';
       const isPdf = (mime?.includes('pdf')) || /\.pdf$/i.test(name);
+      const isXlsx = (mime?.includes('spreadsheet') || mime?.includes('excel') || /\.(xlsx?)$/i.test(name));
 
       if (isPdf) {
         console.log('Selected PDF bank statement:', { name, mime });
@@ -150,6 +151,26 @@ export default function AddTransactionScreen() {
         } catch (err) {
           console.error('PDF parse error', err);
           setImportError('Nepodařilo se přečíst PDF výpis. Zkuste prosím CSV.');
+        }
+        setImporting(false);
+        return;
+      }
+
+      if (isXlsx) {
+        console.log('Selected XLS/XLSX bank statement:', { name, mime });
+        try {
+          const buf = await readUriArrayBuffer(asset.uri);
+          const parsedFromXlsx = await parseBankXlsxToTransactions(buf);
+          console.log('XLSX parsed count:', parsedFromXlsx.length);
+          if (!parsedFromXlsx.length) {
+            setImportError('Excel soubor se načetl, ale nenašli jsme transakce. Zkuste CSV.');
+          } else {
+            setPreview(parsedFromXlsx);
+            setPreviewOpen(true);
+          }
+        } catch (err) {
+          console.error('XLSX parse error', err);
+          setImportError('Nepodařilo se přečíst Excel výpis. Zkuste prosím CSV.');
         }
         setImporting(false);
         return;

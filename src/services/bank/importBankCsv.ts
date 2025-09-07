@@ -1,5 +1,6 @@
 import { toNum } from "../../lib/num";
 import { Platform } from "react-native";
+import { parseXlsxArrayBuffer, ParsedTable } from "@/src/utils/fileParser";
 
 export type BankCsvRecord = Record<string, string | undefined>;
 
@@ -116,6 +117,9 @@ function toRecords(rows: string[][]): BankCsvRecord[] {
 function pick(r: BankCsvRecord, keys: readonly string[]): string | undefined {
   for (const k of keys) {
     if (r[k] != null && String(r[k]).trim() !== "") return r[k];
+    // also try case-insensitive header match
+    const hit = Object.keys(r).find(h => h.toLowerCase() === k.toLowerCase());
+    if (hit && r[hit] && String(r[hit]).trim() !== '') return r[hit];
   }
   return undefined;
 }
@@ -179,6 +183,26 @@ export function parseBankCsvToTransactions(text: string): ParsedTxn[] {
     return txns;
   } catch (e) {
     console.error('parseBankCsvToTransactions error', e);
+    return [];
+  }
+}
+
+export async function parseBankXlsxToTransactions(buf: ArrayBuffer): Promise<ParsedTxn[]> {
+  try {
+    const table: ParsedTable = await parseXlsxArrayBuffer(buf);
+    const records: BankCsvRecord[] = table.map((row) => {
+      const rec: BankCsvRecord = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (typeof k === 'string') {
+          rec[normalizeHeader(k)] = (v ?? '').trim();
+        }
+      }
+      return rec;
+    });
+    const txns = records.map(mapBankRecord).filter((x): x is ParsedTxn => !!x);
+    return txns;
+  } catch (e) {
+    console.error('parseBankXlsxToTransactions error', e);
     return [];
   }
 }
@@ -261,6 +285,25 @@ export async function readPdfText(uri: string): Promise<string> {
     }
   } catch (e) {
     console.error('readPdfText error', e);
+    throw e;
+  }
+}
+
+export async function readUriArrayBuffer(uri: string): Promise<ArrayBuffer> {
+  try {
+    if (Platform.OS === 'web') {
+      const res = await fetch(uri);
+      return await res.arrayBuffer();
+    } else {
+      const FS = await import('expo-file-system');
+      const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+      const binary = decodeBase64Latin1(b64);
+      const buf = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i) & 0xff;
+      return buf.buffer;
+    }
+  } catch (e) {
+    console.error('readUriArrayBuffer error', e);
     throw e;
   }
 }
