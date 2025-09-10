@@ -22,11 +22,15 @@ import {
   Heart,
   Book,
   Smartphone,
+  Camera,
+  FileText,
+  Scan,
 } from 'lucide-react-native';
 import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { parseBankCsvToTransactions, readUriText, readPdfText, parseBankPdfTextToTransactions, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
 
 const EXPENSE_CATEGORY_ICONS = {
@@ -59,6 +63,9 @@ export default function AddTransactionScreen() {
   const [preview, setPreview] = useState<ParsedTxn[]>([]);
   const [previewOpen, setPreviewOpen] = useState<boolean>(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [receiptScanOpen, setReceiptScanOpen] = useState<boolean>(false);
+
+  const [scanningReceipt, setScanningReceipt] = useState<boolean>(false);
   
   const { addTransaction } = useFinanceStore();
   const { addPoints, showBuddyMessage } = useBuddyStore();
@@ -219,6 +226,186 @@ export default function AddTransactionScreen() {
     }
   }, [preview, addTransaction, addPoints, showBuddyMessage]);
 
+  const scanReceiptWithCamera = useCallback(async () => {
+    setReceiptScanOpen(true);
+  }, []);
+
+  const processReceiptFile = useCallback(async (uri: string) => {
+    try {
+      setScanningReceipt(true);
+      
+      // Convert image to base64
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        try {
+          const base64Data = (reader.result as string).split(',')[1];
+          
+          // Send to AI for processing
+          const aiResponse = await fetch('https://toolkit.rork.com/text/llm/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: 'system',
+                  content: 'Jsi expert na analýzu účtenek. Analyzuj účtenku a rozděl položky do kategorií. Vrať JSON s polem "items" obsahující objekty s: title (název položky), amount (částka v Kč), category (jedna z: "Jídlo a nápoje", "Nájem a bydlení", "Oblečení", "Doprava", "Zábava", "Zdraví", "Vzdělání", "Nákupy", "Služby", "Ostatní"). Pokud není jasná celková částka, sečti jednotlivé položky.'
+                },
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Analyzuj tuto účtenku a rozděl položky do kategorií:'
+                    },
+                    {
+                      type: 'image',
+                      image: base64Data
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+          
+          const aiResult = await aiResponse.json();
+          console.log('AI Receipt Analysis:', aiResult.completion);
+          
+          try {
+            const parsedResult = JSON.parse(aiResult.completion);
+            const receiptItems = parsedResult.items || [];
+            
+            if (receiptItems.length === 0) {
+              Alert.alert(t('error'), t('noItemsFound'));
+              return;
+            }
+            
+            // Convert to preview format
+            const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
+              type: 'expense' as const,
+              amount: parseFloat(item.amount) || 0,
+              title: item.title || `Položka ${index + 1}`,
+              category: item.category || 'Ostatní',
+              date: new Date(),
+            }));
+            
+            setPreview(receiptTransactions);
+            setPreviewOpen(true);
+            
+            addPoints(3);
+            showBuddyMessage(t('receiptProcessed'));
+            
+          } catch (parseError) {
+            console.error('Failed to parse AI response:', parseError);
+            Alert.alert(t('error'), t('receiptProcessingError'));
+          }
+          
+        } catch (error) {
+          console.error('Receipt processing error:', error);
+          Alert.alert(t('error'), t('receiptProcessingError'));
+        } finally {
+          setScanningReceipt(false);
+        }
+      };
+      
+      reader.readAsDataURL(blob);
+      
+    } catch (error) {
+      console.error('Receipt file processing error:', error);
+      Alert.alert(t('error'), t('fileProcessingError'));
+      setScanningReceipt(false);
+    }
+  }, [addPoints, showBuddyMessage, t]);
+
+  const uploadReceiptPDF = useCallback(async () => {
+    try {
+      setScanningReceipt(true);
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+      
+      if (res.canceled) {
+        setScanningReceipt(false);
+        return;
+      }
+      
+      const asset = res.assets?.[0];
+      if (!asset?.uri) {
+        Alert.alert(t('errorMessage'), t('fileLoadError'));
+        setScanningReceipt(false);
+        return;
+      }
+      
+      await processReceiptFile(asset.uri);
+    } catch (error) {
+      console.error('Receipt upload error:', error);
+      Alert.alert(t('errorMessage'), t('receiptUploadError'));
+    } finally {
+      setScanningReceipt(false);
+    }
+  }, [t, processReceiptFile]);
+
+  const requestCameraPermission = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    return status === 'granted';
+  }, []);
+
+  const takePicture = useCallback(async () => {
+    try {
+      const hasPermission = await requestCameraPermission();
+      if (!hasPermission) {
+        Alert.alert(t('errorMessage'), t('cameraPermissionNeeded'));
+        return;
+      }
+      
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets[0]) {
+        setReceiptScanOpen(false);
+        await processReceiptFile(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert(t('error'), t('cameraError'));
+    }
+  }, [processReceiptFile, requestCameraPermission, t]);
+
+  const selectFromGallery = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('errorMessage'), t('galleryPermissionNeeded'));
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets[0]) {
+        setReceiptScanOpen(false);
+        await processReceiptFile(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Gallery error:', error);
+      Alert.alert(t('error'), t('galleryError'));
+    }
+  }, [processReceiptFile, t]);
+
   const TypeSelector = () => (
     <View style={styles.typeSelector}>
       <TouchableOpacity
@@ -304,7 +491,7 @@ export default function AddTransactionScreen() {
       <View style={styles.content}>
         <TypeSelector />
 
-        <View style={styles.importRow}>
+        <View style={styles.importSection}>
           <TouchableOpacity
             testID="import-bank-statement"
             accessibilityLabel="import-bank-statement"
@@ -316,10 +503,50 @@ export default function AddTransactionScreen() {
               {importing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.importText}>Import z bankovního výpisu (CSV/PDF)</Text>
+                <>
+                  <FileText color="#fff" size={20} />
+                  <Text style={styles.importText}>Import z bankovního výpisu</Text>
+                </>
               )}
             </LinearGradient>
           </TouchableOpacity>
+          
+          <View style={styles.receiptButtons}>
+            <TouchableOpacity
+              style={[styles.receiptButton, styles.receiptButtonCamera]}
+              onPress={scanReceiptWithCamera}
+              disabled={scanningReceipt}
+            >
+              <LinearGradient colors={["#10b981", "#059669"]} style={styles.receiptGradient}>
+                {scanningReceipt ? (
+                  <ActivityIndicator color="#fff" size={16} />
+                ) : (
+                  <>
+                    <Camera color="#fff" size={16} />
+                    <Text style={styles.receiptButtonText}>{t('photoReceipt')}</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.receiptButton, styles.receiptButtonUpload]}
+              onPress={uploadReceiptPDF}
+              disabled={scanningReceipt}
+            >
+              <LinearGradient colors={["#8b5cf6", "#7c3aed"]} style={styles.receiptGradient}>
+                {scanningReceipt ? (
+                  <ActivityIndicator color="#fff" size={16} />
+                ) : (
+                  <>
+                    <Scan color="#fff" size={16} />
+                    <Text style={styles.receiptButtonText}>{t('uploadReceipt')}</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+          
           {importError ? (
             <Text style={styles.importError} testID="import-error">{importError}</Text>
           ) : null}
@@ -370,6 +597,36 @@ export default function AddTransactionScreen() {
         </TouchableOpacity>
       </View>
 
+      <Modal visible={receiptScanOpen} transparent animationType="slide" onRequestClose={() => setReceiptScanOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.receiptScanModal}>
+            <Text style={styles.modalTitle}>{t('scanReceipt')}</Text>
+            <Text style={styles.modalSubtitle}>{t('selectScanMethod')}</Text>
+            
+            <View style={styles.receiptScanOptions}>
+              <TouchableOpacity style={styles.receiptScanOption} onPress={takePicture}>
+                <Camera color="#10b981" size={32} />
+                <Text style={styles.receiptScanOptionTitle}>{t('takePhoto')}</Text>
+                <Text style={styles.receiptScanOptionDesc}>{t('takeNewPhoto')}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.receiptScanOption} onPress={selectFromGallery}>
+                <FileText color="#8b5cf6" size={32} />
+                <Text style={styles.receiptScanOptionTitle}>{t('selectFromGallery')}</Text>
+                <Text style={styles.receiptScanOptionDesc}>{t('useExistingPhoto')}</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.receiptScanCancel} 
+              onPress={() => setReceiptScanOpen(false)}
+            >
+              <Text style={styles.receiptScanCancelText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={previewOpen} transparent animationType="slide" onRequestClose={() => setPreviewOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -377,7 +634,7 @@ export default function AddTransactionScreen() {
             <Text style={styles.modalSubtitle}>Počet načtených transakcí: {preview.length}</Text>
             <ScrollView style={styles.previewList} contentContainerStyle={{ paddingBottom: 12 }}>
               {preview.slice(0, 50).map((p, idx) => (
-                <View key={idx} style={styles.previewItem} testID={`preview-item-${idx}`}>
+                <View key={`${p.title}-${idx}`} style={styles.previewItem} testID={`preview-item-${idx}`}>
                   <View style={styles.previewHeaderRow}>
                     <Text style={styles.previewBadge}>{p.type === 'income' ? 'Příjem' : 'Výdaj'}</Text>
                     <Text style={styles.previewAmount}>{p.amount.toLocaleString('cs-CZ')} Kč</Text>
@@ -430,9 +687,34 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  importRow: {
+  importSection: {
     marginTop: 16,
     marginBottom: 8,
+    gap: 12,
+  },
+  receiptButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  receiptButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  receiptButtonCamera: {},
+  receiptButtonUpload: {},
+  receiptGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  receiptButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   importButton: {
     borderRadius: 16,
@@ -440,7 +722,10 @@ const styles = StyleSheet.create({
   },
   importGradient: {
     paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   importText: {
     color: '#fff',
@@ -667,6 +952,49 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: '#111827',
     fontWeight: '700',
+  },
+  receiptScanModal: {
+    width: '90%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  receiptScanOptions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 20,
+    marginBottom: 24,
+  },
+  receiptScanOption: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  receiptScanOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginTop: 8,
+  },
+  receiptScanOptionDesc: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  receiptScanCancel: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  receiptScanCancelText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '600',
   },
   submitButton: {
     marginTop: 16,

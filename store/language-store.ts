@@ -298,6 +298,26 @@ export const TRANSLATIONS = {
     dailyTip3: 'Inflace je jako zloděj - krade hodnotu tvých peněz každý den 🦹‍♂️',
     dailyTip4: 'Složený úrok je nejsilnější síla ve vesmíru - Albert Einstein 🚀',
     dailyTip5: 'Nejlepší čas na investování byl před 20 lety. Druhý nejlepší je dnes 📈',
+    
+    // Receipt scanning
+    scanReceipt: 'Naskenovat účtenku',
+    photoReceipt: 'Vyfotit účtenku',
+    uploadReceipt: 'Nahrát účtenku',
+    selectScanMethod: 'Vyberte způsob skenování účtenky',
+    takePhoto: 'Vyfotit',
+    takeNewPhoto: 'Pořídit novou fotku',
+    selectFromGallery: 'Vybrat z galerie',
+    useExistingPhoto: 'Použít existující foto',
+    receiptProcessed: 'Účtenka byla úspěšně naskenována a roztříděna. Zkontroluj položky a potvrď import.',
+    noItemsFound: 'Na účtence se nepodařilo najít žádné položky',
+    receiptProcessingError: 'Nepodařilo se zpracovat účtenku. Zkuste to znovu.',
+    cameraPermissionNeeded: 'Potřebujeme oprávnění k fotoaparátu pro skenování účtenek',
+    galleryPermissionNeeded: 'Potřebujeme oprávnění k galerii pro výběr obrázků',
+    fileLoadError: 'Soubor se nepodařilo načíst',
+    receiptUploadError: 'Chyba při nahrávání účtenky',
+    fileProcessingError: 'Nepodařilo se zpracovat soubor',
+    cameraError: 'Nepodařilo se pořídit fotku',
+    galleryError: 'Nepodařilo se vybrat obrázek',
   },
   en: {
     // Tab names
@@ -581,6 +601,26 @@ export const TRANSLATIONS = {
     dailyTip3: 'Inflation is like a thief - it steals the value of your money every day 🦹‍♂️',
     dailyTip4: 'Compound interest is the most powerful force in the universe - Albert Einstein 🚀',
     dailyTip5: 'The best time to invest was 20 years ago. The second best is today 📈',
+    
+    // Receipt scanning
+    scanReceipt: 'Scan Receipt',
+    photoReceipt: 'Photo Receipt',
+    uploadReceipt: 'Upload Receipt',
+    selectScanMethod: 'Select receipt scanning method',
+    takePhoto: 'Take Photo',
+    takeNewPhoto: 'Take new photo',
+    selectFromGallery: 'Select from Gallery',
+    useExistingPhoto: 'Use existing photo',
+    receiptProcessed: 'Receipt was successfully scanned and categorized. Check items and confirm import.',
+    noItemsFound: 'No items found on the receipt',
+    receiptProcessingError: 'Failed to process receipt. Please try again.',
+    cameraPermissionNeeded: 'We need camera permission to scan receipts',
+    galleryPermissionNeeded: 'We need gallery permission to select images',
+    fileLoadError: 'Failed to load file',
+    receiptUploadError: 'Error uploading receipt',
+    fileProcessingError: 'Failed to process file',
+    cameraError: 'Failed to take photo',
+    galleryError: 'Failed to select image',
   },
 
 };
