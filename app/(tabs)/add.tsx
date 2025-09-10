@@ -494,21 +494,39 @@ export default function AddTransactionScreen() {
         return (
           <TouchableOpacity
             key={category.id}
-            style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
+            testID={`category-${category.id}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
+            style={[
+              styles.categoryCard,
+              isSelected && styles.categoryCardSelected,
+              isSelected ? { borderColor: category.color } : null,
+            ]}
             onPress={() => setSelectedCategory(category.id)}
           >
-            <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
-              <Text style={{ fontSize: 24 }}>{categoryData[category.name]?.icon || '📦'}</Text>
+            <View
+              style={[
+                styles.categoryIcon,
+                {
+                  backgroundColor: isSelected ? (category.color + '33') : (category.color + '20'),
+                  borderWidth: isSelected ? 2 : 0,
+                  borderColor: isSelected ? category.color : 'transparent',
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 24 }}>
+                {categoryData[category.name]?.icon || '📦'}
+              </Text>
             </View>
-            <Text style={[styles.categoryText, isSelected && styles.categoryTextSelected]}>
+            <Text
+              style={[
+                styles.categoryText,
+                isSelected ? { color: category.color, fontWeight: '700' } : null,
+              ]}
+              numberOfLines={1}
+            >
               {category.name}
             </Text>
-            {isSelected && (
-              <LinearGradient
-                colors={[category.color, category.color + 'CC']}
-                style={styles.categorySelectedOverlay}
-              />
-            )}
           </TouchableOpacity>
         );
       })}
@@ -951,6 +969,8 @@ const styles = StyleSheet.create({
     elevation: 4,
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#F3F4F6',
   },
   categoryCardSelected: {
     transform: [{ scale: 1.02 }],
