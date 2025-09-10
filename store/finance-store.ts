@@ -81,6 +81,14 @@ export const INCOME_CATEGORIES = {
   'Ostatní': { icon: '💰', color: '#6B7280' },
 } as const;
 
+export interface CustomCategory {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  type: 'income' | 'expense';
+}
+
 interface FinanceState {
   transactions: Transaction[];
   totalIncome: number;
@@ -92,6 +100,7 @@ interface FinanceState {
   monthlyReports: MonthlyReport[];
   financialGoals: FinancialGoal[];
   subscriptions: SubscriptionItem[];
+  customCategories: CustomCategory[];
   isLoaded: boolean;
   addTransaction: (transaction: Transaction) => void;
   updateTotals: () => void;
@@ -107,6 +116,9 @@ interface FinanceState {
   addSubscription: (sub: SubscriptionItem) => void;
   updateSubscription: (id: string, updates: Partial<SubscriptionItem>) => void;
   deleteSubscription: (id: string) => void;
+  addCustomCategory: (category: CustomCategory) => void;
+  deleteCustomCategory: (id: string) => void;
+  getAllCategories: (type: 'income' | 'expense') => { [key: string]: { icon: string; color: string } };
   loadData: () => Promise<void>;
   saveData: () => Promise<void>;
 }
@@ -130,6 +142,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   monthlyReports: [],
   financialGoals: [],
   subscriptions: [],
+  customCategories: [],
   isLoaded: false,
 
   addTransaction: (transaction: Transaction) => {
@@ -185,13 +198,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       categoryTotals[category] = (categoryTotals[category] || 0) + transaction.amount;
     });
     
+    const allCategories = get().getAllCategories('expense');
+    
     return Object.entries(categoryTotals)
       .map(([category, amount]) => ({
         category,
         amount,
         percentage: Math.round((amount / totalExpenses) * 100),
-        icon: (EXPENSE_CATEGORIES as any)[category]?.icon || '📦',
-        color: (EXPENSE_CATEGORIES as any)[category]?.color || '#6B7280',
+        icon: allCategories[category]?.icon || '📦',
+        color: allCategories[category]?.color || '#6B7280',
       }))
       .sort((a, b) => b.amount - a.amount);
   },
@@ -236,13 +251,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       categoryTotals[category] = (categoryTotals[category] || 0) + transaction.amount;
     });
     
+    const allCategories = get().getAllCategories('expense');
+    
     const categoryBreakdown = Object.entries(categoryTotals)
       .map(([category, amount]) => ({
         category,
         amount,
         percentage: totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0,
-        icon: (EXPENSE_CATEGORIES as any)[category]?.icon || '📦',
-        color: (EXPENSE_CATEGORIES as any)[category]?.color || '#6B7280',
+        icon: allCategories[category]?.icon || '📦',
+        color: allCategories[category]?.color || '#6B7280',
       }))
       .sort((a, b) => b.amount - a.amount);
     
@@ -385,13 +402,41 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     get().saveData();
   },
 
+  addCustomCategory: (category: CustomCategory) => {
+    set((state) => ({
+      customCategories: [...state.customCategories, category],
+    }));
+    get().saveData();
+  },
+
+  deleteCustomCategory: (id: string) => {
+    set((state) => ({
+      customCategories: state.customCategories.filter(c => c.id !== id),
+    }));
+    get().saveData();
+  },
+
+  getAllCategories: (type: 'income' | 'expense') => {
+    const state = get();
+    const defaultCategories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    const customCategories = state.customCategories
+      .filter(c => c.type === type)
+      .reduce((acc, c) => {
+        acc[c.name] = { icon: c.icon, color: c.color };
+        return acc;
+      }, {} as { [key: string]: { icon: string; color: string } });
+    
+    return { ...defaultCategories, ...customCategories };
+  },
+
   loadData: async () => {
     try {
-      const [transactionsData, goalsData, reportsData, subsData] = await Promise.all([
+      const [transactionsData, goalsData, reportsData, subsData, customCategoriesData] = await Promise.all([
         AsyncStorage.getItem('finance_transactions'),
         AsyncStorage.getItem('finance_goals'),
         AsyncStorage.getItem('finance_reports'),
         AsyncStorage.getItem('finance_subscriptions'),
+        AsyncStorage.getItem('finance_custom_categories'),
       ]);
       
       const transactions = transactionsData ? JSON.parse(transactionsData).map((t: any) => ({
@@ -412,12 +457,14 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       const monthlyReports = reportsData ? JSON.parse(reportsData) : [] as MonthlyReport[];
 
       const subscriptions: SubscriptionItem[] = subsData ? JSON.parse(subsData) : [];
+      const customCategories: CustomCategory[] = customCategoriesData ? JSON.parse(customCategoriesData) : [];
       
       set({ 
         transactions, 
         financialGoals, 
         monthlyReports,
         subscriptions,
+        customCategories,
         isLoaded: true 
       });
       
@@ -437,6 +484,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         AsyncStorage.setItem('finance_goals', JSON.stringify(state.financialGoals)),
         AsyncStorage.setItem('finance_reports', JSON.stringify(state.monthlyReports)),
         AsyncStorage.setItem('finance_subscriptions', JSON.stringify(state.subscriptions)),
+        AsyncStorage.setItem('finance_custom_categories', JSON.stringify(state.customCategories)),
       ]);
       console.log('Finance data saved successfully');
     } catch (error) {

@@ -25,8 +25,9 @@ import {
   Camera,
   FileText,
   Scan,
+  Plus,
 } from 'lucide-react-native';
-import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/store/finance-store';
+import { useFinanceStore, CustomCategory } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import * as DocumentPicker from 'expo-document-picker';
@@ -64,14 +65,17 @@ export default function AddTransactionScreen() {
   const [previewOpen, setPreviewOpen] = useState<boolean>(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [receiptScanOpen, setReceiptScanOpen] = useState<boolean>(false);
-
   const [scanningReceipt, setScanningReceipt] = useState<boolean>(false);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState<boolean>(false);
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState<string>('📦');
+  const [newCategoryColor, setNewCategoryColor] = useState<string>('#6B7280');
   
-  const { addTransaction } = useFinanceStore();
+  const { addTransaction, getAllCategories, addCustomCategory } = useFinanceStore();
   const { addPoints, showBuddyMessage } = useBuddyStore();
   const { t } = useLanguageStore();
 
-  const categoryData = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const categoryData = getAllCategories(type);
   const categoryIcons = type === 'income' ? INCOME_CATEGORY_ICONS : EXPENSE_CATEGORY_ICONS;
   
   const categories = Object.entries(categoryData).map(([name, data]) => ({
@@ -406,6 +410,41 @@ export default function AddTransactionScreen() {
     }
   }, [processReceiptFile, t]);
 
+  const availableColors = [
+    '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', 
+    '#EC4899', '#6366F1', '#F97316', '#84CC16', '#6B7280'
+  ];
+
+  const availableIcons = [
+    '📦', '🍽️', '🏠', '👕', '🚗', '🎬', '⚕️', '📚', '🛍️', '🔧',
+    '💼', '💻', '📈', '🎁', '💰', '🎯', '🏋️', '✈️', '🎵', '📱'
+  ];
+
+  const handleCreateCategory = () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert(t('errorMessage'), 'Zadejte název kategorie');
+      return;
+    }
+
+    const newCategory: CustomCategory = {
+      id: Date.now().toString(),
+      name: newCategoryName.trim(),
+      icon: newCategoryIcon,
+      color: newCategoryColor,
+      type: type,
+    };
+
+    addCustomCategory(newCategory);
+    setSelectedCategory(newCategory.name);
+    setCreateCategoryOpen(false);
+    setNewCategoryName('');
+    setNewCategoryIcon('📦');
+    setNewCategoryColor('#6B7280');
+    
+    addPoints(2);
+    showBuddyMessage('Nová kategorie byla vytvořena! 🎉');
+  };
+
   const TypeSelector = () => (
     <View style={styles.typeSelector}>
       <TouchableOpacity
@@ -459,7 +498,7 @@ export default function AddTransactionScreen() {
             onPress={() => setSelectedCategory(category.id)}
           >
             <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
-              <Icon color={isSelected ? 'white' : category.color} size={24} />
+              <Text style={{ fontSize: 24 }}>{categoryData[category.name]?.icon || '📦'}</Text>
             </View>
             <Text style={[styles.categoryText, isSelected && styles.categoryTextSelected]}>
               {category.name}
@@ -473,6 +512,18 @@ export default function AddTransactionScreen() {
           </TouchableOpacity>
         );
       })}
+      
+      <TouchableOpacity
+        style={[styles.categoryCard, styles.addCategoryCard]}
+        onPress={() => setCreateCategoryOpen(true)}
+      >
+        <View style={[styles.categoryIcon, { backgroundColor: '#F3F4F6' }]}>
+          <Plus color="#6B7280" size={24} />
+        </View>
+        <Text style={[styles.categoryText, { color: '#6B7280' }]}>
+          Nová kategorie
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -653,6 +704,71 @@ export default function AddTransactionScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.modalConfirm]} onPress={confirmImport} testID="confirm-import">
                 <Text style={[styles.modalButtonText, { color: '#fff' }]}>Importovat</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={createCategoryOpen} transparent animationType="slide" onRequestClose={() => setCreateCategoryOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.createCategoryModal}>
+            <Text style={styles.modalTitle}>Vytvořit novou kategorii</Text>
+            
+            <View style={styles.createCategoryForm}>
+              <Text style={styles.formLabel}>Název kategorie</Text>
+              <TextInput
+                style={styles.categoryNameInput}
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="Zadejte název kategorie"
+                placeholderTextColor="#9CA3AF"
+              />
+              
+              <Text style={styles.formLabel}>Ikona</Text>
+              <View style={styles.iconGrid}>
+                {availableIcons.map((icon) => (
+                  <TouchableOpacity
+                    key={icon}
+                    style={[
+                      styles.iconOption,
+                      newCategoryIcon === icon && styles.iconOptionSelected
+                    ]}
+                    onPress={() => setNewCategoryIcon(icon)}
+                  >
+                    <Text style={styles.iconText}>{icon}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              <Text style={styles.formLabel}>Barva</Text>
+              <View style={styles.colorGrid}>
+                {availableColors.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: color },
+                      newCategoryColor === color && styles.colorOptionSelected
+                    ]}
+                    onPress={() => setNewCategoryColor(color)}
+                  />
+                ))}
+              </View>
+            </View>
+            
+            <View style={styles.createCategoryActions}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalCancel]} 
+                onPress={() => setCreateCategoryOpen(false)}
+              >
+                <Text style={styles.modalButtonText}>Zrušit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalConfirm]} 
+                onPress={handleCreateCategory}
+              >
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Vytvořit</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -995,6 +1111,81 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 16,
     fontWeight: '600',
+  },
+  addCategoryCard: {
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    backgroundColor: '#F9FAFB',
+  },
+  createCategoryModal: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+  },
+  createCategoryForm: {
+    marginTop: 20,
+    marginBottom: 24,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  categoryNameInput: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#1F2937',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  iconOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  iconOptionSelected: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+  iconText: {
+    fontSize: 20,
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  colorOption: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  colorOptionSelected: {
+    borderColor: '#1F2937',
+  },
+  createCategoryActions: {
+    flexDirection: 'row',
+    gap: 12,
   },
   submitButton: {
     marginTop: 16,
