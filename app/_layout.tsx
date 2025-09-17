@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -8,6 +8,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { trpc, trpcClient } from '@/lib/trpc';
+import { useAuthStore } from '@/store/auth-store';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,15 +16,25 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
+  const { token } = useAuthStore();
+  const me = trpc.auth.me.useQuery(undefined, { enabled: Boolean(token) });
   
-  // Don't render navigation until language is loaded
   if (!isLoaded) {
     return null;
+  }
+
+  if (!token) {
+    return <Redirect href="/login" />;
+  }
+  if (me.isSuccess && !me.data.subscription.active) {
+    return <Redirect href="/subscription" />;
   }
   
   return (
     <Stack screenOptions={{ headerBackTitle: t('back') }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="subscription" options={{ title: 'Subscription' }} />
       <Stack.Screen 
         name="modal" 
         options={{ 
@@ -52,6 +63,7 @@ export default function RootLayout() {
   const { loadLanguage, isLoaded } = useLanguageStore();
   const { loadData: loadFinanceData } = useFinanceStore();
   const { loadData: loadBuddyData } = useBuddyStore();
+  const { load: loadAuth } = useAuthStore();
   const [appReady, setAppReady] = useState<boolean>(false);
   
   useEffect(() => {
@@ -63,6 +75,7 @@ export default function RootLayout() {
           loadLanguage(),
           loadFinanceData(),
           loadBuddyData(),
+          loadAuth(),
         ]);
         console.log('App initialized successfully');
         setAppReady(true);
@@ -75,9 +88,8 @@ export default function RootLayout() {
     };
     
     initializeApp();
-  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData]);
+  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadAuth]);
 
-  // Don't render anything until app is ready and language is loaded
   if (!appReady || !isLoaded) {
     return null;
   }

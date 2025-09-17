@@ -6,6 +6,7 @@ import portfolioOverview from "./routes/portfolio/overview/route";
 import register from "./routes/auth/register";
 import login from "./routes/auth/login";
 import me from "./routes/auth/me";
+import subscribe from "./routes/auth/subscribe";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -15,6 +16,7 @@ export const appRouter = createTRPCRouter({
     register,
     login,
     me,
+    subscribe,
   }),
   portfolio: createTRPCRouter({
     import: portfolioImport,
