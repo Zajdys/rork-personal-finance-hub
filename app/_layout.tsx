@@ -17,7 +17,7 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { token } = useAuthStore();
-  const me = trpc.auth.me.useQuery(undefined, { enabled: Boolean(token) });
+  const me = trpc.auth.me.query.useQuery(undefined, { enabled: Boolean(token) });
   
   if (!isLoaded) {
     return null;
