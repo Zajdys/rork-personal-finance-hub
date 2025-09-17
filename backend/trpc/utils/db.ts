@@ -84,6 +84,25 @@ async function ensureSqlJs() {
 
 async function migratePg(client: PGClient) {
   await client.query(`
+    create table if not exists users (
+      id uuid primary key default gen_random_uuid(),
+      email text unique not null,
+      password_hash text not null,
+      created_at timestamptz default now()
+    );
+    create table if not exists sessions (
+      token text primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      created_at timestamptz default now(),
+      expires_at timestamptz
+    );
+    create table if not exists subscriptions (
+      user_id uuid primary key references users(id) on delete cascade,
+      active boolean default false,
+      expires_at timestamptz,
+      created_at timestamptz default now(),
+      updated_at timestamptz default now()
+    );
     create table if not exists transactions (
       id serial primary key,
       user_id text not null,
@@ -132,6 +151,31 @@ async function migratePg(client: PGClient) {
 }
 
 function migrateSqlJs(db: Database) {
+  db.run(`
+    create table if not exists users (
+      id text primary key,
+      email text unique not null,
+      password_hash text not null,
+      created_at text default (datetime('now'))
+    );
+  `);
+  db.run(`
+    create table if not exists sessions (
+      token text primary key,
+      user_id text not null,
+      created_at text default (datetime('now')),
+      expires_at text
+    );
+  `);
+  db.run(`
+    create table if not exists subscriptions (
+      user_id text primary key,
+      active integer default 0,
+      expires_at text,
+      created_at text default (datetime('now')),
+      updated_at text default (datetime('now'))
+    );
+  `);
   db.run(`
     create table if not exists transactions (
       id integer primary key autoincrement,
