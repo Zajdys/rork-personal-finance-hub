@@ -18,36 +18,27 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { token, isLoading: authLoading } = useAuthStore();
-  const me = trpc.auth.me.query.useQuery(undefined, { enabled: Boolean(token) });
   
   console.log('RootLayoutNav - isLoaded:', isLoaded, 'authLoading:', authLoading, 'token:', !!token);
   
   if (!isLoaded || authLoading) {
+    console.log('Still loading, showing null');
     return null;
   }
 
   if (!token) {
     console.log('No token, redirecting to auth landing');
-    return <Redirect href="/auth" />;
+    return <Redirect href="/auth/index" />;
   }
   
-  console.log('me query:', { isSuccess: me.isSuccess, isLoading: me.isLoading, data: me.data });
-  
-  if (me.isSuccess && !me.data.subscription.active) {
-    console.log('No active subscription, redirecting to subscription');
-    return <Redirect href="/subscription" />;
-  }
-  
-  if (me.isLoading) {
-    return null;
-  }
+  console.log('User has token, showing main app');
   
   return (
     <Stack screenOptions={{ headerBackTitle: t('back') }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="auth/index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="subscription" options={{ title: 'Subscription' }} />
+      <Stack.Screen name="subscription" options={{ headerShown: false }} />
       <Stack.Screen 
         name="modal" 
         options={{ 
@@ -80,6 +71,8 @@ export default function RootLayout() {
   const [appReady, setAppReady] = useState<boolean>(false);
   
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const initializeApp = async () => {
       try {
         console.log('Initializing app...');
@@ -98,14 +91,29 @@ export default function RootLayout() {
         setAppReady(true);
         await SplashScreen.hideAsync();
       }
+      
+      // Fallback timeout to ensure app shows even if something fails
+      timeoutId = setTimeout(() => {
+        console.log('Fallback timeout - forcing app ready');
+        setAppReady(true);
+      }, 3000);
     };
     
     initializeApp();
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadAuth]);
 
   if (!appReady || !isLoaded) {
+    console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
     return null;
   }
+  
+  console.log('App is ready, rendering RootLayoutNav');
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
