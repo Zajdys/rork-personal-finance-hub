@@ -27,8 +27,8 @@ function RootLayoutNav() {
   }
 
   if (!token) {
-    console.log('No token, redirecting to login');
-    return <Redirect href="/login" />;
+    console.log('No token, redirecting to auth landing');
+    return <Redirect href="/auth" />;
   }
   
   console.log('me query:', { isSuccess: me.isSuccess, isLoading: me.isLoading, data: me.data });
@@ -45,6 +45,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: t('back') }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/index" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="subscription" options={{ title: 'Subscription' }} />
       <Stack.Screen 

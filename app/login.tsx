@@ -10,6 +10,13 @@ export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isRegistering, setIsRegistering] = useState<boolean>(false);
+  React.useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const mode = url.searchParams.get('mode');
+      if (mode === 'register') setIsRegistering(true);
+    } catch {}
+  }, []);
 
   const loginMutation = trpc.auth.login.mutate.useMutation();
   const registerMutation = trpc.auth.register.mutate.useMutation();
