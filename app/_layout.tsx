@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -8,7 +8,6 @@ import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { useAuthStore } from '@/store/auth-store';
 import { StyleSheet } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
@@ -17,28 +16,15 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
-  const { token, isLoading: authLoading } = useAuthStore();
   
-  console.log('RootLayoutNav - isLoaded:', isLoaded, 'authLoading:', authLoading, 'token:', !!token);
-  
-  if (!isLoaded || authLoading) {
-    console.log('Still loading, showing null');
+  if (!isLoaded) {
     return null;
   }
-
-  if (!token) {
-    console.log('No token, redirecting to auth landing');
-    return <Redirect href="/auth/index" />;
-  }
-  
-  console.log('User has token, showing main app');
   
   return (
     <Stack screenOptions={{ headerBackTitle: t('back') }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="subscription" options={{ headerShown: false }} />
+
       <Stack.Screen 
         name="modal" 
         options={{ 
@@ -67,7 +53,6 @@ export default function RootLayout() {
   const { loadLanguage, isLoaded } = useLanguageStore();
   const { loadData: loadFinanceData } = useFinanceStore();
   const { loadData: loadBuddyData } = useBuddyStore();
-  const { load: loadAuth } = useAuthStore();
   const [appReady, setAppReady] = useState<boolean>(false);
   
   useEffect(() => {
@@ -81,7 +66,6 @@ export default function RootLayout() {
           loadLanguage(),
           loadFinanceData(),
           loadBuddyData(),
-          loadAuth(),
         ]);
         console.log('App initialized successfully');
         setAppReady(true);
@@ -106,7 +90,7 @@ export default function RootLayout() {
         clearTimeout(timeoutId);
       }
     };
-  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadAuth]);
+  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData]);
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
