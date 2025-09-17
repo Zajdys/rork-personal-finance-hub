@@ -28,7 +28,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   load: async () => {
     try {
+      console.log('Loading auth token...');
       const token = await AsyncStorage.getItem('authToken');
+      console.log('Loaded token:', !!token);
       set({ token, isLoading: false });
     } catch (e) {
       console.error('auth load failed', e);

@@ -9,6 +9,7 @@ import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { trpc, trpcClient } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth-store';
+import { StyleSheet } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -16,18 +17,29 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
-  const { token } = useAuthStore();
+  const { token, isLoading: authLoading } = useAuthStore();
   const me = trpc.auth.me.query.useQuery(undefined, { enabled: Boolean(token) });
   
-  if (!isLoaded) {
+  console.log('RootLayoutNav - isLoaded:', isLoaded, 'authLoading:', authLoading, 'token:', !!token);
+  
+  if (!isLoaded || authLoading) {
     return null;
   }
 
   if (!token) {
+    console.log('No token, redirecting to login');
     return <Redirect href="/login" />;
   }
+  
+  console.log('me query:', { isSuccess: me.isSuccess, isLoading: me.isLoading, data: me.data });
+  
   if (me.isSuccess && !me.data.subscription.active) {
+    console.log('No active subscription, redirecting to subscription');
     return <Redirect href="/subscription" />;
+  }
+  
+  if (me.isLoading) {
+    return null;
   }
   
   return (
@@ -97,10 +109,14 @@ export default function RootLayout() {
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureHandlerRootView style={styles.container}>
           <RootLayoutNav />
         </GestureHandlerRootView>
       </QueryClientProvider>
     </trpc.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+});
