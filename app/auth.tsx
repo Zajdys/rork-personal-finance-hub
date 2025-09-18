@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -35,8 +35,20 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   
+  // Stable callbacks to prevent re-renders
+  const handleEmailChange = useCallback((text: string) => {
+    setEmail(text);
+  }, []);
+  
+  const handlePasswordChange = useCallback((text: string) => {
+    setPassword(text);
+  }, []);
+  
+  const handleNameChange = useCallback((text: string) => {
+    setName(text);
+  }, []);
+  
   const { isDarkMode } = useSettingsStore();
-  const { t } = useLanguageStore();
   const { login, register } = useAuth();
   const router = useRouter();
 
@@ -86,7 +98,7 @@ export default function AuthScreen() {
     }
   };
 
-  const InputField = ({ 
+  const InputField = React.memo(({ 
     icon: Icon, 
     placeholder, 
     value, 
@@ -105,6 +117,8 @@ export default function AuthScreen() {
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize="none"
+        autoCorrect={false}
+        textContentType={placeholder.toLowerCase().includes('heslo') ? 'password' : placeholder.toLowerCase().includes('email') ? 'emailAddress' : 'none'}
       />
       {placeholder.toLowerCase().includes('heslo') && (
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
@@ -116,7 +130,9 @@ export default function AuthScreen() {
         </TouchableOpacity>
       )}
     </View>
-  );
+  ));
+  
+  InputField.displayName = 'InputField';
 
   return (
     <KeyboardAvoidingView 
@@ -213,7 +229,7 @@ export default function AuthScreen() {
                 icon={User}
                 placeholder="Celé jméno"
                 value={name}
-                onChangeText={setName}
+                onChangeText={handleNameChange}
               />
             )}
             
@@ -221,7 +237,7 @@ export default function AuthScreen() {
               icon={Mail}
               placeholder="Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={handleEmailChange}
               keyboardType="email-address"
             />
             
@@ -229,7 +245,7 @@ export default function AuthScreen() {
               icon={Lock}
               placeholder="Heslo"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={handlePasswordChange}
               secureTextEntry={!showPassword}
             />
 
