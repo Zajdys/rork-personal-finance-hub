@@ -46,6 +46,10 @@ function RootLayoutNav() {
       <Stack.Screen name="backend-test" options={{ title: 'Backend Test' }} />
       <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio' }} />
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
+      <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
+      <Stack.Screen name="subscription" options={{ title: 'Předplatné', headerShown: false }} />
+      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
+      <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
     </Stack>
   );
 }
@@ -58,7 +62,7 @@ export default function RootLayout() {
   const [appReady, setAppReady] = useState<boolean>(false);
   
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     const initializeApp = async () => {
       try {

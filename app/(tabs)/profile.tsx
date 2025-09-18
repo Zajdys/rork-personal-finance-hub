@@ -256,6 +256,13 @@ export default function ProfileScreen() {
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('settings')}</Text>
         
         <MenuButton
+          icon={User}
+          title="Můj účet"
+          subtitle={language === 'cs' ? 'Správa profilu a předplatného' : 'Profile and subscription management'}
+          onPress={() => router.push('/account')}
+        />
+        
+        <MenuButton
           icon={Target}
           title={t('financialGoals')}
           subtitle={language === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
