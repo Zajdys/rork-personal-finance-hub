@@ -26,6 +26,66 @@ import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
 
+// InputField component moved outside to prevent re-renders
+interface InputFieldProps {
+  icon: React.ComponentType<any>;
+  placeholder: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'email-address';
+  isDarkMode: boolean;
+  showPassword?: boolean;
+  onTogglePassword?: () => void;
+}
+
+const InputField = React.memo<InputFieldProps>(({ 
+  icon: Icon, 
+  placeholder, 
+  value, 
+  onChangeText, 
+  secureTextEntry = false,
+  keyboardType = 'default',
+  isDarkMode,
+  showPassword,
+  onTogglePassword
+}) => {
+  const isPasswordField = placeholder.toLowerCase().includes('heslo');
+  const isEmailField = placeholder.toLowerCase().includes('email');
+  
+  return (
+    <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+      <Icon color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+      <TextInput
+        style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+        placeholder={placeholder}
+        placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+        value={value}
+        onChangeText={onChangeText}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize={isEmailField ? 'none' : 'words'}
+        autoCorrect={false}
+        autoComplete={isPasswordField ? 'password' : isEmailField ? 'email' : 'off'}
+        textContentType={isPasswordField ? 'password' : isEmailField ? 'emailAddress' : 'none'}
+        returnKeyType="next"
+        blurOnSubmit={false}
+      />
+      {isPasswordField && onTogglePassword && (
+        <TouchableOpacity onPress={onTogglePassword}>
+          {showPassword ? (
+            <EyeOff color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+          ) : (
+            <Eye color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+          )}
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+
+InputField.displayName = 'InputField';
+
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [email, setEmail] = useState<string>('');
@@ -46,6 +106,10 @@ export default function AuthScreen() {
   
   const handleNameChange = useCallback((text: string) => {
     setName(text);
+  }, []);
+  
+  const togglePasswordVisibility = useCallback(() => {
+    setShowPassword(prev => !prev);
   }, []);
   
   const { isDarkMode } = useSettingsStore();
@@ -98,41 +162,7 @@ export default function AuthScreen() {
     }
   };
 
-  const InputField = React.memo(({ 
-    icon: Icon, 
-    placeholder, 
-    value, 
-    onChangeText, 
-    secureTextEntry = false,
-    keyboardType = 'default' as any
-  }: any) => (
-    <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-      <Icon color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-      <TextInput
-        style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-        placeholder={placeholder}
-        placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
-        value={value}
-        onChangeText={onChangeText}
-        secureTextEntry={secureTextEntry}
-        keyboardType={keyboardType}
-        autoCapitalize="none"
-        autoCorrect={false}
-        textContentType={placeholder.toLowerCase().includes('heslo') ? 'password' : placeholder.toLowerCase().includes('email') ? 'emailAddress' : 'none'}
-      />
-      {placeholder.toLowerCase().includes('heslo') && (
-        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-          {showPassword ? (
-            <EyeOff color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-          ) : (
-            <Eye color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-          )}
-        </TouchableOpacity>
-      )}
-    </View>
-  ));
-  
-  InputField.displayName = 'InputField';
+
 
   return (
     <KeyboardAvoidingView 
@@ -230,6 +260,7 @@ export default function AuthScreen() {
                 placeholder="Celé jméno"
                 value={name}
                 onChangeText={handleNameChange}
+                isDarkMode={isDarkMode}
               />
             )}
             
@@ -239,6 +270,7 @@ export default function AuthScreen() {
               value={email}
               onChangeText={handleEmailChange}
               keyboardType="email-address"
+              isDarkMode={isDarkMode}
             />
             
             <InputField
@@ -247,6 +279,9 @@ export default function AuthScreen() {
               value={password}
               onChangeText={handlePasswordChange}
               secureTextEntry={!showPassword}
+              isDarkMode={isDarkMode}
+              showPassword={showPassword}
+              onTogglePassword={togglePasswordVisibility}
             />
 
             {error ? (
