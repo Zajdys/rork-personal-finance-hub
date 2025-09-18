@@ -639,10 +639,9 @@ export const useLanguageStore = create<LanguageState>((set, get) => ({
   isLoaded: false,
   updateCounter: 0,
 
-  setLanguage: async (language: Language) => {
+  setLanguage: (language: Language) => {
     console.log('Setting language to:', language);
-    try {
-      await AsyncStorage.setItem('language', language);
+    AsyncStorage.setItem('language', language).then(() => {
       console.log('Language saved successfully:', language);
       // Force re-render by updating counter and language together
       set({ 
@@ -650,9 +649,9 @@ export const useLanguageStore = create<LanguageState>((set, get) => ({
         isLoaded: true, 
         updateCounter: get().updateCounter + 1 
       });
-    } catch (error) {
+    }).catch((error) => {
       console.error('Failed to save language:', error);
-    }
+    });
   },
 
   loadLanguage: async () => {

@@ -44,6 +44,8 @@ function RootLayoutNav() {
       <Stack.Screen name="help-support" options={{ title: t('help') }} />
       <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport') }} />
       <Stack.Screen name="backend-test" options={{ title: 'Backend Test' }} />
+      <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio' }} />
+      <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
     </Stack>
   );
 }

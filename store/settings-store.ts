@@ -64,45 +64,52 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     budgetWarnings: true,
   },
 
-  setTheme: async (theme: Theme) => {
+  setTheme: (theme: Theme) => {
     const isDarkMode = getEffectiveTheme(theme);
     set({ theme, isDarkMode });
-    try {
-      await AsyncStorage.setItem('theme', theme);
+    AsyncStorage.setItem('theme', theme).then(() => {
       console.log('Theme changed to:', theme, 'isDarkMode:', isDarkMode);
-    } catch (error) {
+    }).catch((error) => {
       console.error('Failed to save theme:', error);
-    }
+    });
   },
 
-  setCurrency: async (currency: Currency) => {
+  setCurrency: (currency: Currency) => {
     set({ currency });
-    await AsyncStorage.setItem('currency', currency);
-    console.log('Currency (app-wide) changed to:', currency);
+    AsyncStorage.setItem('currency', currency).then(() => {
+      console.log('Currency (app-wide) changed to:', currency);
+    }).catch((error) => {
+      console.error('Failed to save currency:', error);
+    });
   },
 
-  setInvestmentCurrency: async (currency: Currency) => {
+  setInvestmentCurrency: (currency: Currency) => {
     set({ investmentCurrency: currency });
-    await AsyncStorage.setItem('investmentCurrency', currency);
-    console.log('Investment currency changed to:', currency);
+    AsyncStorage.setItem('investmentCurrency', currency).then(() => {
+      console.log('Investment currency changed to:', currency);
+    }).catch((error) => {
+      console.error('Failed to save investment currency:', error);
+    });
   },
 
-  setCurrencyScope: async (currencyScope: CurrencyScope) => {
+  setCurrencyScope: (currencyScope: CurrencyScope) => {
     set({ currencyScope });
-    await AsyncStorage.setItem('currencyScope', currencyScope);
-    console.log('Currency scope changed to:', currencyScope);
+    AsyncStorage.setItem('currencyScope', currencyScope).then(() => {
+      console.log('Currency scope changed to:', currencyScope);
+    }).catch((error) => {
+      console.error('Failed to save currency scope:', error);
+    });
   },
 
-  setNotificationSetting: async (key: keyof NotificationSettings, value: boolean) => {
+  setNotificationSetting: (key: keyof NotificationSettings, value: boolean) => {
     const currentNotifications = get().notifications;
     const updatedNotifications = { ...currentNotifications, [key]: value };
     set({ notifications: updatedNotifications });
-    try {
-      await AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications));
+    AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).then(() => {
       console.log(`Notification setting ${key} changed to:`, value);
-    } catch (error) {
+    }).catch((error) => {
       console.error('Failed to save notification setting:', error);
-    }
+    });
   },
 
   loadSettings: async () => {
