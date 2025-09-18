@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -18,12 +17,12 @@ import {
   Star,
   Zap,
   Shield,
-
   ExternalLink,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SubscriptionPlan {
   id: string;
@@ -37,68 +36,68 @@ interface SubscriptionPlan {
 
 const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
-    id: 'basic',
-    name: 'Základní',
-    price: 99,
+    id: 'monthly',
+    name: 'Měsíční',
+    price: 299,
     period: 'měsíc',
     features: [
       'Sledování příjmů a výdajů',
-      'Základní kategorie',
-      'Měsíční reporty',
-      'Mobilní aplikace',
-    ],
-    color: ['#6B7280', '#4B5563'],
-  },
-  {
-    id: 'premium',
-    name: 'Premium',
-    price: 199,
-    period: 'měsíc',
-    popular: true,
-    features: [
-      'Vše ze Základního',
       'AI finanční asistent',
       'Pokročilé analýzy',
       'Investiční tracking',
       'Vlastní kategorie',
       'Export dat',
+      'Mobilní aplikace',
+    ],
+    color: ['#6B7280', '#4B5563'],
+  },
+  {
+    id: 'quarterly',
+    name: '3 měsíce',
+    price: 799,
+    period: '3 měsíce',
+    popular: true,
+    features: [
+      'Vše z měsíčního plánu',
+      'Úspora 98 Kč měsíčně',
+      'Pokročilé reporty',
       'Prioritní podpora',
+      'Daňové optimalizace',
+      'Rodinné účty',
+      'Osobní konzultace',
     ],
     color: ['#667eea', '#764ba2'],
   },
   {
-    id: 'pro',
-    name: 'Pro',
-    price: 299,
-    period: 'měsíc',
+    id: 'yearly',
+    name: 'Roční',
+    price: 2999,
+    period: 'rok',
     features: [
-      'Vše z Premium',
+      'Vše z 3měsíčního plánu',
+      'Úspora 589 Kč ročně',
       'Pokročilé investiční nástroje',
-      'Daňové optimalizace',
-      'Rodinné účty',
       'API přístup',
-      'Osobní konzultace',
+      'Exkluzivní webináře',
+      'Osobní finanční poradce',
+      'Nejlepší hodnota za peníze',
     ],
     color: ['#F59E0B', '#D97706'],
   },
 ];
 
 export default function SubscriptionScreen() {
-  const [selectedPlan, setSelectedPlan] = useState<string>('premium');
+  const [selectedPlan, setSelectedPlan] = useState<string>('quarterly');
   const [loading, setLoading] = useState<boolean>(false);
   const [userSubscription, setUserSubscription] = useState<{
     plan: string;
     active: boolean;
     expiresAt: Date;
-  } | null>({
-    plan: 'premium',
-    active: true,
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-  });
+  } | null>(null);
   
   const { isDarkMode } = useSettingsStore();
-  const { t } = useLanguageStore();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleSubscribe = async (planId: string) => {
     setLoading(true);
@@ -119,7 +118,7 @@ export default function SubscriptionScreen() {
         active: true,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
-    } catch (error) {
+    } catch {
       Alert.alert('Chyba', 'Nepodařilo se zpracovat platbu. Zkuste to prosím znovu.');
     } finally {
       setLoading(false);
@@ -193,7 +192,7 @@ export default function SubscriptionScreen() {
 
         <View style={styles.featuresContainer}>
           {plan.features.map((feature, index) => (
-            <View key={index} style={styles.featureItem}>
+            <View key={`${plan.id}-feature-${index}`} style={styles.featureItem}>
               <Check color="#10B981" size={16} />
               <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
                 {feature}
@@ -228,156 +227,181 @@ export default function SubscriptionScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <Crown color="white" size={32} />
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC', paddingTop: insets.top }]}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {/* Header */}
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            style={styles.header}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.logoContainer}>
+                <Crown color="white" size={32} />
+              </View>
+              <Text style={styles.headerTitle}>MoneyBuddy Premium</Text>
+              <Text style={styles.headerSubtitle}>
+                Vyberte si předplatné, které vám vyhovuje
+              </Text>
             </View>
-            <Text style={styles.headerTitle}>MoneyBuddy Premium</Text>
-            <Text style={styles.headerSubtitle}>
-              Odemkněte plný potenciál své finanční budoucnosti
-            </Text>
-          </View>
-        </LinearGradient>
+          </LinearGradient>
 
-        <View style={styles.content}>
-          {/* Current Subscription Status */}
-          {userSubscription && (
-            <View style={[styles.statusContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <View style={styles.statusHeader}>
-                <View style={styles.statusIcon}>
-                  <CreditCard color="#667eea" size={24} />
+          <View style={styles.content}>
+            {/* Current Subscription Status */}
+            {userSubscription && (
+              <View style={[styles.statusContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+                <View style={styles.statusHeader}>
+                  <View style={styles.statusIcon}>
+                    <CreditCard color="#667eea" size={24} />
+                  </View>
+                  <View style={styles.statusInfo}>
+                    <Text style={[styles.statusTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                      Vaše předplatné
+                    </Text>
+                    <Text style={[styles.statusSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                      {userSubscription.active ? 'Aktivní' : 'Neaktivní'} • {
+                        SUBSCRIPTION_PLANS.find(p => p.id === userSubscription.plan)?.name
+                      }
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: userSubscription.active ? '#10B981' : '#EF4444' }
+                  ]}>
+                    <Text style={styles.statusBadgeText}>
+                      {userSubscription.active ? 'Aktivní' : 'Neaktivní'}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.statusInfo}>
-                  <Text style={[styles.statusTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    Vaše předplatné
-                  </Text>
-                  <Text style={[styles.statusSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                    {userSubscription.active ? 'Aktivní' : 'Neaktivní'} • {
-                      SUBSCRIPTION_PLANS.find(p => p.id === userSubscription.plan)?.name
-                    }
-                  </Text>
+                
+                {userSubscription.active && (
+                  <View style={styles.statusDetails}>
+                    <Text style={[styles.statusDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                      Platné do: {userSubscription.expiresAt.toLocaleDateString('cs-CZ')}
+                    </Text>
+                    
+                    <TouchableOpacity 
+                      style={styles.manageButton}
+                      onPress={handleManageSubscription}
+                    >
+                      <Text style={styles.manageButtonText}>Spravovat předplatné</Text>
+                      <ExternalLink color="#667eea" size={16} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Pricing Comparison */}
+            <View style={[styles.comparisonContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <Text style={[styles.comparisonTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                Porovnání cen
+              </Text>
+              <View style={styles.comparisonGrid}>
+                <View style={styles.comparisonItem}>
+                  <Text style={[styles.comparisonPlan, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Měsíčně:</Text>
+                  <Text style={[styles.comparisonPrice, { color: isDarkMode ? 'white' : '#1F2937' }]}>299 Kč/měsíc</Text>
                 </View>
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: userSubscription.active ? '#10B981' : '#EF4444' }
-                ]}>
-                  <Text style={styles.statusBadgeText}>
-                    {userSubscription.active ? 'Aktivní' : 'Neaktivní'}
-                  </Text>
+                <View style={styles.comparisonItem}>
+                  <Text style={[styles.comparisonPlan, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>3 měsíce:</Text>
+                  <Text style={[styles.comparisonPrice, { color: '#10B981' }]}>266 Kč/měsíc</Text>
+                  <Text style={[styles.comparisonSavings, { color: '#10B981' }]}>Úspora 98 Kč</Text>
+                </View>
+                <View style={styles.comparisonItem}>
+                  <Text style={[styles.comparisonPlan, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Ročně:</Text>
+                  <Text style={[styles.comparisonPrice, { color: '#F59E0B' }]}>250 Kč/měsíc</Text>
+                  <Text style={[styles.comparisonSavings, { color: '#F59E0B' }]}>Úspora 589 Kč</Text>
                 </View>
               </View>
+            </View>
+
+            {/* Benefits Section */}
+            <View style={styles.benefitsContainer}>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                Proč si vybrat Premium?
+              </Text>
               
-              {userSubscription.active && (
-                <View style={styles.statusDetails}>
-                  <Text style={[styles.statusDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Platné do: {userSubscription.expiresAt.toLocaleDateString('cs-CZ')}
-                  </Text>
-                  
-                  <TouchableOpacity 
-                    style={styles.manageButton}
-                    onPress={handleManageSubscription}
-                  >
-                    <Text style={styles.manageButtonText}>Spravovat předplatné</Text>
-                    <ExternalLink color="#667eea" size={16} />
-                  </TouchableOpacity>
+              <View style={styles.benefitsList}>
+                <View style={styles.benefitItem}>
+                  <View style={[styles.benefitIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <Zap color="#3B82F6" size={20} />
+                  </View>
+                  <View style={styles.benefitContent}>
+                    <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                      AI Finanční Asistent
+                    </Text>
+                    <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                      Personalizované rady a analýzy založené na vašich finančních datech
+                    </Text>
+                  </View>
                 </View>
-              )}
-            </View>
-          )}
-
-          {/* Benefits Section */}
-          <View style={styles.benefitsContainer}>
-            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Proč si vybrat Premium?
-            </Text>
-            
-            <View style={styles.benefitsList}>
-              <View style={styles.benefitItem}>
-                <View style={[styles.benefitIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <Zap color="#3B82F6" size={20} />
+                
+                <View style={styles.benefitItem}>
+                  <View style={[styles.benefitIcon, { backgroundColor: '#F0FDF4' }]}>
+                    <Shield color="#10B981" size={20} />
+                  </View>
+                  <View style={styles.benefitContent}>
+                    <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                      Pokročilá Bezpečnost
+                    </Text>
+                    <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                      Šifrování dat na bankovní úrovni a pravidelné bezpečnostní audity
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.benefitContent}>
-                  <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    AI Finanční Asistent
-                  </Text>
-                  <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Personalizované rady a analýzy založené na vašich finančních datech
-                  </Text>
+                
+                <View style={styles.benefitItem}>
+                  <View style={[styles.benefitIcon, { backgroundColor: '#FEF3C7' }]}>
+                    <Star color="#F59E0B" size={20} />
+                  </View>
+                  <View style={styles.benefitContent}>
+                    <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                      Prioritní Podpora
+                    </Text>
+                    <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                      Rychlá odpověď na vaše dotazy a osobní konzultace
+                    </Text>
+                  </View>
                 </View>
               </View>
+            </View>
+
+            {/* Subscription Plans */}
+            <View style={styles.plansContainer}>
+              <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                Vyberte si předplatné
+              </Text>
               
-              <View style={styles.benefitItem}>
-                <View style={[styles.benefitIcon, { backgroundColor: '#F0FDF4' }]}>
-                  <Shield color="#10B981" size={20} />
-                </View>
-                <View style={styles.benefitContent}>
-                  <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    Pokročilá Bezpečnost
-                  </Text>
-                  <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Šifrování dat na bankovní úrovni a pravidelné bezpečnostní audity
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.benefitItem}>
-                <View style={[styles.benefitIcon, { backgroundColor: '#FEF3C7' }]}>
-                  <Star color="#F59E0B" size={20} />
-                </View>
-                <View style={styles.benefitContent}>
-                  <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    Prioritní Podpora
-                  </Text>
-                  <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Rychlá odpověď na vaše dotazy a osobní konzultace
-                  </Text>
-                </View>
+              <View style={styles.plansList}>
+                {SUBSCRIPTION_PLANS.map((plan) => (
+                  <PlanCard key={plan.id} plan={plan} />
+                ))}
               </View>
             </View>
-          </View>
 
-          {/* Subscription Plans */}
-          <View style={styles.plansContainer}>
-            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Vyberte si plán
-            </Text>
-            
-            <View style={styles.plansList}>
-              {SUBSCRIPTION_PLANS.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} />
-              ))}
-            </View>
-          </View>
-
-          {/* Money Back Guarantee */}
-          <View style={[styles.guaranteeContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-            <View style={styles.guaranteeContent}>
-              <Shield color="#10B981" size={24} />
-              <View style={styles.guaranteeText}>
-                <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  30denní záruka vrácení peněz
-                </Text>
-                <Text style={[styles.guaranteeDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Pokud nebudete spokojeni, vrátíme vám peníze bez otázek
-                </Text>
+            {/* Money Back Guarantee */}
+            <View style={[styles.guaranteeContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <View style={styles.guaranteeContent}>
+                <Shield color="#10B981" size={24} />
+                <View style={styles.guaranteeText}>
+                  <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    30denní záruka vrácení peněz
+                  </Text>
+                  <Text style={[styles.guaranteeDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                    Pokud nebudete spokojeni, vrátíme vám peníze bez otázek
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -390,7 +414,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 40,
     paddingHorizontal: 20,
   },
@@ -494,6 +518,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#667eea',
+  },
+  comparisonContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  comparisonTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  comparisonGrid: {
+    gap: 12,
+  },
+  comparisonItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  comparisonPlan: {
+    fontSize: 14,
+    color: '#6B7280',
+    flex: 1,
+  },
+  comparisonPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginRight: 8,
+  },
+  comparisonSavings: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
   benefitsContainer: {
     marginBottom: 32,
@@ -677,5 +746,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
 });
