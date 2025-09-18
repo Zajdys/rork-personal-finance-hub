@@ -7,12 +7,60 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error Boundary caught an error:', error, errorInfo);
+    
+    // If it's a JSON parse error, clear AsyncStorage
+    if (error.message.includes('JSON') || error.message.includes('Unexpected character')) {
+      console.log('JSON parse error detected in Error Boundary, clearing AsyncStorage...');
+      AsyncStorage.clear().then(() => {
+        console.log('AsyncStorage cleared due to JSON parse error');
+        // Force reload the app
+        this.setState({ hasError: false, error: undefined });
+      }).catch((clearError) => {
+        console.error('Failed to clear AsyncStorage:', clearError);
+      });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Něco se pokazilo</Text>
+          <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
+          <Text style={styles.errorDetails}>
+            {this.state.error?.message || 'Neznámá chyba'}
+          </Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
@@ -78,6 +126,25 @@ export default function RootLayout() {
         await SplashScreen.hideAsync();
       } catch (error) {
         console.error('Failed to initialize app:', error);
+        
+        // If there's a JSON parse error, clear all AsyncStorage data
+        if (error instanceof Error && error.message.includes('JSON')) {
+          console.log('JSON parse error detected, clearing AsyncStorage...');
+          try {
+            await AsyncStorage.clear();
+            console.log('AsyncStorage cleared successfully');
+            // Retry initialization after clearing
+            await Promise.all([
+              loadSettings(),
+              loadLanguage(),
+              loadFinanceData(),
+              loadBuddyData(),
+            ]);
+          } catch (clearError) {
+            console.error('Failed to clear AsyncStorage or reinitialize:', clearError);
+          }
+        }
+        
         setAppReady(true);
         await SplashScreen.hideAsync();
       }
@@ -106,16 +173,38 @@ export default function RootLayout() {
   console.log('App is ready, rendering RootLayoutNav');
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={styles.container}>
-          <RootLayoutNav />
-        </GestureHandlerRootView>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <ErrorBoundary>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={styles.container}>
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </ErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  errorMessage: {
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorDetails: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
 });

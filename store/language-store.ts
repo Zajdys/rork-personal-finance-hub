@@ -657,11 +657,28 @@ export const useLanguageStore = create<LanguageState>((set, get) => ({
   loadLanguage: async () => {
     try {
       const savedLanguage = await AsyncStorage.getItem('language');
-      const language = (savedLanguage as Language) || 'cs';
+      let language: Language = 'cs';
+      
+      if (savedLanguage) {
+        // Validate that the saved language is a valid Language type
+        if (savedLanguage === 'cs' || savedLanguage === 'en') {
+          language = savedLanguage as Language;
+        } else {
+          console.warn('Invalid language in storage:', savedLanguage, 'defaulting to cs');
+          await AsyncStorage.removeItem('language');
+        }
+      }
+      
       console.log('Loading language:', language, 'from storage:', savedLanguage);
       set({ language, isLoaded: true, updateCounter: 0 });
     } catch (error) {
       console.error('Failed to load language:', error);
+      // Clear potentially corrupted language data
+      try {
+        await AsyncStorage.removeItem('language');
+      } catch (clearError) {
+        console.error('Failed to clear language data:', clearError);
+      }
       set({ language: 'cs', isLoaded: true, updateCounter: 0 });
     }
   },

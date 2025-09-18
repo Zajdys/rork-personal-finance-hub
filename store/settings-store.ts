@@ -139,7 +139,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         try {
           notifications = JSON.parse(savedNotifications);
         } catch (error) {
-          console.error('Failed to parse saved notifications:', error);
+          console.error('Failed to parse saved notifications:', error, 'Data:', savedNotifications);
+          // Clear corrupted data
+          await AsyncStorage.removeItem('notifications');
         }
       }
 

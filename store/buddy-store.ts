@@ -102,7 +102,15 @@ export const useBuddyStore = create<BuddyState>((set, get) => ({
       
       const level = levelData ? parseInt(levelData) : 1;
       const points = pointsData ? parseInt(pointsData) : 45;
-      const completedLessons = lessonsData ? JSON.parse(lessonsData) : [];
+      let completedLessons: string[] = [];
+      if (lessonsData) {
+        try {
+          completedLessons = JSON.parse(lessonsData);
+        } catch (error) {
+          console.error('Failed to parse completed lessons data:', error, 'Data:', lessonsData);
+          await AsyncStorage.removeItem('buddy_completed_lessons');
+        }
+      }
       
       set({ 
         level, 

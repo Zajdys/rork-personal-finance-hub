@@ -439,25 +439,66 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         AsyncStorage.getItem('finance_custom_categories'),
       ]);
       
-      const transactions = transactionsData ? JSON.parse(transactionsData).map((t: any) => ({
-        ...t,
-        date: new Date(t.date)
-      })) : [] as Transaction[];
+      let transactions: Transaction[] = [];
+      if (transactionsData) {
+        try {
+          transactions = JSON.parse(transactionsData).map((t: any) => ({
+            ...t,
+            date: new Date(t.date)
+          }));
+        } catch (error) {
+          console.error('Failed to parse transactions data:', error, 'Data:', transactionsData);
+          await AsyncStorage.removeItem('finance_transactions');
+        }
+      }
       
-      const financialGoals = goalsData ? JSON.parse(goalsData).map((g: any) => ({
-        ...g,
-        deadline: g.deadline ? new Date(g.deadline) : undefined,
-        recurring: g.recurring ? {
-          isRecurring: Boolean(g.recurring.isRecurring),
-          frequency: (g.recurring.frequency ?? 'monthly') as RecurrenceFrequency,
-          dayOfMonth: typeof g.recurring.dayOfMonth === 'number' ? g.recurring.dayOfMonth : undefined,
-        } : undefined,
-      })) : [] as FinancialGoal[];
+      let financialGoals: FinancialGoal[] = [];
+      if (goalsData) {
+        try {
+          financialGoals = JSON.parse(goalsData).map((g: any) => ({
+            ...g,
+            deadline: g.deadline ? new Date(g.deadline) : undefined,
+            recurring: g.recurring ? {
+              isRecurring: Boolean(g.recurring.isRecurring),
+              frequency: (g.recurring.frequency ?? 'monthly') as RecurrenceFrequency,
+              dayOfMonth: typeof g.recurring.dayOfMonth === 'number' ? g.recurring.dayOfMonth : undefined,
+            } : undefined,
+          }));
+        } catch (error) {
+          console.error('Failed to parse financial goals data:', error, 'Data:', goalsData);
+          await AsyncStorage.removeItem('finance_goals');
+        }
+      }
       
-      const monthlyReports = reportsData ? JSON.parse(reportsData) : [] as MonthlyReport[];
+      let monthlyReports: MonthlyReport[] = [];
+      if (reportsData) {
+        try {
+          monthlyReports = JSON.parse(reportsData);
+        } catch (error) {
+          console.error('Failed to parse monthly reports data:', error, 'Data:', reportsData);
+          await AsyncStorage.removeItem('finance_reports');
+        }
+      }
 
-      const subscriptions: SubscriptionItem[] = subsData ? JSON.parse(subsData) : [];
-      const customCategories: CustomCategory[] = customCategoriesData ? JSON.parse(customCategoriesData) : [];
+      let subscriptions: SubscriptionItem[] = [];
+      if (subsData) {
+        try {
+          subscriptions = JSON.parse(subsData);
+        } catch (error) {
+          console.error('Failed to parse subscriptions data:', error, 'Data:', subsData);
+          await AsyncStorage.removeItem('finance_subscriptions');
+        }
+      }
+      
+      let customCategories: CustomCategory[] = [];
+      if (customCategoriesData) {
+        try {
+          customCategories = JSON.parse(customCategoriesData);
+        } catch (error) {
+          console.error('Failed to parse custom categories data:', error, 'Data:', customCategoriesData);
+          await AsyncStorage.removeItem('finance_custom_categories');
+        }
+      }
       
       set({ 
         transactions, 
