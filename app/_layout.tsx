@@ -75,26 +75,26 @@ function RootLayoutNav() {
   // Gated access logic
   if (!isAuthenticated) {
     return (
-      <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back') }}>
-        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
-        <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
+      <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
+        <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
       </Stack>
     );
   }
   
   if (isAuthenticated && !hasActiveSubscription) {
     return (
-      <Stack initialRouteName="subscription" screenOptions={{ headerBackTitle: t('back') }}>
-        <Stack.Screen name="subscription" options={{ title: 'Předplatné', headerShown: false }} />
-        <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
+      <Stack initialRouteName="subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="subscription" options={{ title: 'Předplatné' }} />
+        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
       </Stack>
     );
   }
   
   // Full app access for authenticated users with active subscription
   return (
-    <Stack screenOptions={{ headerBackTitle: t('back') }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
 
       <Stack.Screen 
         name="modal" 
@@ -117,13 +117,13 @@ function RootLayoutNav() {
       <Stack.Screen name="backend-test" options={{ title: 'Backend Test' }} />
       <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio' }} />
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
-      <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
-      <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview', headerShown: false }} />
+      <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
+      <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview' }} />
       
       {/* These screens should not be accessible when user has active subscription */}
-      <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
-      <Stack.Screen name="subscription" options={{ title: 'Předplatné', headerShown: false }} />
-      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
+      <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
+      <Stack.Screen name="subscription" options={{ title: 'Předplatné' }} />
+      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
   );
 }
