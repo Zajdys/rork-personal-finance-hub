@@ -319,7 +319,7 @@ export default function AuthScreen() {
           {isLogin && (
             <View style={[styles.demoContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Text style={[styles.demoTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Demo přístup:</Text>
-              <Text style={[styles.demoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Email: test@test.com</Text>
+              <Text style={[styles.demoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Email: test@test.cz</Text>
               <Text style={[styles.demoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Heslo: test123</Text>
             </View>
           )}

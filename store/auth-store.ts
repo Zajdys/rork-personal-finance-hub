@@ -60,7 +60,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       });
       
       // Demo credentials
-      if (email === 'test@test.com' && password === 'test123') {
+      if ((email === 'test@test.cz' || email === 'test@test.com') && password === 'test123') {
         const newUser: User = {
           id: '1',
           email: email.trim(),
