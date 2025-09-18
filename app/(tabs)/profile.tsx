@@ -23,6 +23,7 @@ import {
   DollarSign,
   Palette,
   ChevronRight,
+  Eye,
 } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useFinanceStore } from '@/store/finance-store';
@@ -316,6 +317,13 @@ export default function ProfileScreen() {
           title={t('help')}
           subtitle={t('faqContact')}
           onPress={() => router.push('/help-support')}
+        />
+        
+        <MenuButton
+          icon={Eye}
+          title="Náhled Landing Page"
+          subtitle={language === 'cs' ? 'Podívej se, jak vypadá úvodní stránka' : 'See how the landing page looks'}
+          onPress={() => router.push('/landing-preview')}
         />
       </View>
     </ScrollView>

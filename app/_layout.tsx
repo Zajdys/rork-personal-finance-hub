@@ -118,6 +118,7 @@ function RootLayoutNav() {
       <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio' }} />
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
       <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
+      <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview', headerShown: false }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
