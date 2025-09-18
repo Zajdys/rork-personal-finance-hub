@@ -21,6 +21,7 @@ import {
   Bell,
   ExternalLink,
   CheckCircle,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -231,8 +232,18 @@ export default function AccountScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Text style={styles.headerTitle}>Můj účet</Text>
-        <Text style={styles.headerSubtitle}>Správa profilu a předplatného</Text>
+        <View style={styles.headerTop}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
+          >
+            <ArrowLeft color="white" size={24} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Můj účet</Text>
+            <Text style={styles.headerSubtitle}>Správa profilu a předplatného</Text>
+          </View>
+        </View>
       </LinearGradient>
 
       <View style={styles.content}>
@@ -294,6 +305,22 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 32,
     paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  headerTitleContainer: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 28,
