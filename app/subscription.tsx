@@ -18,6 +18,7 @@ import {
   Zap,
   Shield,
   ExternalLink,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -240,6 +241,14 @@ export default function SubscriptionScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
+            {/* Back Button */}
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft color="white" size={24} />
+            </TouchableOpacity>
+            
             <View style={styles.headerContent}>
               <View style={styles.logoContainer}>
                 <Crown color="white" size={32} />
@@ -390,10 +399,10 @@ export default function SubscriptionScreen() {
                 <Shield color="#10B981" size={24} />
                 <View style={styles.guaranteeText}>
                   <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    30denní záruka vrácení peněz
+                    14denní záruka vrácení peněz
                   </Text>
                   <Text style={[styles.guaranteeDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Pokud nebudete spokojeni, vrátíme vám peníze bez otázek
+                    Pokud nebudete spokojeni do 14 dnů, vrátíme vám peníze bez otázek
                   </Text>
                 </View>
               </View>
@@ -417,6 +426,19 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
     paddingHorizontal: 20,
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
   headerContent: {
     alignItems: 'center',
