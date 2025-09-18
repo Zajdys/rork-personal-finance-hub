@@ -7,9 +7,11 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
+import { AuthProvider, useAuth } from '@/store/auth-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
 import { StyleSheet, Text, View } from 'react-native';
+
 
 SplashScreen.preventAutoHideAsync();
 
@@ -64,11 +66,32 @@ class ErrorBoundary extends React.Component<
 
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
+  const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
   
-  if (!isLoaded) {
+  if (!isLoaded || isLoading) {
     return null;
   }
   
+  // Gated access logic
+  if (!isAuthenticated) {
+    return (
+      <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back') }}>
+        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
+        <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
+      </Stack>
+    );
+  }
+  
+  if (isAuthenticated && !hasActiveSubscription) {
+    return (
+      <Stack initialRouteName="subscription" screenOptions={{ headerBackTitle: t('back') }}>
+        <Stack.Screen name="subscription" options={{ title: 'Předplatné', headerShown: false }} />
+        <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
+      </Stack>
+    );
+  }
+  
+  // Full app access for authenticated users with active subscription
   return (
     <Stack screenOptions={{ headerBackTitle: t('back') }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -94,10 +117,12 @@ function RootLayoutNav() {
       <Stack.Screen name="backend-test" options={{ title: 'Backend Test' }} />
       <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio' }} />
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
+      <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
+      
+      {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
       <Stack.Screen name="subscription" options={{ title: 'Předplatné', headerShown: false }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
-      <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: false }} />
     </Stack>
   );
 }
@@ -176,9 +201,11 @@ export default function RootLayout() {
     <ErrorBoundary>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={styles.container}>
-            <RootLayoutNav />
-          </GestureHandlerRootView>
+          <AuthProvider>
+            <GestureHandlerRootView style={styles.container}>
+              <RootLayoutNav />
+            </GestureHandlerRootView>
+          </AuthProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </ErrorBoundary>

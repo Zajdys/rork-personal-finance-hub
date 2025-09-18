@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
 
 export default function AuthScreen() {
@@ -36,6 +37,7 @@ export default function AuthScreen() {
   
   const { isDarkMode } = useSettingsStore();
   const { t } = useLanguageStore();
+  const { login, register } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async () => {
@@ -58,23 +60,24 @@ export default function AuthScreen() {
     setError('');
 
     try {
-      // Simulace API volání
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      let success = false;
       
       if (isLogin) {
-        // Simulace přihlášení
-        if (email === 'test@test.com' && password === 'test123') {
+        success = await login(email, password);
+        if (success) {
           Alert.alert('Úspěch', 'Přihlášení proběhlo úspěšně!');
-          router.replace('/(tabs)');
+          // Navigation will be handled automatically by the auth system
         } else {
           setError('Nesprávné přihlašovací údaje');
         }
       } else {
-        // Simulace registrace
-        Alert.alert('Úspěch', 'Registrace proběhla úspěšně! Nyní se můžete přihlásit.');
-        setIsLogin(true);
-        setName('');
-        setPassword('');
+        success = await register(email, password, name);
+        if (success) {
+          Alert.alert('Úspěch', 'Registrace proběhla úspěšně! Nyní si vyberte předplatné.');
+          // Navigation will be handled automatically by the auth system
+        } else {
+          setError('Registrace se nezdařila. Zkuste to prosím znovu.');
+        }
       }
     } catch (err) {
       setError('Nastala chyba. Zkuste to prosím znovu.');
@@ -269,6 +272,16 @@ export default function AuthScreen() {
               <Text style={[styles.demoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Heslo: test123</Text>
             </View>
           )}
+          
+          {/* Back to Landing */}
+          <TouchableOpacity 
+            style={[styles.backToLandingButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+            onPress={() => router.push('/landing')}
+          >
+            <Text style={[styles.backToLandingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              ← Zpět na hlavní stránku
+            </Text>
+          </TouchableOpacity>
 
           {/* Features */}
           <View style={styles.featuresContainer}>
@@ -493,5 +506,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     flex: 1,
+  },
+  backToLandingButton: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  backToLandingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
 });

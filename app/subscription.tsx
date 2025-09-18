@@ -22,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -90,15 +91,13 @@ const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
 export default function SubscriptionScreen() {
   const [selectedPlan, setSelectedPlan] = useState<string>('quarterly');
   const [loading, setLoading] = useState<boolean>(false);
-  const [userSubscription, setUserSubscription] = useState<{
-    plan: string;
-    active: boolean;
-    expiresAt: Date;
-  } | null>(null);
   
   const { isDarkMode } = useSettingsStore();
+  const { user, activateSubscription } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  
+  const userSubscription = user?.subscription;
 
   const handleSubscribe = async (planId: string) => {
     setLoading(true);
@@ -107,18 +106,16 @@ export default function SubscriptionScreen() {
       // Simulace Stripe platby
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      await activateSubscription(planId as 'monthly' | 'quarterly' | 'yearly');
+      
       const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
       Alert.alert(
         'Úspěch!', 
         `Předplatné ${plan?.name} bylo aktivováno. Děkujeme!`,
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => {
+          // Navigation will be handled automatically by the auth system
+        }}]
       );
-      
-      setUserSubscription({
-        plan: planId,
-        active: true,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      });
     } catch {
       Alert.alert('Chyba', 'Nepodařilo se zpracovat platbu. Zkuste to prosím znovu.');
     } finally {
@@ -244,7 +241,7 @@ export default function SubscriptionScreen() {
             {/* Back Button */}
             <TouchableOpacity 
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.push('/account')}
             >
               <ArrowLeft color="white" size={24} />
             </TouchableOpacity>
@@ -291,7 +288,7 @@ export default function SubscriptionScreen() {
                 {userSubscription.active && (
                   <View style={styles.statusDetails}>
                     <Text style={[styles.statusDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Platné do: {userSubscription.expiresAt.toLocaleDateString('cs-CZ')}
+                      Platné do: {userSubscription.expiresAt ? userSubscription.expiresAt.toLocaleDateString('cs-CZ') : 'Neznámé'}
                     </Text>
                     
                     <TouchableOpacity 

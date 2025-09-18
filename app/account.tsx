@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   User,
-  Mail,
+
   Calendar,
   Crown,
   CreditCard,
@@ -25,36 +25,16 @@ import {
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
-
-interface UserAccount {
-  id: string;
-  name: string;
-  email: string;
-  registrationDate: Date;
-  subscription: {
-    plan: string;
-    active: boolean;
-    expiresAt: Date;
-  } | null;
-}
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AccountScreen() {
-  const [userAccount] = useState<UserAccount>({
-    id: '1',
-    name: 'Jan Novák',
-    email: 'jan.novak@email.com',
-    registrationDate: new Date('2024-01-15'),
-    subscription: {
-      plan: 'premium',
-      active: true,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    },
-  });
-
   const { isDarkMode } = useSettingsStore();
   const { t } = useLanguageStore();
+  const { user, logout, hasActiveSubscription } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleEditProfile = () => {
     Alert.alert(
@@ -75,22 +55,22 @@ export default function AccountScreen() {
       [
         { text: 'Zrušit', style: 'cancel' },
         { 
-          text: 'Odhlásit', 
+          text: 'Odhlásit se', 
           style: 'destructive',
-          onPress: () => {
-            // V reálné aplikaci by zde bylo odhlášení
-            Alert.alert('Info', 'Odhlášení bude implementováno v plné verzi.');
+          onPress: async () => {
+            await logout();
+            // Navigation will be handled automatically by the auth system
           }
         }
       ]
     );
   };
 
-  const getSubscriptionPlanName = (plan: string) => {
+  const getSubscriptionPlanName = (plan: string | null) => {
     switch (plan) {
-      case 'basic': return 'Základní';
-      case 'premium': return 'Premium';
-      case 'pro': return 'Pro';
+      case 'monthly': return 'Měsíční';
+      case 'quarterly': return '3 měsíce';
+      case 'yearly': return 'Roční';
       default: return 'Neznámý';
     }
   };
@@ -110,10 +90,10 @@ export default function AccountScreen() {
         </View>
         <View style={styles.accountInfo}>
           <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {userAccount.name}
+            {user?.name || 'Uživatel'}
           </Text>
           <Text style={[styles.accountEmail, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {userAccount.email}
+            {user?.email || 'Neznámý email'}
           </Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
@@ -125,7 +105,7 @@ export default function AccountScreen() {
         <View style={styles.accountDetail}>
           <Calendar color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={16} />
           <Text style={[styles.accountDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            Člen od {userAccount.registrationDate.toLocaleDateString('cs-CZ')}
+            Člen od {user?.registrationDate ? new Date(user.registrationDate).toLocaleDateString('cs-CZ') : 'Neznámé'}
           </Text>
         </View>
       </View>
@@ -143,10 +123,10 @@ export default function AccountScreen() {
             Předplatné
           </Text>
           <Text style={[styles.subscriptionSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {userAccount.subscription ? (
+            {user?.subscription ? (
               <>
-                {getSubscriptionPlanName(userAccount.subscription.plan)} • 
-                {userAccount.subscription.active ? ' Aktivní' : ' Neaktivní'}
+                {getSubscriptionPlanName(user.subscription.plan)} • 
+                {user.subscription.active ? ' Aktivní' : ' Neaktivní'}
               </>
             ) : (
               'Žádné aktivní předplatné'
@@ -155,20 +135,20 @@ export default function AccountScreen() {
         </View>
         <View style={[
           styles.subscriptionBadge,
-          { backgroundColor: userAccount.subscription?.active ? '#10B981' : '#EF4444' }
+          { backgroundColor: hasActiveSubscription ? '#10B981' : '#EF4444' }
         ]}>
           <Text style={styles.subscriptionBadgeText}>
-            {userAccount.subscription?.active ? 'Aktivní' : 'Neaktivní'}
+            {hasActiveSubscription ? 'Aktivní' : 'Neaktivní'}
           </Text>
         </View>
       </View>
 
-      {userAccount.subscription?.active && (
+      {hasActiveSubscription && user?.subscription?.expiresAt && (
         <View style={styles.subscriptionDetails}>
           <View style={styles.subscriptionDetail}>
             <CheckCircle color="#10B981" size={16} />
             <Text style={[styles.subscriptionDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Platné do: {userAccount.subscription.expiresAt.toLocaleDateString('cs-CZ')}
+              Platné do: {new Date(user.subscription.expiresAt).toLocaleDateString('cs-CZ')}
             </Text>
           </View>
         </View>
@@ -186,7 +166,7 @@ export default function AccountScreen() {
         >
           <CreditCard color="white" size={20} />
           <Text style={styles.manageSubscriptionText}>
-            {userAccount.subscription?.active ? 'Spravovat předplatné' : 'Aktivovat předplatné'}
+            {hasActiveSubscription ? 'Spravovat předplatné' : 'Aktivovat předplatné'}
           </Text>
           <ExternalLink color="white" size={16} />
         </LinearGradient>
@@ -221,10 +201,10 @@ export default function AccountScreen() {
   );
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]} 
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC', paddingTop: insets.top }]}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+      >
       {/* Header */}
       <LinearGradient
         colors={['#667eea', '#764ba2']}
@@ -235,7 +215,13 @@ export default function AccountScreen() {
         <View style={styles.headerTop}>
           <TouchableOpacity 
             style={styles.backButton} 
-            onPress={() => router.back()}
+            onPress={() => {
+              if (hasActiveSubscription) {
+                router.push('/(tabs)');
+              } else {
+                router.push('/subscription');
+              }
+            }}
           >
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
@@ -292,7 +278,8 @@ export default function AccountScreen() {
           />
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
