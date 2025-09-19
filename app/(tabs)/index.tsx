@@ -188,11 +188,14 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>{t('hello')}! 👋</Text>
             <Text style={styles.headerTitle}>{t('moneyBuddy')}</Text>
           </View>
-          <View style={styles.levelContainer}>
+          <TouchableOpacity 
+            style={styles.levelContainer}
+            onPress={() => router.push('/leaderboard')}
+          >
             <Award color="white" size={20} />
             <Text style={styles.levelText}>Level {level}</Text>
             <Text style={styles.pointsText}>{points} {t('points')}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
