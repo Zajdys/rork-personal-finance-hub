@@ -1,4 +1,5 @@
 import { parseCsvText, type ParsedTable } from '@/src/utils/fileParser';
+import { toNum } from '@/src/lib/num';
 
 export type T212Row = Record<string, string | undefined>;
 
@@ -15,8 +16,8 @@ export type T212Portfolio = {
 };
 
 function toNumber(v: string | undefined): number {
-  const n = Number((v ?? '').toString().replace(/\s+/g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
+  const result = toNum(v);
+  return result ?? 0;
 }
 
 function isBuy(action: string | undefined): boolean {
@@ -34,6 +35,12 @@ export function parseT212Csv(text: string): ParsedTable {
 }
 
 export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
+  console.log('[T212] Processing', rows.length, 'rows');
+  if (rows.length > 0) {
+    console.log('[T212] Sample row headers:', Object.keys(rows[0]));
+    console.log('[T212] Sample row data:', rows[0]);
+  }
+  
   const byTicker: Record<string, T212Row[]> = {};
   for (const r of rows) {
     const action = r['Action'];
@@ -63,6 +70,9 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
       const totalRaw = toNumber(row['Total']);
       const shares = Math.abs(sharesRaw);
       const total = Math.abs(totalRaw);
+      
+      console.log(`[T212] ${ticker}: ${row['Action']} ${shares} shares for ${total} (raw: shares=${row['No. of shares']}, total=${row['Total']})`);
+      
       if (isBuy(row['Action'])) {
         fifo.push({ shares, cost: total });
         sharesHeld += shares;
@@ -90,6 +100,7 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
 
     if (sharesHeld > 0) {
       const currency = (sorted[sorted.length - 1]['Currency (Total)'] ?? '').trim() || null;
+      console.log(`[T212] Final ${ticker}: ${sharesHeld} shares, invested ${invested} ${currency}`);
       items.push({ ticker, shares: sharesHeld, invested, currency });
     }
   }

@@ -33,7 +33,10 @@ function field(r: Raw, keys: string[]) {
 }
 
 function pickAmountKey(r: Raw) {
-  return field(r, ["Total", "Result", "Amount", "Amount value", "Total amount"]);
+  return field(r, [
+    "Total", "Result", "Amount", "Amount value", "Total amount",
+    "Celkem", "Částka", "Hodnota", "Suma", "Objem"
+  ]);
 }
 
 function parseSplitRatio(raw?: string): number | null {
@@ -56,27 +59,33 @@ export function mapRow(r: Raw): Txn {
 
   const explicitCashAmount = toNum(pickAmountKey(r));
 
-  let shares = toNum(field(r, ["No. of shares", "amount"]));
-  const price = toNum(field(r, ["Price / share", "unitPrice"]));
+  let shares = toNum(field(r, [
+    "No. of shares", "amount", "Quantity", "Shares", "Units",
+    "Počet", "Množství", "Kusy", "Ks"
+  ]));
+  const price = toNum(field(r, [
+    "Price / share", "unitPrice", "Price", "Unit Price", "Share Price",
+    "Cena za kus", "Jednotková cena", "Cena"
+  ]));
 
-  const ccyPrice = field(r, ["Currency (Price / share)", "currency", "Currency (Amount)"]) || "";
+  const ccyPrice = field(r, [
+    "Currency (Price / share)", "currency", "Currency (Amount)",
+    "Price Currency", "Currency", "Měna"
+  ]) || "";
   const ccyAmount = field(r, [
-    "Currency (Total)",
-    "Currency (Result)",
-    "Currency (Amount)",
-    "currency",
+    "Currency (Total)", "Currency (Result)", "Currency (Amount)",
+    "currency", "Amount Currency", "Total Currency", "Měna"
   ]) || "";
 
-  const fees = (toNum(field(r, ["Fee amount"])) ?? 0)
-             + (toNum(field(r, ["Deposit fee"])) ?? 0)
-             + (toNum(field(r, ["Charge amount"])) ?? 0)
-             + (toNum(field(r, ["Currency conversion fee"])) ?? 0)
-             + (toNum(field(r, ["fees"])) ?? 0);
+  const fees = (toNum(field(r, [
+    "Fee amount", "Deposit fee", "Charge amount", "Currency conversion fee", "fees",
+    "Fee", "Commission", "Poplatek", "Provize"
+  ])) ?? 0);
 
-  const taxes = (toNum(field(r, ["Tax amount"])) ?? 0)
-              + (toNum(field(r, ["Withholding tax"])) ?? 0)
-              + (toNum(field(r, ["French transaction tax"])) ?? 0)
-              + (toNum(field(r, ["taxes"])) ?? 0);
+  const taxes = (toNum(field(r, [
+    "Tax amount", "Withholding tax", "French transaction tax", "taxes",
+    "Tax", "Daň", "Srážková daň"
+  ])) ?? 0);
 
   const splitRatio = parseSplitRatio(field(r, ["Split ratio", "Ratio", "Split", "Reverse split"])) ?? null;
 
@@ -88,11 +97,11 @@ export function mapRow(r: Raw): Txn {
   }
 
   return {
-    time: field(r, ["Time"]) || "",
+    time: field(r, ["Time", "Date", "Datum", "Čas"]) || "",
     action,
-    ticker: field(r, ["Ticker"]),
-    isin: field(r, ["ISIN"]),
-    name: field(r, ["Name"]),
+    ticker: field(r, ["Ticker", "Symbol", "Instrument", "Nástroj"]),
+    isin: field(r, ["ISIN", "Isin"]),
+    name: field(r, ["Name", "Instrument name", "Název", "Název nástroje"]),
     shares,
     price,
     ccyPrice,
@@ -100,7 +109,7 @@ export function mapRow(r: Raw): Txn {
     fees,
     taxes,
     ccyAmount,
-    feesCurrency: field(r, ["feesCurrency"]),
+    feesCurrency: field(r, ["feesCurrency", "Fee Currency", "Měna poplatku"]),
     splitRatio,
   };
 }

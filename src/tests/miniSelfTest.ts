@@ -1,6 +1,63 @@
 // @ts-nocheck
 import { valueAndWeightsByCurrency } from "../services/portfolio/allocation";
-import { mapRow } from "../services/portfolio/importCsv"; // uprav cestu podle projektu
+import { mapRow } from "../services/portfolio/importCsv";
+import { toNum } from '@/src/lib/num';
+
+// Test různých formátů čísel
+const testCases = [
+  // Základní formáty
+  { input: '123.45', expected: 123.45 },
+  { input: '123,45', expected: 123.45 },
+  { input: '1,234.56', expected: 1234.56 },
+  { input: '1.234,56', expected: 1234.56 },
+  
+  // S měnami
+  { input: '€123.45', expected: 123.45 },
+  { input: '$1,234.56', expected: 1234.56 },
+  { input: '1.234,56 Kč', expected: 1234.56 },
+  
+  // S mezerami
+  { input: ' 123.45 ', expected: 123.45 },
+  { input: '1 234.56', expected: 1234.56 },
+  { input: '1\u00A0234,56', expected: 1234.56 }, // non-breaking space
+  
+  // Záporná čísla
+  { input: '-123.45', expected: -123.45 },
+  { input: '(123.45)', expected: -123.45 },
+  
+  // Velká čísla
+  { input: '1,234,567.89', expected: 1234567.89 },
+  { input: '1.234.567,89', expected: 1234567.89 },
+  
+  // Neplatné hodnoty
+  { input: '', expected: null },
+  { input: 'abc', expected: null },
+  { input: null, expected: null },
+  { input: undefined, expected: null },
+];
+
+export function runNumberParsingTests() {
+  console.log('🧪 Spouštím testy parsování čísel...');
+  
+  let passed = 0;
+  let failed = 0;
+  
+  for (const testCase of testCases) {
+    const result = toNum(testCase.input);
+    const success = result === testCase.expected;
+    
+    if (success) {
+      passed++;
+      console.log(`✅ '${testCase.input}' -> ${result}`);
+    } else {
+      failed++;
+      console.log(`❌ '${testCase.input}' -> ${result} (očekáváno: ${testCase.expected})`);
+    }
+  }
+  
+  console.log(`\n📊 Výsledky: ${passed} úspěšných, ${failed} neúspěšných`);
+  return { passed, failed };
+}
 
 async function parseCsvFile(filePath: string) {
   try {
@@ -46,6 +103,12 @@ function positionDetail(txns: any[], key: string) {
     value,
     lastPriceTime: pos.lastTime,
   };
+}
+
+// Spustit testy při importu
+if (typeof window !== 'undefined') {
+  // Pouze v prohlížeči
+  setTimeout(() => runNumberParsingTests(), 1000);
 }
 
 (async () => {

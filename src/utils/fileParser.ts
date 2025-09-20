@@ -13,27 +13,21 @@ export async function parseXlsxArrayBuffer(buf: ArrayBuffer, sheetName?: string)
 export function parseCsvText(text: string): ParsedTable {
   const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
   if (!lines.length) return [];
-  const headers = lines[0].split(',').map(h => h.replace(/\uFEFF/g, '').trim());
+  
+  // Detekce oddělovače (čárka, středník, tabulátor)
+  const firstLine = lines[0];
+  let delimiter = ',';
+  if (firstLine.split(';').length > firstLine.split(',').length) {
+    delimiter = ';';
+  } else if (firstLine.split('\t').length > firstLine.split(',').length) {
+    delimiter = '\t';
+  }
+  
+  const headers = parseCSVLine(lines[0], delimiter).map(h => h.replace(/\uFEFF/g, '').trim());
   const out: ParsedTable = [];
+  
   for (let i = 1; i < lines.length; i++) {
-    const cols = [] as string[];
-    let cur = '';
-    let inQ = false;
-    const row = lines[i];
-    for (let j = 0; j < row.length; j++) {
-      const ch = row[j];
-      const next = row[j + 1];
-      if (inQ) {
-        if (ch === '"' && next === '"') { cur += '"'; j++; continue; }
-        if (ch === '"') { inQ = false; continue; }
-        cur += ch; continue;
-      } else {
-        if (ch === '"') { inQ = true; continue; }
-        if (ch === ',') { cols.push(cur); cur = ''; continue; }
-        cur += ch; continue;
-      }
-    }
-    cols.push(cur);
+    const cols = parseCSVLine(lines[i], delimiter);
     const rec: Record<string, string | undefined> = {};
     for (let ci = 0; ci < headers.length; ci++) {
       rec[headers[ci]] = (cols[ci] ?? '').trim();
@@ -41,4 +35,37 @@ export function parseCsvText(text: string): ParsedTable {
     out.push(rec);
   }
   return out;
+}
+
+function parseCSVLine(line: string, delimiter: string): string[] {
+  const cols: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  
+  for (let j = 0; j < line.length; j++) {
+    const ch = line[j];
+    const next = line[j + 1];
+    
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        cur += '"';
+        j++; // skip next quote
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === delimiter) {
+        cols.push(cur);
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+  }
+  cols.push(cur);
+  return cols;
 }

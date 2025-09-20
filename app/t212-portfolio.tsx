@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Upload, RefreshCw } from 'lucide-react-native';
 import { parseT212Csv, buildFifoFromT212Rows, type T212PortfolioItem } from '@/src/services/trading212/portfolioFromCsv';
 import { fetchCurrentPrices } from '@/src/services/priceService';
+import { runNumberParsingTests } from '@/src/tests/miniSelfTest';
 
 export type TableRow = {
   ticker: string;
@@ -64,9 +65,13 @@ export default function T212PortfolioScreen() {
     if (!asset?.uri) return;
     try {
       setLoading(true);
+      console.log('[T212] Loading file:', asset.name, asset.size);
       const text = await (await fetch(asset.uri)).text();
+      console.log('[T212] File content preview:', text.substring(0, 500));
       const table = parseT212Csv(text);
+      console.log('[T212] Parsed table rows:', table.length);
       const fifo = buildFifoFromT212Rows(table);
+      console.log('[T212] FIFO items:', fifo);
       setItems(fifo);
       await computeRows(fifo);
     } catch (e) {
@@ -126,6 +131,9 @@ export default function T212PortfolioScreen() {
         <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#111827' }]} onPress={() => computeRows(items)} disabled={!items.length} testID="recompute">
           <RefreshCw size={16} color="#fff" />
           <Text style={styles.actionText}>Přepočítat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={runNumberParsingTests} testID="test-parsing">
+          <Text style={styles.actionText}>🧪 Test</Text>
         </TouchableOpacity>
       </View>
 
