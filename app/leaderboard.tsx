@@ -373,6 +373,16 @@ export default function LeaderboardScreen() {
         {/* Full Leaderboard */}
         <View style={styles.leaderboardContainer}>
           <View style={styles.sectionHeader}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.inlineBackButton}
+              accessibilityRole="button"
+              accessibilityLabel="Zpět"
+              testID="leaderboard-back-inline"
+            >
+              <ArrowLeft color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={20} />
+              <Text style={[styles.inlineBackText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zpět</Text>
+            </TouchableOpacity>
             <Users color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={20} />
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               Kompletní žebříček
@@ -510,8 +520,22 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
     marginBottom: 16,
+  },
+  inlineBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+  },
+  inlineBackText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   podium: {
     flexDirection: 'row',
