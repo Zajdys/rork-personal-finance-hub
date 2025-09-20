@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import Papa from "papaparse";
 import yahooFinance from "yahoo-finance2";
 
@@ -23,6 +24,70 @@ interface FIFOPosition {
 // app will be mounted at /api
 const app = new Hono();
 
+interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  passwordHash: string;
+  passwordSalt: string;
+  level: number;
+  points: number;
+  profile?: Record<string, unknown>;
+  createdAt: string;
+}
+
+interface TokenPayload {
+  sub: string;
+  email: string;
+  iat: number;
+}
+
+const users = new Map<string, User>();
+
+const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+
+function b64url(input: Buffer | string): string {
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return buf
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function signToken(payload: TokenPayload): string {
+  const header = { alg: "HS256", typ: "JWT" } as const;
+  const headerB64 = b64url(JSON.stringify(header));
+  const payloadB64 = b64url(JSON.stringify(payload));
+  const data = `${headerB64}.${payloadB64}`;
+  const sig = crypto.createHmac("sha256", JWT_SECRET).update(data).digest();
+  const sigB64 = b64url(sig);
+  return `${data}.${sigB64}`;
+}
+
+function verifyToken(token: string): TokenPayload | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, sig] = parts;
+    const data = `${headerB64}.${payloadB64}`;
+    const expected = b64url(crypto.createHmac("sha256", JWT_SECRET).update(data).digest());
+    if (sig !== expected) return null;
+    const json = Buffer.from(payloadB64.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    const payload = JSON.parse(json) as TokenPayload;
+    return payload;
+  } catch (e) {
+    console.error("verifyToken error", e);
+    return null;
+  }
+}
+
+function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
+  const usedSalt = salt ?? crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, usedSalt, 100_000, 32, "sha256").toString("hex");
+  return { hash, salt: usedSalt };
+}
+
 // Enable CORS for all routes
 app.use("*", cors());
 
@@ -39,6 +104,86 @@ app.use(
 // Simple health check endpoint
 app.get("/", (c) => {
   return c.json({ status: "ok", message: "API is running" });
+});
+
+// Auth: /register
+app.post("/register", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string; name?: string }>;
+    const email = String(body?.email ?? "").trim().toLowerCase();
+    const password = String(body?.password ?? "").trim();
+    const name = (body?.name ?? null) as string | null;
+
+    if (!email || !password) {
+      return c.json({ error: "Missing email or password" }, 400);
+    }
+
+    if (users.has(email)) {
+      return c.json({ error: "User already exists" }, 409);
+    }
+
+    const { hash, salt } = hashPassword(password);
+    const user: User = {
+      id: crypto.randomUUID(),
+      email,
+      name,
+      passwordHash: hash,
+      passwordSalt: salt,
+      level: 1,
+      points: 0,
+      profile: {},
+      createdAt: new Date().toISOString(),
+    };
+
+    users.set(email, user);
+
+    const token = signToken({ sub: user.id, email: user.email, iat: Math.floor(Date.now() / 1000) });
+
+    console.log("[register]", email);
+
+    return c.json({
+      user: { id: user.id, email: user.email, name: user.name, level: user.level, points: user.points },
+      token,
+    });
+  } catch (e) {
+    console.error("/register error", e);
+    return c.json({ error: "Registration failed" }, 500);
+  }
+});
+
+// Auth: /login
+app.post("/login", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string }>;
+    const email = String(body?.email ?? "").trim().toLowerCase();
+    const password = String(body?.password ?? "").trim();
+
+    if (!email || !password) {
+      return c.json({ error: "Missing email or password" }, 400);
+    }
+
+    const existing = users.get(email);
+    if (!existing) {
+      return c.json({ error: "Invalid credentials" }, 401);
+    }
+
+    const { hash } = hashPassword(password, existing.passwordSalt);
+    if (hash !== existing.passwordHash) {
+      return c.json({ error: "Invalid credentials" }, 401);
+    }
+
+    const token = signToken({ sub: existing.id, email: existing.email, iat: Math.floor(Date.now() / 1000) });
+
+    console.log("[login]", email);
+
+    return c.json({
+      user: { id: existing.id, email: existing.email, name: existing.name, level: existing.level, points: existing.points },
+      token,
+    });
+  } catch (e) {
+    console.error("/login error", e);
+    return c.json({ error: "Login failed" }, 500);
+  }
 });
 
 function calculateFIFO(trades: TradeRow[]) {
@@ -147,6 +292,36 @@ app.get("/portfolio", async (c) => {
   } catch (e) {
     console.error("/portfolio error", e);
     return c.json({ error: "Failed to build portfolio" }, 500);
+  }
+});
+
+// Profile update: /update-profile (auth via Bearer token)
+app.post("/update-profile", async (c) => {
+  try {
+    const auth = c.req.header("authorization") ?? c.req.header("Authorization") ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const payload = token ? verifyToken(token) : null;
+    if (!payload) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = (await c.req.json().catch(() => ({}))) as Partial<{ name: string; level: number; points: number; profile: Record<string, unknown> }>;
+
+    // find user by email from payload for simplicity
+    const user = [...users.values()].find((u) => u.id === payload.sub) ?? null;
+    if (!user) return c.json({ error: "User not found" }, 404);
+
+    if (typeof body.name === "string") user.name = body.name.trim() || user.name;
+    if (typeof body.level === "number" && Number.isFinite(body.level)) user.level = Math.max(1, Math.floor(body.level));
+    if (typeof body.points === "number" && Number.isFinite(body.points)) user.points = Math.max(0, Math.floor(body.points));
+    if (body.profile && typeof body.profile === "object") user.profile = { ...(user.profile ?? {}), ...body.profile };
+
+    users.set(user.email, user);
+
+    console.log("[update-profile]", user.email);
+
+    return c.json({ user: { id: user.id, email: user.email, name: user.name, level: user.level, points: user.points, profile: user.profile ?? {} } });
+  } catch (e) {
+    console.error("/update-profile error", e);
+    return c.json({ error: "Update failed" }, 500);
   }
 });
 
