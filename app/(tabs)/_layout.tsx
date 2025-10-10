@@ -52,13 +52,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="add"
-        options={{
-          title: t('add'),
-          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
         name="learn"
         options={{
           title: t('learn'),
@@ -70,6 +63,13 @@ export default function TabLayout() {
         options={{
           title: t('investments'),
           tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="add"
+        options={{
+          title: t('add'),
+          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
         }}
       />
       <Tabs.Screen
