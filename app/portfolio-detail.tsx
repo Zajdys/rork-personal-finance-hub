@@ -24,6 +24,10 @@ import {
   Trash2,
   FileText,
   PieChart,
+  DollarSign,
+  Percent,
+  AlertCircle,
+  ArrowRightLeft,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePortfolioStore, Trade } from '@/store/portfolio-store';
@@ -82,7 +86,7 @@ export default function PortfolioDetailScreen() {
   
   const portfolio = useMemo(() => getPortfolio(portfolioId || ''), [portfolios, portfolioId]);
   
-  const [selectedTab, setSelectedTab] = useState<'portfolio' | 'trades'>('portfolio');
+  const [selectedTab, setSelectedTab] = useState<'portfolio' | 'trades' | 'performance'>('portfolio');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showTradeModal, setShowTradeModal] = useState<boolean>(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -713,7 +717,7 @@ export default function PortfolioDetailScreen() {
         >
           <PieChart
             color={selectedTab === 'portfolio' ? 'white' : '#6B7280'}
-            size={18}
+            size={16}
           />
           <Text
             style={[
@@ -726,12 +730,30 @@ export default function PortfolioDetailScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.tabButton, selectedTab === 'performance' && styles.tabButtonActive]}
+          onPress={() => setSelectedTab('performance')}
+        >
+          <TrendingUp
+            color={selectedTab === 'performance' ? 'white' : '#6B7280'}
+            size={16}
+          />
+          <Text
+            style={[
+              styles.tabButtonText,
+              selectedTab === 'performance' && styles.tabButtonTextActive,
+            ]}
+          >
+            Výkonnost
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.tabButton, selectedTab === 'trades' && styles.tabButtonActive]}
           onPress={() => setSelectedTab('trades')}
         >
           <ShoppingCart
             color={selectedTab === 'trades' ? 'white' : '#6B7280'}
-            size={18}
+            size={16}
           />
           <Text
             style={[
@@ -745,7 +767,174 @@ export default function PortfolioDetailScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {selectedTab === 'portfolio' ? (
+        {selectedTab === 'performance' ? (
+          <View style={styles.performanceContainer}>
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceHeader}>
+                <DollarSign color="#10B981" size={24} />
+                <Text style={styles.performanceTitle}>Zisk / Ztráta</Text>
+              </View>
+              <View style={styles.performanceMetrics}>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Celkový zisk/ztráta:</Text>
+                  <Text
+                    style={[
+                      styles.metricValue,
+                      { color: totalChange >= 0 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {totalChange >= 0 ? '+' : ''}
+                    {formatCurrency(totalChange, 'EUR')}
+                  </Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Procentuální výnos:</Text>
+                  <Text
+                    style={[
+                      styles.metricValue,
+                      { color: totalChangePercent >= 0 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {totalChangePercent >= 0 ? '+' : ''}
+                    {totalChangePercent.toFixed(2)}%
+                  </Text>
+                </View>
+                <View style={styles.metricDivider} />
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Investováno:</Text>
+                  <Text style={styles.metricValue}>
+                    {formatCurrency(portfolioMetrics.totalInvested, 'EUR')}
+                  </Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Současná hodnota:</Text>
+                  <Text style={styles.metricValue}>
+                    {formatCurrency(portfolioMetrics.totalValue, 'EUR')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceHeader}>
+                <Percent color="#8B5CF6" size={24} />
+                <Text style={styles.performanceTitle}>Výkonnostní metriky</Text>
+              </View>
+              <View style={styles.performanceMetrics}>
+                <View style={styles.metricRow}>
+                  <View style={styles.metricLabelContainer}>
+                    <Text style={styles.metricLabel}>TWR (Time-Weighted Return):</Text>
+                    <Text style={styles.metricDescription}>
+                      Výnos nezávislý na vkladech/výběrech
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.metricValue,
+                      { color: portfolioMetrics.twr >= 0 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {portfolioMetrics.twr >= 0 ? '+' : ''}
+                    {(portfolioMetrics.twr * 100).toFixed(2)}%
+                  </Text>
+                </View>
+                <View style={styles.metricDivider} />
+                <View style={styles.metricRow}>
+                  <View style={styles.metricLabelContainer}>
+                    <Text style={styles.metricLabel}>XIRR (Roční výnos):</Text>
+                    <Text style={styles.metricDescription}>
+                      Anualizovaný výnos portfolia
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.metricValue,
+                      { color: portfolioMetrics.xirr >= 0 ? '#10B981' : '#EF4444' },
+                    ]}
+                  >
+                    {portfolioMetrics.xirr >= 0 ? '+' : ''}
+                    {(portfolioMetrics.xirr * 100).toFixed(2)}% p.a.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceHeader}>
+                <AlertCircle color="#F59E0B" size={24} />
+                <Text style={styles.performanceTitle}>Daňové informace</Text>
+              </View>
+              <View style={styles.performanceMetrics}>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Zdanitelný zisk:</Text>
+                  <Text
+                    style={[
+                      styles.metricValue,
+                      { color: totalChange >= 0 ? '#F59E0B' : '#6B7280' },
+                    ]}
+                  >
+                    {totalChange >= 0 ? formatCurrency(totalChange, 'EUR') : 'Žádný'}
+                  </Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Odhadovaná daň (15%):</Text>
+                  <Text style={styles.metricValue}>
+                    {totalChange >= 0
+                      ? formatCurrency(totalChange * 0.15, 'EUR')
+                      : formatCurrency(0, 'EUR')}
+                  </Text>
+                </View>
+                <View style={styles.metricDivider} />
+                <View style={styles.taxInfoBox}>
+                  <AlertCircle color="#F59E0B" size={16} />
+                  <Text style={styles.taxInfoText}>
+                    {totalChange >= 0
+                      ? 'Zisky z prodeje akcií podléhají dani z příjmu 15%. Pokud držíte akcie déle než 3 roky, můžete být osvobozeni od daně.'
+                      : 'Aktuálně nemáte realizované zisky podléhající zdanění.'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceHeader}>
+                <ArrowRightLeft color="#06B6D4" size={24} />
+                <Text style={styles.performanceTitle}>Měnové konverze</Text>
+              </View>
+              <View style={styles.performanceMetrics}>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Měna portfolia:</Text>
+                  <Text style={styles.metricValue}>{portfolio.currency || 'EUR'}</Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Zobrazovací měna:</Text>
+                  <Text style={styles.metricValue}>
+                    {currencyScope === 'investmentsOnly' ? investmentCurrency : currency}
+                  </Text>
+                </View>
+                <View style={styles.metricDivider} />
+                <View style={styles.metricRow}>
+                  <View style={styles.metricLabelContainer}>
+                    <Text style={styles.metricLabel}>Ztráta na konverzi:</Text>
+                    <Text style={styles.metricDescription}>
+                      Odhadovaný rozdíl při směně měn
+                    </Text>
+                  </View>
+                  <Text style={[styles.metricValue, { color: '#EF4444' }]}>
+                    ~{formatCurrency(totalValue * 0.005, 'EUR')}
+                  </Text>
+                </View>
+                <View style={styles.currencyInfoBox}>
+                  <ArrowRightLeft color="#06B6D4" size={16} />
+                  <Text style={styles.currencyInfoText}>
+                    Při převodu mezi měnami obvykle ztrácíte 0.5-2% na směnném kurzu a
+                    poplatcích. Doporučujeme minimalizovat konverze.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        ) : selectedTab === 'portfolio' ? (
           <View style={styles.portfolioContainer}>
             {portfolioData.length === 0 ? (
               <View style={styles.emptyState}>
@@ -1249,15 +1438,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 24,
-    gap: 12,
+    gap: 8,
   },
   tabButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     backgroundColor: 'white',
     borderRadius: 12,
     shadowColor: '#000',
@@ -1270,10 +1459,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#667eea',
   },
   tabButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#6B7280',
-    marginLeft: 6,
+    marginLeft: 4,
   },
   tabButtonTextActive: {
     color: 'white',
@@ -1778,5 +1967,93 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600' as const,
+  },
+  performanceContainer: {
+    gap: 16,
+    paddingBottom: 32,
+  },
+  performanceCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  performanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  performanceTitle: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+    marginLeft: 12,
+  },
+  performanceMetrics: {
+    gap: 12,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  metricLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  metricLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  metricDescription: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+  },
+  metricDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
+  },
+  taxInfoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  taxInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  currencyInfoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#DBEAFE',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  currencyInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1E40AF',
+    lineHeight: 18,
   },
 });
