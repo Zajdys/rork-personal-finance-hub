@@ -149,7 +149,7 @@ export default function AuthScreen() {
       } else {
         success = await register(email, password, name);
         if (success) {
-          Alert.alert('Úspěch', 'Registrace proběhla úspěšně! Nyní si vyberte předplatné.');
+          Alert.alert('Úspěch', 'Registrace proběhla úspěšně!');
           // Navigation will be handled automatically by the auth system
         } else {
           setError('Registrace se nezdařila. Zkuste to prosím znovu.');

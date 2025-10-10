@@ -67,6 +67,23 @@ class ErrorBoundary extends React.Component<
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
+  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
+  
+  React.useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const completed = await AsyncStorage.getItem('onboarding_completed');
+        setOnboardingCompleted(completed === 'true');
+      } catch (error) {
+        console.error('Failed to check onboarding status:', error);
+        setOnboardingCompleted(false);
+      }
+    };
+    
+    if (isAuthenticated && hasActiveSubscription) {
+      checkOnboarding();
+    }
+  }, [isAuthenticated, hasActiveSubscription]);
   
   if (!isLoaded || isLoading) {
     return null;
@@ -89,6 +106,20 @@ function RootLayoutNav() {
         <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
       </Stack>
     );
+  }
+  
+  // Show onboarding if user has subscription but hasn't completed onboarding
+  if (isAuthenticated && hasActiveSubscription && onboardingCompleted === false) {
+    return (
+      <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
+      </Stack>
+    );
+  }
+  
+  // Wait for onboarding check to complete
+  if (onboardingCompleted === null) {
+    return null;
   }
   
   // Full app access for authenticated users with active subscription
@@ -119,6 +150,7 @@ function RootLayoutNav() {
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
       <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
       <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview' }} />
+      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
