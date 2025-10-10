@@ -37,7 +37,12 @@ export default function AssetDetailScreen() {
     setError(null);
     try {
       const base = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-      if (!base) throw new Error('Missing EXPO_PUBLIC_RORK_API_BASE_URL');
+      if (!base) {
+        console.warn('[AssetDetail] EXPO_PUBLIC_RORK_API_BASE_URL not set, using fallback data');
+        setPrice(avgPriceNum);
+        setLoading(false);
+        return;
+      }
       const url = `${base}/api/finance/summary?symbol=${encodeURIComponent(symbol)}`;
       console.log('[AssetDetail] fetching', url);
       const res = await fetch(url);
@@ -61,12 +66,12 @@ export default function AssetDetailScreen() {
       setPe(typeof peV === 'number' ? peV : null);
       setFpe(typeof fpeV === 'number' ? fpeV : null);
     } catch (e) {
-      console.error('[AssetDetail] fetch error', e);
-      setError('Nepodařilo se načíst detail akcie.');
+      console.warn('[AssetDetail] fetch error, using fallback data', e);
+      setPrice(avgPriceNum);
     } finally {
       setLoading(false);
     }
-  }, [symbol]);
+  }, [symbol, avgPriceNum]);
 
   useEffect(() => { void fetchDetails(); }, [fetchDetails]);
 

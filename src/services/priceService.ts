@@ -19,17 +19,24 @@ function normalizeTickers(tickers: string[]): string[] {
   );
 }
 
-function getApiBaseUrl(): string {
+function getApiBaseUrl(): string | null {
   const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  if (!url) throw new Error('EXPO_PUBLIC_RORK_API_BASE_URL is not set');
+  if (!url) {
+    console.warn('[priceService] EXPO_PUBLIC_RORK_API_BASE_URL is not set, price fetching disabled');
+    return null;
+  }
   return url;
 }
 
 async function fetchFromYahoo(tickers: string[]): Promise<YahooQuote[]> {
   const unique = normalizeTickers(tickers);
   if (!unique.length) return [];
-  const joined = encodeURIComponent(unique.join(','));
   const base = getApiBaseUrl();
+  if (!base) {
+    console.warn('[priceService] API base URL not configured, skipping price fetch');
+    return [];
+  }
+  const joined = encodeURIComponent(unique.join(','));
   const url = `${base}/api/quotes?symbols=${joined}`;
   console.log('[priceService] yahoo proxy fetch', { url, count: unique.length, platform: Platform.OS });
   const res = await fetch(url);
@@ -109,8 +116,7 @@ export async function fetchCurrentPrices(symbols: string[]): Promise<Record<stri
     }
     return results;
   } catch (e) {
-    console.error('[priceService] fetchCurrentPrices yahoo error', e);
-    console.log('Hint: ensure EXPO_PUBLIC_RORK_API_BASE_URL points to your dev server and backend /api/quotes is reachable.');
+    console.warn('[priceService] fetchCurrentPrices error (prices unavailable, using fallback)', e);
     return {};
   }
 }
