@@ -17,7 +17,6 @@ import {
   TrendingDown,
   Trash2,
   ChevronRight,
-  Plus,
   PieChart,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -167,7 +166,13 @@ export default function InvestmentsScreen() {
     const metrics = calculateTotalMetrics();
 
     return (
-      <View style={styles.totalPortfolioCard}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => {
+          router.push('/portfolio-detail?portfolioId=total' as any);
+        }}
+        style={styles.totalPortfolioCard}
+      >
         <LinearGradient
           colors={['#1F2937', '#374151']}
           style={styles.portfolioGradient}
@@ -213,9 +218,10 @@ export default function InvestmentsScreen() {
             <Text style={styles.positionsCount}>
               {portfolios.length} {portfolios.length === 1 ? 'portfolio' : 'portfolií'} • {metrics.positionsCount} {metrics.positionsCount === 1 ? 'pozice' : 'pozic'}
             </Text>
+            <ChevronRight color="white" size={20} />
           </View>
         </LinearGradient>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -333,26 +339,22 @@ export default function InvestmentsScreen() {
             {portfolios.map((portfolio) => (
               <PortfolioCard key={portfolio.id} portfolio={portfolio} />
             ))}
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={() => setShowCreateModal(true)}
+            >
+              <LinearGradient
+                colors={['#667eea', '#764ba2']}
+                style={styles.createButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.createButtonText}>Vytvořit nové portfolio</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
-
-      {portfolios.length > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          activeOpacity={0.8}
-          onPress={() => setShowCreateModal(true)}
-        >
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.fabGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Plus color="white" size={28} />
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
 
       <Modal
         visible={showCreateModal}
@@ -661,25 +663,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fab: {
-    position: 'absolute',
-    bottom: 90,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  createButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: 'hidden',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    marginTop: 8,
   },
-  fabGradient: {
-    width: '100%',
-    height: '100%',
+  createButtonGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  createButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: 'white',
   },
   modalContainer: {
     flex: 1,
