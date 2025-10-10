@@ -28,7 +28,9 @@ import {
   Percent,
   AlertCircle,
   ArrowRightLeft,
+  ZoomIn,
 } from 'lucide-react-native';
+import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePortfolioStore, Trade } from '@/store/portfolio-store';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
@@ -589,6 +591,76 @@ export default function PortfolioDetailScreen() {
     </TouchableOpacity>
   );
 
+  const DonutChart = ({ data, totalValue }: { data: any[]; totalValue: number }) => {
+    const size = 200;
+    const strokeWidth = 40;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const centerX = size / 2;
+    const centerY = size / 2;
+
+    let currentAngle = -90;
+    const slices = data.slice(0, 5).map((item) => {
+      const percentage = item.percentage;
+      const angle = (percentage / 100) * 360;
+      const slice = {
+        color: item.color,
+        percentage,
+        startAngle: currentAngle,
+        angle,
+      };
+      currentAngle += angle;
+      return slice;
+    });
+
+    if (data.length > 5) {
+      const othersPercentage = data
+        .slice(5)
+        .reduce((sum, item) => sum + item.percentage, 0);
+      slices.push({
+        color: '#9CA3AF',
+        percentage: othersPercentage,
+        startAngle: currentAngle,
+        angle: (othersPercentage / 100) * 360,
+      });
+    }
+
+    return (
+      <View style={styles.donutChartContainer}>
+        <Svg width={size} height={size}>
+          <G rotation="0" origin={`${centerX}, ${centerY}`}>
+            {slices.map((slice, index) => {
+              const strokeDashoffset =
+                circumference - (slice.angle / 360) * circumference;
+              const rotation = slice.startAngle + 90;
+
+              return (
+                <Circle
+                  key={index}
+                  cx={centerX}
+                  cy={centerY}
+                  r={radius}
+                  stroke={slice.color}
+                  strokeWidth={strokeWidth}
+                  fill="transparent"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  rotation={rotation}
+                  origin={`${centerX}, ${centerY}`}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </G>
+        </Svg>
+        <View style={styles.donutChartCenter}>
+          <Text style={styles.donutChartValue}>{formatCurrency(totalValue, 'EUR')}</Text>
+          <Text style={styles.donutChartLabel}>Celková hodnota</Text>
+        </View>
+      </View>
+    );
+  };
+
   const TradeCard = ({ trade }: { trade: Trade }) => (
     <View style={styles.tradeCard}>
       <View style={styles.tradeHeader}>
@@ -769,6 +841,38 @@ export default function PortfolioDetailScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
+            {portfolioDataWithPercentages.length > 0 && (
+              <View style={styles.performanceCard}>
+                <View style={styles.performanceHeader}>
+                  <PieChart color="#667eea" size={24} />
+                  <Text style={styles.performanceTitle}>Typy aktiv</Text>
+                </View>
+                <View style={styles.chartContainer}>
+                  <DonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
+                  <View style={styles.chartLegend}>
+                    {portfolioDataWithPercentages.slice(0, 5).map((item, index) => (
+                      <View key={index} style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                        <Text style={styles.legendLabel}>{item.symbol}</Text>
+                        <Text style={styles.legendValue}>{item.percentage}%</Text>
+                      </View>
+                    ))}
+                    {portfolioDataWithPercentages.length > 5 && (
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: '#9CA3AF' }]} />
+                        <Text style={styles.legendLabel}>Ostatní</Text>
+                        <Text style={styles.legendValue}>
+                          {portfolioDataWithPercentages
+                            .slice(5)
+                            .reduce((sum, item) => sum + item.percentage, 0)
+                            .toFixed(1)}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
             <View style={styles.performanceCard}>
               <View style={styles.performanceHeader}>
                 <DollarSign color="#10B981" size={24} />
@@ -2055,5 +2159,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#1E40AF',
     lineHeight: 18,
+  },
+  chartContainer: {
+    gap: 24,
+  },
+  donutChartContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative' as const,
+    alignSelf: 'center',
+    marginVertical: 16,
+  },
+  donutChartCenter: {
+    position: 'absolute' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutChartValue: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  donutChartLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  chartLegend: {
+    gap: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500' as const,
+  },
+  legendValue: {
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
   },
 });
