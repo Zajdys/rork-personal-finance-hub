@@ -80,24 +80,6 @@ const SUGGESTED_INVESTMENTS = [
   },
 ];
 
-type AssetType = 'ETF' | 'Akcie' | 'Krypto';
-
-const getAssetType = (symbol: string): AssetType => {
-  const sym = symbol.toUpperCase();
-  
-  const cryptoSymbols = ['BTC', 'ETH', 'USDT', 'BNB', 'XRP', 'ADA', 'DOGE', 'SOL', 'DOT', 'MATIC', 'AVAX', 'LINK', 'UNI', 'ATOM', 'LTC', 'BCH', 'XLM', 'ALGO', 'VET', 'ICP'];
-  if (cryptoSymbols.includes(sym)) {
-    return 'Krypto';
-  }
-  
-  const etfSymbols = ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VEA', 'VWO', 'AGG', 'BND', 'GLD', 'SLV', 'USO', 'TLT', 'EEM', 'EFA', 'IVV', 'DIA', 'VGK', 'VPL', 'VNQ', 'IEMG', 'IEFA', 'IJH', 'IJR', 'VB', 'VTV', 'VUG', 'VYM', 'VIG', 'VXUS', 'BIV', 'BSV', 'VCIT', 'VCSH', 'VEU', 'VGT', 'VHT', 'VIS', 'VDE', 'VFH', 'VAW', 'VCR', 'VDC', 'VPU', 'VGSH', 'VGIT', 'VGLT', 'VTIP', 'SCHD', 'SCHX', 'SCHA', 'SCHB', 'SCHE', 'SCHF', 'SCHG', 'SCHH', 'SCHM', 'SCHO', 'SCHP', 'SCHV', 'SCHZ'];
-  if (etfSymbols.includes(sym) || sym.includes('ETF')) {
-    return 'ETF';
-  }
-  
-  return 'Akcie';
-};
-
 export default function PortfolioDetailScreen() {
   const router = useRouter();
   const { portfolioId } = useLocalSearchParams<{ portfolioId: string }>();
@@ -289,35 +271,6 @@ export default function PortfolioDetailScreen() {
         percentage: roundedPercentage,
       };
     });
-  }, [portfolioData]);
-
-  const assetTypeAllocation = useMemo(() => {
-    if (portfolioData.length === 0) return [];
-
-    const totalCurrentValue = portfolioData.reduce((sum, item) => sum + (item.amount || 0), 0);
-    
-    const typeMap = new Map<AssetType, { value: number; color: string }>();
-    
-    portfolioData.forEach((item) => {
-      const type = getAssetType(item.symbol);
-      const current = typeMap.get(type) || { value: 0, color: '' };
-      typeMap.set(type, {
-        value: current.value + (item.amount || 0),
-        color: type === 'ETF' ? '#10B981' : type === 'Akcie' ? '#3B82F6' : '#F59E0B',
-      });
-    });
-
-    const result = Array.from(typeMap.entries()).map(([type, data]) => ({
-      type,
-      value: data.value,
-      percentage: totalCurrentValue > 0 ? (data.value / totalCurrentValue) * 100 : 0,
-      color: data.color,
-    }));
-
-    result.sort((a, b) => b.percentage - a.percentage);
-
-    console.log('📊 Asset type allocation:', result);
-    return result;
   }, [portfolioData]);
 
   const convertCurrency = (
@@ -888,56 +841,11 @@ export default function PortfolioDetailScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
-            {assetTypeAllocation.length > 0 && (
-              <View style={styles.performanceCard}>
-                <View style={styles.performanceHeader}>
-                  <PieChart color="#667eea" size={24} />
-                  <Text style={styles.performanceTitle}>Alokace podle typu aktiv</Text>
-                </View>
-                <View style={styles.chartContainer}>
-                  <View style={styles.assetTypeChart}>
-                    {assetTypeAllocation.map((item, index) => (
-                      <View key={index} style={styles.assetTypeRow}>
-                        <View style={styles.assetTypeInfo}>
-                          <View style={[styles.assetTypeDot, { backgroundColor: item.color }]} />
-                          <Text style={styles.assetTypeLabel}>{item.type}</Text>
-                        </View>
-                        <View style={styles.assetTypeValueContainer}>
-                          <Text style={styles.assetTypeValue}>{formatCurrency(item.value, 'EUR')}</Text>
-                          <Text style={[styles.assetTypePercentage, { color: item.color }]}>
-                            {item.percentage.toFixed(1)}%
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                  <View style={styles.assetTypeBarChart}>
-                    {assetTypeAllocation.map((item, index) => (
-                      <View key={index} style={styles.assetTypeBarRow}>
-                        <Text style={styles.assetTypeBarLabel}>{item.type}</Text>
-                        <View style={styles.assetTypeBarContainer}>
-                          <View
-                            style={[
-                              styles.assetTypeBar,
-                              {
-                                width: `${item.percentage}%`,
-                                backgroundColor: item.color,
-                              },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.assetTypeBarPercentage}>{item.percentage.toFixed(1)}%</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
             {portfolioDataWithPercentages.length > 0 && (
               <View style={styles.performanceCard}>
                 <View style={styles.performanceHeader}>
                   <PieChart color="#667eea" size={24} />
-                  <Text style={styles.performanceTitle}>Rozložení portfolia</Text>
+                  <Text style={styles.performanceTitle}>Typy aktiv</Text>
                 </View>
                 <View style={styles.chartContainer}>
                   <DonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
@@ -2300,78 +2208,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold' as const,
     color: '#1F2937',
-  },
-  assetTypeChart: {
-    gap: 16,
-    marginBottom: 24,
-  },
-  assetTypeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-  },
-  assetTypeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  assetTypeDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  assetTypeLabel: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  assetTypeValueContainer: {
-    alignItems: 'flex-end',
-  },
-  assetTypeValue: {
-    fontSize: 16,
-    fontWeight: 'bold' as const,
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  assetTypePercentage: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-  },
-  assetTypeBarChart: {
-    gap: 16,
-  },
-  assetTypeBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  assetTypeBarLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#374151',
-    width: 60,
-  },
-  assetTypeBarContainer: {
-    flex: 1,
-    height: 24,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  assetTypeBar: {
-    height: '100%',
-    borderRadius: 12,
-  },
-  assetTypeBarPercentage: {
-    fontSize: 14,
-    fontWeight: 'bold' as const,
-    color: '#1F2937',
-    width: 50,
-    textAlign: 'right',
   },
 });
