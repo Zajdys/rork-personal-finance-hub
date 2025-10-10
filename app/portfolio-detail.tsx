@@ -77,10 +77,10 @@ const SUGGESTED_INVESTMENTS = [
 export default function PortfolioDetailScreen() {
   const router = useRouter();
   const { portfolioId } = useLocalSearchParams<{ portfolioId: string }>();
-  const { getPortfolio, addTradeToPortfolio, removeTradeFromPortfolio } = usePortfolioStore();
+  const { portfolios, getPortfolio, addTradeToPortfolio, removeTradeFromPortfolio } = usePortfolioStore();
   const { currency, currencyScope, investmentCurrency } = useSettingsStore();
   
-  const portfolio = getPortfolio(portfolioId || '');
+  const portfolio = useMemo(() => getPortfolio(portfolioId || ''), [portfolios, portfolioId]);
   
   const [selectedTab, setSelectedTab] = useState<'portfolio' | 'trades'>('portfolio');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -96,14 +96,19 @@ export default function PortfolioDetailScreen() {
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
 
-  const trades = portfolio?.trades || [];
+  const trades = useMemo(() => portfolio?.trades || [], [portfolio]);
+
+  const symbolsKey = useMemo(() => {
+    const symbols = Array.from(new Set(trades.map((t) => t.symbol.toUpperCase())));
+    return symbols.sort().join(',');
+  }, [trades]);
 
   useEffect(() => {
-    const symbols = Array.from(new Set(trades.map((t) => t.symbol.toUpperCase())));
-    if (!symbols.length) {
+    if (!symbolsKey) {
       setPriceMap({});
       return;
     }
+    const symbols = symbolsKey.split(',');
     let cancelled = false;
     (async () => {
       try {
@@ -117,7 +122,7 @@ export default function PortfolioDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [trades]);
+  }, [symbolsKey]);
 
   const portfolioData = useMemo(() => {
     console.log('🔄 Recalculating portfolio from trades:', trades.length);
