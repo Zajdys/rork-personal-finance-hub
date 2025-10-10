@@ -141,16 +141,14 @@ export default function AuthScreen() {
       if (isLogin) {
         success = await login(email, password);
         if (success) {
-          Alert.alert('Úspěch', 'Přihlášení proběhlo úspěšně!');
-          // Navigation will be handled automatically by the auth system
+          router.replace('/(tabs)');
         } else {
           setError('Nesprávné přihlašovací údaje');
         }
       } else {
         success = await register(email, password, name);
         if (success) {
-          Alert.alert('Úspěch', 'Registrace proběhla úspěšně!');
-          // Navigation will be handled automatically by the auth system
+          router.replace('/onboarding');
         } else {
           setError('Registrace se nezdařila. Zkuste to prosím znovu.');
         }
