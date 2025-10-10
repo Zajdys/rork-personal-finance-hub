@@ -17,6 +17,8 @@ import {
   TrendingDown,
   Trash2,
   ChevronRight,
+  Plus,
+  PieChart,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePortfolioStore, Portfolio } from '@/store/portfolio-store';
@@ -126,6 +128,30 @@ export default function InvestmentsScreen() {
     };
   };
 
+  const calculateTotalMetrics = () => {
+    let totalInvested = 0;
+    let totalValue = 0;
+    let totalPositions = 0;
+
+    portfolios.forEach((portfolio) => {
+      const metrics = calculatePortfolioMetrics(portfolio);
+      totalInvested += metrics.totalInvested;
+      totalValue += metrics.totalValue;
+      totalPositions += metrics.positionsCount;
+    });
+
+    const totalChange = totalValue - totalInvested;
+    const totalChangePercent = totalInvested > 0 ? (totalChange / totalInvested) * 100 : 0;
+
+    return {
+      totalInvested,
+      totalValue,
+      totalChange,
+      totalChangePercent,
+      positionsCount: totalPositions,
+    };
+  };
+
   const formatCurrency = (amount: number): string => {
     const targetCurrency = currencyScope === 'investmentsOnly' ? investmentCurrency : currency;
     const currencyInfo = CURRENCIES[targetCurrency];
@@ -135,6 +161,62 @@ export default function InvestmentsScreen() {
     } else {
       return `${currencyInfo.symbol}${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
     }
+  };
+
+  const TotalPortfolioCard = () => {
+    const metrics = calculateTotalMetrics();
+
+    return (
+      <View style={styles.totalPortfolioCard}>
+        <LinearGradient
+          colors={['#1F2937', '#374151']}
+          style={styles.portfolioGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.portfolioHeader}>
+            <View style={styles.portfolioInfo}>
+              <View style={styles.totalIconContainer}>
+                <PieChart color="white" size={24} />
+              </View>
+              <View style={styles.portfolioTitleContainer}>
+                <Text style={styles.portfolioName}>Celkové portfolio</Text>
+                <Text style={styles.portfolioCurrency}>Všechna portfolia</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.portfolioMetrics}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Celková hodnota</Text>
+              <Text style={styles.metricValue}>
+                {formatCurrency(metrics.totalValue)}
+              </Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Zisk/Ztráta</Text>
+              <View style={styles.changeRow}>
+                {metrics.totalChangePercent >= 0 ? (
+                  <TrendingUp color="white" size={16} />
+                ) : (
+                  <TrendingDown color="white" size={16} />
+                )}
+                <Text style={styles.metricValue}>
+                  {metrics.totalChangePercent >= 0 ? '+' : ''}
+                  {metrics.totalChangePercent.toFixed(2)}%
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.portfolioFooter}>
+            <Text style={styles.positionsCount}>
+              {portfolios.length} {portfolios.length === 1 ? 'portfolio' : 'portfolií'} • {metrics.positionsCount} {metrics.positionsCount === 1 ? 'pozice' : 'pozic'}
+            </Text>
+          </View>
+        </LinearGradient>
+      </View>
+    );
   };
 
   const PortfolioCard = ({ portfolio }: { portfolio: Portfolio }) => {
@@ -247,12 +329,30 @@ export default function InvestmentsScreen() {
           </View>
         ) : (
           <View style={styles.portfolioList}>
+            {portfolios.length > 1 && <TotalPortfolioCard />}
             {portfolios.map((portfolio) => (
               <PortfolioCard key={portfolio.id} portfolio={portfolio} />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {portfolios.length > 0 && (
+        <TouchableOpacity
+          style={styles.fab}
+          activeOpacity={0.8}
+          onPress={() => setShowCreateModal(true)}
+        >
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            style={styles.fabGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Plus color="white" size={28} />
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
 
       <Modal
         visible={showCreateModal}
@@ -542,6 +642,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'white',
     opacity: 0.9,
+  },
+  totalPortfolioCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: 24,
+  },
+  totalIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 90,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  fabGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalContainer: {
     flex: 1,
