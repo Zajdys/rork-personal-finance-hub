@@ -25,7 +25,7 @@ import {
   FileText,
   PieChart,
 } from 'lucide-react-native';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePortfolioStore, Trade } from '@/store/portfolio-store';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
 import { read, utils } from 'xlsx';
@@ -507,7 +507,6 @@ export default function PortfolioDetailScreen() {
   if (!portfolio) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Portfolio nebylo nalezeno</Text>
           <TouchableOpacity
@@ -651,7 +650,6 @@ export default function PortfolioDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
         colors={[portfolio.color, portfolio.color + 'CC']}
         style={styles.header}
@@ -664,9 +662,7 @@ export default function PortfolioDetailScreen() {
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>{portfolio.name}</Text>
-            {portfolio.description && (
-              <Text style={styles.headerSubtitle}>{portfolio.description}</Text>
-            )}
+            <Text style={styles.headerSubtitle}>{portfolio.currency || 'CZK'}</Text>
           </View>
           <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
             <Plus color="white" size={24} />
