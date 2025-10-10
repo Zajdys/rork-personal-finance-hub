@@ -37,7 +37,7 @@ export default function InvestmentsScreen() {
     if (!isLoaded) {
       loadData();
     }
-  }, [isLoaded, loadData]);
+  }, [isLoaded]);
 
   const handleCreatePortfolio = () => {
     if (!portfolioName.trim()) {
