@@ -15,7 +15,8 @@ export interface Trade {
 export interface Portfolio {
   id: string;
   name: string;
-  description?: string;
+  emoji?: string;
+  currency?: string;
   createdAt: Date;
   trades: Trade[];
   color: string;

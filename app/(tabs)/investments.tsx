@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Plus,
   X,
   Briefcase,
   TrendingUp,
@@ -20,7 +19,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { usePortfolioStore, Portfolio, getRandomPortfolioColor } from '@/store/portfolio-store';
+import { usePortfolioStore, Portfolio } from '@/store/portfolio-store';
 import { useSettingsStore, CURRENCIES } from '@/store/settings-store';
 
 export default function InvestmentsScreen() {
@@ -29,7 +28,9 @@ export default function InvestmentsScreen() {
   const { currency, currencyScope, investmentCurrency } = useSettingsStore();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [portfolioName, setPortfolioName] = useState<string>('');
-  const [portfolioDescription, setPortfolioDescription] = useState<string>('');
+  const [selectedEmoji, setSelectedEmoji] = useState<string>('💼');
+  const [selectedColor, setSelectedColor] = useState<string>('#667eea');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('CZK');
 
   useEffect(() => {
     if (!isLoaded) {
@@ -46,15 +47,18 @@ export default function InvestmentsScreen() {
     const newPortfolio: Portfolio = {
       id: Date.now().toString(),
       name: portfolioName.trim(),
-      description: portfolioDescription.trim() || undefined,
+      emoji: selectedEmoji,
+      currency: selectedCurrency,
       createdAt: new Date(),
       trades: [],
-      color: getRandomPortfolioColor(),
+      color: selectedColor,
     };
 
     addPortfolio(newPortfolio);
     setPortfolioName('');
-    setPortfolioDescription('');
+    setSelectedEmoji('💼');
+    setSelectedColor('#667eea');
+    setSelectedCurrency('CZK');
     setShowCreateModal(false);
     
     Alert.alert('Úspěch! 🎉', `Portfolio "${newPortfolio.name}" bylo vytvořeno.`);
@@ -105,7 +109,7 @@ export default function InvestmentsScreen() {
         }
       }
       return acc;
-    }, [] as Array<{ symbol: string; shares: number; avgPrice: number; totalInvested: number }>)
+    }, [] as { symbol: string; shares: number; avgPrice: number; totalInvested: number }[])
     .filter((item) => item.shares > 0);
 
     const totalInvested = positions.reduce((sum, p) => sum + p.totalInvested, 0);
@@ -152,14 +156,10 @@ export default function InvestmentsScreen() {
         >
           <View style={styles.portfolioHeader}>
             <View style={styles.portfolioInfo}>
-              <Briefcase color="white" size={24} />
+              <Text style={styles.portfolioEmoji}>{portfolio.emoji || '💼'}</Text>
               <View style={styles.portfolioTitleContainer}>
                 <Text style={styles.portfolioName}>{portfolio.name}</Text>
-                {portfolio.description && (
-                  <Text style={styles.portfolioDescription} numberOfLines={1}>
-                    {portfolio.description}
-                  </Text>
-                )}
+                <Text style={styles.portfolioCurrency}>{portfolio.currency || 'CZK'}</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -220,12 +220,6 @@ export default function InvestmentsScreen() {
             <Text style={styles.headerTitle}>Portfolia</Text>
             <Text style={styles.headerSubtitle}>Správa investic</Text>
           </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowCreateModal(true)}
-          >
-            <Plus color="white" size={24} />
-          </TouchableOpacity>
         </View>
       </LinearGradient>
 
@@ -247,7 +241,6 @@ export default function InvestmentsScreen() {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Plus color="white" size={20} />
                 <Text style={styles.createFirstText}>Vytvořit portfolio</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -278,7 +271,9 @@ export default function InvestmentsScreen() {
                 onPress={() => {
                   setShowCreateModal(false);
                   setPortfolioName('');
-                  setPortfolioDescription('');
+                  setSelectedEmoji('💼');
+                  setSelectedColor('#667eea');
+                  setSelectedCurrency('CZK');
                 }}
                 style={styles.closeButton}
               >
@@ -303,16 +298,63 @@ export default function InvestmentsScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Popis (volitelné)</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={portfolioDescription}
-                  onChangeText={setPortfolioDescription}
-                  placeholder="Krátký popis portfolia..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={3}
-                />
+                <Text style={styles.inputLabel}>Emoji</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiScroll}>
+                  {['💼', '📈', '💰', '🚀', '💎', '🏦', '📊', '💵', '🎯', '⭐', '🔥', '💪'].map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      onPress={() => setSelectedEmoji(emoji)}
+                      style={[
+                        styles.emojiButton,
+                        selectedEmoji === emoji && styles.emojiButtonSelected,
+                      ]}
+                    >
+                      <Text style={styles.emojiText}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Barva</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorScroll}>
+                  {['#667eea', '#764ba2', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899'].map((color) => (
+                    <TouchableOpacity
+                      key={color}
+                      onPress={() => setSelectedColor(color)}
+                      style={[
+                        styles.colorButton,
+                        { backgroundColor: color },
+                        selectedColor === color && styles.colorButtonSelected,
+                      ]}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Měna</Text>
+                <View style={styles.currencyContainer}>
+                  {['CZK', 'EUR', 'USD'].map((curr) => (
+                    <TouchableOpacity
+                      key={curr}
+                      onPress={() => setSelectedCurrency(curr)}
+                      style={[
+                        styles.currencyButton,
+                        selectedCurrency === curr && styles.currencyButtonSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.currencyText,
+                          selectedCurrency === curr && styles.currencyTextSelected,
+                        ]}
+                      >
+                        {curr}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
           </ScrollView>
@@ -364,14 +406,6 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.9,
   },
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
@@ -409,9 +443,9 @@ const styles = StyleSheet.create({
   createFirstGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 16,
     paddingHorizontal: 24,
-    gap: 8,
   },
   createFirstText: {
     fontSize: 16,
@@ -455,10 +489,14 @@ const styles = StyleSheet.create({
     color: 'white',
     marginBottom: 4,
   },
-  portfolioDescription: {
-    fontSize: 14,
+  portfolioEmoji: {
+    fontSize: 28,
+  },
+  portfolioCurrency: {
+    fontSize: 12,
     color: 'white',
-    opacity: 0.9,
+    opacity: 0.8,
+    marginTop: 2,
   },
   deleteButton: {
     width: 36,
@@ -561,9 +599,65 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     color: '#1F2937',
   },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
+  emojiScroll: {
+    flexGrow: 0,
+  },
+  emojiButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  emojiButtonSelected: {
+    borderColor: '#667eea',
+    backgroundColor: '#EEF2FF',
+  },
+  emojiText: {
+    fontSize: 28,
+  },
+  colorScroll: {
+    flexGrow: 0,
+  },
+  colorButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  colorButtonSelected: {
+    borderColor: '#1F2937',
+  },
+  currencyContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  currencyButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  currencyButtonSelected: {
+    borderColor: '#667eea',
+    backgroundColor: '#EEF2FF',
+  },
+  currencyText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  currencyTextSelected: {
+    color: '#667eea',
   },
   modalFooter: {
     padding: 20,
