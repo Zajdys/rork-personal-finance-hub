@@ -105,14 +105,8 @@ function positionDetail(txns: any[], key: string) {
   };
 }
 
-// Spustit testy při importu
-if (typeof window !== 'undefined') {
-  // Pouze v prohlížeči
-  setTimeout(() => runNumberParsingTests(), 1000);
-}
-
-(async () => {
-  const txns = await parseCsvFile("public/test-data.csv"); // dej cestu k tvému CSV
+export async function runPortfolioTests(csvPath: string) {
+  const txns = await parseCsvFile(csvPath);
   console.log("Počet transakcí:", txns.length);
   if (!txns.length) throw new Error("CSV je prázdné nebo se nenačetlo.");
 
@@ -128,4 +122,6 @@ if (typeof window !== 'undefined') {
 
   const detail = positionDetail(txns, "AAPL");
   console.log("Detail AAPL:", detail);
-})();
+  
+  return { txns, weights, detail };
+}
