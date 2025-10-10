@@ -33,12 +33,31 @@ type IncomeRange = 'under20k' | '20k-40k' | '40k-60k' | '60k-100k' | 'over100k';
 type FinancialGoal = 'savings' | 'investment' | 'debt' | 'house' | 'car' | 'education' | 'retirement';
 type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 
+interface LoanData {
+  hasLoan: boolean;
+  loanType?: 'mortgage' | 'car' | 'personal' | 'student' | 'other';
+  loanAmount?: string;
+  interestRate?: string;
+  monthlyPayment?: string;
+  remainingMonths?: string;
+}
+
+interface BudgetBreakdown {
+  housing: string;
+  food: string;
+  transportation: string;
+  entertainment: string;
+  savings: string;
+  other: string;
+}
+
 interface OnboardingData {
   employmentStatus: EmploymentStatus | null;
   monthlyIncome: IncomeRange | null;
   financialGoals: FinancialGoal[];
   experienceLevel: ExperienceLevel | null;
-  monthlyBudget: string;
+  loanData: LoanData;
+  budgetBreakdown: BudgetBreakdown;
 }
 
 export default function OnboardingScreen() {
@@ -49,14 +68,24 @@ export default function OnboardingScreen() {
     monthlyIncome: null,
     financialGoals: [],
     experienceLevel: null,
-    monthlyBudget: '',
+    loanData: {
+      hasLoan: false,
+    },
+    budgetBreakdown: {
+      housing: '',
+      food: '',
+      transportation: '',
+      entertainment: '',
+      savings: '',
+      other: '',
+    },
   });
 
   const { isDarkMode, setCurrency } = useSettingsStore();
   const { user } = useAuth();
   const router = useRouter();
 
-  const totalSteps = 5;
+  const totalSteps = 7;
 
   const handleNext = () => {
     if (step === 1 && !data.employmentStatus) {
@@ -74,6 +103,19 @@ export default function OnboardingScreen() {
     if (step === 4 && !data.experienceLevel) {
       Alert.alert('Chyba', 'Prosím vyberte vaši úroveň zkušeností');
       return;
+    }
+    if (step === 5 && data.loanData.hasLoan) {
+      if (!data.loanData.loanType || !data.loanData.loanAmount || !data.loanData.interestRate || !data.loanData.monthlyPayment || !data.loanData.remainingMonths) {
+        Alert.alert('Chyba', 'Prosím vyplňte všechny údaje o úvěru');
+        return;
+      }
+    }
+    if (step === 6) {
+      const { housing, food, transportation } = data.budgetBreakdown;
+      if (!housing || !food || !transportation) {
+        Alert.alert('Chyba', 'Prosím vyplňte alespoň základní kategorie rozpočtu (bydlení, jídlo, doprava)');
+        return;
+      }
     }
 
     if (step < totalSteps) {
@@ -345,31 +387,253 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Máte nějaký úvěr nebo hypotéku?
+            </Text>
+            <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              Pomůže nám to lépe plánovat vaše finance
+            </Text>
+
+            <View style={styles.optionsContainer}>
+              <OptionCard
+                icon={CheckCircle}
+                title="Ano, mám úvěr"
+                selected={data.loanData.hasLoan === true}
+                onPress={() => setData({ ...data, loanData: { ...data.loanData, hasLoan: true } })}
+                isDarkMode={isDarkMode}
+              />
+              <OptionCard
+                icon={CheckCircle}
+                title="Ne, nemám žádný úvěr"
+                selected={data.loanData.hasLoan === false}
+                onPress={() => setData({ ...data, loanData: { hasLoan: false } })}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+
+            {data.loanData.hasLoan && (
+              <View style={{ marginTop: 24 }}>
+                <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  Detaily úvěru
+                </Text>
+
+                <View style={styles.loanTypeContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.loanTypeButton,
+                      { backgroundColor: isDarkMode ? '#374151' : 'white' },
+                      data.loanData.loanType === 'mortgage' && styles.loanTypeButtonSelected,
+                    ]}
+                    onPress={() => setData({ ...data, loanData: { ...data.loanData, loanType: 'mortgage' } })}
+                  >
+                    <Home color={data.loanData.loanType === 'mortgage' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+                    <Text style={[styles.loanTypeText, { color: data.loanData.loanType === 'mortgage' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Hypotéka</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.loanTypeButton,
+                      { backgroundColor: isDarkMode ? '#374151' : 'white' },
+                      data.loanData.loanType === 'car' && styles.loanTypeButtonSelected,
+                    ]}
+                    onPress={() => setData({ ...data, loanData: { ...data.loanData, loanType: 'car' } })}
+                  >
+                    <Car color={data.loanData.loanType === 'car' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+                    <Text style={[styles.loanTypeText, { color: data.loanData.loanType === 'car' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Auto</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.loanTypeButton,
+                      { backgroundColor: isDarkMode ? '#374151' : 'white' },
+                      data.loanData.loanType === 'personal' && styles.loanTypeButtonSelected,
+                    ]}
+                    onPress={() => setData({ ...data, loanData: { ...data.loanData, loanType: 'personal' } })}
+                  >
+                    <DollarSign color={data.loanData.loanType === 'personal' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+                    <Text style={[styles.loanTypeText, { color: data.loanData.loanType === 'personal' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Osobní</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.loanTypeButton,
+                      { backgroundColor: isDarkMode ? '#374151' : 'white' },
+                      data.loanData.loanType === 'student' && styles.loanTypeButtonSelected,
+                    ]}
+                    onPress={() => setData({ ...data, loanData: { ...data.loanData, loanType: 'student' } })}
+                  >
+                    <GraduationCap color={data.loanData.loanType === 'student' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+                    <Text style={[styles.loanTypeText, { color: data.loanData.loanType === 'student' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Studium</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Výše úvěru (Kč)</Text>
+                  <TextInput
+                    style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                    placeholder="Např. 2000000"
+                    placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                    value={data.loanData.loanAmount}
+                    onChangeText={(text) => setData({ ...data, loanData: { ...data.loanData, loanAmount: text } })}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Úroková sazba (%)</Text>
+                  <TextInput
+                    style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                    placeholder="Např. 4.5"
+                    placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                    value={data.loanData.interestRate}
+                    onChangeText={(text) => setData({ ...data, loanData: { ...data.loanData, interestRate: text } })}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+
+                <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Měsíční splátka (Kč)</Text>
+                  <TextInput
+                    style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                    placeholder="Např. 15000"
+                    placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                    value={data.loanData.monthlyPayment}
+                    onChangeText={(text) => setData({ ...data, loanData: { ...data.loanData, monthlyPayment: text } })}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+                  <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zbývající měsíce splácení</Text>
+                  <TextInput
+                    style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                    placeholder="Např. 240"
+                    placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                    value={data.loanData.remainingMonths}
+                    onChangeText={(text) => setData({ ...data, loanData: { ...data.loanData, remainingMonths: text } })}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+        );
+
+      case 6:
+        return (
+          <View style={styles.stepContent}>
+            <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               Jaký je váš měsíční rozpočet?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Kolik chcete měsíčně utrácet? (volitelné)
+              Rozdělte si měsíční výdaje do kategorií
             </Text>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <DollarSign color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-              <TextInput
-                style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                placeholder="Např. 30000"
-                placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
-                value={data.monthlyBudget}
-                onChangeText={(text) => setData({ ...data, monthlyBudget: text })}
-                keyboardType="numeric"
-              />
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                Kč
-              </Text>
+              <Home color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Bydlení (nájem, energie)</Text>
+                <TextInput
+                  style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  placeholder="Např. 12000"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                  value={data.budgetBreakdown.housing}
+                  onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, housing: text } })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
             </View>
 
+            <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <Text style={{ fontSize: 20 }}>🍽️</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Jídlo a nápoje</Text>
+                <TextInput
+                  style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  placeholder="Např. 5000"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                  value={data.budgetBreakdown.food}
+                  onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, food: text } })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+            </View>
+
+            <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <Car color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Doprava</Text>
+                <TextInput
+                  style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  placeholder="Např. 2000"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                  value={data.budgetBreakdown.transportation}
+                  onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, transportation: text } })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+            </View>
+
+            <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <Text style={{ fontSize: 20 }}>🎬</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zábava (volitelné)</Text>
+                <TextInput
+                  style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  placeholder="Např. 3000"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                  value={data.budgetBreakdown.entertainment}
+                  onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, entertainment: text } })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+            </View>
+
+            <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <Target color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Spoření (volitelné)</Text>
+                <TextInput
+                  style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  placeholder="Např. 5000"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                  value={data.budgetBreakdown.savings}
+                  onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, savings: text } })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+            </View>
+
+            <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <Text style={{ fontSize: 20 }}>📦</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Ostatní (volitelné)</Text>
+                <TextInput
+                  style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  placeholder="Např. 2000"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                  value={data.budgetBreakdown.other}
+                  onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, other: text } })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+            </View>
+          </View>
+        );
+
+      case 7:
+        return (
+          <View style={styles.stepContent}>
+            <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Shrnutí vašeho profilu
+            </Text>
+            <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              Zkontrolujte si zadané údaje před dokončením
+            </Text>
+
             <View style={[styles.summaryContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <Text style={[styles.summaryTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Shrnutí vašeho profilu
-              </Text>
               <View style={styles.summaryItem}>
                 <Text style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
                   Pracovní status:
@@ -400,6 +664,32 @@ export default function OnboardingScreen() {
                 </Text>
                 <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                   {getExperienceLevelLabel(data.experienceLevel)}
+                </Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                  Úvěr/Hypotéka:
+                </Text>
+                <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {data.loanData.hasLoan ? `Ano (${getLoanTypeLabel(data.loanData.loanType)})` : 'Ne'}
+                </Text>
+              </View>
+              {data.loanData.hasLoan && (
+                <View style={styles.summaryItem}>
+                  <Text style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                    Měsíční splátka:
+                  </Text>
+                  <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    {data.loanData.monthlyPayment ? `${data.loanData.monthlyPayment} Kč` : 'Nevyplněno'}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                  Měsíční rozpočet:
+                </Text>
+                <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {calculateTotalBudget(data.budgetBreakdown)} Kč
                 </Text>
               </View>
             </View>
@@ -585,6 +875,38 @@ function getExperienceLevelLabel(level: ExperienceLevel | null): string {
   }
 }
 
+function getLoanTypeLabel(type?: 'mortgage' | 'car' | 'personal' | 'student' | 'other'): string {
+  switch (type) {
+    case 'mortgage':
+      return 'Hypotéka';
+    case 'car':
+      return 'Auto';
+    case 'personal':
+      return 'Osobní';
+    case 'student':
+      return 'Studium';
+    case 'other':
+      return 'Jiný';
+    default:
+      return 'Nevybráno';
+  }
+}
+
+function calculateTotalBudget(breakdown: BudgetBreakdown): string {
+  const total = [
+    breakdown.housing,
+    breakdown.food,
+    breakdown.transportation,
+    breakdown.entertainment,
+    breakdown.savings,
+    breakdown.other,
+  ]
+    .filter(v => v && v.trim() !== '')
+    .reduce((sum, v) => sum + parseFloat(v), 0);
+  
+  return total > 0 ? total.toFixed(0) : 'Nevyplněno';
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -730,6 +1052,41 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  loanTypeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  loanTypeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  loanTypeButtonSelected: {
+    backgroundColor: '#667eea',
+  },
+  loanTypeText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  inputLabel: {
+    fontSize: 12,
+    marginBottom: 4,
   },
   footer: {
     paddingHorizontal: 20,
