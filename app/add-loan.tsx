@@ -91,7 +91,7 @@ export default function AddLoanScreen() {
     addLoan(newLoan);
     console.log('Loan added successfully');
 
-    Alert.alert('Úspěch', 'Úvěr byl úspěšně přidán', [
+    Alert.alert('Úspěch', 'Závazek byl úspěšně přidán', [
       {
         text: 'OK',
         onPress: () => {
@@ -120,8 +120,8 @@ export default function AddLoanScreen() {
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Přidat úvěr</Text>
-            <Text style={styles.headerSubtitle}>Zadejte informace o úvěru</Text>
+            <Text style={styles.headerTitle}>Přidat závazek</Text>
+            <Text style={styles.headerSubtitle}>Zadejte informace o závazku</Text>
           </View>
         </View>
       </LinearGradient>
@@ -130,7 +130,7 @@ export default function AddLoanScreen() {
         <View style={styles.content}>
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Typ úvěru
+              Typ závazku
             </Text>
             <View style={styles.loanTypesGrid}>
               {loanTypes.map((type) => {
@@ -182,7 +182,7 @@ export default function AddLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Název úvěru (volitelné)
+              Název závazku (volitelné)
             </Text>
             <TextInput
               style={[
@@ -198,7 +198,7 @@ export default function AddLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Výše úvěru *
+              Celková částka *
             </Text>
             <View style={styles.inputWithCurrency}>
               <TextInput
@@ -309,7 +309,7 @@ export default function AddLoanScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.submitText}>Přidat úvěr</Text>
+              <Text style={styles.submitText}>Přidat závazek</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>

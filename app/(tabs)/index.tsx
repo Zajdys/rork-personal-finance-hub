@@ -113,7 +113,7 @@ export default function DashboardScreen() {
         <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
       </View>
       <Text style={[styles.financeCardAmount, { color }]}>
-        {amount.toLocaleString('cs-CZ')}{title === 'Úvěry' ? '' : ` ${currentCurrency.symbol}`}
+        {amount.toLocaleString('cs-CZ')}{title === 'Závazky' ? '' : ` ${currentCurrency.symbol}`}
       </Text>
       {trend !== null && (
         <View style={styles.trendContainer}>
@@ -333,7 +333,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/add-loan')} style={styles.financeCardWrapper}>
           <FinanceCard
-            title="Úvěry"
+            title="Závazky"
             amount={loans.length}
             icon={CreditCard}
             trend={null}
@@ -345,7 +345,7 @@ export default function DashboardScreen() {
       {loans.length > 0 && (
         <View style={styles.loansOverviewContainer}>
           <View style={styles.loansOverviewHeader}>
-            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>Úvěry a hypotéky</Text>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>Moje závazky</Text>
           </View>
           <View style={styles.loansGrid}>
             {loans.map((loan) => {

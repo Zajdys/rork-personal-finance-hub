@@ -39,7 +39,7 @@ export default function LoanDetailScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Úvěr nenalezen
+            Závazek nenalezen
           </Text>
           <TouchableOpacity
             style={styles.backButton}
@@ -88,8 +88,8 @@ export default function LoanDetailScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Smazat úvěr',
-      'Opravdu chcete smazat tento úvěr?',
+      'Smazat závazek',
+      'Opravdu chcete smazat tento závazek?',
       [
         {
           text: 'Zrušit',
@@ -130,7 +130,7 @@ export default function LoanDetailScreen() {
             <Text style={styles.headerTitle}>
               {loan.name || getLoanTypeLabel(loan.loanType)}
             </Text>
-            <Text style={styles.headerSubtitle}>Detail úvěru</Text>
+            <Text style={styles.headerSubtitle}>Detail závazku</Text>
           </View>
           <TouchableOpacity
             style={styles.deleteButton}
