@@ -107,7 +107,9 @@ export default function DashboardScreen() {
   const FinanceCard = ({ title, amount, icon: Icon, trend, color }: any) => (
     <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
       <View style={styles.financeCardHeader}>
-        <Icon color={color} size={18} />
+        <View style={styles.financeCardIconContainer}>
+          <Icon color={color} size={20} strokeWidth={2} />
+        </View>
         <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
       </View>
       <Text style={[styles.financeCardAmount, { color }]}>
@@ -685,6 +687,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
+  },
+  financeCardIconContainer: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   financeCardTitle: {
     fontSize: 11,
