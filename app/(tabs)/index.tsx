@@ -107,13 +107,13 @@ export default function DashboardScreen() {
   const FinanceCard = ({ title, amount, icon: Icon, trend, color }: any) => (
     <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
       <View style={styles.financeCardHeader}>
-        <Icon color={color} size={20} />
+        <Icon color={color} size={18} />
         <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
       </View>
       <Text style={[styles.financeCardAmount, { color }]}>
-        {amount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+        {amount.toLocaleString('cs-CZ')}{title === 'Úvěry' ? '' : ` ${currentCurrency.symbol}`}
       </Text>
-      {trend && (
+      {trend !== null && (
         <View style={styles.trendContainer}>
           {trend > 0 ? (
             <TrendingUp color="#10B981" size={16} />
@@ -311,7 +311,7 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.financeGrid}>
-        <TouchableOpacity onPress={() => router.push('/income-detail')}>
+        <TouchableOpacity onPress={() => router.push('/income-detail')} style={styles.financeCardWrapper}>
           <FinanceCard
             title={t('income')}
             amount={totalIncome}
@@ -320,7 +320,7 @@ export default function DashboardScreen() {
             color="#10B981"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/expense-detail')}>
+        <TouchableOpacity onPress={() => router.push('/expense-detail')} style={styles.financeCardWrapper}>
           <FinanceCard
             title={t('expense')}
             amount={totalExpenses}
@@ -329,30 +329,22 @@ export default function DashboardScreen() {
             color="#EF4444"
           />
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/add?tab=loan')} style={styles.financeCardWrapper}>
+          <FinanceCard
+            title="Úvěry"
+            amount={loans.length}
+            icon={CreditCard}
+            trend={null}
+            color="#8B5CF6"
+          />
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.loansOverviewContainer}>
-        <View style={styles.loansOverviewHeader}>
-          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>Úvěry a hypotéky</Text>
-          <TouchableOpacity 
-            style={styles.addLoanButton}
-            onPress={() => router.push('/add?tab=loan')}
-          >
-            <PlusCircle color="white" size={20} />
-          </TouchableOpacity>
-        </View>
-        {loans.length === 0 ? (
-          <View style={[styles.loansEmptyCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-            <CreditCard color="#9CA3AF" size={48} />
-            <Text style={[styles.loansEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zatím nemáte žádné úvěry</Text>
-            <TouchableOpacity 
-              style={styles.addFirstLoanButton}
-              onPress={() => router.push('/add?tab=loan')}
-            >
-              <Text style={styles.addFirstLoanButtonText}>Přidat první úvěr</Text>
-            </TouchableOpacity>
+      {loans.length > 0 && (
+        <View style={styles.loansOverviewContainer}>
+          <View style={styles.loansOverviewHeader}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>Úvěry a hypotéky</Text>
           </View>
-        ) : (
           <View style={styles.loansGrid}>
             {loans.map((loan) => {
               const progress = getLoanProgress(loan.id);
@@ -413,8 +405,8 @@ export default function DashboardScreen() {
               );
             })}
           </View>
-        )}
-      </View>
+        </View>
+      )}
 
 
 
@@ -674,13 +666,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 24,
-    gap: 12,
+    gap: 8,
+  },
+  financeCardWrapper: {
+    flex: 1,
   },
   financeCard: {
-    flex: 1,
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -690,17 +684,17 @@ const styles = StyleSheet.create({
   financeCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   financeCardTitle: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#6B7280',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   financeCardAmount: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   trendContainer: {
     flexDirection: 'row',
