@@ -331,9 +331,28 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {loans.length > 0 && (
-        <View style={styles.loansContainer}>
-          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Úvěry a hypotéky</Text>
+      <View style={styles.loansOverviewContainer}>
+        <View style={styles.loansOverviewHeader}>
+          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>Úvěry a hypotéky</Text>
+          <TouchableOpacity 
+            style={styles.addLoanButton}
+            onPress={() => router.push('/add?tab=loan')}
+          >
+            <PlusCircle color="white" size={20} />
+          </TouchableOpacity>
+        </View>
+        {loans.length === 0 ? (
+          <View style={[styles.loansEmptyCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+            <CreditCard color="#9CA3AF" size={48} />
+            <Text style={[styles.loansEmptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zatím nemáte žádné úvěry</Text>
+            <TouchableOpacity 
+              style={styles.addFirstLoanButton}
+              onPress={() => router.push('/add?tab=loan')}
+            >
+              <Text style={styles.addFirstLoanButtonText}>Přidat první úvěr</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
           <View style={styles.loansGrid}>
             {loans.map((loan) => {
               const progress = getLoanProgress(loan.id);
@@ -394,8 +413,10 @@ export default function DashboardScreen() {
               );
             })}
           </View>
-        </View>
-      )}
+        )}
+      </View>
+
+
 
       <View style={styles.quickActionsContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('quickActions')}</Text>
@@ -1006,6 +1027,56 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  loansOverviewContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  loansOverviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addLoanButton: {
+    backgroundColor: '#667eea',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  loansEmptyCard: {
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loansEmptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  addFirstLoanButton: {
+    backgroundColor: '#667eea',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  addFirstLoanButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loansContainer: {
     marginHorizontal: 20,
