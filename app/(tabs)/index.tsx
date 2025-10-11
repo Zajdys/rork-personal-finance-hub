@@ -22,7 +22,7 @@ import {
   MessageCircle,
   Calendar,
 } from 'lucide-react-native';
-import { useFinanceStore, CategoryExpense, SubscriptionItem } from '@/store/finance-store';
+import { useFinanceStore, CategoryExpense, SubscriptionItem, LoanItem, LoanType } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -32,7 +32,7 @@ const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const finance = useFinanceStore();
-  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals } = finance;
+  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals, loans, getLoanProgress } = finance;
   const { level, points, dailyTip, refreshDailyTip } = useBuddyStore();
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t, language, updateCounter } = useLanguageStore();
@@ -175,6 +175,40 @@ export default function DashboardScreen() {
     finance.updateSubscription(id, { active: !s.active });
   }, [finance]);
 
+  const getLoanIcon = (type: LoanType): string => {
+    switch (type) {
+      case 'mortgage':
+        return '🏠';
+      case 'car':
+        return '🚗';
+      case 'personal':
+        return '💰';
+      case 'student':
+        return '🎓';
+      case 'other':
+        return '💳';
+      default:
+        return '💳';
+    }
+  };
+
+  const getLoanTypeLabel = (type: LoanType): string => {
+    switch (type) {
+      case 'mortgage':
+        return 'Hypotéka';
+      case 'car':
+        return 'Úvěr na auto';
+      case 'personal':
+        return 'Osobní úvěr';
+      case 'student':
+        return 'Studentský úvěr';
+      case 'other':
+        return 'Jiný úvěr';
+      default:
+        return 'Úvěr';
+    }
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]} showsVerticalScrollIndicator={false}>
       <LinearGradient
@@ -296,6 +330,72 @@ export default function DashboardScreen() {
           />
         </TouchableOpacity>
       </View>
+
+      {loans.length > 0 && (
+        <View style={styles.loansContainer}>
+          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Úvěry a hypotéky</Text>
+          <View style={styles.loansGrid}>
+            {loans.map((loan) => {
+              const progress = getLoanProgress(loan.id);
+              return (
+                <TouchableOpacity
+                  key={loan.id}
+                  style={[styles.loanCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+                  onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
+                >
+                  <View style={styles.loanHeader}>
+                    <View style={[styles.loanIconContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
+                      <Text style={styles.loanIcon}>{getLoanIcon(loan.loanType)}</Text>
+                    </View>
+                    <View style={styles.loanInfo}>
+                      <Text style={[styles.loanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                        {loan.name || getLoanTypeLabel(loan.loanType)}
+                      </Text>
+                      <Text style={[styles.loanType, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                        {getLoanTypeLabel(loan.loanType)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.loanDetails}>
+                    <View style={styles.loanDetailRow}>
+                      <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Měsíční splátka</Text>
+                      <Text style={[styles.loanDetailValue, { color: '#EF4444' }]}>
+                        {loan.monthlyPayment.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                      </Text>
+                    </View>
+                    <View style={styles.loanDetailRow}>
+                      <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Úroková sazba</Text>
+                      <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                        {loan.interestRate}%
+                      </Text>
+                    </View>
+                    <View style={styles.loanDetailRow}>
+                      <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zbývá měsíců</Text>
+                      <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                        {loan.remainingMonths}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.loanProgressContainer}>
+                    <View style={styles.loanProgressHeader}>
+                      <Text style={[styles.loanProgressLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Splaceno</Text>
+                      <Text style={[styles.loanProgressPercentage, { color: '#10B981' }]}>{progress.percentage}%</Text>
+                    </View>
+                    <View style={[styles.loanProgressBarBackground, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
+                      <LinearGradient
+                        colors={['#10B981', '#059669']}
+                        style={[styles.loanProgressBar, { width: `${progress.percentage}%` }]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <View style={styles.quickActionsContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('quickActions')}</Text>
@@ -906,5 +1006,89 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  loansContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  loansGrid: {
+    gap: 12,
+  },
+  loanCard: {
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loanHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  loanIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  loanIcon: {
+    fontSize: 24,
+  },
+  loanInfo: {
+    flex: 1,
+  },
+  loanName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  loanType: {
+    fontSize: 12,
+  },
+  loanDetails: {
+    marginBottom: 16,
+  },
+  loanDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  loanDetailLabel: {
+    fontSize: 12,
+  },
+  loanDetailValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  loanProgressContainer: {
+    marginTop: 8,
+  },
+  loanProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  loanProgressLabel: {
+    fontSize: 12,
+  },
+  loanProgressPercentage: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  loanProgressBarBackground: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  loanProgressBar: {
+    height: '100%',
+    borderRadius: 4,
   },
 });

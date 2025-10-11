@@ -89,6 +89,19 @@ export interface CustomCategory {
   type: 'income' | 'expense';
 }
 
+export type LoanType = 'mortgage' | 'car' | 'personal' | 'student' | 'other';
+
+export interface LoanItem {
+  id: string;
+  loanType: LoanType;
+  loanAmount: number;
+  interestRate: number;
+  monthlyPayment: number;
+  remainingMonths: number;
+  startDate: Date;
+  name?: string;
+}
+
 interface FinanceState {
   transactions: Transaction[];
   totalIncome: number;
@@ -101,6 +114,7 @@ interface FinanceState {
   financialGoals: FinancialGoal[];
   subscriptions: SubscriptionItem[];
   customCategories: CustomCategory[];
+  loans: LoanItem[];
   isLoaded: boolean;
   addTransaction: (transaction: Transaction) => void;
   updateTotals: () => void;
@@ -119,6 +133,10 @@ interface FinanceState {
   addCustomCategory: (category: CustomCategory) => void;
   deleteCustomCategory: (id: string) => void;
   getAllCategories: (type: 'income' | 'expense') => { [key: string]: { icon: string; color: string } };
+  addLoan: (loan: LoanItem) => void;
+  updateLoan: (id: string, updates: Partial<LoanItem>) => void;
+  deleteLoan: (id: string) => void;
+  getLoanProgress: (id: string) => { paidMonths: number; totalMonths: number; percentage: number; totalPaid: number; remainingAmount: number };
   loadData: () => Promise<void>;
   saveData: () => Promise<void>;
 }
@@ -143,6 +161,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   financialGoals: [],
   subscriptions: [],
   customCategories: [],
+  loans: [],
   isLoaded: false,
 
   addTransaction: (transaction: Transaction) => {
@@ -429,14 +448,67 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     return { ...defaultCategories, ...customCategories };
   },
 
+  addLoan: (loan: LoanItem) => {
+    set((state) => ({
+      loans: [...state.loans, loan],
+    }));
+    get().saveData();
+  },
+
+  updateLoan: (id: string, updates: Partial<LoanItem>) => {
+    set((state) => ({
+      loans: state.loans.map(loan => 
+        loan.id === id ? { ...loan, ...updates } : loan
+      ),
+    }));
+    get().saveData();
+  },
+
+  deleteLoan: (id: string) => {
+    set((state) => ({
+      loans: state.loans.filter(loan => loan.id !== id),
+    }));
+    get().saveData();
+  },
+
+  getLoanProgress: (id: string) => {
+    const state = get();
+    const loan = state.loans.find(l => l.id === id);
+    if (!loan) {
+      return { paidMonths: 0, totalMonths: 0, percentage: 0, totalPaid: 0, remainingAmount: 0 };
+    }
+
+    const now = new Date();
+    const startDate = new Date(loan.startDate);
+    const monthsPassed = Math.max(0, 
+      (now.getFullYear() - startDate.getFullYear()) * 12 + 
+      (now.getMonth() - startDate.getMonth())
+    );
+    
+    const paidMonths = Math.min(monthsPassed, loan.remainingMonths);
+    const totalMonths = loan.remainingMonths + paidMonths;
+    const percentage = totalMonths > 0 ? Math.round((paidMonths / totalMonths) * 100) : 0;
+    const totalPaid = paidMonths * loan.monthlyPayment;
+    const remainingAmount = loan.loanAmount - totalPaid;
+
+    return {
+      paidMonths,
+      totalMonths,
+      percentage,
+      totalPaid,
+      remainingAmount: Math.max(0, remainingAmount),
+    };
+  },
+
   loadData: async () => {
     try {
-      const [transactionsData, goalsData, reportsData, subsData, customCategoriesData] = await Promise.all([
+      const [transactionsData, goalsData, reportsData, subsData, customCategoriesData, loansData] = await Promise.all([
         AsyncStorage.getItem('finance_transactions'),
         AsyncStorage.getItem('finance_goals'),
         AsyncStorage.getItem('finance_reports'),
         AsyncStorage.getItem('finance_subscriptions'),
         AsyncStorage.getItem('finance_custom_categories'),
+        AsyncStorage.getItem('finance_loans'),
       ]);
       
       let transactions: Transaction[] = [];
@@ -499,6 +571,19 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           await AsyncStorage.removeItem('finance_custom_categories');
         }
       }
+
+      let loans: LoanItem[] = [];
+      if (loansData) {
+        try {
+          loans = JSON.parse(loansData).map((l: any) => ({
+            ...l,
+            startDate: new Date(l.startDate),
+          }));
+        } catch (error) {
+          console.error('Failed to parse loans data:', error, 'Data:', loansData);
+          await AsyncStorage.removeItem('finance_loans');
+        }
+      }
       
       set({ 
         transactions, 
@@ -506,6 +591,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         monthlyReports,
         subscriptions,
         customCategories,
+        loans,
         isLoaded: true 
       });
       
@@ -526,6 +612,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         AsyncStorage.setItem('finance_reports', JSON.stringify(state.monthlyReports)),
         AsyncStorage.setItem('finance_subscriptions', JSON.stringify(state.subscriptions)),
         AsyncStorage.setItem('finance_custom_categories', JSON.stringify(state.customCategories)),
+        AsyncStorage.setItem('finance_loans', JSON.stringify(state.loans)),
       ]);
       console.log('Finance data saved successfully');
     } catch (error) {
