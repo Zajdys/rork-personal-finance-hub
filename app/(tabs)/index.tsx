@@ -331,7 +331,7 @@ export default function DashboardScreen() {
             color="#EF4444"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/add?tab=loan')} style={styles.financeCardWrapper}>
+        <TouchableOpacity onPress={() => router.push('/add-loan')} style={styles.financeCardWrapper}>
           <FinanceCard
             title="Úvěry"
             amount={loans.length}
@@ -682,6 +682,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    minHeight: 100,
   },
   financeCardHeader: {
     flexDirection: 'row',
