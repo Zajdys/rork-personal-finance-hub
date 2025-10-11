@@ -44,8 +44,10 @@ export default function AddLoanScreen() {
   ];
 
   const handleSubmit = () => {
+    console.log('Submit clicked', { loanAmount, interestRate, monthlyPayment, remainingMonths });
+    
     if (!loanAmount || !interestRate || !monthlyPayment || !remainingMonths) {
-      Alert.alert('Chyba', 'Vyplňte prosím všechna povinná pole');
+      Alert.alert('Chyba', 'Vyplňte prosím všechna povinná pole (výše úvěru, úroková sazba, měsíční splátka, zbývá měsíců)');
       return;
     }
 
@@ -54,6 +56,8 @@ export default function AddLoanScreen() {
     const numMonthlyPayment = parseFloat(monthlyPayment.replace(',', '.'));
     const numRemainingMonths = parseInt(remainingMonths, 10);
     const numPaidMonths = parseInt(paidMonths || '0', 10);
+
+    console.log('Parsed values:', { numLoanAmount, numInterestRate, numMonthlyPayment, numRemainingMonths, numPaidMonths });
 
     if (
       isNaN(numLoanAmount) ||
@@ -65,14 +69,14 @@ export default function AddLoanScreen() {
       numMonthlyPayment <= 0 ||
       numRemainingMonths <= 0
     ) {
-      Alert.alert('Chyba', 'Zadejte prosím platné hodnoty');
+      Alert.alert('Chyba', 'Zadejte prosím platné číselné hodnoty. Výše úvěru, měsíční splátka a zbývající měsíce musí být větší než 0.');
       return;
     }
 
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - numPaidMonths);
 
-    addLoan({
+    const newLoan = {
       id: Date.now().toString(),
       loanType,
       name: name.trim() || undefined,
@@ -81,12 +85,19 @@ export default function AddLoanScreen() {
       monthlyPayment: numMonthlyPayment,
       remainingMonths: numRemainingMonths,
       startDate,
-    });
+    };
+
+    console.log('Adding loan:', newLoan);
+    addLoan(newLoan);
+    console.log('Loan added successfully');
 
     Alert.alert('Úspěch', 'Úvěr byl úspěšně přidán', [
       {
         text: 'OK',
-        onPress: () => router.back(),
+        onPress: () => {
+          console.log('Navigating back');
+          router.back();
+        },
       },
     ]);
   };
