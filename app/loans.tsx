@@ -146,29 +146,31 @@ export default function LoansScreen() {
               
               return (
                 <View key={loan.id} style={[styles.loanCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-                  <TouchableOpacity
-                    style={styles.loanCardContent}
-                    onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
-                  >
+                  <View style={styles.loanCardContent}>
                     <View style={styles.loanHeader}>
-                      <View style={[
-                        styles.loanIconContainer,
-                        { backgroundColor: loan.color ? loan.color + '20' : (isDarkMode ? '#4B5563' : '#F3F4F6') }
-                      ]}>
-                        {loan.emoji ? (
-                          <Text style={styles.loanEmoji}>{loan.emoji}</Text>
-                        ) : (
-                          <LoanIcon color={loan.color || '#667eea'} size={28} />
-                        )}
-                      </View>
-                      <View style={styles.loanInfo}>
-                        <Text style={[styles.loanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                          {loanName}
-                        </Text>
-                        <Text style={[styles.loanType, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                          {getLoanTypeLabel(loan.loanType)}
-                        </Text>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.loanHeaderTouchable}
+                        onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
+                      >
+                        <View style={[
+                          styles.loanIconContainer,
+                          { backgroundColor: loan.color ? loan.color + '20' : (isDarkMode ? '#4B5563' : '#F3F4F6') }
+                        ]}>
+                          {loan.emoji ? (
+                            <Text style={styles.loanEmoji}>{loan.emoji}</Text>
+                          ) : (
+                            <LoanIcon color={loan.color || '#667eea'} size={28} />
+                          )}
+                        </View>
+                        <View style={styles.loanInfo}>
+                          <Text style={[styles.loanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                            {loanName}
+                          </Text>
+                          <Text style={[styles.loanType, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                            {getLoanTypeLabel(loan.loanType)}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.deleteIconButton}
                         onPress={() => handleDeleteLoan(loan.id, loanName)}
@@ -238,7 +240,7 @@ export default function LoansScreen() {
                       </Text>
                     </View>
                   </View>
-                  </TouchableOpacity>
+                  </View>
                 </View>
               );
             })
@@ -359,6 +361,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
     position: 'relative' as const,
+  },
+  loanHeaderTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   loanIconContainer: {
     width: 56,
