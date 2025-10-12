@@ -254,9 +254,9 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Menu */}
+      {/* Features */}
       <View style={styles.menuContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('settings')}</Text>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{language === 'cs' ? 'Funkce' : 'Features'}</Text>
         
         <MenuButton
           icon={User}
@@ -287,18 +287,16 @@ export default function ProfileScreen() {
         />
         
         <MenuButton
-          icon={Bell}
-          title={t('notifications')}
-          subtitle={language === 'cs' ? 'Správa upozornění a tipů' : 'Manage alerts and tips'}
-          onPress={() => router.push('/notifications-settings')}
+          icon={Eye}
+          title="Náhled Landing Page"
+          subtitle={language === 'cs' ? 'Podívej se, jak vypadá úvodní stránka' : 'See how the landing page looks'}
+          onPress={() => router.push('/landing-preview')}
         />
-        
-        <MenuButton
-          icon={Shield}
-          title={t('privacySecurity')}
-          subtitle={t('protectData')}
-          onPress={() => router.push('/privacy-settings')}
-        />
+      </View>
+
+      {/* Settings */}
+      <View style={styles.menuContainer}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('settings')}</Text>
         
         <MenuButton
           icon={Globe}
@@ -322,6 +320,20 @@ export default function ProfileScreen() {
         />
         
         <MenuButton
+          icon={Bell}
+          title={t('notifications')}
+          subtitle={language === 'cs' ? 'Správa upozornění a tipů' : 'Manage alerts and tips'}
+          onPress={() => router.push('/notifications-settings')}
+        />
+        
+        <MenuButton
+          icon={Shield}
+          title={t('privacySecurity')}
+          subtitle={t('protectData')}
+          onPress={() => router.push('/privacy-settings')}
+        />
+        
+        <MenuButton
           icon={Settings}
           title={t('generalSettings')}
           subtitle={t('additionalOptions')}
@@ -333,13 +345,6 @@ export default function ProfileScreen() {
           title={t('help')}
           subtitle={t('faqContact')}
           onPress={() => router.push('/help-support')}
-        />
-        
-        <MenuButton
-          icon={Eye}
-          title="Náhled Landing Page"
-          subtitle={language === 'cs' ? 'Podívej se, jak vypadá úvodní stránka' : 'See how the landing page looks'}
-          onPress={() => router.push('/landing-preview')}
         />
       </View>
     </ScrollView>
