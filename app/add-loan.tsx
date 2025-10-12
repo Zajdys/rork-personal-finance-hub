@@ -37,6 +37,7 @@ export default function AddLoanScreen() {
   const [paidMonths, setPaidMonths] = useState<string>('0');
   const [selectedColor, setSelectedColor] = useState<string>('#3B82F6');
   const [selectedEmoji, setSelectedEmoji] = useState<string>('💰');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const loanTypes: Array<{ type: LoanType; label: string; icon: any; color: string }> = [
     { type: 'mortgage', label: 'Hypotéka', icon: Home, color: '#10B981' },
@@ -57,6 +58,11 @@ export default function AddLoanScreen() {
   ];
 
   const handleSubmit = () => {
+    if (isSubmitting) {
+      console.log('Already submitting, ignoring click');
+      return;
+    }
+
     console.log('Submit clicked', { loanAmount, interestRate, monthlyPayment, remainingMonths });
     
     if (!loanAmount || !interestRate || !monthlyPayment || !remainingMonths) {
@@ -86,6 +92,8 @@ export default function AddLoanScreen() {
       return;
     }
 
+    setIsSubmitting(true);
+
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - numPaidMonths);
 
@@ -104,17 +112,9 @@ export default function AddLoanScreen() {
 
     console.log('Adding loan:', newLoan);
     addLoan(newLoan);
-    console.log('Loan added successfully');
+    console.log('Loan added successfully, navigating to detail');
 
-    Alert.alert('Úspěch', 'Závazek byl úspěšně přidán', [
-      {
-        text: 'OK',
-        onPress: () => {
-          console.log('Navigating back');
-          router.back();
-        },
-      },
-    ]);
+    router.replace(`/loan-detail?id=${newLoan.id}`);
   };
 
   return (
@@ -364,14 +364,20 @@ export default function AddLoanScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+          <TouchableOpacity 
+            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          >
             <LinearGradient
-              colors={['#667eea', '#764ba2']}
+              colors={isSubmitting ? ['#9CA3AF', '#6B7280'] : ['#667eea', '#764ba2']}
               style={styles.submitGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.submitText}>Přidat závazek</Text>
+              <Text style={styles.submitText}>
+                {isSubmitting ? 'Přidávám...' : 'Přidat závazek'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -493,6 +499,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     borderRadius: 16,
     overflow: 'hidden',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
   },
   submitGradient: {
     paddingVertical: 18,
