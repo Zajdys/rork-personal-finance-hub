@@ -25,6 +25,7 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  Search,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -230,6 +231,30 @@ export default function LoansScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <TouchableOpacity
+            style={styles.finderButton}
+            onPress={() => router.push('/loan-finder')}
+          >
+            <LinearGradient
+              colors={['#F59E0B', '#D97706']}
+              style={styles.finderButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.finderButtonContent}>
+                <View style={styles.finderButtonLeft}>
+                  <View style={styles.finderIconContainer}>
+                    <Search color="white" size={24} />
+                  </View>
+                  <View style={styles.finderButtonText}>
+                    <Text style={styles.finderButtonTitle}>Hledat nejlepší půjčku</Text>
+                    <Text style={styles.finderButtonSubtitle}>AI najde pro vás ty nejlepší nabídky</Text>
+                  </View>
+                </View>
+                <Sparkles color="white" size={20} />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
           {loans.length > 0 && (
             <View style={[styles.aiCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <TouchableOpacity 
@@ -791,5 +816,51 @@ const styles = StyleSheet.create({
   bestProviderValue: {
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  finderButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  finderButtonGradient: {
+    padding: 20,
+  },
+  finderButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  finderButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  finderIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finderButtonText: {
+    flex: 1,
+  },
+  finderButtonTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 2,
+  },
+  finderButtonSubtitle: {
+    fontSize: 13,
+    color: 'white',
+    opacity: 0.9,
   },
 });
