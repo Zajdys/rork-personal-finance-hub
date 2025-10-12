@@ -44,6 +44,8 @@ export default function EditLoanScreen() {
   const [isFixed, setIsFixed] = useState<boolean>(false);
   const [fixedYears, setFixedYears] = useState<string>('');
   const [currentBalance, setCurrentBalance] = useState<string>('');
+  const [loanStartDate, setLoanStartDate] = useState<string>('');
+  const [fixationStartDate, setFixationStartDate] = useState<string>('');
 
   useEffect(() => {
     if (loan) {
@@ -58,6 +60,8 @@ export default function EditLoanScreen() {
       setIsFixed(loan.isFixed || false);
       setFixedYears(loan.fixedYears?.toString() || '');
       setCurrentBalance(loan.currentBalance?.toString() || '');
+      setLoanStartDate(loan.startDate ? loan.startDate.toISOString().split('T')[0] : '');
+      setFixationStartDate(loan.fixationStartDate ? loan.fixationStartDate.toISOString().split('T')[0] : '');
     }
   }, [loan]);
 
@@ -135,15 +139,27 @@ export default function EditLoanScreen() {
 
     setIsSubmitting(true);
 
+    let startDate: Date = loan.startDate;
+    if (loanStartDate) {
+      startDate = new Date(loanStartDate);
+    }
+
     let fixedEndDate: Date | undefined = loan.fixedEndDate;
+    let parsedFixationStartDate: Date | undefined = loan.fixationStartDate;
     if (isFixed && fixedYears) {
       const numFixedYears = parseInt(fixedYears, 10);
       if (!isNaN(numFixedYears) && numFixedYears > 0) {
-        fixedEndDate = new Date(loan.startDate);
+        if (fixationStartDate) {
+          parsedFixationStartDate = new Date(fixationStartDate);
+          fixedEndDate = new Date(parsedFixationStartDate);
+        } else {
+          fixedEndDate = new Date(startDate);
+        }
         fixedEndDate.setFullYear(fixedEndDate.getFullYear() + numFixedYears);
       }
     } else if (!isFixed) {
       fixedEndDate = undefined;
+      parsedFixationStartDate = undefined;
     }
 
     const updates = {
@@ -153,11 +169,13 @@ export default function EditLoanScreen() {
       interestRate: numInterestRate,
       monthlyPayment: numMonthlyPayment,
       remainingMonths: numRemainingMonths,
+      startDate: startDate,
       color: selectedColor,
       emoji: selectedEmoji,
       isFixed: isFixed,
       fixedYears: isFixed && fixedYears ? parseInt(fixedYears, 10) : undefined,
       fixedEndDate: fixedEndDate,
+      fixationStartDate: parsedFixationStartDate,
       currentBalance: numCurrentBalance,
     };
 
@@ -350,6 +368,25 @@ export default function EditLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Datum zahájení úvěru
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
+              ]}
+              value={loanStartDate}
+              onChangeText={setLoanStartDate}
+              placeholder="YYYY-MM-DD (např. 2020-01-15)"
+              placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+            />
+            <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              Kdy jste si půjčili od banky (formát: rok-měsíc-den)
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               Aktuální zůstatek dluhu (volitelné)
             </Text>
             <View style={styles.inputWithCurrency}>
@@ -421,6 +458,23 @@ export default function EditLoanScreen() {
                 />
                 <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
                   Zadejte počet let, na které je úroková sazba fixována
+                </Text>
+                
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280', marginTop: 16 }]}>
+                  Datum zahájení fixace
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
+                  ]}
+                  value={fixationStartDate}
+                  onChangeText={setFixationStartDate}
+                  placeholder="YYYY-MM-DD (např. 2022-06-01)"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                />
+                <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Od kdy je úroková sazba zafixována (formát: rok-měsíc-den)
                 </Text>
               </View>
             )}
