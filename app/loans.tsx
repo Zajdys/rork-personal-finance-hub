@@ -18,6 +18,10 @@ import {
   GraduationCap,
   CreditCard,
   Trash2,
+  Sparkles,
+  TrendingDown,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -27,6 +31,76 @@ export default function LoansScreen() {
   const { loans, getLoanProgress, deleteLoan } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const currentCurrency = getCurrentCurrency();
+  const [analyzingLoans, setAnalyzingLoans] = React.useState(false);
+  const [loanAnalysis, setLoanAnalysis] = React.useState<Record<string, {
+    currentRate: number;
+    marketAverage: number;
+    potentialSavings: number;
+    recommendation: string;
+    status: 'good' | 'average' | 'poor';
+  }>>({});
+
+  const analyzeLoan = async (loan: any) => {
+    const marketRates: Record<string, { min: number; avg: number; max: number }> = {
+      mortgage: { min: 4.5, avg: 5.8, max: 7.2 },
+      car: { min: 6.0, avg: 8.5, max: 12.0 },
+      personal: { min: 8.0, avg: 12.5, max: 18.0 },
+      student: { min: 3.5, avg: 5.0, max: 7.5 },
+      other: { min: 7.0, avg: 10.0, max: 15.0 },
+    };
+
+    const market = marketRates[loan.loanType] || marketRates.other;
+    const currentRate = loan.interestRate;
+    const marketAverage = market.avg;
+    
+    let status: 'good' | 'average' | 'poor';
+    let recommendation: string;
+    
+    if (currentRate <= market.min + 0.5) {
+      status = 'good';
+      recommendation = 'Máte výbornou sazbu! Refinancování se nevyplatí.';
+    } else if (currentRate <= marketAverage) {
+      status = 'average';
+      recommendation = 'Vaše sazba je průměrná. Můžete zkusit vyjednat lepší podmínky.';
+    } else {
+      status = 'poor';
+      recommendation = 'Vaše sazba je nad průměrem. Zvažte refinancování!';
+    }
+    
+    const progress = getLoanProgress(loan.id);
+    const remainingMonths = loan.remainingMonths;
+    const monthlyPaymentDiff = (currentRate - marketAverage) / 100 / 12 * progress.remainingAmount;
+    const potentialSavings = Math.max(0, monthlyPaymentDiff * remainingMonths);
+    
+    return {
+      currentRate,
+      marketAverage,
+      potentialSavings: Math.round(potentialSavings),
+      recommendation,
+      status,
+    };
+  };
+
+  const analyzeAllLoans = async () => {
+    if (loans.length === 0) return;
+    
+    setAnalyzingLoans(true);
+    const analysis: Record<string, any> = {};
+    
+    for (const loan of loans) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      analysis[loan.id] = await analyzeLoan(loan);
+    }
+    
+    setLoanAnalysis(analysis);
+    setAnalyzingLoans(false);
+  };
+
+  React.useEffect(() => {
+    if (loans.length > 0 && Object.keys(loanAnalysis).length === 0) {
+      analyzeAllLoans();
+    }
+  }, [loans]);
 
   const handleDeleteLoan = (loanId: string, loanName: string) => {
     Alert.alert(
@@ -114,6 +188,94 @@ export default function LoansScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          {loans.length > 0 && (
+            <View style={[styles.aiCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+              <View style={styles.aiHeader}>
+                <View style={styles.aiIconContainer}>
+                  <Sparkles color="#F59E0B" size={24} />
+                </View>
+                <View style={styles.aiHeaderText}>
+                  <Text style={[styles.aiTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    AI Analýza úvěrů
+                  </Text>
+                  <Text style={[styles.aiSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                    Porovnání s aktuálními tržními sazbami
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.refreshButton}
+                  onPress={analyzeAllLoans}
+                  disabled={analyzingLoans}
+                >
+                  <Text style={styles.refreshButtonText}>
+                    {analyzingLoans ? '...' : '🔄'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              {analyzingLoans ? (
+                <View style={styles.analyzingContainer}>
+                  <Text style={[styles.analyzingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                    Analyzuji vaše úvěry...
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.aiContent}>
+                  {loans.map((loan) => {
+                    const analysis = loanAnalysis[loan.id];
+                    if (!analysis) return null;
+                    
+                    const StatusIcon = analysis.status === 'good' ? CheckCircle : 
+                                     analysis.status === 'average' ? AlertCircle : TrendingDown;
+                    const statusColor = analysis.status === 'good' ? '#10B981' : 
+                                      analysis.status === 'average' ? '#F59E0B' : '#EF4444';
+                    
+                    return (
+                      <View key={loan.id} style={[styles.analysisItem, { borderLeftColor: statusColor }]}>
+                        <View style={styles.analysisHeader}>
+                          <Text style={[styles.analysisLoanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                            {loan.name || getLoanTypeLabel(loan.loanType)}
+                          </Text>
+                          <StatusIcon color={statusColor} size={20} />
+                        </View>
+                        <View style={styles.analysisStats}>
+                          <View style={styles.analysisStat}>
+                            <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                              Vaše sazba
+                            </Text>
+                            <Text style={[styles.analysisStatValue, { color: statusColor }]}>
+                              {analysis.currentRate}%
+                            </Text>
+                          </View>
+                          <View style={styles.analysisStat}>
+                            <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                              Tržní průměr
+                            </Text>
+                            <Text style={[styles.analysisStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                              {analysis.marketAverage}%
+                            </Text>
+                          </View>
+                          {analysis.potentialSavings > 0 && (
+                            <View style={styles.analysisStat}>
+                              <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                                Možná úspora
+                              </Text>
+                              <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
+                                {analysis.potentialSavings.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[styles.analysisRecommendation, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                          {analysis.recommendation}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
           {loans.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <CreditCard color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={64} />
@@ -447,5 +609,99 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
+  },
+  aiCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  aiIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  aiHeaderText: {
+    flex: 1,
+  },
+  aiTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  aiSubtitle: {
+    fontSize: 13,
+  },
+  refreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonText: {
+    fontSize: 18,
+  },
+  analyzingContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  analyzingText: {
+    fontSize: 14,
+  },
+  aiContent: {
+    gap: 12,
+  },
+  analysisItem: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderLeftWidth: 4,
+  },
+  analysisHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  analysisLoanName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  analysisStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 8,
+  },
+  analysisStat: {
+    flex: 1,
+  },
+  analysisStatLabel: {
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  analysisStatValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  analysisRecommendation: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontStyle: 'italic' as const,
   },
 });
