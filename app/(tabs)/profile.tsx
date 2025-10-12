@@ -24,6 +24,8 @@ import {
   Palette,
   ChevronRight,
   Eye,
+  Sparkles,
+  CreditCard,
 } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useFinanceStore } from '@/store/finance-store';
@@ -268,6 +270,20 @@ export default function ProfileScreen() {
           title={t('financialGoals')}
           subtitle={language === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
           onPress={() => router.push('/financial-goals')}
+        />
+        
+        <MenuButton
+          icon={CreditCard}
+          title="Moje závazky"
+          subtitle={language === 'cs' ? 'Správa úvěrů a hypoték' : 'Manage loans and mortgages'}
+          onPress={() => router.push('/loans')}
+        />
+        
+        <MenuButton
+          icon={Sparkles}
+          title="AI Hledač půjček"
+          subtitle={language === 'cs' ? 'Najdi nejlepší nabídky na trhu' : 'Find the best offers on the market'}
+          onPress={() => router.push('/loan-finder')}
         />
         
         <MenuButton
