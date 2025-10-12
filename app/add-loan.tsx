@@ -18,6 +18,7 @@ import {
   GraduationCap,
   CreditCard,
   Palette,
+  Lock,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -38,6 +39,8 @@ export default function AddLoanScreen() {
   const [selectedColor, setSelectedColor] = useState<string>('#3B82F6');
   const [selectedEmoji, setSelectedEmoji] = useState<string>('💰');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isFixed, setIsFixed] = useState<boolean>(false);
+  const [fixedYears, setFixedYears] = useState<string>('');
 
   const loanTypes: Array<{ type: LoanType; label: string; icon: any; color: string }> = [
     { type: 'mortgage', label: 'Hypotéka', icon: Home, color: '#10B981' },
@@ -97,6 +100,15 @@ export default function AddLoanScreen() {
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - numPaidMonths);
 
+    let fixedEndDate: Date | undefined = undefined;
+    if (isFixed && fixedYears) {
+      const numFixedYears = parseInt(fixedYears, 10);
+      if (!isNaN(numFixedYears) && numFixedYears > 0) {
+        fixedEndDate = new Date(startDate);
+        fixedEndDate.setFullYear(fixedEndDate.getFullYear() + numFixedYears);
+      }
+    }
+
     const newLoan = {
       id: Date.now().toString(),
       loanType,
@@ -108,6 +120,9 @@ export default function AddLoanScreen() {
       startDate,
       color: selectedColor,
       emoji: selectedEmoji,
+      isFixed: isFixed,
+      fixedYears: isFixed && fixedYears ? parseInt(fixedYears, 10) : undefined,
+      fixedEndDate: fixedEndDate,
     };
 
     console.log('Adding loan:', newLoan);
@@ -315,6 +330,58 @@ export default function AddLoanScreen() {
             <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
               Toto pomůže správně vypočítat průběh splácení
             </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Fixace úrokové sazby
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.fixedToggle,
+                { backgroundColor: isDarkMode ? '#374151' : 'white' },
+                isFixed && { borderColor: '#667eea', borderWidth: 2 },
+              ]}
+              onPress={() => setIsFixed(!isFixed)}
+            >
+              <View style={styles.fixedToggleContent}>
+                <View style={[
+                  styles.fixedIcon,
+                  { backgroundColor: isFixed ? '#667eea20' : isDarkMode ? '#4B5563' : '#F3F4F6' }
+                ]}>
+                  <Lock color={isFixed ? '#667eea' : '#6B7280'} size={20} />
+                </View>
+                <View style={styles.fixedTextContainer}>
+                  <Text style={[styles.fixedLabel, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    Fixovaná úroková sazba
+                  </Text>
+                  <Text style={[styles.fixedDescription, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                    {isFixed ? 'Zapnuto' : 'Vypnuto'}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+            {isFixed && (
+              <View style={styles.fixedYearsContainer}>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                  Fixace na kolik let?
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
+                  ]}
+                  value={fixedYears}
+                  onChangeText={setFixedYears}
+                  placeholder="např. 3, 5, 10"
+                  keyboardType="numeric"
+                  placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                />
+                <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Zadejte počet let, na které je úroková sazba fixována
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -554,5 +621,47 @@ const styles = StyleSheet.create({
   },
   emojiText: {
     fontSize: 28,
+  },
+  fixedToggle: {
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  fixedToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fixedIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  fixedTextContainer: {
+    flex: 1,
+  },
+  fixedLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  fixedDescription: {
+    fontSize: 12,
+  },
+  fixedYearsContainer: {
+    marginTop: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
   },
 });

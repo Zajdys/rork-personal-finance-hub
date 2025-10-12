@@ -102,6 +102,9 @@ export interface LoanItem {
   name?: string;
   color?: string;
   emoji?: string;
+  isFixed?: boolean;
+  fixedYears?: number;
+  fixedEndDate?: Date;
 }
 
 interface FinanceState {

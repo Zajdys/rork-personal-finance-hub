@@ -20,6 +20,8 @@ import {
   Percent,
   CreditCard,
   Trash2,
+  Lock,
+  Unlock,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -235,11 +237,36 @@ export default function LoanDetailScreen() {
                 <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
                   Úroková sazba
                 </Text>
-                <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {loan.interestRate}% p.a.
-                </Text>
+                <View style={styles.interestRateRow}>
+                  <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    {loan.interestRate}% p.a.
+                  </Text>
+                  {loan.isFixed && (
+                    <View style={styles.fixedBadge}>
+                      <Lock color="#10B981" size={12} />
+                      <Text style={styles.fixedBadgeText}>Fixováno</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
+
+            {loan.isFixed && loan.fixedEndDate && (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIconContainer}>
+                  <Lock color="#667eea" size={20} />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                    Fixace do
+                  </Text>
+                  <Text style={[styles.detailValue, { color: '#10B981' }]}>
+                    {new Date(loan.fixedEndDate).toLocaleDateString('cs-CZ')}
+                    {loan.fixedYears && ` (${loan.fixedYears} ${loan.fixedYears === 1 ? 'rok' : loan.fixedYears < 5 ? 'roky' : 'let'})`}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             <View style={styles.detailRow}>
               <View style={styles.detailIconContainer}>
@@ -551,5 +578,24 @@ const styles = StyleSheet.create({
   },
   loanEmoji: {
     fontSize: 48,
+  },
+  interestRateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fixedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B98120',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  fixedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
   },
 });
