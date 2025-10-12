@@ -496,14 +496,17 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const totalMonths = loan.remainingMonths + paidMonths;
     const percentage = totalMonths > 0 ? Math.round((paidMonths / totalMonths) * 100) : 0;
     const totalPaid = paidMonths * loan.monthlyPayment;
-    const remainingAmount = loan.loanAmount - totalPaid;
+    
+    const remainingAmount = loan.currentBalance !== undefined 
+      ? loan.currentBalance 
+      : Math.max(0, loan.loanAmount - totalPaid);
 
     return {
       paidMonths,
       totalMonths,
       percentage,
       totalPaid,
-      remainingAmount: Math.max(0, remainingAmount),
+      remainingAmount,
     };
   },
 
