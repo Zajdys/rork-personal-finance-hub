@@ -500,7 +500,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     
     const paidMonths = Math.min(monthsPassed, loan.remainingMonths);
     const totalMonths = loan.remainingMonths + paidMonths;
-    const percentage = loan.loanAmount > 0 ? Math.round((totalPaid / loan.loanAmount) * 10000) / 100 : 0;
+    const percentage = loan.loanAmount > 0 ? Math.round((totalPaid / loan.loanAmount) * 100) : 0;
 
     return {
       paidMonths,
