@@ -87,6 +87,7 @@ export default function LoanDetailScreen() {
   };
 
   const handleDelete = () => {
+    console.log('Delete button pressed for loan:', loan.id);
     Alert.alert(
       'Smazat závazek',
       'Opravdu chcete smazat tento závazek?',
@@ -94,16 +95,20 @@ export default function LoanDetailScreen() {
         {
           text: 'Zrušit',
           style: 'cancel',
+          onPress: () => console.log('Delete cancelled'),
         },
         {
           text: 'Smazat',
           style: 'destructive',
           onPress: () => {
+            console.log('Deleting loan:', loan.id);
             deleteLoan(loan.id);
+            console.log('Loan deleted, navigating back');
             router.back();
           },
         },
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
