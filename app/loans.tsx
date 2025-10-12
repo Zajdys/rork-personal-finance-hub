@@ -34,47 +34,79 @@ export default function LoansScreen() {
   const [analyzingLoans, setAnalyzingLoans] = React.useState(false);
   const [loanAnalysis, setLoanAnalysis] = React.useState<Record<string, {
     currentRate: number;
-    marketAverage: number;
+    bestRate: number;
+    bestProvider: string;
     potentialSavings: number;
     recommendation: string;
     status: 'good' | 'average' | 'poor';
   }>>({});
 
   const analyzeLoan = async (loan: any) => {
-    const marketRates: Record<string, { min: number; avg: number; max: number }> = {
-      mortgage: { min: 4.5, avg: 5.8, max: 7.2 },
-      car: { min: 6.0, avg: 8.5, max: 12.0 },
-      personal: { min: 8.0, avg: 12.5, max: 18.0 },
-      student: { min: 3.5, avg: 5.0, max: 7.5 },
-      other: { min: 7.0, avg: 10.0, max: 15.0 },
+    const bestOffers: Record<string, Array<{ provider: string; rate: number }>> = {
+      mortgage: [
+        { provider: 'Česká spořitelna', rate: 4.49 },
+        { provider: 'Raiffeisenbank', rate: 4.59 },
+        { provider: 'ČSOB', rate: 4.69 },
+        { provider: 'Komerční banka', rate: 4.79 },
+        { provider: 'mBank', rate: 4.89 },
+      ],
+      car: [
+        { provider: 'Raiffeisenbank', rate: 5.99 },
+        { provider: 'ČSOB', rate: 6.49 },
+        { provider: 'Česká spořitelna', rate: 6.79 },
+        { provider: 'UniCredit Bank', rate: 6.99 },
+        { provider: 'Komerční banka', rate: 7.29 },
+      ],
+      personal: [
+        { provider: 'Air Bank', rate: 7.90 },
+        { provider: 'mBank', rate: 8.20 },
+        { provider: 'Raiffeisenbank', rate: 8.49 },
+        { provider: 'ČSOB', rate: 8.99 },
+        { provider: 'Česká spořitelna', rate: 9.49 },
+      ],
+      student: [
+        { provider: 'ČSOB', rate: 3.49 },
+        { provider: 'Česká spořitelna', rate: 3.79 },
+        { provider: 'Komerční banka', rate: 3.99 },
+        { provider: 'Raiffeisenbank', rate: 4.29 },
+      ],
+      other: [
+        { provider: 'Air Bank', rate: 6.90 },
+        { provider: 'mBank', rate: 7.20 },
+        { provider: 'Raiffeisenbank', rate: 7.49 },
+        { provider: 'ČSOB', rate: 7.99 },
+      ],
     };
 
-    const market = marketRates[loan.loanType] || marketRates.other;
+    const offers = bestOffers[loan.loanType] || bestOffers.other;
+    const bestOffer = offers[0];
     const currentRate = loan.interestRate;
-    const marketAverage = market.avg;
+    const bestRate = bestOffer.rate;
+    const bestProvider = bestOffer.provider;
     
     let status: 'good' | 'average' | 'poor';
     let recommendation: string;
     
-    if (currentRate <= market.min + 0.5) {
+    if (currentRate <= bestRate + 0.3) {
       status = 'good';
-      recommendation = 'Máte výbornou sazbu! Refinancování se nevyplatí.';
-    } else if (currentRate <= marketAverage) {
+      recommendation = `Máte výbornou sazbu! Aktuálně nejlepší nabídka je ${bestRate}% u ${bestProvider}.`;
+    } else if (currentRate <= bestRate + 1.0) {
       status = 'average';
-      recommendation = 'Vaše sazba je průměrná. Můžete zkusit vyjednat lepší podmínky.';
+      recommendation = `Můžete ušetřit! ${bestProvider} nabízí ${bestRate}%. Zvažte refinancování.`;
     } else {
       status = 'poor';
-      recommendation = 'Vaše sazba je nad průměrem. Zvažte refinancování!';
+      recommendation = `Přeplácíte! ${bestProvider} nabízí ${bestRate}%. Refinancování se vyplatí!`;
     }
     
     const progress = getLoanProgress(loan.id);
     const remainingMonths = loan.remainingMonths;
-    const monthlyPaymentDiff = (currentRate - marketAverage) / 100 / 12 * progress.remainingAmount;
+    const monthlyPaymentDiff = (currentRate - bestRate) / 100 / 12 * progress.remainingAmount;
     const potentialSavings = Math.max(0, monthlyPaymentDiff * remainingMonths);
     
     return {
       currentRate,
-      marketAverage,
+      bestRate,
+      bestProvider,
       potentialSavings: Math.round(potentialSavings),
       recommendation,
       status,
@@ -199,7 +231,7 @@ export default function LoansScreen() {
                     AI Analýza úvěrů
                   </Text>
                   <Text style={[styles.aiSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Porovnání s aktuálními tržními sazbami
+                    Najdeme pro vás nejlepší nabídky na trhu
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -249,10 +281,10 @@ export default function LoansScreen() {
                           </View>
                           <View style={styles.analysisStat}>
                             <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                              Tržní průměr
+                              Nejlepší nabídka
                             </Text>
-                            <Text style={[styles.analysisStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                              {analysis.marketAverage}%
+                            <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
+                              {analysis.bestRate}%
                             </Text>
                           </View>
                           {analysis.potentialSavings > 0 && (
@@ -265,6 +297,14 @@ export default function LoansScreen() {
                               </Text>
                             </View>
                           )}
+                        </View>
+                        <View style={styles.bestProviderContainer}>
+                          <Text style={[styles.bestProviderLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                            💡 Nejlepší nabídka:
+                          </Text>
+                          <Text style={[styles.bestProviderValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                            {analysis.bestProvider}
+                          </Text>
                         </View>
                         <Text style={[styles.analysisRecommendation, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
                           {analysis.recommendation}
@@ -703,5 +743,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontStyle: 'italic' as const,
+  },
+  bestProviderContainer: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bestProviderLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bestProviderValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
