@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -138,23 +139,29 @@ export default function LoansScreen() {
   }, [loans]);
 
   const handleDeleteLoan = (loanId: string, loanName: string) => {
-    Alert.alert(
-      'Smazat závazek',
-      `Opravdu chcete smazat závazek "${loanName}"?`,
-      [
-        {
-          text: 'Zrušit',
-          style: 'cancel',
-        },
-        {
-          text: 'Smazat',
-          style: 'destructive',
-          onPress: () => {
-            deleteLoan(loanId);
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Opravdu chcete smazat závazek "${loanName}"?`)) {
+        deleteLoan(loanId);
+      }
+    } else {
+      Alert.alert(
+        'Smazat závazek',
+        `Opravdu chcete smazat závazek "${loanName}"?`,
+        [
+          {
+            text: 'Zrušit',
+            style: 'cancel',
           },
-        },
-      ]
-    );
+          {
+            text: 'Smazat',
+            style: 'destructive',
+            onPress: () => {
+              deleteLoan(loanId);
+            },
+          },
+        ]
+      );
+    }
   };
 
   const getLoanIcon = (type: LoanType) => {

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -91,28 +92,39 @@ export default function LoanDetailScreen() {
 
   const handleDelete = () => {
     console.log('Delete button pressed for loan:', loan.id);
-    Alert.alert(
-      'Smazat závazek',
-      'Opravdu chcete smazat tento závazek?',
-      [
-        {
-          text: 'Zrušit',
-          style: 'cancel',
-          onPress: () => console.log('Delete cancelled'),
-        },
-        {
-          text: 'Smazat',
-          style: 'destructive',
-          onPress: () => {
-            console.log('Deleting loan:', loan.id);
-            deleteLoan(loan.id);
-            console.log('Loan deleted, navigating back');
-            router.back();
+    if (Platform.OS === 'web') {
+      if (window.confirm('Opravdu chcete smazat tento závazek?')) {
+        console.log('Deleting loan:', loan.id);
+        deleteLoan(loan.id);
+        console.log('Loan deleted, navigating back');
+        router.back();
+      } else {
+        console.log('Delete cancelled');
+      }
+    } else {
+      Alert.alert(
+        'Smazat závazek',
+        'Opravdu chcete smazat tento závazek?',
+        [
+          {
+            text: 'Zrušit',
+            style: 'cancel',
+            onPress: () => console.log('Delete cancelled'),
           },
-        },
-      ],
-      { cancelable: true }
-    );
+          {
+            text: 'Smazat',
+            style: 'destructive',
+            onPress: () => {
+              console.log('Deleting loan:', loan.id);
+              deleteLoan(loan.id);
+              console.log('Loan deleted, navigating back');
+              router.back();
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    }
   };
 
   const LoanIcon = getLoanTypeIcon(loan.loanType);
