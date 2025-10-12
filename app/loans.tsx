@@ -22,6 +22,8 @@ import {
   TrendingDown,
   AlertCircle,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -32,6 +34,7 @@ export default function LoansScreen() {
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const currentCurrency = getCurrentCurrency();
   const [analyzingLoans, setAnalyzingLoans] = React.useState(false);
+  const [isAnalysisExpanded, setIsAnalysisExpanded] = React.useState(false);
   const [loanAnalysis, setLoanAnalysis] = React.useState<Record<string, {
     currentRate: number;
     bestRate: number;
@@ -222,7 +225,11 @@ export default function LoansScreen() {
         <View style={styles.content}>
           {loans.length > 0 && (
             <View style={[styles.aiCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <View style={styles.aiHeader}>
+              <TouchableOpacity 
+                style={styles.aiHeader}
+                onPress={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.aiIconContainer}>
                   <Sparkles color="#F59E0B" size={24} />
                 </View>
@@ -234,85 +241,97 @@ export default function LoansScreen() {
                     Najdeme pro vás nejlepší nabídky na trhu
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.refreshButton}
-                  onPress={analyzeAllLoans}
-                  disabled={analyzingLoans}
-                >
-                  <Text style={styles.refreshButtonText}>
-                    {analyzingLoans ? '...' : '🔄'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              {analyzingLoans ? (
-                <View style={styles.analyzingContainer}>
-                  <Text style={[styles.analyzingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Analyzuji vaše úvěry...
-                  </Text>
+                <View style={styles.aiHeaderActions}>
+                  <TouchableOpacity
+                    style={styles.refreshButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      analyzeAllLoans();
+                    }}
+                    disabled={analyzingLoans}
+                  >
+                    <Text style={styles.refreshButtonText}>
+                      {analyzingLoans ? '...' : '🔄'}
+                    </Text>
+                  </TouchableOpacity>
+                  {isAnalysisExpanded ? (
+                    <ChevronUp color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={24} />
+                  ) : (
+                    <ChevronDown color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={24} />
+                  )}
                 </View>
-              ) : (
-                <View style={styles.aiContent}>
-                  {loans.map((loan) => {
-                    const analysis = loanAnalysis[loan.id];
-                    if (!analysis) return null;
-                    
-                    const StatusIcon = analysis.status === 'good' ? CheckCircle : 
-                                     analysis.status === 'average' ? AlertCircle : TrendingDown;
-                    const statusColor = analysis.status === 'good' ? '#10B981' : 
-                                      analysis.status === 'average' ? '#F59E0B' : '#EF4444';
-                    
-                    return (
-                      <View key={loan.id} style={[styles.analysisItem, { borderLeftColor: statusColor }]}>
-                        <View style={styles.analysisHeader}>
-                          <Text style={[styles.analysisLoanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                            {loan.name || getLoanTypeLabel(loan.loanType)}
-                          </Text>
-                          <StatusIcon color={statusColor} size={20} />
-                        </View>
-                        <View style={styles.analysisStats}>
-                          <View style={styles.analysisStat}>
-                            <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                              Vaše sazba
+              </TouchableOpacity>
+              
+              {isAnalysisExpanded && (
+                analyzingLoans ? (
+                  <View style={styles.analyzingContainer}>
+                    <Text style={[styles.analyzingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                      Analyzuji vaše úvěry...
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.aiContent}>
+                    {loans.map((loan) => {
+                      const analysis = loanAnalysis[loan.id];
+                      if (!analysis) return null;
+                      
+                      const StatusIcon = analysis.status === 'good' ? CheckCircle : 
+                                       analysis.status === 'average' ? AlertCircle : TrendingDown;
+                      const statusColor = analysis.status === 'good' ? '#10B981' : 
+                                        analysis.status === 'average' ? '#F59E0B' : '#EF4444';
+                      
+                      return (
+                        <View key={loan.id} style={[styles.analysisItem, { borderLeftColor: statusColor }]}>
+                          <View style={styles.analysisHeader}>
+                            <Text style={[styles.analysisLoanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                              {loan.name || getLoanTypeLabel(loan.loanType)}
                             </Text>
-                            <Text style={[styles.analysisStatValue, { color: statusColor }]}>
-                              {analysis.currentRate}%
-                            </Text>
+                            <StatusIcon color={statusColor} size={20} />
                           </View>
-                          <View style={styles.analysisStat}>
-                            <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                              Nejlepší nabídka
-                            </Text>
-                            <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
-                              {analysis.bestRate}%
-                            </Text>
-                          </View>
-                          {analysis.potentialSavings > 0 && (
+                          <View style={styles.analysisStats}>
                             <View style={styles.analysisStat}>
                               <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                                Možná úspora
+                                Vaše sazba
                               </Text>
-                              <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
-                                {analysis.potentialSavings.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                              <Text style={[styles.analysisStatValue, { color: statusColor }]}>
+                                {analysis.currentRate}%
                               </Text>
                             </View>
-                          )}
-                        </View>
-                        <View style={styles.bestProviderContainer}>
-                          <Text style={[styles.bestProviderLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                            💡 Nejlepší nabídka:
+                            <View style={styles.analysisStat}>
+                              <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                                Nejlepší nabídka
+                              </Text>
+                              <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
+                                {analysis.bestRate}%
+                              </Text>
+                            </View>
+                            {analysis.potentialSavings > 0 && (
+                              <View style={styles.analysisStat}>
+                                <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                                  Možná úspora
+                                </Text>
+                                <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
+                                  {analysis.potentialSavings.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.bestProviderContainer}>
+                            <Text style={[styles.bestProviderLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                              💡 Nejlepší nabídka:
+                            </Text>
+                            <Text style={[styles.bestProviderValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                              {analysis.bestProvider}
+                            </Text>
+                          </View>
+                          <Text style={[styles.analysisRecommendation, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                            {analysis.recommendation}
                           </Text>
-                          <Text style={[styles.bestProviderValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                            {analysis.bestProvider}
-                          </Text>
                         </View>
-                        <Text style={[styles.analysisRecommendation, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                          {analysis.recommendation}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
+                      );
+                    })}
+                  </View>
+                )
               )}
             </View>
           )}
@@ -663,7 +682,6 @@ const styles = StyleSheet.create({
   aiHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
   },
   aiIconContainer: {
     width: 48,
@@ -685,6 +703,11 @@ const styles = StyleSheet.create({
   aiSubtitle: {
     fontSize: 13,
   },
+  aiHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   refreshButton: {
     width: 36,
     height: 36,
@@ -705,6 +728,7 @@ const styles = StyleSheet.create({
   },
   aiContent: {
     gap: 12,
+    marginTop: 16,
   },
   analysisItem: {
     padding: 16,
