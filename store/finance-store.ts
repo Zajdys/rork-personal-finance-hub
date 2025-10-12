@@ -105,6 +105,7 @@ export interface LoanItem {
   isFixed?: boolean;
   fixedYears?: number;
   fixedEndDate?: Date;
+  currentBalance?: number;
 }
 
 interface FinanceState {
@@ -583,6 +584,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           loans = JSON.parse(loansData).map((l: any) => ({
             ...l,
             startDate: new Date(l.startDate),
+            fixedEndDate: l.fixedEndDate ? new Date(l.fixedEndDate) : undefined,
           }));
         } catch (error) {
           console.error('Failed to parse loans data:', error, 'Data:', loansData);

@@ -41,6 +41,7 @@ export default function AddLoanScreen() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isFixed, setIsFixed] = useState<boolean>(false);
   const [fixedYears, setFixedYears] = useState<string>('');
+  const [currentBalance, setCurrentBalance] = useState<string>('');
 
   const loanTypes: Array<{ type: LoanType; label: string; icon: any; color: string }> = [
     { type: 'mortgage', label: 'Hypotéka', icon: Home, color: '#10B981' },
@@ -66,7 +67,7 @@ export default function AddLoanScreen() {
       return;
     }
 
-    console.log('Submit clicked', { loanAmount, interestRate, monthlyPayment, remainingMonths });
+    console.log('Submit clicked', { loanAmount, interestRate, monthlyPayment, remainingMonths, currentBalance });
     
     if (!loanAmount || !interestRate || !monthlyPayment || !remainingMonths) {
       Alert.alert('Chyba', 'Vyplňte prosím všechna povinná pole (výše úvěru, úroková sazba, měsíční splátka, zbývá měsíců)');
@@ -78,6 +79,7 @@ export default function AddLoanScreen() {
     const numMonthlyPayment = parseFloat(monthlyPayment.replace(',', '.'));
     const numRemainingMonths = parseInt(remainingMonths, 10);
     const numPaidMonths = parseInt(paidMonths || '0', 10);
+    const numCurrentBalance = currentBalance ? parseFloat(currentBalance.replace(',', '.')) : undefined;
 
     console.log('Parsed values:', { numLoanAmount, numInterestRate, numMonthlyPayment, numRemainingMonths, numPaidMonths });
 
@@ -123,6 +125,7 @@ export default function AddLoanScreen() {
       isFixed: isFixed,
       fixedYears: isFixed && fixedYears ? parseInt(fixedYears, 10) : undefined,
       fixedEndDate: fixedEndDate,
+      currentBalance: numCurrentBalance,
     };
 
     console.log('Adding loan:', newLoan);
@@ -329,6 +332,32 @@ export default function AddLoanScreen() {
             />
             <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
               Toto pomůže správně vypočítat průběh splácení
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Aktuální zůstatek dluhu (volitelné)
+            </Text>
+            <View style={styles.inputWithCurrency}>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.inputFlex,
+                  { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
+                ]}
+                value={currentBalance}
+                onChangeText={setCurrentBalance}
+                placeholder="0"
+                keyboardType="numeric"
+                placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+              />
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                {currentCurrency.symbol}
+              </Text>
+            </View>
+            <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              Kolik aktuálně zbývá splatit (pokud se liší od původní výše)
             </Text>
           </View>
 
