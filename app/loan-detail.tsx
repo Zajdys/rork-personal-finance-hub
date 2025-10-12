@@ -144,15 +144,22 @@ export default function LoanDetailScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-            <View style={styles.iconCircle}>
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                style={styles.iconGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <LoanIcon color="white" size={40} />
-              </LinearGradient>
+            <View style={[
+              styles.iconCircle,
+              { backgroundColor: loan.color ? loan.color + '20' : undefined }
+            ]}>
+              {loan.emoji ? (
+                <Text style={styles.loanEmoji}>{loan.emoji}</Text>
+              ) : (
+                <LinearGradient
+                  colors={['#667eea', '#764ba2']}
+                  style={styles.iconGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <LoanIcon color="white" size={40} />
+                </LinearGradient>
+              )}
             </View>
             <Text style={[styles.loanTypeText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {getLoanTypeLabel(loan.loanType)}
@@ -378,6 +385,8 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     overflow: 'hidden',
     marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconGradient: {
     width: '100%',
@@ -534,5 +543,8 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loanEmoji: {
+    fontSize: 48,
   },
 });

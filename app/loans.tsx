@@ -128,8 +128,15 @@ export default function LoansScreen() {
                   onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
                 >
                   <View style={styles.loanHeader}>
-                    <View style={[styles.loanIconContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
-                      <LoanIcon color="#667eea" size={28} />
+                    <View style={[
+                      styles.loanIconContainer,
+                      { backgroundColor: loan.color ? loan.color + '20' : (isDarkMode ? '#4B5563' : '#F3F4F6') }
+                    ]}>
+                      {loan.emoji ? (
+                        <Text style={styles.loanEmoji}>{loan.emoji}</Text>
+                      ) : (
+                        <LoanIcon color={loan.color || '#667eea'} size={28} />
+                      )}
                     </View>
                     <View style={styles.loanInfo}>
                       <Text style={[styles.loanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
@@ -388,5 +395,8 @@ const styles = StyleSheet.create({
   },
   progressStat: {
     fontSize: 12,
+  },
+  loanEmoji: {
+    fontSize: 32,
   },
 });

@@ -17,6 +17,7 @@ import {
   DollarSign,
   GraduationCap,
   CreditCard,
+  Palette,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -34,6 +35,8 @@ export default function AddLoanScreen() {
   const [monthlyPayment, setMonthlyPayment] = useState<string>('');
   const [remainingMonths, setRemainingMonths] = useState<string>('');
   const [paidMonths, setPaidMonths] = useState<string>('0');
+  const [selectedColor, setSelectedColor] = useState<string>('#3B82F6');
+  const [selectedEmoji, setSelectedEmoji] = useState<string>('💰');
 
   const loanTypes: Array<{ type: LoanType; label: string; icon: any; color: string }> = [
     { type: 'mortgage', label: 'Hypotéka', icon: Home, color: '#10B981' },
@@ -41,6 +44,16 @@ export default function AddLoanScreen() {
     { type: 'personal', label: 'Osobní úvěr', icon: DollarSign, color: '#8B5CF6' },
     { type: 'student', label: 'Studentský úvěr', icon: GraduationCap, color: '#F59E0B' },
     { type: 'other', label: 'Jiný úvěr', icon: CreditCard, color: '#6B7280' },
+  ];
+
+  const availableColors = [
+    '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+  ];
+
+  const availableEmojis = [
+    '💰', '🏠', '🚗', '🎓', '💳', '📱', '🏦', '💵',
+    '🏡', '🚙', '📚', '🎯', '💎', '🔑', '🏢', '🛒',
   ];
 
   const handleSubmit = () => {
@@ -85,6 +98,8 @@ export default function AddLoanScreen() {
       monthlyPayment: numMonthlyPayment,
       remainingMonths: numRemainingMonths,
       startDate,
+      color: selectedColor,
+      emoji: selectedEmoji,
     };
 
     console.log('Adding loan:', newLoan);
@@ -302,6 +317,53 @@ export default function AddLoanScreen() {
             </Text>
           </View>
 
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Barva
+            </Text>
+            <View style={styles.colorGrid}>
+              {availableColors.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: color },
+                    selectedColor === color && styles.colorOptionSelected,
+                  ]}
+                  onPress={() => setSelectedColor(color)}
+                >
+                  {selectedColor === color && (
+                    <Palette color="white" size={20} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              Emoji
+            </Text>
+            <View style={styles.emojiGrid}>
+              {availableEmojis.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={[
+                    styles.emojiOption,
+                    { backgroundColor: isDarkMode ? '#374151' : 'white' },
+                    selectedEmoji === emoji && {
+                      borderColor: selectedColor,
+                      borderWidth: 2,
+                    },
+                  ]}
+                  onPress={() => setSelectedEmoji(emoji)}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <LinearGradient
               colors={['#667eea', '#764ba2']}
@@ -440,5 +502,48 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: 'white',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  colorOption: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  colorOptionSelected: {
+    borderWidth: 3,
+    borderColor: 'white',
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  emojiOption: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  emojiText: {
+    fontSize: 28,
   },
 });

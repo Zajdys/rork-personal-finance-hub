@@ -100,6 +100,8 @@ export interface LoanItem {
   remainingMonths: number;
   startDate: Date;
   name?: string;
+  color?: string;
+  emoji?: string;
 }
 
 interface FinanceState {
