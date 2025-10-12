@@ -22,6 +22,7 @@ import {
   Trash2,
   Lock,
   Unlock,
+  Edit3,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -139,12 +140,20 @@ export default function LoanDetailScreen() {
             </Text>
             <Text style={styles.headerSubtitle}>Detail závazku</Text>
           </View>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={handleDelete}
-          >
-            <Trash2 color="white" size={20} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => router.push(`/edit-loan?id=${loan.id}`)}
+            >
+              <Edit3 color="white" size={20} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDelete}
+            >
+              <Trash2 color="white" size={20} />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
@@ -385,6 +394,18 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.9,
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deleteButton: {
     width: 40,
