@@ -342,73 +342,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {loans.length > 0 && (
-        <View style={styles.loansOverviewContainer}>
-          <View style={styles.loansOverviewHeader}>
-            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>Moje závazky</Text>
-          </View>
-          <View style={styles.loansGrid}>
-            {loans.map((loan) => {
-              const progress = getLoanProgress(loan.id);
-              return (
-                <TouchableOpacity
-                  key={loan.id}
-                  style={[styles.loanCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-                  onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
-                >
-                  <View style={styles.loanHeader}>
-                    <View style={[styles.loanIconContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
-                      <Text style={styles.loanIcon}>{getLoanIcon(loan.loanType)}</Text>
-                    </View>
-                    <View style={styles.loanInfo}>
-                      <Text style={[styles.loanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {loan.name || getLoanTypeLabel(loan.loanType)}
-                      </Text>
-                      <Text style={[styles.loanType, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        {getLoanTypeLabel(loan.loanType)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.loanDetails}>
-                    <View style={styles.loanDetailRow}>
-                      <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Měsíční splátka</Text>
-                      <Text style={[styles.loanDetailValue, { color: '#EF4444' }]}>
-                        {loan.monthlyPayment.toLocaleString('cs-CZ')} {currentCurrency.symbol}
-                      </Text>
-                    </View>
-                    <View style={styles.loanDetailRow}>
-                      <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Úroková sazba</Text>
-                      <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {loan.interestRate}%
-                      </Text>
-                    </View>
-                    <View style={styles.loanDetailRow}>
-                      <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zbývá měsíců</Text>
-                      <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {loan.remainingMonths}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.loanProgressContainer}>
-                    <View style={styles.loanProgressHeader}>
-                      <Text style={[styles.loanProgressLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Splaceno</Text>
-                      <Text style={[styles.loanProgressPercentage, { color: '#10B981' }]}>{progress.percentage}%</Text>
-                    </View>
-                    <View style={[styles.loanProgressBarBackground, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
-                      <LinearGradient
-                        colors={['#10B981', '#059669']}
-                        style={[styles.loanProgressBar, { width: `${progress.percentage}%` }]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                      />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-      )}
+
 
 
 
