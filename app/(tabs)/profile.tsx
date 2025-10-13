@@ -26,6 +26,7 @@ import {
   Eye,
   Sparkles,
   CreditCard,
+  Users,
 } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useFinanceStore } from '@/store/finance-store';
@@ -263,6 +264,13 @@ export default function ProfileScreen() {
           title="Můj účet"
           subtitle={language === 'cs' ? 'Správa profilu a předplatného' : 'Profile and subscription management'}
           onPress={() => router.push('/account')}
+        />
+        
+        <MenuButton
+          icon={Users}
+          title={language === 'cs' ? 'Přátelé' : 'Friends'}
+          subtitle={language === 'cs' ? 'Přidej přátele a porovnej se' : 'Add friends and compare'}
+          onPress={() => router.push('/friends')}
         />
         
         <MenuButton

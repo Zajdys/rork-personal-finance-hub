@@ -88,6 +88,8 @@ async function migratePg(client: PGClient) {
       id uuid primary key default gen_random_uuid(),
       email text unique not null,
       password_hash text not null,
+      username text unique,
+      display_name text,
       created_at timestamptz default now()
     );
     create table if not exists sessions (
@@ -147,6 +149,18 @@ async function migratePg(client: PGClient) {
       rate numeric not null,
       unique(date, base, quote)
     );
+    create table if not exists friendships (
+      id serial primary key,
+      user_id text not null,
+      friend_id text not null,
+      status text not null default 'pending',
+      created_at timestamptz default now(),
+      updated_at timestamptz default now(),
+      unique(user_id, friend_id)
+    );
+    create index if not exists idx_friendships_user_id on friendships(user_id);
+    create index if not exists idx_friendships_friend_id on friendships(friend_id);
+    create index if not exists idx_friendships_status on friendships(status);
   `);
 }
 
@@ -156,6 +170,8 @@ function migrateSqlJs(db: Database) {
       id text primary key,
       email text unique not null,
       password_hash text not null,
+      username text unique,
+      display_name text,
       created_at text default (datetime('now'))
     );
   `);
@@ -226,6 +242,20 @@ function migrateSqlJs(db: Database) {
       unique(date, base, quote)
     );
   `);
+  db.run(`
+    create table if not exists friendships (
+      id integer primary key autoincrement,
+      user_id text not null,
+      friend_id text not null,
+      status text not null default 'pending',
+      created_at text default (datetime('now')),
+      updated_at text default (datetime('now')),
+      unique(user_id, friend_id)
+    );
+  `);
+  db.run(`create index if not exists idx_friendships_user_id on friendships(user_id);`);
+  db.run(`create index if not exists idx_friendships_friend_id on friendships(friend_id);`);
+  db.run(`create index if not exists idx_friendships_status on friendships(status);`);
 }
 
 function sqlToPg(sql: string) {

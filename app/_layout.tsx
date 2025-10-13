@@ -8,6 +8,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { AuthProvider, useAuth } from '@/store/auth-store';
+import { FriendsProvider } from '@/store/friends-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
 import { StyleSheet, Text, View } from 'react-native';
@@ -151,6 +152,8 @@ function RootLayoutNav() {
       <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
       <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview' }} />
       <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
+      <Stack.Screen name="friends" options={{ title: 'Přátelé' }} />
+      <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání' }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
@@ -235,9 +238,11 @@ export default function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <GestureHandlerRootView style={styles.container}>
-              <RootLayoutNav />
-            </GestureHandlerRootView>
+            <FriendsProvider>
+              <GestureHandlerRootView style={styles.container}>
+                <RootLayoutNav />
+              </GestureHandlerRootView>
+            </FriendsProvider>
           </AuthProvider>
         </QueryClientProvider>
       </trpc.Provider>
