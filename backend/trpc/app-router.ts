@@ -10,6 +10,7 @@ import { rejectFriendRequestProcedure } from "./routes/friends/reject-request/ro
 import { removeFriendProcedure } from "./routes/friends/remove/route";
 import { listFriendsProcedure } from "./routes/friends/list/route";
 import { listPendingRequestsProcedure } from "./routes/friends/pending/route";
+import { sendSupportNotificationProcedure } from "./routes/support/send-notification/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -28,6 +29,9 @@ export const appRouter = createTRPCRouter({
     remove: removeFriendProcedure,
     list: listFriendsProcedure,
     pending: listPendingRequestsProcedure,
+  }),
+  support: createTRPCRouter({
+    sendNotification: sendSupportNotificationProcedure,
   }),
 });
 

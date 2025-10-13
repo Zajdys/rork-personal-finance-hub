@@ -8,7 +8,7 @@ import {
   Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { 
   HelpCircle, 
   MessageCircle, 
@@ -19,6 +19,8 @@ import {
 } from 'lucide-react-native';
 
 export default function HelpSupportScreen() {
+  const router = useRouter();
+  
   const HelpItem = ({ icon: Icon, title, subtitle, onPress }: any) => (
     <TouchableOpacity style={styles.helpItem} onPress={onPress}>
       <View style={styles.helpContent}>
@@ -79,7 +81,7 @@ export default function HelpSupportScreen() {
             icon={MessageCircle}
             title="Live chat"
             subtitle="Okamžitá pomoc online"
-            onPress={() => console.log('Live chat')}
+            onPress={() => router.push('/support-chat')}
           />
 
           <HelpItem
