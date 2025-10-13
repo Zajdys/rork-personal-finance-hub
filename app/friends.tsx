@@ -19,6 +19,7 @@ import {
   Check,
   Trash2,
   ChevronRight,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -268,6 +269,14 @@ export default function FriendsScreen() {
             backgroundColor: isDarkMode ? '#1F2937' : 'white',
           },
           headerTintColor: isDarkMode ? 'white' : '#1F2937',
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ marginLeft: 16 }}
+            >
+              <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={24} />
+            </TouchableOpacity>
+          ),
         }}
       />
 
