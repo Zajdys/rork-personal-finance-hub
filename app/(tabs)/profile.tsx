@@ -27,6 +27,9 @@ import {
   Sparkles,
   CreditCard,
   Users,
+  Trophy,
+  Zap,
+  Flame,
 } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useFinanceStore } from '@/store/finance-store';
@@ -70,7 +73,7 @@ const getAchievements = (t: any) => [
 ];
 
 export default function ProfileScreen() {
-  const { level, points, completedLessons } = useBuddyStore();
+  const { level, points, completedLessons, gamingStats, getBuddyScore } = useBuddyStore();
   const { totalTransactions, totalIncome } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
   const { t, language } = useLanguageStore();
@@ -88,6 +91,9 @@ export default function ProfileScreen() {
 
   const pointsToNextLevel = (level * 100) - (points % 100);
   const progressToNextLevel = ((points % 100) / 100) * 100;
+  const buddyScore = getBuddyScore();
+  const personalityType = gamingStats.personality.type;
+  const personalityLabel = personalityType === 'analyst' ? '🧊 Analytik' : personalityType === 'motivator' ? '🔥 Motivátor' : '⚖️ Vyvážený';
 
   const StatCard = ({ title, value, subtitle, color }: any) => (
     <View style={styles.statCard}>
@@ -219,11 +225,83 @@ export default function ProfileScreen() {
           color={['#10B981', '#059669']}
         />
         <StatCard
-          title={t('lessons')}
-          value={completedLessons.length}
-          subtitle={t('completed')}
-          color={['#8B5CF6', '#7C3AED']}
+          title={language === 'cs' ? 'Buddy Score' : 'Buddy Score'}
+          value={buddyScore}
+          subtitle={language === 'cs' ? 'Celkové skóre' : 'Total score'}
+          color={['#F59E0B', '#D97706']}
         />
+      </View>
+
+      {/* Gaming Stats */}
+      <View style={styles.gamingStatsContainer}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+          {language === 'cs' ? 'Herní statistiky' : 'Gaming Stats'}
+        </Text>
+        <View style={styles.gamingStatsGrid}>
+          <TouchableOpacity 
+            style={[styles.gamingStatCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+            onPress={() => router.push('/badges')}
+          >
+            <Award color="#667eea" size={32} />
+            <Text style={[styles.gamingStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {gamingStats.badges.length}
+            </Text>
+            <Text style={[styles.gamingStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              {language === 'cs' ? 'Odznaky' : 'Badges'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.gamingStatCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+            onPress={() => router.push('/quests')}
+          >
+            <Target color="#10B981" size={32} />
+            <Text style={[styles.gamingStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {gamingStats.quests.filter(q => q.completed).length}
+            </Text>
+            <Text style={[styles.gamingStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              {language === 'cs' ? 'Questy' : 'Quests'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.gamingStatCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+            onPress={() => router.push('/hall-of-fame')}
+          >
+            <Trophy color="#F59E0B" size={32} />
+            <Text style={[styles.gamingStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {gamingStats.streak}
+            </Text>
+            <Text style={[styles.gamingStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              {language === 'cs' ? 'Streak' : 'Streak'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={[styles.gamingStatCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+            <Zap color="#8B5CF6" size={32} />
+            <Text style={[styles.gamingStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {gamingStats.coins}
+            </Text>
+            <Text style={[styles.gamingStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+              {language === 'cs' ? 'Coins' : 'Coins'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.personalityCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+          <Flame color="#EF4444" size={24} />
+          <View style={styles.personalityContent}>
+            <Text style={[styles.personalityLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              {language === 'cs' ? 'Tvůj typ osobnosti' : 'Your personality type'}
+            </Text>
+            <Text style={[styles.personalityValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {personalityLabel}
+            </Text>
+          </View>
+          <Text style={[styles.personalityBonus, { color: isDarkMode ? '#10B981' : '#059669' }]}>
+            +{(gamingStats.personality.xpBonus * 100).toFixed(0)}% XP
+          </Text>
+        </View>
       </View>
 
       {/* Financial Recommendations */}
@@ -253,6 +331,32 @@ export default function ProfileScreen() {
             <AchievementCard key={achievement.id} achievement={achievement} />
           ))}
         </View>
+      </View>
+
+      {/* Gaming Features */}
+      <View style={styles.menuContainer}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{language === 'cs' ? 'Herní funkce' : 'Gaming Features'}</Text>
+        
+        <MenuButton
+          icon={Award}
+          title={language === 'cs' ? 'Odznaky' : 'Badges'}
+          subtitle={language === 'cs' ? `${gamingStats.badges.length} odemčených odznaků` : `${gamingStats.badges.length} unlocked badges`}
+          onPress={() => router.push('/badges')}
+        />
+        
+        <MenuButton
+          icon={Target}
+          title={language === 'cs' ? 'Questy' : 'Quests'}
+          subtitle={language === 'cs' ? 'Denní, týdenní a měsíční výzvy' : 'Daily, weekly and monthly challenges'}
+          onPress={() => router.push('/quests')}
+        />
+        
+        <MenuButton
+          icon={Trophy}
+          title={language === 'cs' ? 'Síň slávy' : 'Hall of Fame'}
+          subtitle={language === 'cs' ? 'Top hráči sezóny' : 'Top players of the season'}
+          onPress={() => router.push('/hall-of-fame')}
+        />
       </View>
 
       {/* Features */}
@@ -612,5 +716,65 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.8,
     textAlign: 'center',
+  },
+  gamingStatsContainer: {
+    marginHorizontal: 20,
+    marginBottom: 32,
+  },
+  gamingStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  gamingStatCard: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  gamingStatValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  gamingStatLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  personalityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  personalityContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  personalityLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  personalityValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  personalityBonus: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
