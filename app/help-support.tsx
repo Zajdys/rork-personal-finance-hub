@@ -13,7 +13,6 @@ import {
   HelpCircle, 
   MessageCircle, 
   Mail, 
-  Phone, 
   ExternalLink,
   BookOpen,
   ChevronRight 
@@ -86,15 +85,8 @@ export default function HelpSupportScreen() {
           <HelpItem
             icon={Mail}
             title="Email podpora"
-            subtitle="support@moneybuddy.cz"
-            onPress={() => Linking.openURL('mailto:support@moneybuddy.cz')}
-          />
-
-          <HelpItem
-            icon={Phone}
-            title="Telefonní podpora"
-            subtitle="+420 123 456 789"
-            onPress={() => Linking.openURL('tel:+420123456789')}
+            subtitle="moneybuddy@email.cz"
+            onPress={() => Linking.openURL('mailto:moneybuddy@email.cz')}
           />
 
           <Text style={styles.sectionTitle}>Další informace</Text>
