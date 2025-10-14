@@ -439,6 +439,11 @@ export default function PortfolioDetailScreen() {
           const headers = Object.keys(sheetRows[0] ?? {}).map((h) => String(h));
 
           const importedTrades: Trade[] = [];
+          const skippedRows: string[] = [];
+          
+          console.log('Processing', sheetRows.length, 'rows from Excel');
+          console.log('Sample row:', JSON.stringify(sheetRows[0], null, 2));
+          
           for (let i = 0; i < sheetRows.length; i++) {
             const raw = sheetRows[i] as Record<string, any>;
             const normalized: Record<string, string> = {};
@@ -447,20 +452,30 @@ export default function PortfolioDetailScreen() {
               const txn: Txn = mapRow(normalized);
               const action = (txn.action || '').toLowerCase();
 
-              const hasCurrency = !!(
-                (txn.ccyAmount && txn.ccyAmount.trim()) ||
-                (txn.ccyPrice && txn.ccyPrice.trim())
-              );
-              const isCashflow = /withdrawal|deposit|interest|dividend/.test(action);
-
-              if (!hasCurrency) continue;
-              if (isCashflow) continue;
+              const isCashflow = /withdrawal|deposit|interest|dividend|fee|tax/.test(action);
+              if (isCashflow) {
+                skippedRows.push(`Řádek ${i + 1}: Přeskočen cashflow (${action})`);
+                continue;
+              }
 
               const shares = txn.shares ?? null;
               const price = txn.price ?? null;
               const ticker = txn.ticker ?? txn.name ?? '';
 
-              if (!ticker || shares == null || price == null) continue;
+              if (!ticker) {
+                skippedRows.push(`Řádek ${i + 1}: Chybí ticker/název`);
+                continue;
+              }
+              
+              if (shares == null || shares === 0) {
+                skippedRows.push(`Řádek ${i + 1}: Chybí nebo nulový počet akcií (${ticker})`);
+                continue;
+              }
+              
+              if (price == null || price === 0) {
+                skippedRows.push(`Řádek ${i + 1}: Chybí nebo nulová cena (${ticker})`);
+                continue;
+              }
 
               const tradeType: 'buy' | 'sell' = action.includes('sell') ? 'sell' : 'buy';
               const total = Math.abs(shares * price);
@@ -470,18 +485,35 @@ export default function PortfolioDetailScreen() {
                 type: tradeType,
                 symbol: (txn.ticker || ticker).toUpperCase(),
                 name: txn.name || ticker,
-                amount: shares,
-                price: price,
+                amount: Math.abs(shares),
+                price: Math.abs(price),
                 date: txn.time ? new Date(txn.time) : new Date(),
                 total,
               });
-            } catch {
+            } catch (err) {
+              skippedRows.push(`Řádek ${i + 1}: Chyba při zpracování (${err instanceof Error ? err.message : 'neznámá chyba'})`);
               continue;
             }
           }
 
+          console.log('Imported trades:', importedTrades.length);
+          console.log('Skipped rows:', skippedRows.length);
+          if (skippedRows.length > 0) {
+            console.log('Skipped details:', skippedRows.slice(0, 10).join('\n'));
+          }
+
           if (!importedTrades.length) {
-            throw new Error('Nepodařilo se najít žádné platné obchody v Excel souboru.');
+            const errorDetails = skippedRows.length > 0 
+              ? `\n\nPřeskočeno ${skippedRows.length} řádků:\n${skippedRows.slice(0, 5).join('\n')}${skippedRows.length > 5 ? '\n...' : ''}`
+              : '';
+            throw new Error(
+              `Nepodařilo se najít žádné platné obchody v Excel souboru.${errorDetails}\n\n` +
+              `Ujistěte se, že soubor obsahuje sloupce:\n` +
+              `- Action (Market buy/Market sell)\n` +
+              `- Ticker nebo Name\n` +
+              `- No. of shares (počet akcií)\n` +
+              `- Price / share (cena za akcii)`
+            );
           }
 
           importedTrades.forEach((trade) => addTradeToPortfolio(portfolio.id, trade));
