@@ -380,21 +380,33 @@ export default function PortfolioDetailScreen() {
     }
   };
 
-  const parseCSVLine = (line: string): string[] => {
+  const parseCSVLine = (line: string, delimiter: string = ','): string[] => {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
 
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
+      const next = line[i + 1];
 
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if ((char === ',' || char === ';' || char === '\t') && !inQuotes) {
-        result.push(current.trim());
-        current = '';
+      if (inQuotes) {
+        if (char === '"' && next === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          current += char;
+        }
       } else {
-        current += char;
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === delimiter) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
       }
     }
 
@@ -420,8 +432,141 @@ export default function PortfolioDetailScreen() {
         fileName.endsWith('.xls') ||
         selectedFile.mimeType?.includes('spreadsheet') ||
         selectedFile.mimeType?.includes('excel');
+      
+      const isCsvFile =
+        fileName.endsWith('.csv') ||
+        selectedFile.mimeType?.includes('csv') ||
+        selectedFile.mimeType?.includes('text/plain') ||
+        selectedFile.mimeType?.includes('text/comma-separated-values');
 
-      if (isExcelFile) {
+      if (isCsvFile) {
+        try {
+          const response = await fetch(selectedFile.uri);
+          const text = await response.text();
+          
+          const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+          if (!lines.length) {
+            throw new Error('CSV soubor je prázdný.');
+          }
+          
+          let delimiter = ',';
+          const firstLine = lines[0];
+          if (firstLine.split(';').length > firstLine.split(',').length) {
+            delimiter = ';';
+          } else if (firstLine.split('\t').length > firstLine.split(',').length) {
+            delimiter = '\t';
+          }
+          
+          const headers = parseCSVLine(lines[0], delimiter).map(h => h.replace(/\uFEFF/g, '').trim());
+          const sheetRows: Record<string, any>[] = [];
+          
+          for (let i = 1; i < lines.length; i++) {
+            const cols = parseCSVLine(lines[i], delimiter);
+            const rec: Record<string, string> = {};
+            for (let ci = 0; ci < headers.length; ci++) {
+              rec[headers[ci]] = (cols[ci] ?? '').trim();
+            }
+            sheetRows.push(rec);
+          }
+
+          if (!sheetRows || sheetRows.length === 0) {
+            throw new Error('CSV soubor neobsahuje žádná data.');
+          }
+
+          const importedTrades: Trade[] = [];
+          const skippedRows: string[] = [];
+          
+          console.log('Processing', sheetRows.length, 'rows from CSV');
+          console.log('Sample row:', JSON.stringify(sheetRows[0], null, 2));
+          
+          for (let i = 0; i < sheetRows.length; i++) {
+            const raw = sheetRows[i] as Record<string, any>;
+            const normalized: Record<string, string> = {};
+            for (const k of Object.keys(raw)) normalized[String(k).trim()] = String(raw[k] ?? '');
+            try {
+              const txn: Txn = mapRow(normalized);
+              const action = (txn.action || '').toLowerCase();
+
+              const isCashflow = /withdrawal|deposit|interest|dividend|fee|tax/.test(action);
+              if (isCashflow) {
+                skippedRows.push(`Řádek ${i + 1}: Přeskočen cashflow (${action})`);
+                continue;
+              }
+
+              const shares = txn.shares ?? null;
+              const price = txn.price ?? null;
+              const ticker = txn.ticker ?? txn.name ?? '';
+
+              if (!ticker) {
+                skippedRows.push(`Řádek ${i + 1}: Chybí ticker/název`);
+                continue;
+              }
+              
+              if (shares == null || shares === 0) {
+                skippedRows.push(`Řádek ${i + 1}: Chybí nebo nulový počet akcií (${ticker})`);
+                continue;
+              }
+              
+              if (price == null || price === 0) {
+                skippedRows.push(`Řádek ${i + 1}: Chybí nebo nulová cena (${ticker})`);
+                continue;
+              }
+
+              const tradeType: 'buy' | 'sell' = action.includes('sell') ? 'sell' : 'buy';
+              const total = Math.abs(shares * price);
+
+              importedTrades.push({
+                id: `${Date.now()}_${i}`,
+                type: tradeType,
+                symbol: (txn.ticker || ticker).toUpperCase(),
+                name: txn.name || ticker,
+                amount: Math.abs(shares),
+                price: Math.abs(price),
+                date: txn.time ? new Date(txn.time) : new Date(),
+                total,
+              });
+            } catch (err) {
+              skippedRows.push(`Řádek ${i + 1}: Chyba při zpracování (${err instanceof Error ? err.message : 'neznámá chyba'})`);
+              continue;
+            }
+          }
+
+          console.log('Imported trades:', importedTrades.length);
+          console.log('Skipped rows:', skippedRows.length);
+          if (skippedRows.length > 0) {
+            console.log('Skipped details:', skippedRows.slice(0, 10).join('\n'));
+          }
+
+          if (!importedTrades.length) {
+            const errorDetails = skippedRows.length > 0 
+              ? `\n\nPřeskočeno ${skippedRows.length} řádků:\n${skippedRows.slice(0, 5).join('\n')}${skippedRows.length > 5 ? '\n...' : ''}`
+              : '';
+            throw new Error(
+              `Nepodařilo se najít žádné platné obchody v CSV souboru.${errorDetails}\n\n` +
+              `Ujistěte se, že soubor obsahuje sloupce:\n` +
+              `- Action (Market buy/Market sell)\n` +
+              `- Ticker nebo Name\n` +
+              `- No. of shares (počet akcií)\n` +
+              `- Price / share (cena za akcii)`
+            );
+          }
+
+          importedTrades.forEach((trade) => addTradeToPortfolio(portfolio.id, trade));
+          setShowFileImportModal(false);
+          setSelectedFile(null);
+
+          Alert.alert(
+            'Import dokončen! 📊',
+            `CSV soubor byl úspěšně zpracován.\n\n` +
+              `✅ Přidáno ${importedTrades.length} obchodů\n` +
+              `📈 Nákupy: ${importedTrades.filter((t) => t.type === 'buy').length}\n` +
+              `📉 Prodeje: ${importedTrades.filter((t) => t.type === 'sell').length}`
+          );
+          return;
+        } catch (e) {
+          throw e instanceof Error ? e : new Error('Chyba při čtení CSV souboru');
+        }
+      } else if (isExcelFile) {
         try {
           const response = await fetch(selectedFile.uri);
           const buffer = await response.arrayBuffer();
@@ -533,7 +678,7 @@ export default function PortfolioDetailScreen() {
         }
       }
 
-      Alert.alert('Chyba', 'Podporovány jsou pouze Excel soubory (.xlsx, .xls)');
+      Alert.alert('Chyba', 'Podporovány jsou pouze CSV a Excel soubory (.csv, .xlsx, .xls)');
     } catch (error) {
       console.error('Error processing file:', error);
       Alert.alert(
