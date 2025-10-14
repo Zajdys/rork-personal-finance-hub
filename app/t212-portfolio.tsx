@@ -1,8 +1,8 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import { Upload, RefreshCw } from 'lucide-react-native';
+import { Upload, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react-native';
 import { parseT212Csv, buildFifoFromT212Rows, type T212PortfolioItem } from '@/src/services/trading212/portfolioFromCsv';
 import { fetchCurrentPrices } from '@/src/services/priceService';
 import { runNumberParsingTests } from '@/src/tests/miniSelfTest';
@@ -16,6 +16,8 @@ export type TableRow = {
   currentValue: number;
   pnl: number;
   pnlPct: number;
+  priceChange?: number;
+  priceChangePct?: number;
 };
 
 function formatNumber(n: number, digits: number = 2): string {
@@ -28,9 +30,13 @@ export default function T212PortfolioScreen() {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const previousPrices = useRef<Record<string, number>>({});
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const computeRows = useCallback(async (fifoItems: T212PortfolioItem[]) => {
-    setLoading(true);
+  const computeRows = useCallback(async (fifoItems: T212PortfolioItem[], silent: boolean = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const tickers = fifoItems.map(i => i.ticker).filter((t) => t && t.length > 0);
@@ -38,18 +44,40 @@ export default function T212PortfolioScreen() {
       const out: TableRow[] = fifoItems.map((i) => {
         const sym = i.ticker.toUpperCase();
         const currentPrice = prices[sym] ?? 0;
+        const previousPrice = previousPrices.current[sym] ?? currentPrice;
+        const priceChange = currentPrice - previousPrice;
+        const priceChangePct = previousPrice > 0 ? (priceChange / previousPrice) * 100 : 0;
         const currentValue = currentPrice * i.shares;
         const pnl = currentValue - i.invested;
         const pnlPct = i.invested > 0 ? (pnl / i.invested) * 100 : 0;
-        return { ticker: sym, shares: i.shares, invested: i.invested, currency: i.currency, currentPrice, currentValue, pnl, pnlPct };
+        
+        if (currentPrice > 0) {
+          previousPrices.current[sym] = currentPrice;
+        }
+        
+        return { 
+          ticker: sym, 
+          shares: i.shares, 
+          invested: i.invested, 
+          currency: i.currency, 
+          currentPrice, 
+          currentValue, 
+          pnl, 
+          pnlPct,
+          priceChange,
+          priceChangePct
+        };
       }).sort((a, b) => b.currentValue - a.currentValue);
       setRows(out);
+      setLastUpdate(new Date());
     } catch (e) {
       console.error('[T212] computeRows error', e);
-      setError('Nepodařilo se stáhnout ceny. Zkuste to prosím znovu.');
-      setRows([]);
+      if (!silent) {
+        setError('Nepodařilo se stáhnout ceny. Zkuste to prosím znovu.');
+        setRows([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -73,7 +101,7 @@ export default function T212PortfolioScreen() {
       const fifo = buildFifoFromT212Rows(table);
       console.log('[T212] FIFO items:', fifo);
       setItems(fifo);
-      await computeRows(fifo);
+      await computeRows(fifo, false);
     } catch (e) {
       console.error('[T212] onPickFile error', e);
       setError('Soubor se nepodařilo načíst nebo má neplatný formát.');
@@ -106,9 +134,22 @@ export default function T212PortfolioScreen() {
 
   const renderItem = useCallback(({ item }: { item: TableRow }) => {
     const plColor = item.pnl >= 0 ? '#059669' : '#DC2626';
+    const changeColor = (item.priceChange ?? 0) >= 0 ? '#059669' : '#DC2626';
+    const TrendIcon = (item.priceChange ?? 0) >= 0 ? TrendingUp : TrendingDown;
+    
     return (
       <View style={styles.tableRow} testID={`trow-${item.ticker}`}>
-        <Text style={[styles.tCell, styles.bold, { flex: 1.3 }]}>{item.ticker}</Text>
+        <View style={{ flex: 1.3 }}>
+          <Text style={[styles.tCell, styles.bold]}>{item.ticker}</Text>
+          {item.priceChange !== undefined && item.priceChange !== 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 }}>
+              <TrendIcon size={10} color={changeColor} />
+              <Text style={[styles.tCell, { fontSize: 9, color: changeColor }]}>
+                {formatNumber(Math.abs(item.priceChangePct ?? 0), 2)}%
+              </Text>
+            </View>
+          )}
+        </View>
         <Text style={[styles.tCell, { flex: 1 }]}>{formatNumber(item.shares, 4)}</Text>
         <Text style={[styles.tCell, { flex: 1.2 }]}>{formatNumber(item.invested)}</Text>
         <Text style={[styles.tCell, { flex: 1.2 }]}>{formatNumber(item.currentPrice)}</Text>
@@ -119,6 +160,26 @@ export default function T212PortfolioScreen() {
     );
   }, []);
 
+  useEffect(() => {
+    if (autoRefresh && items.length > 0) {
+      intervalRef.current = setInterval(() => {
+        console.log('[T212] Auto-refreshing prices...');
+        computeRows(items, true);
+      }, 30000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [autoRefresh, items, computeRows]);
+
   return (
     <View style={styles.container} testID="T212PortfolioScreen">
       <Stack.Screen options={{ title: 'Trading 212 Portfolio' }} />
@@ -128,9 +189,14 @@ export default function T212PortfolioScreen() {
           <Upload size={16} color="#fff" />
           <Text style={styles.actionText}>Načíst CSV</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#111827' }]} onPress={() => computeRows(items)} disabled={!items.length} testID="recompute">
+        <TouchableOpacity 
+          style={[styles.actionBtn, { backgroundColor: autoRefresh ? '#059669' : '#111827' }]} 
+          onPress={() => setAutoRefresh(!autoRefresh)} 
+          disabled={!items.length} 
+          testID="auto-refresh"
+        >
           <RefreshCw size={16} color="#fff" />
-          <Text style={styles.actionText}>Přepočítat</Text>
+          <Text style={styles.actionText}>{autoRefresh ? 'Live ✓' : 'Live'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#059669' }]} onPress={runNumberParsingTests} testID="test-parsing">
           <Text style={styles.actionText}>🧪 Test</Text>
@@ -153,6 +219,11 @@ export default function T212PortfolioScreen() {
             <Text style={styles.totalText}>Invested: €{formatNumber(totalLine.invested)}</Text>
             <Text style={styles.totalText}>Value: €{formatNumber(totalLine.value)}</Text>
             <Text style={[styles.totalText, { color: totalLine.pnl >= 0 ? '#059669' : '#DC2626' }]}>P/L: €{formatNumber(totalLine.pnl)} ({formatNumber(totalLine.pnlPct)}%)</Text>
+            {lastUpdate && (
+              <Text style={[styles.totalText, { fontSize: 10, color: '#6B7280' }]}>
+                Aktualizováno: {lastUpdate.toLocaleTimeString('cs-CZ')}
+              </Text>
+            )}
           </View>
           {renderHeader()}
           <FlatList
@@ -160,7 +231,7 @@ export default function T212PortfolioScreen() {
             keyExtractor={(r) => r.ticker}
             renderItem={renderItem}
             ItemSeparatorComponent={() => <View style={styles.sep} />}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={() => computeRows(items)} />}
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={() => computeRows(items, false)} />}
             contentContainerStyle={styles.listContent}
           />
         </>
