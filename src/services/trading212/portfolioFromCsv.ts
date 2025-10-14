@@ -44,15 +44,23 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
   const byTicker: Record<string, T212Row[]> = {};
   for (const r of rows) {
     const action = r['Action'];
-    if (!(isBuy(action) || isSell(action))) continue;
+    if (!(isBuy(action) || isSell(action))) {
+      console.log('[T212] Skipping non-trade action:', action);
+      continue;
+    }
     const ticker = (r['Ticker'] ?? '').trim();
-    if (!ticker) continue;
+    if (!ticker) {
+      console.log('[T212] Skipping row without ticker');
+      continue;
+    }
     (byTicker[ticker] ||= []).push(r);
   }
 
+  console.log('[T212] Found tickers:', Object.keys(byTicker));
   const items: T212PortfolioItem[] = [];
 
   for (const [ticker, list] of Object.entries(byTicker)) {
+    console.log(`[T212] Processing ticker ${ticker} with ${list.length} transactions`);
     const sorted = [...list].sort((a, b) => {
       const ta = new Date(a['Time'] ?? '').getTime();
       const tb = new Date(b['Time'] ?? '').getTime();
@@ -77,34 +85,42 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
         fifo.push({ shares, cost: total });
         sharesHeld += shares;
         invested += total;
+        console.log(`[T212] After buy: ${ticker} has ${sharesHeld} shares, invested ${invested}`);
       } else if (isSell(row['Action'])) {
         let toSell = shares;
+        console.log(`[T212] Selling ${toSell} shares of ${ticker}`);
         while (toSell > 0 && fifo.length > 0) {
           const lot = fifo[0];
           if (lot.shares <= toSell) {
             toSell -= lot.shares;
             sharesHeld -= lot.shares;
             invested -= lot.cost;
+            console.log(`[T212] Removed entire lot: ${lot.shares} shares, cost ${lot.cost}`);
             fifo.shift();
           } else {
             const remainShares = lot.shares - toSell;
             const remainCost = lot.cost * (remainShares / lot.shares);
             sharesHeld -= toSell;
             invested -= lot.cost * (toSell / lot.shares);
+            console.log(`[T212] Partial lot sale: sold ${toSell}, remaining ${remainShares} shares`);
             fifo[0] = { shares: remainShares, cost: remainCost };
             toSell = 0;
           }
         }
+        console.log(`[T212] After sell: ${ticker} has ${sharesHeld} shares, invested ${invested}`);
       }
     }
 
-    if (sharesHeld > 0) {
+    if (sharesHeld > 0.0001) {
       const currency = (sorted[sorted.length - 1]['Currency (Total)'] ?? '').trim() || null;
-      console.log(`[T212] Final ${ticker}: ${sharesHeld} shares, invested ${invested} ${currency}`);
+      console.log(`[T212] ✓ Final ${ticker}: ${sharesHeld} shares, invested ${invested} ${currency}`);
       items.push({ ticker, shares: sharesHeld, invested, currency });
+    } else {
+      console.log(`[T212] ✗ Skipping ${ticker}: position closed (${sharesHeld} shares)`);
     }
   }
 
+  console.log(`[T212] Total positions with shares: ${items.length}`);
   items.sort((a, b) => a.ticker.localeCompare(b.ticker));
   return items;
 }
