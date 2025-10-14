@@ -226,7 +226,7 @@ export default function DashboardScreen() {
           </View>
           <TouchableOpacity 
             style={styles.levelContainer}
-            onPress={() => router.push('/leaderboard')}
+            onPress={() => router.push('/gaming-stats')}
           >
             <Award color="white" size={20} />
             <Text style={styles.levelText}>Level {level}</Text>
