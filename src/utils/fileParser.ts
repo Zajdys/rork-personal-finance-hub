@@ -1,12 +1,12 @@
 import { read, utils } from 'xlsx';
 
-export type ParsedTable = Array<Record<string, string | undefined>>;
+export type ParsedTable = Array<Record<string, string | number | undefined>>;
 
 export async function parseXlsxArrayBuffer(buf: ArrayBuffer, sheetName?: string): Promise<ParsedTable> {
   const workbook = read(buf);
   const name = sheetName && workbook.SheetNames.includes(sheetName) ? sheetName : workbook.SheetNames[0];
   const sheet = workbook.Sheets[name];
-  const rows = utils.sheet_to_json<Record<string, string | undefined>>(sheet);
+  const rows = utils.sheet_to_json<Record<string, string | number | undefined>>(sheet);
   return rows;
 }
 

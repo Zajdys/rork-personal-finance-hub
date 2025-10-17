@@ -4,30 +4,55 @@ import { parseXlsxArrayBuffer, ParsedTable } from "@/src/utils/fileParser";
 
 export type BankCsvRecord = Record<string, string | undefined>;
 
-const DATE_KEYS = ["Date", "Datum", "Posted Date", "Booking Date", "Transaction Date"] as const;
-const DESC_KEYS = ["Description", "Popis", "Merchant", "Narrative", "Details"] as const;
-const AMOUNT_KEYS = ["Amount", "Částka", "Amount (CZK)", "Transaction Amount"] as const;
-const CURRENCY_KEYS = ["Currency", "Měna"] as const;
-const CATEGORY_KEYS = ["Category", "Kategorie"] as const;
+const DATE_KEYS = [
+  "Date", "Datum", "Posted Date", "Booking Date", "Transaction Date", "Transaction date",
+  "Datum transakce", "Datum provedení", "Datum zaúčtování", "Datum zauctovani",
+  "Valuation date", "Datum valuty", "Datum odepsání", "Datum odepsani"
+] as const;
+
+const DESC_KEYS = [
+  "Description", "Popis", "Merchant", "Narrative", "Details", "Transaction description",
+  "Popis transakce", "Název transakce", "Nazev transakce", "Účel platby", "Ucel platby",
+  "Název položky", "Nazev polozky", "Typ transakce", "Merchant name", "Obchodník", "Obchodnik",
+  "Poznámka", "Poznamka", "Message", "Zpráva", "Zprava", "VS", "Variabilní symbol", "Variabilni symbol",
+  "Protiúčet - název", "Protiucet - nazev", "Název protiúčtu", "Nazev protiuctu", "Recipient", "Příjemce", "Prijemce"
+] as const;
+
+const AMOUNT_KEYS = [
+  "Amount", "Částka", "Castka", "Amount (CZK)", "Transaction Amount", "Transaction amount",
+  "Suma", "Hodnota", "Volume", "Objem", "Price", "Cena", "Total", "Celkem",
+  "Částka transakce", "Castka transakce", "Kredit", "Debit", "Value",
+  "Amount in account currency", "Částka v měně účtu", "Castka v mene uctu"
+] as const;
+
+const CURRENCY_KEYS = [
+  "Currency", "Měna", "Mena", "Account currency", "Měna účtu", "Mena uctu",
+  "Transaction currency", "Měna transakce", "Mena transakce"
+] as const;
+
+const CATEGORY_KEYS = [
+  "Category", "Kategorie", "Type", "Typ", "Transaction type", "Typ transakce",
+  "Payment type", "Typ platby"
+] as const;
 
 const EXPENSE_KEYWORDS: Array<[string, string]> = [
-  ["lidl|kaufland|tesco|billa|penny|albert|iglou|rohlik", "Jídlo a nápoje"],
-  ["ubereats|boltfood|wolt|pizza|kfc|mcdonald|starbucks|coffee", "Jídlo a nápoje"],
-  ["nájem|pronajem|rent|hypoteka|mortgage|energie|electric|gas|water|internet|o2|vodafone|tmobile|sazba", "Nájem a bydlení"],
-  ["zara|hm|aboutyou|zalando|footshop|nike|adidas|ccc|answear", "Oblečení"],
-  ["dp|doprav|mhd|ids|pid|lítačka|litacka|metro|tram|bus|benzina|shell|omv|molu|tank|uber|bolt", "Doprava"],
-  ["netflix|spotify|hbomax|disney|steam|xbox|playstation|cinema|kino", "Zábava"],
-  ["lekarn|drmax|benu|hospital|clinic|dent|zuba|gym|fitness|decathlon", "Zdraví"],
-  ["kurz|course|udemy|coursera|knih|book|school|univerz|isic", "Vzdělání"],
-  ["alza|mall|czc|datart|electro|amazon|eshop|e-shop", "Nákupy"],
-  ["služba|service|údržba|oprava|cleaning|subscription|subs", "Služby"],
+  ["lidl|kaufland|tesco|billa|penny|albert|iglou|rohlik|globus|makro|spar|coop|jednota|potraviny|food|market|супермаркет|grocery|supermarket|potravin|fresh|market", "Jídlo a nápoje"],
+  ["ubereats|boltfood|wolt|pizza|kfc|mcdonald|burger|starbucks|coffee|cafe|kavárna|kavarna|restaurace|restaurant|hospoda|bistro|delivery|food\\s?panda|bageterie|paul|costa|subway", "Jídlo a nápoje"],
+  ["nájem|najem|pronajem|rent|hypoteka|mortgage|energie|electric|plyn|gas|water|voda|vodne|stocne|teplo|heating|internet|o2|vodafone|tmobile|sazba|poplatek|inkaso|čez|innogy|pražská|plynárenská|rwe", "Nájem a bydlení"],
+  ["zara|hm|h&m|aboutyou|zalando|footshop|nike|adidas|ccc|answear|reserved|c&a|newyorker|mango|orsay|deichmann|boty|oblečení|obleceni|fashion|textile|clothing|obuv", "Oblečení"],
+  ["doprava|transport|mhd|ids|pid|lítačka|litacka|metro|tram|tramvaj|autobus|bus|benzin|benzina|shell|omv|molu|mol|tank|tankování|tankoven|pohonné|palivo|nafta|diesel|uber|bolt|taxi|liftago|parkování|parking|ticket|jízdenka|jizdenka|cd|regiojet|flixbus|leo\\s?express", "Doprava"],
+  ["netflix|spotify|hbomax|hbo|disney|apple\\s?tv|amazon\\s?prime|steam|xbox|playstation|ps\\s?plus|cinema|kino|aero|village|multiplayer|game|hra|zábava|zabava|entertainment|divadlo|theatre|koncert|concert|vstupné|vstupenka", "Zábava"],
+  ["lékárna|lekarna|léky|leky|drmax|benu|hospital|nemocnice|klinika|clinic|poliklinika|dent|zub|zubní|zubni|stomatolog|lékař|lekar|doktor|doctor|gym|fitness|cvičení|cviceni|wellness|spa|decathlon|sportisimo|sport|medical|zdraví|zdravi|health|ordinace", "Zdraví"],
+  ["škola|skola|školné|skolne|kurz|course|udemy|coursera|kniha|knih|book|kníhkupectví|knihkupectvi|bookstore|school|univerzita|univerz|vysoká|vysoka|střední|stredni|vzdělání|vzdelani|education|učebnice|ucebnice|školka|skolka|isic|student|studium", "Vzdělání"],
+  ["alza|mall|czc|datart|electro|electroworld|euronics|mediamarkt|media\\s?markt|okay|amazon|ebay|asos|shein|notino|zásilkovna|zasilkovna|packeta|eshop|e-shop|e\\s?shop|online|nákup|nakup|shopping|obchod|retail|ikea|jysk|bauhaus|obi|hornbach", "Nákupy"],
+  ["služba|sluzba|service|údržba|udrzba|oprava|repair|cleaning|úklid|uklid|subscription|předplatné|predplatne|subscr|členství|clenstvi|membership|pojištění|pojisteni|insurance|čpzp|vzp|kooperativa|allianz|generali|servis|maintenance|advokát|advokat|právník|pravnik|lawyer|účetní|ucetni|accountant|notář|notar", "Služby"],
 ];
 
 const INCOME_KEYWORDS: Array<[string, string]> = [
-  ["vyplata|mzda|salary|payroll|hr", "Mzda"],
-  ["freelance|invoice|factura|faktura|contract|contractor", "Freelance"],
-  ["dividend|úrok|urok|interest|coupon|staking", "Investice"],
-  ["dar|gift|present|donation", "Dary"],
+  ["výplata|vyplata|mzda|plat|salary|wage|payroll|hr|zaměstnavatel|zamestnavatel|employer|income|příjem|prijem", "Mzda"],
+  ["freelance|živnost|zivnost|invoice|faktura|fakturace|contract|contractor|honorář|honorar|dohoda|service\\s?fee|consulting|konzultace|smluvní|smluvni|podnikání|podnikani|business|ičo|ico", "Freelance"],
+  ["dividend|dividenda|úrok|urok|interest|coupon|kupon|staking|investice|investment|výnos|vynos|return|broker|trading|akcie|stock|dluhopis|fond|fund|profit|zisk", "Investice"],
+  ["dar|dárek|darek|gift|present|donation|darování|darovani|sponzor|sponsor|příspěvek|prispevek|contribution|collection|sbírka|sbirka", "Dary"],
 ];
 
 function normalizeHeader(h: string): string {
@@ -149,28 +174,77 @@ export type ParsedTxn = {
   date: Date;
 };
 
-function guessCategory(titleLower: string, type: 'income' | 'expense'): string {
+function cleanTextForMatching(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+function guessCategory(title: string, type: 'income' | 'expense'): string {
+  const titleLower = cleanTextForMatching(title);
   const list = type === 'expense' ? EXPENSE_KEYWORDS : INCOME_KEYWORDS;
+  
+  const scores: Array<{ category: string; score: number }> = [];
+  
   for (const [re, cat] of list) {
-    if (new RegExp(re, 'i').test(titleLower)) return cat;
+    const patterns = re.split('|');
+    let bestScore = 0;
+    
+    for (const pattern of patterns) {
+      const cleanPattern = pattern.replace(/\\s\?/g, ' ').replace(/\\s/g, ' ');
+      const regex = new RegExp(cleanPattern, 'i');
+      
+      if (regex.test(titleLower)) {
+        const matchLength = cleanPattern.length;
+        const score = matchLength / titleLower.length;
+        if (score > bestScore) bestScore = score;
+      }
+    }
+    
+    if (bestScore > 0) {
+      scores.push({ category: cat, score: bestScore });
+    }
   }
+  
+  if (scores.length > 0) {
+    scores.sort((a, b) => b.score - a.score);
+    return scores[0].category;
+  }
+  
   return type === 'expense' ? 'Ostatní' : 'Ostatní';
 }
 
 export function mapBankRecord(r: BankCsvRecord): ParsedTxn | null {
   const dateRaw = pick(r, DATE_KEYS);
-  const desc = pick(r, DESC_KEYS) ?? "";
+  let desc = pick(r, DESC_KEYS) ?? "";
   const amtRaw = pick(r, AMOUNT_KEYS);
   const ccy = pick(r, CURRENCY_KEYS);
   const catRaw = pick(r, CATEGORY_KEYS);
 
+  desc = desc.replace(/\s+/g, ' ').trim();
+  
   const amount0 = toNum(amtRaw);
-  if (amount0 == null) return null;
+  if (amount0 == null || amount0 === 0) return null;
+  
   const type: 'income' | 'expense' = amount0 < 0 ? 'expense' : 'income';
   const amount = Math.abs(amount0);
   const date = parseDateFlexible(dateRaw) ?? new Date();
-  const title = desc || (ccy ? `Transakce (${ccy})` : 'Transakce');
-  const category = (catRaw && catRaw.trim()) || guessCategory(title.toLowerCase(), type);
+  
+  let title = desc || (ccy ? `Transakce (${ccy})` : 'Transakce');
+  
+  title = title.replace(/^(platba kartou|výběr z bankomatu|vklad|převod|poplatek|úrok)/i, (match) => {
+    const rest = title.substring(match.length).trim();
+    return rest || match;
+  }).trim();
+  
+  if (title.length > 100) {
+    title = title.substring(0, 97) + '...';
+  }
+  
+  const category = (catRaw && catRaw.trim()) || guessCategory(title, type);
 
   return { type, amount, title, category, date };
 }
@@ -180,7 +254,16 @@ export function parseBankCsvToTransactions(text: string): ParsedTxn[] {
     const rows = parseCSV(text);
     const recs = toRecords(rows);
     const txns = recs.map(mapBankRecord).filter((x): x is ParsedTxn => !!x);
-    return txns;
+    
+    const uniqueTxns = new Map<string, ParsedTxn>();
+    for (const txn of txns) {
+      const key = `${txn.date.toISOString()}-${txn.amount}-${txn.title}-${txn.type}`;
+      if (!uniqueTxns.has(key)) {
+        uniqueTxns.set(key, txn);
+      }
+    }
+    
+    return Array.from(uniqueTxns.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
   } catch (e) {
     console.error('parseBankCsvToTransactions error', e);
     return [];
@@ -194,13 +277,23 @@ export async function parseBankXlsxToTransactions(buf: ArrayBuffer): Promise<Par
       const rec: BankCsvRecord = {};
       for (const [k, v] of Object.entries(row)) {
         if (typeof k === 'string') {
-          rec[normalizeHeader(k)] = (v ?? '').trim();
+          const value = typeof v === 'number' ? v.toString() : (v ?? '');
+          rec[normalizeHeader(k)] = String(value).trim();
         }
       }
       return rec;
     });
     const txns = records.map(mapBankRecord).filter((x): x is ParsedTxn => !!x);
-    return txns;
+    
+    const uniqueTxns = new Map<string, ParsedTxn>();
+    for (const txn of txns) {
+      const key = `${txn.date.toISOString()}-${txn.amount}-${txn.title}-${txn.type}`;
+      if (!uniqueTxns.has(key)) {
+        uniqueTxns.set(key, txn);
+      }
+    }
+    
+    return Array.from(uniqueTxns.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
   } catch (e) {
     console.error('parseBankXlsxToTransactions error', e);
     return [];
@@ -383,7 +476,7 @@ export function parseBankPdfTextToTransactions(text: string): ParsedTxn[] {
       const rawAmt = amtMatch?.[1] ?? '';
       let amtNum = toNum(rawAmt);
       if (amtMatch && /^[−–]/.test(amtMatch[1] ?? '')) amtNum = amtNum != null ? -Math.abs(amtNum) : amtNum;
-      if (!date || amtNum == null) continue;
+      if (!date || amtNum == null || amtNum === 0) continue;
       const titleParts: string[] = [];
       const cleanedLine = line.replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim();
       if (cleanedLine) titleParts.push(cleanedLine);
@@ -391,10 +484,12 @@ export function parseBankPdfTextToTransactions(text: string): ParsedTxn[] {
         const nextClean = lines[i + 1].replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim();
         if (nextClean && nextClean !== cleanedLine) titleParts.push(nextClean);
       }
-      const title = (titleParts.join(' • ').trim() || 'Transakce');
+      let title = (titleParts.join(' • ').trim() || 'Transakce');
+      if (title.length > 100) title = title.substring(0, 97) + '...';
+      
       const type: 'income' | 'expense' = (amtNum ?? 0) < 0 ? 'expense' : 'income';
       const amount = Math.abs(amtNum ?? 0);
-      const category = guessCategory(title.toLowerCase(), type);
+      const category = guessCategory(title, type);
       out.push({ type, amount, title, category, date });
     }
     if (out.length === 0 && lines.length > 3) {
@@ -404,17 +499,26 @@ export function parseBankPdfTextToTransactions(text: string): ParsedTxn[] {
         const date = parseDateFlexible(d);
         const a = blob.match(amtRe)?.[1] ?? '';
         const n = toNum(a);
-        if (date && n != null) {
-          const title = blob.replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim() || 'Transakce';
+        if (date && n != null && n !== 0) {
+          let title = blob.replace(dateRe, '').replace(amtRe, '').replace(/\s{2,}/g, ' ').trim() || 'Transakce';
+          if (title.length > 100) title = title.substring(0, 97) + '...';
           const type: 'income' | 'expense' = n < 0 ? 'expense' : 'income';
           const amount = Math.abs(n);
-          const category = guessCategory(title.toLowerCase(), type);
+          const category = guessCategory(title, type);
           out.push({ type, amount, title, category, date });
           i += 2;
         }
       }
     }
-    return out;
+    const uniqueTxns = new Map<string, ParsedTxn>();
+    for (const txn of out) {
+      const key = `${txn.date.toISOString()}-${txn.amount}-${txn.title}-${txn.type}`;
+      if (!uniqueTxns.has(key)) {
+        uniqueTxns.set(key, txn);
+      }
+    }
+    
+    return Array.from(uniqueTxns.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
   } catch (e) {
     console.error('parseBankPdfTextToTransactions error', e);
     return [];
