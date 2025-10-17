@@ -131,7 +131,13 @@ export default function DashboardScreen() {
   );
 
   const CategoryExpenseCard = ({ category }: { category: CategoryExpense }) => (
-    <View style={[styles.categoryCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+    <TouchableOpacity 
+      style={[styles.categoryCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+      onPress={() => router.push({
+        pathname: '/category-detail',
+        params: { category: category.category, type: 'expense' }
+      })}
+    >
       <View style={styles.categoryHeader}>
         <View style={[styles.categoryIconContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
           <Text style={styles.categoryIcon}>{category.icon}</Text>
@@ -161,7 +167,7 @@ export default function DashboardScreen() {
           />
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const detectedSubscriptions = useMemo<SubscriptionItem[]>(() => finance.getDetectedSubscriptions(), [finance, recentTransactions]);
