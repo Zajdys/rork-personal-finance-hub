@@ -127,7 +127,7 @@ export default function AddTransactionScreen() {
       setImportError(null);
       setImporting(true);
       const res = await DocumentPicker.getDocumentAsync({
-        type: ['text/*', 'application/pdf', 'application/vnd.ms-excel', 'text/csv', 'text/comma-separated-values'],
+        type: ['text/*', 'application/pdf', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/comma-separated-values'],
         multiple: false,
         copyToCacheDirectory: true,
       });
@@ -148,20 +148,33 @@ export default function AddTransactionScreen() {
       const isXlsx = (mime?.includes('spreadsheet') || mime?.includes('excel') || /\.(xlsx?)$/i.test(name));
 
       if (isPdf) {
-        console.log('Selected PDF bank statement:', { name, mime });
+        console.log('Selected PDF bank statement:', { name, mime, uri: asset.uri });
         try {
+          console.log('Reading PDF text...');
           const pdfText = await readPdfText(asset.uri);
+          console.log('PDF text extracted, length:', pdfText.length);
+          console.log('PDF text preview (first 500 chars):', pdfText.substring(0, 500));
+          
+          if (!pdfText || pdfText.length < 50) {
+            setImportError('PDF se nepodařilo přečíst nebo je prázdné. Zkuste prosím CSV nebo XLS formát.');
+            setImporting(false);
+            return;
+          }
+          
           const parsedFromPdf = parseBankPdfTextToTransactions(pdfText);
-          console.log('PDF parsed count:', parsedFromPdf.length);
+          console.log('PDF parsed transaction count:', parsedFromPdf.length);
+          
           if (!parsedFromPdf.length) {
-            setImportError('PDF se podařilo načíst, ale nenašli jsme žádné transakce. Zkuste prosím CSV.');
+            console.log('No transactions found. PDF text sample:', pdfText.substring(0, 1000));
+            setImportError('PDF se podařilo načíst, ale nenašli jsme žádné transakce. Zkuste prosím CSV nebo XLS formát, který banka obvykle umožňuje stáhnout.');
           } else {
             setPreview(parsedFromPdf);
             setPreviewOpen(true);
+            setImportError(null);
           }
         } catch (err) {
           console.error('PDF parse error', err);
-          setImportError('Nepodařilo se přečíst PDF výpis. Zkuste prosím CSV.');
+          setImportError(`Nepodařilo se přečíst PDF výpis: ${err instanceof Error ? err.message : 'Neznámá chyba'}. Zkuste prosím CSV nebo XLS formát.`);
         }
         setImporting(false);
         return;
