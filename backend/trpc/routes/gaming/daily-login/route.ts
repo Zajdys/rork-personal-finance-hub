@@ -1,6 +1,6 @@
 import { protectedProcedure } from "../../../create-context";
 import { z } from "zod";
-import { getDb } from "../../utils/db";
+import { getDb } from "../../../utils/db";
 
 interface DailyLoginData {
   lastLoginDate: string;
