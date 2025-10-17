@@ -202,35 +202,54 @@ export default function AddTransactionScreen() {
             ),
           });
 
-          let result;
+          type BankStatementResult = z.infer<typeof schema>;
+          let result: BankStatementResult;
           try {
-            result = await generateObject({
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Analyzuj tento bankovní výpis a vrať VŠECHNY transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo (-). Pokud je to příjem/kredit, musí být KLADNÉ číslo (+).\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, název protiúčtu)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety (Lidl, Albert, Tesco), restaurace, kavárny, fast food\n- Nájem a bydlení: nájem, hypotéka, energie (ČEZ, PRE), voda, plyn, internet, telefon\n- Oblečení: oděvy, boty, módní značky (Zara, H&M)\n- Doprava: benzín, čerpací stanice, MHD, PID, taxi, Uber, Bolt\n- Zábava: Netflix, Spotify, HBO, hry, kino, divadlo, koncerty\n- Zdraví: lékárna, lékaři, poliklinika, fitness, wellness\n- Vzdělání: škola, kurzy, knihy, studijní materiály\n- Nákupy: elektronika, nábytek, online nákupy (Alza, Mall.cz)\n- Služby: pojištění, předplatné, opravy, účetní, advokát\n- Ostatní: vše ostatní\n\nPŘÍKLAD:\nPokud vidíš: "Platba kartou LIDL 23.12.2024 -450,50 Kč"\nVrať: {date: "23.12.2024", description: "LIDL", amount: -450.50, category: "Jídlo a nápoje"}\n\nPokud vidíš: "Příchozí platba MZDA 30.12.2024 +35000 Kč"\nVrať: {date: "30.12.2024", description: "MZDA", amount: 35000, category: "Mzda"}',
-                    },
-                    {
-                      type: 'image',
-                      image: base64Data,
-                    },
-                  ],
-                },
-              ],
-              schema,
-            });
+            console.log('Calling AI with image size:', base64Data.length);
+            
+            result = await Promise.race<BankStatementResult>([
+              generateObject({
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Analyzuj tento bankovní výpis a vrať VŠECHNY transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo (-). Pokud je to příjem/kredit, musí být KLADNÉ číslo (+).\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, název protiúčtu)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety (Lidl, Albert, Tesco), restaurace, kavárny, fast food\n- Nájem a bydlení: nájem, hypotéka, energie (ČEZ, PRE), voda, plyn, internet, telefon\n- Oblečení: oděvy, boty, módní značky (Zara, H&M)\n- Doprava: benzín, čerpací stanice, MHD, PID, taxi, Uber, Bolt\n- Zábava: Netflix, Spotify, HBO, hry, kino, divadlo, koncerty\n- Zdraví: lékárna, lékaři, poliklinika, fitness, wellness\n- Vzdělání: škola, kurzy, knihy, studijní materiály\n- Nákupy: elektronika, nábytek, online nákupy (Alza, Mall.cz)\n- Služby: pojištění, předplatné, opravy, účetní, advokát\n- Ostatní: vše ostatní\n\nPŘÍKLAD:\nPokud vidíš: "Platba kartou LIDL 23.12.2024 -450,50 Kč"\nVrať: {date: "23.12.2024", description: "LIDL", amount: -450.50, category: "Jídlo a nápoje"}\n\nPokud vidíš: "Příchozí platba MZDA 30.12.2024 +35000 Kč"\nVrať: {date: "30.12.2024", description: "MZDA", amount: 35000, category: "Mzda"}',
+                      },
+                      {
+                        type: 'image',
+                        image: base64Data,
+                      },
+                    ],
+                  },
+                ],
+                schema,
+              }),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
+              )
+            ]);
+            
+            console.log('AI call successful');
           } catch (aiError) {
             console.error('AI API error:', aiError);
+            console.error('Error details:', JSON.stringify(aiError, null, 2));
+            
             if (aiError instanceof Error) {
-              if (aiError.message.includes('Network request failed') || aiError.message.includes('Failed to fetch')) {
-                throw new Error('Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.');
-              } else if (aiError.message.includes('timeout')) {
-                throw new Error('AI zpracování trvalo příliš dlouho. Zkuste prosím menší soubor.');
+              const errorMsg = aiError.message.toLowerCase();
+              
+              if (errorMsg.includes('network request failed') || 
+                  errorMsg.includes('failed to fetch') || 
+                  errorMsg.includes('network error') ||
+                  errorMsg.includes('fetch failed')) {
+                throw new Error('Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.\n\nPro zpracování bankovních výpisů zkuste:\n• CSV formát (.csv)\n• Excel formát (.xlsx)');
+              } else if (errorMsg.includes('timeout')) {
+                throw new Error('AI zpracování trvalo příliš dlouho. Zkuste prosím menší soubor nebo CSV/XLSX formát.');
+              } else if (errorMsg.includes('not configured') || errorMsg.includes('undefined')) {
+                throw new Error('AI služba není správně nakonfigurována. Použijte prosím CSV nebo XLSX formát pro import.');
               } else {
-                throw new Error(`AI chyba: ${aiError.message}`);
+                throw new Error(`AI chyba: ${aiError.message}\n\nZkuste prosím CSV nebo XLSX formát.`);
               }
             }
             throw new Error('Nepodařilo se zpracovat PDF pomocí AI. Zkuste prosím CSV nebo XLSX formát.');
@@ -244,7 +263,7 @@ export default function AddTransactionScreen() {
             return;
           }
 
-          const parsedFromPdf: ParsedTxn[] = result.transactions.map((txn) => {
+          const parsedFromPdf: ParsedTxn[] = result.transactions.map((txn: { date: string; description: string; amount: number; category?: string }) => {
             const dateStr = txn.date;
             let date = new Date();
             
@@ -417,38 +436,72 @@ export default function AddTransactionScreen() {
             ),
           });
 
-          let receiptResult;
+          type ReceiptResult = z.infer<typeof schema>;
+          let receiptResult: ReceiptResult;
           try {
-            receiptResult = await generateObject({
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4ks à 30Kč, amount musí být 120, ne 30)\n2. Do title zahrň název produktu + velikost/objem + počet kusů pokud je > 1\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš "1 ks 29,90" a pak "CELKEM 29,90", amount je 29.90\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Potraviny celkem" nebo "DPH celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je více kusů stejné položky, sečti celkovou cenu\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, služby\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: vstupenky, hry, streaming\n- Zdraví: léky, vitamíny, lékařské pomůcky\n- Vzdělání: knihy, kurzy, školní potřeby\n- Nákupy: elektronika, domácnost, nábytek\n- Služby: opravy, čištění, ostatní služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtence je: "Kofola 2,25L\n4 ks x 30,00 Kč\nCelkem: 120,00 Kč"\nVrať: {title: "Kofola 2,25 L 4 ks", amount: 120, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtence je: "Rohlík\n1 ks 5,50 Kč"\nVrať: {title: "Rohlík", amount: 5.50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtence je: "Paracetamol 500mg\n1 bal 89,90 Kč"\nVrať: {title: "Paracetamol 500mg", amount: 89.90, category: "Zdraví"}',
-                    },
-                    {
-                      type: 'image',
-                      image: base64Data,
-                    },
-                  ],
-                },
-              ],
-              schema,
-            });
+            console.log('Calling AI for receipt with image size:', base64Data.length);
+            
+            receiptResult = await Promise.race<ReceiptResult>([
+              generateObject({
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4ks à 30Kč, amount musí být 120, ne 30)\n2. Do title zahrň název produktu + velikost/objem + počet kusů pokud je > 1\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš "1 ks 29,90" a pak "CELKEM 29,90", amount je 29.90\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Potraviny celkem" nebo "DPH celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je více kusů stejné položky, sečti celkovou cenu\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, služby\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: vstupenky, hry, streaming\n- Zdraví: léky, vitamíny, lékařské pomůcky\n- Vzdělání: knihy, kurzy, školní potřeby\n- Nákupy: elektronika, domácnost, nábytek\n- Služby: opravy, čištění, ostatní služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtence je: "Kofola 2,25L\n4 ks x 30,00 Kč\nCelkem: 120,00 Kč"\nVrať: {title: "Kofola 2,25 L 4 ks", amount: 120, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtence je: "Rohlík\n1 ks 5,50 Kč"\nVrať: {title: "Rohlík", amount: 5.50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtence je: "Paracetamol 500mg\n1 bal 89,90 Kč"\nVrať: {title: "Paracetamol 500mg", amount: 89.90, category: "Zdraví"}',
+                      },
+                      {
+                        type: 'image',
+                        image: base64Data,
+                      },
+                    ],
+                  },
+                ],
+                schema,
+              }),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
+              )
+            ]);
+            
+            console.log('AI receipt call successful');
           } catch (aiError) {
             console.error('Receipt AI error:', aiError);
+            console.error('Error details:', JSON.stringify(aiError, null, 2));
+            
             if (aiError instanceof Error) {
-              if (aiError.message.includes('Network request failed') || aiError.message.includes('Failed to fetch')) {
-                Alert.alert('Chyba', 'Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.');
-              } else if (aiError.message.includes('timeout')) {
-                Alert.alert('Chyba', 'AI zpracování trvalo příliš dlouho. Zkuste prosím menší soubor nebo jiný obrázek.');
+              const errorMsg = aiError.message.toLowerCase();
+              
+              if (errorMsg.includes('network request failed') || 
+                  errorMsg.includes('failed to fetch') ||
+                  errorMsg.includes('network error') ||
+                  errorMsg.includes('fetch failed')) {
+                Alert.alert(
+                  'Chyba připojení', 
+                  'Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.\n\nMůžete také zadat transakci ručně.'
+                );
+              } else if (errorMsg.includes('timeout')) {
+                Alert.alert(
+                  'Timeout', 
+                  'AI zpracování trvalo příliš dlouho. Zkuste prosím:\n• Menší soubor\n• Jiný obrázek\n• Zadejte transakci ručně'
+                );
+              } else if (errorMsg.includes('not configured') || errorMsg.includes('undefined')) {
+                Alert.alert(
+                  'Služba nedostupná', 
+                  'AI služba pro zpracování účtenek není správně nakonfigurována. Zadejte prosím transakci ručně.'
+                );
               } else {
-                Alert.alert('Chyba', `Nepodařilo se zpracovat účtenku: ${aiError.message}`);
+                Alert.alert(
+                  'Chyba', 
+                  `Nepodařilo se zpracovat účtenku: ${aiError.message}\n\nZadejte prosím transakci ručně.`
+                );
               }
             } else {
-              Alert.alert('Chyba', 'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.');
+              Alert.alert(
+                'Chyba', 
+                'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.'
+              );
             }
             setScanningReceipt(false);
             return;
@@ -658,7 +711,7 @@ export default function AddTransactionScreen() {
   const CategoryGrid = () => (
     <View style={styles.categoryGrid}>
       {categories.map((category) => {
-        const Icon = category.icon;
+    
         const isSelected = selectedCategory === category.id;
         
         return (
