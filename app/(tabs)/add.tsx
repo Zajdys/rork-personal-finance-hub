@@ -34,6 +34,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { parseBankCsvToTransactions, readUriText, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
 import { generateObject } from '@rork/toolkit-sdk';
+import { Platform } from 'react-native';
 import { z } from 'zod';
 
 const EXPENSE_CATEGORY_ICONS = {
@@ -234,7 +235,11 @@ export default function AddTransactionScreen() {
             console.log('AI call successful');
           } catch (aiError) {
             console.error('AI API error:', aiError);
-            console.error('Error details:', JSON.stringify(aiError, null, 2));
+            console.error('Error type:', typeof aiError);
+            console.error('Error name:', (aiError as any)?.name);
+            console.error('Error message:', (aiError as any)?.message);
+            console.error('Error stack:', (aiError as any)?.stack);
+            console.error('Error details:', JSON.stringify(aiError, Object.getOwnPropertyNames(aiError)));
             
             if (aiError instanceof Error) {
               const errorMsg = aiError.message.toLowerCase();
@@ -468,7 +473,11 @@ export default function AddTransactionScreen() {
             console.log('AI receipt call successful');
           } catch (aiError) {
             console.error('Receipt AI error:', aiError);
-            console.error('Error details:', JSON.stringify(aiError, null, 2));
+            console.error('Error type:', typeof aiError);
+            console.error('Error name:', (aiError as any)?.name);
+            console.error('Error message:', (aiError as any)?.message);
+            console.error('Error stack:', (aiError as any)?.stack);
+            console.error('Error details:', JSON.stringify(aiError, Object.getOwnPropertyNames(aiError)));
             
             if (aiError instanceof Error) {
               const errorMsg = aiError.message.toLowerCase();
