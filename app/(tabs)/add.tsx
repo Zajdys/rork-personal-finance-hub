@@ -154,20 +154,42 @@ export default function AddTransactionScreen() {
         try {
           console.log('Processing PDF with AI...');
           
-          const response = await fetch(asset.uri);
-          const blob = await response.blob();
-          
-          const base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const result = reader.result as string;
-              resolve(result.split(',')[1]);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
+          let base64Data: string;
+          try {
+            const response = await fetch(asset.uri);
+            if (!response.ok) {
+              throw new Error(`Nepodařilo se načíst soubor: ${response.status}`);
+            }
+            const blob = await response.blob();
+            
+            base64Data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const result = reader.result as string;
+                if (!result) {
+                  reject(new Error('Soubor je prázdný'));
+                  return;
+                }
+                const base64 = result.split(',')[1];
+                if (!base64) {
+                  reject(new Error('Nepodařilo se převést soubor'));
+                  return;
+                }
+                resolve(base64);
+              };
+              reader.onerror = () => reject(new Error('Chyba při čtení souboru'));
+              reader.readAsDataURL(blob);
+            });
+          } catch (fetchError) {
+            console.error('File fetch error:', fetchError);
+            throw new Error('Nepodařilo se načíst PDF soubor. Zkuste prosím jiný soubor.');
+          }
           
           console.log('PDF converted to base64, length:', base64Data.length);
+          
+          if (base64Data.length < 100) {
+            throw new Error('PDF soubor je příliš malý nebo prázdný');
+          }
           
           const schema = z.object({
             transactions: z.array(
@@ -180,24 +202,39 @@ export default function AddTransactionScreen() {
             ),
           });
 
-          const result = await generateObject({
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Analyzuj tento bankovní výpis a vrať VŠECHNY transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo (-). Pokud je to příjem/kredit, musí být KLADNÉ číslo (+).\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, název protiúčtu)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety (Lidl, Albert, Tesco), restaurace, kavárny, fast food\n- Nájem a bydlení: nájem, hypotéka, energie (ČEZ, PRE), voda, plyn, internet, telefon\n- Oblečení: oděvy, boty, módní značky (Zara, H&M)\n- Doprava: benzín, čerpací stanice, MHD, PID, taxi, Uber, Bolt\n- Zábava: Netflix, Spotify, HBO, hry, kino, divadlo, koncerty\n- Zdraví: lékárna, lékaři, poliklinika, fitness, wellness\n- Vzdělání: škola, kurzy, knihy, studijní materiály\n- Nákupy: elektronika, nábytek, online nákupy (Alza, Mall.cz)\n- Služby: pojištění, předplatné, opravy, účetní, advokát\n- Ostatní: vše ostatní\n\nPŘÍKLAD:\nPokud vidíš: "Platba kartou LIDL 23.12.2024 -450,50 Kč"\nVrať: {date: "23.12.2024", description: "LIDL", amount: -450.50, category: "Jídlo a nápoje"}\n\nPokud vidíš: "Příchozí platba MZDA 30.12.2024 +35000 Kč"\nVrať: {date: "30.12.2024", description: "MZDA", amount: 35000, category: "Mzda"}',
-                  },
-                  {
-                    type: 'image',
-                    image: base64Data,
-                  },
-                ],
-              },
-            ],
-            schema,
-          });
+          let result;
+          try {
+            result = await generateObject({
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Analyzuj tento bankovní výpis a vrať VŠECHNY transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo (-). Pokud je to příjem/kredit, musí být KLADNÉ číslo (+).\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, název protiúčtu)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety (Lidl, Albert, Tesco), restaurace, kavárny, fast food\n- Nájem a bydlení: nájem, hypotéka, energie (ČEZ, PRE), voda, plyn, internet, telefon\n- Oblečení: oděvy, boty, módní značky (Zara, H&M)\n- Doprava: benzín, čerpací stanice, MHD, PID, taxi, Uber, Bolt\n- Zábava: Netflix, Spotify, HBO, hry, kino, divadlo, koncerty\n- Zdraví: lékárna, lékaři, poliklinika, fitness, wellness\n- Vzdělání: škola, kurzy, knihy, studijní materiály\n- Nákupy: elektronika, nábytek, online nákupy (Alza, Mall.cz)\n- Služby: pojištění, předplatné, opravy, účetní, advokát\n- Ostatní: vše ostatní\n\nPŘÍKLAD:\nPokud vidíš: "Platba kartou LIDL 23.12.2024 -450,50 Kč"\nVrať: {date: "23.12.2024", description: "LIDL", amount: -450.50, category: "Jídlo a nápoje"}\n\nPokud vidíš: "Příchozí platba MZDA 30.12.2024 +35000 Kč"\nVrať: {date: "30.12.2024", description: "MZDA", amount: 35000, category: "Mzda"}',
+                    },
+                    {
+                      type: 'image',
+                      image: base64Data,
+                    },
+                  ],
+                },
+              ],
+              schema,
+            });
+          } catch (aiError) {
+            console.error('AI API error:', aiError);
+            if (aiError instanceof Error) {
+              if (aiError.message.includes('Network request failed') || aiError.message.includes('Failed to fetch')) {
+                throw new Error('Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.');
+              } else if (aiError.message.includes('timeout')) {
+                throw new Error('AI zpracování trvalo příliš dlouho. Zkuste prosím menší soubor.');
+              } else {
+                throw new Error(`AI chyba: ${aiError.message}`);
+              }
+            }
+            throw new Error('Nepodařilo se zpracovat PDF pomocí AI. Zkuste prosím CSV nebo XLSX formát.');
+          }
 
           console.log('AI parsed', result.transactions.length, 'transactions from bank statement');
 
@@ -348,8 +385,27 @@ export default function AddTransactionScreen() {
       
       reader.onloadend = async () => {
         try {
-          const base64Data = (reader.result as string).split(',')[1];
+          const result = reader.result as string;
+          if (!result) {
+            Alert.alert('Chyba', 'Soubor účtenky je prázdný.');
+            setScanningReceipt(false);
+            return;
+          }
+          
+          const base64Data = result.split(',')[1];
+          if (!base64Data) {
+            Alert.alert('Chyba', 'Nepodařilo se převést účtenku.');
+            setScanningReceipt(false);
+            return;
+          }
+          
           console.log('Base64 data length:', base64Data.length);
+          
+          if (base64Data.length < 100) {
+            Alert.alert('Chyba', 'Obrázek účtenky je příliš malý nebo prázdný.');
+            setScanningReceipt(false);
+            return;
+          }
           
           const schema = z.object({
             items: z.array(
@@ -361,30 +417,49 @@ export default function AddTransactionScreen() {
             ),
           });
 
-          const result = await generateObject({
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4ks à 30Kč, amount musí být 120, ne 30)\n2. Do title zahrň název produktu + velikost/objem + počet kusů pokud je > 1\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš "1 ks 29,90" a pak "CELKEM 29,90", amount je 29.90\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Potraviny celkem" nebo "DPH celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je více kusů stejné položky, sečti celkovou cenu\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, služby\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: vstupenky, hry, streaming\n- Zdraví: léky, vitamíny, lékařské pomůcky\n- Vzdělání: knihy, kurzy, školní potřeby\n- Nákupy: elektronika, domácnost, nábytek\n- Služby: opravy, čištění, ostatní služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtence je: "Kofola 2,25L\n4 ks x 30,00 Kč\nCelkem: 120,00 Kč"\nVrať: {title: "Kofola 2,25 L 4 ks", amount: 120, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtence je: "Rohlík\n1 ks 5,50 Kč"\nVrať: {title: "Rohlík", amount: 5.50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtence je: "Paracetamol 500mg\n1 bal 89,90 Kč"\nVrať: {title: "Paracetamol 500mg", amount: 89.90, category: "Zdraví"}',
-                  },
-                  {
-                    type: 'image',
-                    image: base64Data,
-                  },
-                ],
-              },
-            ],
-            schema,
-          });
+          let receiptResult;
+          try {
+            receiptResult = await generateObject({
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4ks à 30Kč, amount musí být 120, ne 30)\n2. Do title zahrň název produktu + velikost/objem + počet kusů pokud je > 1\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš "1 ks 29,90" a pak "CELKEM 29,90", amount je 29.90\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Potraviny celkem" nebo "DPH celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je více kusů stejné položky, sečti celkovou cenu\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, služby\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: vstupenky, hry, streaming\n- Zdraví: léky, vitamíny, lékařské pomůcky\n- Vzdělání: knihy, kurzy, školní potřeby\n- Nákupy: elektronika, domácnost, nábytek\n- Služby: opravy, čištění, ostatní služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtence je: "Kofola 2,25L\n4 ks x 30,00 Kč\nCelkem: 120,00 Kč"\nVrať: {title: "Kofola 2,25 L 4 ks", amount: 120, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtence je: "Rohlík\n1 ks 5,50 Kč"\nVrať: {title: "Rohlík", amount: 5.50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtence je: "Paracetamol 500mg\n1 bal 89,90 Kč"\nVrať: {title: "Paracetamol 500mg", amount: 89.90, category: "Zdraví"}',
+                    },
+                    {
+                      type: 'image',
+                      image: base64Data,
+                    },
+                  ],
+                },
+              ],
+              schema,
+            });
+          } catch (aiError) {
+            console.error('Receipt AI error:', aiError);
+            if (aiError instanceof Error) {
+              if (aiError.message.includes('Network request failed') || aiError.message.includes('Failed to fetch')) {
+                Alert.alert('Chyba', 'Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.');
+              } else if (aiError.message.includes('timeout')) {
+                Alert.alert('Chyba', 'AI zpracování trvalo příliš dlouho. Zkuste prosím menší soubor nebo jiný obrázek.');
+              } else {
+                Alert.alert('Chyba', `Nepodařilo se zpracovat účtenku: ${aiError.message}`);
+              }
+            } else {
+              Alert.alert('Chyba', 'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.');
+            }
+            setScanningReceipt(false);
+            return;
+          }
 
-          const receiptItems = result.items || [];
+          const receiptItems = receiptResult.items || [];
           console.log('Parsed receipt items:', receiptItems);
           
           if (receiptItems.length === 0) {
             Alert.alert('Chyba', 'Na účtence nebyly nalezeny žádné položky. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.');
+            setScanningReceipt(false);
             return;
           }
           
@@ -399,6 +474,7 @@ export default function AddTransactionScreen() {
           console.log('Receipt transactions created:', receiptTransactions.length);
           setPreview(receiptTransactions);
           setPreviewOpen(true);
+          setScanningReceipt(false);
           
           addPoints(3);
           showBuddyMessage('Účtenka byla úspěšně zpracována! Zkontrolujte položky a potvrďte.');
@@ -406,7 +482,6 @@ export default function AddTransactionScreen() {
         } catch (error) {
           console.error('Receipt processing error:', error);
           Alert.alert('Chyba', 'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně. Chyba: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
-        } finally {
           setScanningReceipt(false);
         }
       };
