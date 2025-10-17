@@ -1,6 +1,8 @@
 import { toNum } from "../../lib/num";
 import { Platform } from "react-native";
 import { parseXlsxArrayBuffer, ParsedTable } from "@/src/utils/fileParser";
+import { generateObject } from "@rork/toolkit-sdk";
+import { z } from "zod";
 
 export type BankCsvRecord = Record<string, string | undefined>;
 
@@ -429,6 +431,32 @@ function extractTextFromPdfRaw(raw: string): string {
   }
 }
 
+async function readPdfImageAsBase64(uri: string): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      const res = await fetch(uri);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      const FS = await import('expo-file-system');
+      const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+      return b64;
+    }
+  } catch (e) {
+    console.error('readPdfImageAsBase64 error', e);
+    return null;
+  }
+}
+
 export async function readPdfText(uri: string): Promise<string> {
   try {
     console.log('Reading PDF from URI:', uri);
@@ -519,6 +547,64 @@ function decodeBase64Latin1(b64: string): string {
   } catch (e) {
     console.error('decodeBase64Latin1 error', e);
     return '';
+  }
+}
+
+async function parseBankPdfWithAI(base64Image: string): Promise<ParsedTxn[]> {
+  try {
+    console.log('Parsing bank statement with AI...');
+    
+    const schema = z.object({
+      transactions: z.array(
+        z.object({
+          date: z.string().describe('Datum transakce ve formátu DD.MM.YYYY nebo YYYY-MM-DD'),
+          description: z.string().describe('Popis transakce - co bylo koupeno/zaplaceno'),
+          amount: z.number().describe('Částka v číselném formátu. Záporná pro výdaje, kladná pro příjmy'),
+          category: z.string().optional().describe('Kategorie transakce - jedna z: Jídlo a nápoje, Nájem a bydlení, Oblečení, Doprava, Zábava, Zdraví, Vzdělání, Nákupy, Služby, Ostatní'),
+        })
+      ),
+    });
+
+    const result = await generateObject({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Analyzuj tento bankovní výpis a vrať všechny transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo. Pokud je to příjem/kredit, musí být KLADNÉ číslo.\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, protiúčet)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety, restaurace, kavárny\n- Nájem a bydlení: nájem, energie, internet, telefon\n- Oblečení: oděvy, boty, módní značky\n- Doprava: benzín, MHD, taxi, jízdenky\n- Zábava: Netflix, hry, kino, sport\n- Zdraví: lékárna, lékaři, fitness\n- Vzdělání: škola, kurzy, knihy\n- Nákupy: elektronika, nábytek, online nákupy\n- Služby: pojištění, předplatné, opravy\n- Ostatní: vše ostatní',
+            },
+            {
+              type: 'image',
+              image: base64Image,
+            },
+          ],
+        },
+      ],
+      schema,
+    });
+
+    console.log('AI parsed', result.transactions.length, 'transactions from bank statement');
+
+    const parsedTransactions: ParsedTxn[] = result.transactions.map((txn) => {
+      const date = parseDateFlexible(txn.date) || new Date();
+      const amount = Math.abs(txn.amount);
+      const type: 'income' | 'expense' = txn.amount < 0 ? 'expense' : 'income';
+      const category = txn.category || guessCategory(txn.description, type);
+      
+      return {
+        type,
+        amount,
+        title: txn.description,
+        category,
+        date,
+      };
+    });
+
+    return parsedTransactions;
+  } catch (e) {
+    console.error('parseBankPdfWithAI error', e);
+    return [];
   }
 }
 

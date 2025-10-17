@@ -32,7 +32,9 @@ import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { parseBankCsvToTransactions, readUriText, readPdfText, parseBankPdfTextToTransactions, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
+import { parseBankCsvToTransactions, readUriText, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
+import { generateObject } from '@rork/toolkit-sdk';
+import { z } from 'zod';
 
 const EXPENSE_CATEGORY_ICONS = {
   'Jídlo a nápoje': Coffee,
@@ -150,31 +152,119 @@ export default function AddTransactionScreen() {
       if (isPdf) {
         console.log('Selected PDF bank statement:', { name, mime, uri: asset.uri });
         try {
-          console.log('Reading PDF text...');
-          const pdfText = await readPdfText(asset.uri);
-          console.log('PDF text extracted, length:', pdfText.length);
-          console.log('PDF text preview (first 500 chars):', pdfText.substring(0, 500));
+          console.log('Processing PDF with AI...');
           
-          if (!pdfText || pdfText.length < 50) {
-            setImportError('PDF se nepodařilo přečíst nebo je prázdné. Zkuste prosím CSV nebo XLS formát.');
+          const response = await fetch(asset.uri);
+          const blob = await response.blob();
+          
+          const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1]);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          
+          console.log('PDF converted to base64, length:', base64Data.length);
+          
+          const schema = z.object({
+            transactions: z.array(
+              z.object({
+                date: z.string().describe('Datum transakce ve formátu DD.MM.YYYY nebo YYYY-MM-DD'),
+                description: z.string().describe('Popis transakce - co bylo koupeno/zaplaceno'),
+                amount: z.number().describe('Částka v číselném formátu. Záporná pro výdaje, kladná pro příjmy'),
+                category: z.string().optional().describe('Kategorie transakce'),
+              })
+            ),
+          });
+
+          const result = await generateObject({
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Analyzuj tento bankovní výpis a vrať VŠECHNY transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo (-). Pokud je to příjem/kredit, musí být KLADNÉ číslo (+).\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, název protiúčtu)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety (Lidl, Albert, Tesco), restaurace, kavárny, fast food\n- Nájem a bydlení: nájem, hypotéka, energie (ČEZ, PRE), voda, plyn, internet, telefon\n- Oblečení: oděvy, boty, módní značky (Zara, H&M)\n- Doprava: benzín, čerpací stanice, MHD, PID, taxi, Uber, Bolt\n- Zábava: Netflix, Spotify, HBO, hry, kino, divadlo, koncerty\n- Zdraví: lékárna, lékaři, poliklinika, fitness, wellness\n- Vzdělání: škola, kurzy, knihy, studijní materiály\n- Nákupy: elektronika, nábytek, online nákupy (Alza, Mall.cz)\n- Služby: pojištění, předplatné, opravy, účetní, advokát\n- Ostatní: vše ostatní\n\nPŘÍKLAD:\nPokud vidíš: "Platba kartou LIDL 23.12.2024 -450,50 Kč"\nVrať: {date: "23.12.2024", description: "LIDL", amount: -450.50, category: "Jídlo a nápoje"}\n\nPokud vidíš: "Příchozí platba MZDA 30.12.2024 +35000 Kč"\nVrať: {date: "30.12.2024", description: "MZDA", amount: 35000, category: "Mzda"}',
+                  },
+                  {
+                    type: 'image',
+                    image: base64Data,
+                  },
+                ],
+              },
+            ],
+            schema,
+          });
+
+          console.log('AI parsed', result.transactions.length, 'transactions from bank statement');
+
+          if (!result.transactions || result.transactions.length === 0) {
+            setImportError('AI nenašlo žádné transakce v PDF výpisu. Zkuste prosím CSV nebo XLSX formát.');
             setImporting(false);
             return;
           }
+
+          const parsedFromPdf: ParsedTxn[] = result.transactions.map((txn) => {
+            const dateStr = txn.date;
+            let date = new Date();
+            
+            const dateMatch = dateStr.match(/(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{2,4})/);
+            if (dateMatch) {
+              const d = parseInt(dateMatch[1], 10);
+              const m = parseInt(dateMatch[2], 10) - 1;
+              const y = parseInt(dateMatch[3].length === 2 ? (Number(dateMatch[3]) + 2000).toString() : dateMatch[3], 10);
+              date = new Date(y, m, d);
+            } else {
+              const isoDate = Date.parse(dateStr);
+              if (!isNaN(isoDate)) {
+                date = new Date(isoDate);
+              }
+            }
+            
+            const amount = Math.abs(txn.amount);
+            const type: 'income' | 'expense' = txn.amount < 0 ? 'expense' : 'income';
+            
+            let category = txn.category || 'Ostatní';
+            const categoryLower = category.toLowerCase();
+            
+            if (type === 'expense') {
+              if (categoryLower.includes('jídl') || categoryLower.includes('nápoj') || categoryLower.includes('food')) category = 'Jídlo a nápoje';
+              else if (categoryLower.includes('nájem') || categoryLower.includes('bydlen') || categoryLower.includes('rent')) category = 'Nájem a bydlení';
+              else if (categoryLower.includes('oblečen') || categoryLower.includes('clothing')) category = 'Oblečení';
+              else if (categoryLower.includes('doprav') || categoryLower.includes('transport')) category = 'Doprava';
+              else if (categoryLower.includes('zábav') || categoryLower.includes('entertainment')) category = 'Zábava';
+              else if (categoryLower.includes('zdrav') || categoryLower.includes('health')) category = 'Zdraví';
+              else if (categoryLower.includes('vzdělán') || categoryLower.includes('education')) category = 'Vzdělání';
+              else if (categoryLower.includes('nákup') || categoryLower.includes('shopping')) category = 'Nákupy';
+              else if (categoryLower.includes('služb') || categoryLower.includes('service')) category = 'Služby';
+              else category = 'Ostatní';
+            } else {
+              if (categoryLower.includes('mzd') || categoryLower.includes('salary') || categoryLower.includes('výplat')) category = 'Mzda';
+              else if (categoryLower.includes('freelance')) category = 'Freelance';
+              else if (categoryLower.includes('investic') || categoryLower.includes('dividend')) category = 'Investice';
+              else if (categoryLower.includes('dar') || categoryLower.includes('gift')) category = 'Dary';
+              else category = 'Ostatní';
+            }
+            
+            return {
+              type,
+              amount,
+              title: txn.description,
+              category,
+              date,
+            };
+          });
+
+          setPreview(parsedFromPdf);
+          setPreviewOpen(true);
+          setImportError(null);
           
-          const parsedFromPdf = parseBankPdfTextToTransactions(pdfText);
-          console.log('PDF parsed transaction count:', parsedFromPdf.length);
-          
-          if (!parsedFromPdf.length) {
-            console.log('No transactions found. PDF text sample:', pdfText.substring(0, 1000));
-            setImportError('PDF se podařilo načíst, ale nenašli jsme žádné transakce. Zkuste prosím CSV nebo XLS formát, který banka obvykle umožňuje stáhnout.');
-          } else {
-            setPreview(parsedFromPdf);
-            setPreviewOpen(true);
-            setImportError(null);
-          }
         } catch (err) {
-          console.error('PDF parse error', err);
-          setImportError(`Nepodařilo se přečíst PDF výpis: ${err instanceof Error ? err.message : 'Neznámá chyba'}. Zkuste prosím CSV nebo XLS formát.`);
+          console.error('PDF AI parse error', err);
+          setImportError(`Nepodařilo se zpracovat PDF výpis pomocí AI: ${err instanceof Error ? err.message : 'Neznámá chyba'}. Zkuste prosím CSV nebo XLSX formát.`);
         }
         setImporting(false);
         return;
@@ -261,54 +351,36 @@ export default function AddTransactionScreen() {
           const base64Data = (reader.result as string).split(',')[1];
           console.log('Base64 data length:', base64Data.length);
           
-          const aiResponse = await fetch('https://toolkit.rork.com/text/llm/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Analyzuj tuto účtenku a vrať JSON s polem "items" obsahující objekty s: title (název položky včetně množství, např. "Kofola 2,25 L 4 ks"), amount (CELKOVÁ číselná částka za tuto položku, ne jednotková cena), category (jedna z: "Jídlo a nápoje", "Nájem a bydlení", "Oblečení", "Doprava", "Zábava", "Zdraví", "Vzdělání", "Nákupy", "Služby", "Ostatní").\n\nDŮLEŽITÉ PRAVIDLA:\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4ks à 30Kč, amount musí být 120)\n2. Do title zahrň název produktu + velikost/objem + počet kusů pokud je > 1\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+)\n4. Pokud vidíš "1 ks 29,90" a pak "CELKEM 29,90", amount je 29.90\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Potraviny celkem", zajímají nás jen jednotlivé položky\n\nPříklad: Pokud na účtence je "Kofola 2,25L 4x30Kč = 120Kč", vrať: {"title": "Kofola 2,25 L 4 ks", "amount": 120, "category": "Jídlo a nápoje"}\n\nFormát odpovědi: {"items": [{"title": "...", "amount": ..., "category": "..."}]}'
-                    },
-                    {
-                      type: 'image',
-                      image: base64Data
-                    }
-                  ]
-                }
-              ]
-            })
+          const schema = z.object({
+            items: z.array(
+              z.object({
+                title: z.string().describe('Název položky včetně množství, např. "Kofola 2,25 L 4 ks"'),
+                amount: z.number().describe('CELKOVÁ číselná částka za tuto položku v Kč (ne jednotková cena)'),
+                category: z.string().describe('Kategorie - jedna z: Jídlo a nápoje, Nájem a bydlení, Oblečení, Doprava, Zábava, Zdraví, Vzdělání, Nákupy, Služby, Ostatní'),
+              })
+            ),
           });
-          
-          if (!aiResponse.ok) {
-            const errorText = await aiResponse.text();
-            console.error('AI API error:', aiResponse.status, errorText);
-            throw new Error('AI API returned error: ' + aiResponse.status);
-          }
-          
-          const aiResult = await aiResponse.json();
-          console.log('AI Receipt Analysis raw response:', aiResult);
-          
-          const completion = aiResult.completion || aiResult.text || '';
-          console.log('AI completion text:', completion);
-          
-          if (!completion) {
-            throw new Error('Prázdná odpověď z AI');
-          }
-          
-          const jsonMatch = completion.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            console.error('No JSON found in response:', completion);
-            throw new Error('AI nevrátilo validní JSON');
-          }
-          
-          const parsedResult = JSON.parse(jsonMatch[0]);
-          const receiptItems = parsedResult.items || [];
+
+          const result = await generateObject({
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4ks à 30Kč, amount musí být 120, ne 30)\n2. Do title zahrň název produktu + velikost/objem + počet kusů pokud je > 1\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš "1 ks 29,90" a pak "CELKEM 29,90", amount je 29.90\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Potraviny celkem" nebo "DPH celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je více kusů stejné položky, sečti celkovou cenu\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, služby\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: vstupenky, hry, streaming\n- Zdraví: léky, vitamíny, lékařské pomůcky\n- Vzdělání: knihy, kurzy, školní potřeby\n- Nákupy: elektronika, domácnost, nábytek\n- Služby: opravy, čištění, ostatní služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtence je: "Kofola 2,25L\n4 ks x 30,00 Kč\nCelkem: 120,00 Kč"\nVrať: {title: "Kofola 2,25 L 4 ks", amount: 120, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtence je: "Rohlík\n1 ks 5,50 Kč"\nVrať: {title: "Rohlík", amount: 5.50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtence je: "Paracetamol 500mg\n1 bal 89,90 Kč"\nVrať: {title: "Paracetamol 500mg", amount: 89.90, category: "Zdraví"}',
+                  },
+                  {
+                    type: 'image',
+                    image: base64Data,
+                  },
+                ],
+              },
+            ],
+            schema,
+          });
+
+          const receiptItems = result.items || [];
           console.log('Parsed receipt items:', receiptItems);
           
           if (receiptItems.length === 0) {
