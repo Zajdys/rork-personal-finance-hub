@@ -237,8 +237,8 @@ export default function AddTransactionScreen() {
   const processReceiptFile = useCallback(async (uri: string) => {
     try {
       setScanningReceipt(true);
+      console.log('Processing receipt from URI:', uri);
       
-      // Convert image to base64
       const response = await fetch(uri);
       const blob = await response.blob();
       const reader = new FileReader();
@@ -246,8 +246,8 @@ export default function AddTransactionScreen() {
       reader.onloadend = async () => {
         try {
           const base64Data = (reader.result as string).split(',')[1];
+          console.log('Base64 data length:', base64Data.length);
           
-          // Send to AI for processing
           const aiResponse = await fetch('https://toolkit.rork.com/text/llm/', {
             method: 'POST',
             headers: {
@@ -256,15 +256,11 @@ export default function AddTransactionScreen() {
             body: JSON.stringify({
               messages: [
                 {
-                  role: 'system',
-                  content: 'Jsi expert na analýzu účtenek. Analyzuj účtenku a rozděl položky do kategorií. Vrať JSON s polem "items" obsahující objekty s: title (název položky), amount (částka v Kč), category (jedna z: "Jídlo a nápoje", "Nájem a bydlení", "Oblečení", "Doprava", "Zábava", "Zdraví", "Vzdělání", "Nákupy", "Služby", "Ostatní"). Pokud není jasná celková částka, sečti jednotlivé položky.'
-                },
-                {
                   role: 'user',
                   content: [
                     {
                       type: 'text',
-                      text: 'Analyzuj tuto účtenku a rozděl položky do kategorií:'
+                      text: 'Analyzuj tuto účtenku a vrať JSON s polem "items" obsahující objekty s: title (název položky), amount (číselná částka), category (jedna z: "Jídlo a nápoje", "Nájem a bydlení", "Oblečení", "Doprava", "Zábava", "Zdraví", "Vzdělání", "Nákupy", "Služby", "Ostatní"). Pokud jsou na účtence jednotlivé položky, vypiš je všechny. Pokud je jen celková částka, udělej jeden záznam. Příklad odpovědi: {"items": [{"title": "Pivo", "amount": 45, "category": "Jídlo a nápoje"}]}'
                     },
                     {
                       type: 'image',
@@ -276,41 +272,55 @@ export default function AddTransactionScreen() {
             })
           });
           
-          const aiResult = await aiResponse.json();
-          console.log('AI Receipt Analysis:', aiResult.completion);
-          
-          try {
-            const parsedResult = JSON.parse(aiResult.completion);
-            const receiptItems = parsedResult.items || [];
-            
-            if (receiptItems.length === 0) {
-              Alert.alert(t('error'), t('noItemsFound'));
-              return;
-            }
-            
-            // Convert to preview format
-            const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
-              type: 'expense' as const,
-              amount: parseFloat(item.amount) || 0,
-              title: item.title || `Položka ${index + 1}`,
-              category: item.category || 'Ostatní',
-              date: new Date(),
-            }));
-            
-            setPreview(receiptTransactions);
-            setPreviewOpen(true);
-            
-            addPoints(3);
-            showBuddyMessage(t('receiptProcessed'));
-            
-          } catch (parseError) {
-            console.error('Failed to parse AI response:', parseError);
-            Alert.alert(t('error'), t('receiptProcessingError'));
+          if (!aiResponse.ok) {
+            const errorText = await aiResponse.text();
+            console.error('AI API error:', aiResponse.status, errorText);
+            throw new Error('AI API returned error: ' + aiResponse.status);
           }
+          
+          const aiResult = await aiResponse.json();
+          console.log('AI Receipt Analysis raw response:', aiResult);
+          
+          const completion = aiResult.completion || aiResult.text || '';
+          console.log('AI completion text:', completion);
+          
+          if (!completion) {
+            throw new Error('Prázdná odpověď z AI');
+          }
+          
+          const jsonMatch = completion.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            console.error('No JSON found in response:', completion);
+            throw new Error('AI nevrátilo validní JSON');
+          }
+          
+          const parsedResult = JSON.parse(jsonMatch[0]);
+          const receiptItems = parsedResult.items || [];
+          console.log('Parsed receipt items:', receiptItems);
+          
+          if (receiptItems.length === 0) {
+            Alert.alert('Chyba', 'Na účtence nebyly nalezeny žádné položky. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.');
+            return;
+          }
+          
+          const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
+            type: 'expense' as const,
+            amount: parseFloat(item.amount) || 0,
+            title: item.title || `Položka ${index + 1}`,
+            category: item.category || 'Ostatní',
+            date: new Date(),
+          }));
+          
+          console.log('Receipt transactions created:', receiptTransactions.length);
+          setPreview(receiptTransactions);
+          setPreviewOpen(true);
+          
+          addPoints(3);
+          showBuddyMessage('Účtenka byla úspěšně zpracována! Zkontrolujte položky a potvrďte.');
           
         } catch (error) {
           console.error('Receipt processing error:', error);
-          Alert.alert(t('error'), t('receiptProcessingError'));
+          Alert.alert('Chyba', 'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně. Chyba: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
         } finally {
           setScanningReceipt(false);
         }
@@ -320,10 +330,10 @@ export default function AddTransactionScreen() {
       
     } catch (error) {
       console.error('Receipt file processing error:', error);
-      Alert.alert(t('error'), t('fileProcessingError'));
+      Alert.alert('Chyba', 'Nepodařilo se načíst soubor účtenky.');
       setScanningReceipt(false);
     }
-  }, [addPoints, showBuddyMessage, t]);
+  }, [addPoints, showBuddyMessage]);
 
   const uploadReceiptPDF = useCallback(async () => {
     try {
