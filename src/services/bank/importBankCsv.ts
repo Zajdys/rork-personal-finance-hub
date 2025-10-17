@@ -364,30 +364,71 @@ function bytesToText(bytes: Uint8Array): string {
 
 function extractTextFromPdfRaw(raw: string): string {
   try {
-    const normalized = raw.replace(/\)\s*T\*/gm, ')\n').replace(/\)\s*T[dD]\b/gm, ')\n');
-    const parts: string[] = [];
-    const re = /\((?:\\.|[^\\])*?\)\s*Tj|\[((?:\s*(?:\((?:\\.|[^\\])*?\)|<[-\da-fA-F\s]+>|-?\d+)\s*)+)\]\s*TJ|<([-\da-fA-F\s]+)>\s*Tj/gm;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(normalized)) !== null) {
-      const token = m[0];
-      if (token.startsWith('(')) {
-        const inner = token.replace(/\)\s*Tj$/, '').slice(1);
-        parts.push(unescapePdfString(inner));
-        continue;
-      }
-      if (token.startsWith('[')) {
-        const arr = token.replace(/\]\s*TJ$/, '').slice(1, -1);
-        const segs: string[] = [];
-        const litMatches = [...arr.matchAll(/\((?:\\.|[^\\])*?\)/gm)];
-        const hexMatches = [...arr.matchAll(/<([-\da-fA-F\s]+)>/gm)];
-        for (const lm of litMatches) segs.push(unescapePdfString(lm[0].slice(1, -1)));
-        for (const hm of hexMatches) segs.push(bytesToText(hexToBytes(hm[1])));
-        parts.push(segs.join(''));
-        continue;
-      }
-      const hex = (m[1] ?? '').toString();
-      parts.push(bytesToText(hexToBytes(hex)));
+    if (!raw || raw.length < 100) {
+      console.log('PDF raw content too short or empty');
+      return '';
     }
+
+    if (!raw.includes('%PDF')) {
+      console.log('Not a valid PDF format (missing %PDF header)');
+      return '';
+    }
+
+    let normalized: string;
+    try {
+      normalized = raw.replace(/\)\s*T\*/gm, ')\n').replace(/\)\s*T[dD]\b/gm, ')\n');
+    } catch (replaceError) {
+      console.error('Error normalizing PDF content:', replaceError);
+      return '';
+    }
+    
+    const parts: string[] = [];
+    
+    let re: RegExp;
+    try {
+      re = /\((?:\\.|[^\\])*?\)\s*Tj|\[((?:\s*(?:\((?:\\.|[^\\])*?\)|<[-\da-fA-F\s]+>|-?\d+)\s*)+)\]\s*TJ|<([-\da-fA-F\s]+)>\s*Tj/gmi;
+    } catch (regexError) {
+      console.error('Error creating regex:', regexError);
+      return '';
+    }
+    let m: RegExpExecArray | null;
+    let matchCount = 0;
+    
+    while ((m = re.exec(normalized)) !== null) {
+      matchCount++;
+      if (matchCount > 10000) {
+        console.log('Too many matches, stopping PDF parse');
+        break;
+      }
+      
+      try {
+        const token = m[0];
+        if (token.startsWith('(')) {
+          const inner = token.replace(/\)\s*Tj$/i, '').slice(1);
+          parts.push(unescapePdfString(inner));
+          continue;
+        }
+        if (token.startsWith('[')) {
+          const arr = token.replace(/\]\s*TJ$/i, '').slice(1);
+          const segs: string[] = [];
+          const litMatches = [...arr.matchAll(/\((?:\\.|[^\\])*?\)/gm)];
+          const hexMatches = [...arr.matchAll(/<([-\da-fA-F\s]+)>/gm)];
+          for (const lm of litMatches) segs.push(unescapePdfString(lm[0].slice(1, -1)));
+          for (const hm of hexMatches) segs.push(bytesToText(hexToBytes(hm[1])));
+          parts.push(segs.join(''));
+          continue;
+        }
+        if (token.startsWith('<')) {
+          const hex = token.replace(/<|>|\s*Tj$/gi, '');
+          if (hex) parts.push(bytesToText(hexToBytes(hex)));
+        }
+      } catch (tokenError) {
+        console.log('Error parsing PDF token, skipping:', tokenError);
+        continue;
+      }
+    }
+    
+    console.log('PDF extracted', parts.length, 'text parts');
     return parts.join('\n');
   } catch (e) {
     console.error('extractTextFromPdfRaw error', e);
@@ -397,22 +438,51 @@ function extractTextFromPdfRaw(raw: string): string {
 
 export async function readPdfText(uri: string): Promise<string> {
   try {
+    console.log('Reading PDF from URI:', uri);
+    
+    let raw: string;
     if (Platform.OS === 'web') {
       const res = await fetch(uri);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch PDF: ${res.status} ${res.statusText}`);
+      }
       const buf = await res.arrayBuffer();
-      const raw = new TextDecoder('latin1').decode(new Uint8Array(buf));
-      const text = extractTextFromPdfRaw(raw);
-      return text;
+      console.log('PDF buffer size:', buf.byteLength);
+      
+      try {
+        raw = new TextDecoder('latin1').decode(new Uint8Array(buf));
+      } catch (decodeError) {
+        console.error('TextDecoder error:', decodeError);
+        throw new Error('Nepodařilo se dekódovat PDF soubor');
+      }
     } else {
       const FS = await import('expo-file-system');
       const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
-      const binary = decodeBase64Latin1(b64);
-      const text = extractTextFromPdfRaw(binary);
-      return text;
+      console.log('PDF base64 length:', b64.length);
+      
+      try {
+        raw = decodeBase64Latin1(b64);
+      } catch (decodeError) {
+        console.error('Base64 decode error:', decodeError);
+        throw new Error('Nepodařilo se dekódovat PDF soubor');
+      }
     }
+    
+    console.log('PDF raw content length:', raw.length);
+    console.log('PDF header check:', raw.substring(0, 20));
+    
+    const text = extractTextFromPdfRaw(raw);
+    console.log('Extracted text length:', text.length);
+    
+    if (!text || text.trim().length === 0) {
+      throw new Error('PDF neobsahuje žádný čitelný text. Zkuste prosím CSV nebo XLSX formát.');
+    }
+    
+    return text;
   } catch (e) {
     console.error('readPdfText error', e);
-    throw e;
+    const errorMessage = e instanceof Error ? e.message : 'Nepodařilo se přečíst PDF soubor';
+    throw new Error(errorMessage);
   }
 }
 
