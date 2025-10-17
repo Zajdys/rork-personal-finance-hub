@@ -120,6 +120,8 @@ export interface GamingStats {
   buddyScore: number;
   streak: number;
   longestStreak: number;
+  loginStreak: number;
+  lastLoginDate: string | null;
   memberSince: Date;
   badges: UserBadge[];
   achievements: Achievement[];

@@ -27,19 +27,64 @@ import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
+import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/store/auth-store';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const finance = useFinanceStore();
   const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals, loans, getLoanProgress } = finance;
-  const { level, points, dailyTip, refreshDailyTip } = useBuddyStore();
+  const { level, points, dailyTip, refreshDailyTip, addXp, gamingStats, saveData } = useBuddyStore();
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t, language, updateCounter } = useLanguageStore();
+  const { user } = useAuth();
+  const [dailyLoginReward, setDailyLoginReward] = useState<{
+    awarded: boolean;
+    xpGained: number;
+    newStreak: number;
+    message: string;
+    leveledUp?: boolean;
+  } | null>(null);
+  
+  const dailyLoginMutation = trpc.gaming.dailyLogin.useMutation();
   
   useEffect(() => {
     refreshDailyTip();
   }, [language, updateCounter, refreshDailyTip]);
+
+  useEffect(() => {
+    const checkDailyLogin = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const result = await dailyLoginMutation.mutateAsync({
+          userId: user.id,
+        });
+        
+        if (result.awarded) {
+          addXp(result.xpGained);
+          useBuddyStore.setState((state) => ({
+            gamingStats: {
+              ...state.gamingStats,
+              loginStreak: result.newStreak,
+              lastLoginDate: new Date().toISOString().split('T')[0],
+            },
+          }));
+          await saveData();
+          setDailyLoginReward(result);
+          
+          setTimeout(() => {
+            setDailyLoginReward(null);
+          }, 5000);
+        }
+      } catch (error) {
+        console.error('Daily login check failed:', error);
+      }
+    };
+    
+    checkDailyLogin();
+  }, [user?.id]);
   
   const currentMonthReport = getCurrentMonthReport();
   
@@ -260,6 +305,30 @@ export default function DashboardScreen() {
             >
               <MessageCircle color="#F59E0B" size={20} />
             </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      )}
+
+      {dailyLoginReward && dailyLoginReward.awarded && (
+        <View style={styles.dailyLoginContainer}>
+          <LinearGradient
+            colors={['#10B981', '#059669']}
+            style={styles.dailyLoginGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.dailyLoginContent}>
+              <Text style={styles.dailyLoginEmoji}>🎉</Text>
+              <View style={styles.dailyLoginText}>
+                <Text style={styles.dailyLoginTitle}>Denní odměna!</Text>
+                <Text style={styles.dailyLoginMessage}>{dailyLoginReward.message}</Text>
+                {dailyLoginReward.newStreak > 1 && (
+                  <Text style={styles.dailyLoginStreak}>
+                    🔥 {dailyLoginReward.newStreak} dní v řadě!
+                  </Text>
+                )}
+              </View>
+            </View>
           </LinearGradient>
         </View>
       )}
@@ -970,6 +1039,48 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  dailyLoginContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  dailyLoginGradient: {
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dailyLoginContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dailyLoginEmoji: {
+    fontSize: 48,
+    marginRight: 16,
+  },
+  dailyLoginText: {
+    flex: 1,
+  },
+  dailyLoginTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+  },
+  dailyLoginMessage: {
+    fontSize: 16,
+    color: 'white',
+    opacity: 0.95,
+    marginBottom: 4,
+  },
+  dailyLoginStreak: {
+    fontSize: 14,
+    color: 'white',
+    opacity: 0.9,
+    fontWeight: '600',
   },
   loansOverviewContainer: {
     marginHorizontal: 20,

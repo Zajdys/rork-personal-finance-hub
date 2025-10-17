@@ -11,6 +11,7 @@ import { removeFriendProcedure } from "./routes/friends/remove/route";
 import { listFriendsProcedure } from "./routes/friends/list/route";
 import { listPendingRequestsProcedure } from "./routes/friends/pending/route";
 import { sendSupportNotificationProcedure } from "./routes/support/send-notification/route";
+import { dailyLoginProcedure } from "./routes/gaming/daily-login/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -32,6 +33,9 @@ export const appRouter = createTRPCRouter({
   }),
   support: createTRPCRouter({
     sendNotification: sendSupportNotificationProcedure,
+  }),
+  gaming: createTRPCRouter({
+    dailyLogin: dailyLoginProcedure,
   }),
 });
 

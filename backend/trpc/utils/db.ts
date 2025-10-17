@@ -14,6 +14,29 @@ export type DB = {
   get: <T = any>(sql: string, params?: any[]) => Promise<T | undefined>;
 };
 
+export async function getDb(): Promise<DB> {
+  await initDb();
+  return getDB();
+}
+
+async function initDb(): Promise<void> {
+  if (!initialized) {
+    const url = process.env.DATABASE_URL;
+    if (url) {
+      pgClient = new PGClient({ connectionString: url, ssl: getSSL() });
+    } else {
+      if (!sqlPromise) sqlPromise = initSqlJs({ locateFile: (f: string) => `https://sql.js.org/dist/${f}` });
+    }
+    initialized = true;
+  }
+  
+  if (pgClient) {
+    await ensurePg();
+  } else {
+    await ensureSqlJs();
+  }
+}
+
 export function getDB(): DB {
   if (!initialized) {
     const url = process.env.DATABASE_URL;
@@ -161,6 +184,15 @@ async function migratePg(client: PGClient) {
     create index if not exists idx_friendships_user_id on friendships(user_id);
     create index if not exists idx_friendships_friend_id on friendships(friend_id);
     create index if not exists idx_friendships_status on friendships(status);
+    create table if not exists daily_login (
+      userId text primary key,
+      lastLoginDate text not null,
+      loginStreak integer not null default 0,
+      totalXp integer not null default 0,
+      level integer not null default 1,
+      createdAt timestamptz default now(),
+      updatedAt timestamptz default now()
+    );
   `);
 }
 
@@ -256,6 +288,17 @@ function migrateSqlJs(db: Database) {
   db.run(`create index if not exists idx_friendships_user_id on friendships(user_id);`);
   db.run(`create index if not exists idx_friendships_friend_id on friendships(friend_id);`);
   db.run(`create index if not exists idx_friendships_status on friendships(status);`);
+  db.run(`
+    create table if not exists daily_login (
+      userId text primary key,
+      lastLoginDate text not null,
+      loginStreak integer not null default 0,
+      totalXp integer not null default 0,
+      level integer not null default 1,
+      createdAt text default (datetime('now')),
+      updatedAt text default (datetime('now'))
+    );
+  `);
 }
 
 function sqlToPg(sql: string) {
