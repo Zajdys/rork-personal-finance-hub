@@ -384,13 +384,7 @@ function extractTextFromPdfRaw(raw: string): string {
     
     const parts: string[] = [];
     
-    let re: RegExp;
-    try {
-      re = /\((?:\\.|[^\\])*?\)\s*Tj|\[((?:\s*(?:\((?:\\.|[^\\])*?\)|<[-\da-fA-F\s]+>|-?\d+)\s*)+)\]\s*TJ|<([-\da-fA-F\s]+)>\s*Tj/gmi;
-    } catch (regexError) {
-      console.error('Error creating regex:', regexError);
-      return '';
-    }
+    const re = /\((?:\\.|[^\\()])*?\)\s*Tj|\[((?:\s*(?:\((?:\\.|[^\\()])*?\)|<[\da-fA-F\s]+>|-?\d+)\s*)+)\]\s*TJ|<([\da-fA-F\s]+)>\s*Tj/gmi;
     let m: RegExpExecArray | null;
     let matchCount = 0;
     
@@ -411,8 +405,8 @@ function extractTextFromPdfRaw(raw: string): string {
         if (token.startsWith('[')) {
           const arr = token.replace(/\]\s*TJ$/i, '').slice(1);
           const segs: string[] = [];
-          const litMatches = [...arr.matchAll(/\((?:\\.|[^\\])*?\)/gm)];
-          const hexMatches = [...arr.matchAll(/<([-\da-fA-F\s]+)>/gm)];
+          const litMatches = [...arr.matchAll(/\((?:\\.|[^\\()])*?\)/gm)];
+          const hexMatches = [...arr.matchAll(/<([\da-fA-F\s]+)>/gm)];
           for (const lm of litMatches) segs.push(unescapePdfString(lm[0].slice(1, -1)));
           for (const hm of hexMatches) segs.push(bytesToText(hexToBytes(hm[1])));
           parts.push(segs.join(''));
