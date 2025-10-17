@@ -384,42 +384,41 @@ function extractTextFromPdfRaw(raw: string): string {
     
     const parts: string[] = [];
     
-    const re = /\((?:\\.|[^\\()])*?\)\s*Tj|\[((?:\s*(?:\((?:\\.|[^\\()])*?\)|<[\da-fA-F\s]+>|-?\d+)\s*)+)\]\s*TJ|<([\da-fA-F\s]+)>\s*Tj/gmi;
-    let m: RegExpExecArray | null;
-    let matchCount = 0;
-    
-    while ((m = re.exec(normalized)) !== null) {
-      matchCount++;
-      if (matchCount > 10000) {
-        console.log('Too many matches, stopping PDF parse');
-        break;
+    try {
+      const simpleTextRe = /\(([^()]+)\)\s*Tj/gmi;
+      const matches = normalized.match(simpleTextRe);
+      if (matches && matches.length > 0) {
+        for (const match of matches) {
+          try {
+            const content = match.match(/\(([^()]+)\)/);
+            if (content && content[1]) {
+              parts.push(unescapePdfString(content[1]));
+            }
+          } catch (innerError) {
+            continue;
+          }
+        }
       }
       
-      try {
-        const token = m[0];
-        if (token.startsWith('(')) {
-          const inner = token.replace(/\)\s*Tj$/i, '').slice(1);
-          parts.push(unescapePdfString(inner));
-          continue;
+      if (parts.length === 0) {
+        const hexRe = /<([\da-fA-F\s]+)>\s*Tj/gmi;
+        const hexMatches = normalized.match(hexRe);
+        if (hexMatches && hexMatches.length > 0) {
+          for (const match of hexMatches) {
+            try {
+              const content = match.match(/<([\da-fA-F\s]+)>/);
+              if (content && content[1]) {
+                parts.push(bytesToText(hexToBytes(content[1])));
+              }
+            } catch (innerError) {
+              continue;
+            }
+          }
         }
-        if (token.startsWith('[')) {
-          const arr = token.replace(/\]\s*TJ$/i, '').slice(1);
-          const segs: string[] = [];
-          const litMatches = [...arr.matchAll(/\((?:\\.|[^\\()])*?\)/gm)];
-          const hexMatches = [...arr.matchAll(/<([\da-fA-F\s]+)>/gm)];
-          for (const lm of litMatches) segs.push(unescapePdfString(lm[0].slice(1, -1)));
-          for (const hm of hexMatches) segs.push(bytesToText(hexToBytes(hm[1])));
-          parts.push(segs.join(''));
-          continue;
-        }
-        if (token.startsWith('<')) {
-          const hex = token.replace(/<|>|\s*Tj$/gi, '');
-          if (hex) parts.push(bytesToText(hexToBytes(hex)));
-        }
-      } catch (tokenError) {
-        console.log('Error parsing PDF token, skipping:', tokenError);
-        continue;
       }
+    } catch (matchError) {
+      console.error('Error matching PDF patterns:', matchError);
+      return '';
     }
     
     console.log('PDF extracted', parts.length, 'text parts');
