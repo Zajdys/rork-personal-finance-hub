@@ -26,10 +26,12 @@ import {
   FileText,
   Scan,
   Plus,
+  Building2,
 } from 'lucide-react-native';
 import { useFinanceStore, CustomCategory } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
+import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { parseBankCsvToTransactions, readUriText, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
@@ -794,6 +796,16 @@ export default function AddTransactionScreen() {
 
         <View style={styles.importSection}>
           <TouchableOpacity
+            style={styles.bankConnectButton}
+            onPress={() => router.push('/bank-connect')}
+          >
+            <LinearGradient colors={["#10b981", "#059669"]} style={styles.importGradient}>
+              <Building2 color="#fff" size={20} />
+              <Text style={styles.importText}>Propojit s bankou</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
             testID="import-bank-statement"
             accessibilityLabel="import-bank-statement"
             style={styles.importButton}
@@ -1057,6 +1069,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
     gap: 12,
+  },
+  bankConnectButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   receiptButtons: {
     flexDirection: 'row',
