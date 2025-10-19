@@ -500,6 +500,90 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {/* Financial Goals Section */}
+      {financialGoals.length > 0 && (
+        <View style={styles.goalsOverviewContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Finanční cíle</Text>
+            <TouchableOpacity 
+              onPress={() => router.push('/financial-goals')}
+              style={styles.showMoreButton}
+            >
+              <Text style={styles.showMoreText}>
+                Vše
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {financialGoals.slice(0, 2).map((goal) => {
+            const progress = (goal.currentAmount / goal.targetAmount) * 100;
+            const isOverLimit = goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount;
+            const color = isOverLimit ? '#EF4444' : '#10B981';
+            
+            return (
+              <TouchableOpacity 
+                key={goal.id} 
+                style={[styles.goalCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+                onPress={() => router.push('/financial-goals')}
+              >
+                <View style={styles.goalCardHeader}>
+                  <View style={styles.goalCardInfo}>
+                    <Text style={[styles.goalCardTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{goal.title}</Text>
+                    <Text style={[styles.goalCardCategory, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{goal.category}</Text>
+                  </View>
+                  <View style={styles.goalCardAmounts}>
+                    <Text style={[styles.goalCurrentAmount, { color }]}>
+                      {goal.currentAmount.toLocaleString('cs-CZ')} Kč
+                    </Text>
+                    <Text style={[styles.goalTargetAmount, { color: isDarkMode ? '#D1D5DB' : '#9CA3AF' }]}>
+                      z {goal.targetAmount.toLocaleString('cs-CZ')} Kč
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.goalProgressBarContainer}>
+                  <View style={[styles.goalProgressBarBackground, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
+                    <View 
+                      style={[
+                        styles.goalProgressBar, 
+                        { 
+                          width: `${Math.min(progress, 100)}%`, 
+                          backgroundColor: color
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={[styles.goalProgressText, { color }]}>  
+                    {Math.round(progress)}%
+                  </Text>
+                </View>
+                
+                {isOverLimit && (
+                  <Text style={styles.goalOverLimitText}>
+                    ⚠️ Překročil jsi limit
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+          
+          {financialGoals.length === 0 && (
+            <TouchableOpacity 
+              style={[styles.emptyGoalsCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+              onPress={() => router.push('/financial-goals')}
+            >
+              <Target color="#9CA3AF" size={32} />
+              <Text style={[styles.emptyGoalsText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                Nastav si finanční cíle
+              </Text>
+              <Text style={[styles.emptyGoalsSubtext, { color: isDarkMode ? '#9CA3AF' : '#9CA3AF' }]}>
+                Sleduj pokrok a dosáhni svých cílů
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       <View style={styles.learningContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialEducation')}</Text>
         <TouchableOpacity style={styles.learningCard}>
@@ -1215,5 +1299,103 @@ const styles = StyleSheet.create({
   loanProgressBar: {
     height: '100%',
     borderRadius: 4,
+  },
+  goalsOverviewContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  goalCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  goalCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  goalCardInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  goalCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  goalCardCategory: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  goalCardAmounts: {
+    alignItems: 'flex-end',
+  },
+  goalCurrentAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  goalTargetAmount: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  goalProgressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  goalProgressBarBackground: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  goalProgressBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  goalProgressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 35,
+    textAlign: 'right',
+  },
+  goalOverLimitText: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  emptyGoalsCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyGoalsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptyGoalsSubtext: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
 });
