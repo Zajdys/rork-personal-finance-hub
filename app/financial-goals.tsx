@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Modal,
   Alert,
   Switch,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -28,6 +30,7 @@ import {
   Fuel,
   RefreshCcw,
   ChevronLeft,
+  GripVertical,
 } from 'lucide-react-native';
 import { Stack, router } from 'expo-router';
 import { useFinanceStore, FinancialGoal, RecurrenceFrequency } from '@/store/finance-store';
@@ -117,7 +120,8 @@ export default function FinancialGoalsScreen() {
     financialGoals: goals, 
     addFinancialGoal, 
     updateFinancialGoal, 
-    deleteFinancialGoal, 
+    deleteFinancialGoal,
+    reorderFinancialGoals,
     loadData, 
     isLoaded 
   } = useFinanceStore();
@@ -131,6 +135,11 @@ export default function FinancialGoalsScreen() {
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
   const [dayOfMonth, setDayOfMonth] = useState<string>('1');
+  
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const draggedItemHeight = 200;
+  const cardHeights = useRef<{ [key: string]: number }>({});
+  const layoutY = useRef<{ [key: string]: number }>({});
 
   useEffect(() => {
     if (!isLoaded) {
@@ -184,15 +193,92 @@ export default function FinancialGoalsScreen() {
     );
   }, [goals, deleteFinancialGoal, addFinancialGoal, deadlineDefault]);
 
-  const GoalCard = ({ goal }: { goal: FinancialGoal }) => {
+  const GoalCard = ({ goal, index }: { goal: FinancialGoal; index: number }) => {
     const progress = (goal.currentAmount / goal.targetAmount) * 100;
     const IconComponent = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.icon || Target;
     const isOverLimit = goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount;
     const goalColor = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.color || '#6B7280';
     
+    const pan = useRef(new Animated.ValueXY()).current;
+    const isDragging = draggingIndex === index;
+    
+    const panResponder = useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dy) > 5;
+        },
+        onPanResponderGrant: () => {
+          setDraggingIndex(index);
+          pan.setOffset({
+            x: 0,
+            y: 0,
+          });
+          pan.setValue({ x: 0, y: 0 });
+        },
+        onPanResponderMove: (_, gestureState) => {
+          pan.setValue({ x: 0, y: gestureState.dy });
+          
+          const currentY = (layoutY.current[goal.id] || 0) + gestureState.dy;
+          let targetIndex = index;
+          
+          for (let i = 0; i < goals.length; i++) {
+            const itemY = layoutY.current[goals[i].id] || 0;
+            const itemHeight = cardHeights.current[goals[i].id] || draggedItemHeight;
+            
+            if (i < index && currentY < itemY + itemHeight / 2) {
+              targetIndex = i;
+              break;
+            } else if (i > index && currentY > itemY + itemHeight / 2) {
+              targetIndex = i;
+            }
+          }
+          
+          if (targetIndex !== index) {
+            const newGoals = [...goals];
+            const [removed] = newGoals.splice(index, 1);
+            newGoals.splice(targetIndex, 0, removed);
+            reorderFinancialGoals(newGoals);
+          }
+        },
+        onPanResponderRelease: () => {
+          setDraggingIndex(null);
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+          }).start();
+        },
+      })
+    ).current;
+    
+    useEffect(() => {
+      if (!isDragging) {
+        pan.setValue({ x: 0, y: 0 });
+      }
+    }, [isDragging, pan]);
+    
     return (
-      <View style={styles.goalCard}>
+      <Animated.View 
+        style={[
+          styles.goalCard,
+          isDragging && styles.goalCardDragging,
+          {
+            transform: [
+              { translateY: pan.y },
+            ],
+            zIndex: isDragging ? 1000 : 1,
+          },
+        ]}
+        onLayout={(e) => {
+          const { height, y } = e.nativeEvent.layout;
+          cardHeights.current[goal.id] = height;
+          layoutY.current[goal.id] = y;
+        }}
+      >
         <View style={styles.goalHeader}>
+          <View style={styles.dragHandle} {...panResponder.panHandlers}>
+            <GripVertical color="#9CA3AF" size={20} />
+          </View>
           <View style={styles.goalInfo}>
             <View style={[styles.goalIcon, { backgroundColor: goalColor + '20' }]}>
               <IconComponent color={goalColor} size={24} />
@@ -304,7 +390,7 @@ export default function FinancialGoalsScreen() {
             </View>
           )}
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -370,7 +456,6 @@ export default function FinancialGoalsScreen() {
       />
       
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <LinearGradient
           colors={['#667eea', '#764ba2']}
           style={styles.header}
@@ -381,7 +466,6 @@ export default function FinancialGoalsScreen() {
           <Text style={styles.headerSubtitle}>Nastav si cíle a sleduj pokrok</Text>
         </LinearGradient>
 
-        {/* Quick Templates */}
         <View style={styles.templatesContainer}>
           <Text style={styles.sectionLabel}>Rychlé šablony</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -428,7 +512,6 @@ export default function FinancialGoalsScreen() {
           </ScrollView>
         </View>
 
-        {/* Add Goal Button */}
         <View style={styles.addButtonContainer}>
           <TouchableOpacity 
             style={styles.addButton}
@@ -457,7 +540,6 @@ export default function FinancialGoalsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Goals List */}
         <View style={styles.goalsContainer}>
           {goals.length === 0 ? (
             <View style={styles.emptyState}>
@@ -468,13 +550,12 @@ export default function FinancialGoalsScreen() {
               </Text>
             </View>
           ) : (
-            goals.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} />
+            goals.map((goal, index) => (
+              <GoalCard key={goal.id} goal={goal} index={index} />
             ))
           )}
         </View>
 
-        {/* Add/Edit Goal Modal */}
         <Modal
           visible={showAddModal}
           animationType="slide"
@@ -505,7 +586,6 @@ export default function FinancialGoalsScreen() {
             </LinearGradient>
 
             <ScrollView style={styles.modalContent}>
-              {/* Goal Type Selector */}
               <View style={styles.typeSelector}>
                 <TouchableOpacity
                   style={[
@@ -536,7 +616,6 @@ export default function FinancialGoalsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Form Fields */}
               <View style={styles.formContainer}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Název cíle</Text>
@@ -784,6 +863,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+  },
+  goalCardDragging: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+    opacity: 0.95,
+  },
+  dragHandle: {
+    padding: 8,
+    marginRight: 4,
+    marginLeft: -8,
+    cursor: 'grab' as any,
   },
   goalHeader: {
     flexDirection: 'row',
@@ -1093,5 +1186,4 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 });
-
 

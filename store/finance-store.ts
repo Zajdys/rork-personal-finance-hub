@@ -133,6 +133,7 @@ interface FinanceState {
   addFinancialGoal: (goal: FinancialGoal) => void;
   updateFinancialGoal: (id: string, updates: Partial<FinancialGoal>) => void;
   deleteFinancialGoal: (id: string) => void;
+  reorderFinancialGoals: (goals: FinancialGoal[]) => void;
   getDetectedSubscriptions: () => SubscriptionItem[];
   addSubscription: (sub: SubscriptionItem) => void;
   updateSubscription: (id: string, updates: Partial<SubscriptionItem>) => void;
@@ -360,6 +361,11 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     
     get().saveData();
     console.log('Store: Financial goal deleted and data saved');
+  },
+
+  reorderFinancialGoals: (goals: FinancialGoal[]) => {
+    set({ financialGoals: goals });
+    get().saveData();
   },
 
   getDetectedSubscriptions: () => {
