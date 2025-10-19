@@ -219,6 +219,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     loadAuthState();
   }, [loadAuthState]);
 
+  const updateUser = useCallback((updatedUser: User) => {
+    setUser(updatedUser);
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      user: updatedUser,
+      isAuthenticated: true,
+      hasActiveSubscription,
+    }));
+  }, [hasActiveSubscription]);
+
   return useMemo(() => ({
     user,
     isAuthenticated,
@@ -230,6 +239,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     activateSubscription,
     loadAuthState,
     checkSubscriptionStatus,
+    setUser: updateUser,
   }), [
     user,
     isAuthenticated,
@@ -241,5 +251,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     activateSubscription,
     loadAuthState,
     checkSubscriptionStatus,
+    updateUser,
   ]);
 });

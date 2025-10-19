@@ -26,6 +26,7 @@ import {
 import { useSettingsStore } from '@/store/settings-store';
 import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
+import { useFinanceStore } from '@/store/finance-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type EmploymentStatus = 'employed' | 'selfEmployed' | 'student' | 'unemployed' | 'retired';
@@ -88,7 +89,8 @@ export default function OnboardingScreen() {
   });
 
   const { isDarkMode, setCurrency } = useSettingsStore();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
+  const { addLoan: addLoanToStore } = useFinanceStore();
   const router = useRouter();
 
   const totalSteps = 7;
@@ -158,6 +160,46 @@ export default function OnboardingScreen() {
       const suggestedCurrency = data.monthlyIncome?.includes('k') ? 'CZK' : 'EUR';
       setCurrency(suggestedCurrency);
 
+      if (user && data.employmentStatus) {
+        const employmentStatusLabels = {
+          'employed': 'Zaměstnanec',
+          'selfEmployed': 'OSVČ / Podnikatel',
+          'student': 'Student',
+          'unemployed': 'Nezaměstnaný',
+          'retired': 'Důchodce',
+        };
+        
+        const updatedUser = {
+          ...user,
+          name: employmentStatusLabels[data.employmentStatus] || user.name,
+          employmentStatus: data.employmentStatus,
+          monthlyIncome: data.monthlyIncome,
+          financialGoals: data.financialGoals,
+          experienceLevel: data.experienceLevel,
+        };
+        
+        if (setUser) {
+          setUser(updatedUser);
+        }
+      }
+
+      if (data.loanData.hasLoan && data.loanData.loans.length > 0) {
+        data.loanData.loans.forEach((loan) => {
+          const loanItem = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            loanType: loan.loanType,
+            loanAmount: parseFloat(loan.loanAmount),
+            interestRate: parseFloat(loan.interestRate),
+            monthlyPayment: parseFloat(loan.monthlyPayment),
+            remainingMonths: parseInt(loan.remainingMonths, 10),
+            startDate: new Date(),
+            name: getLoanTypeLabel(loan.loanType),
+            currentBalance: parseFloat(loan.loanAmount),
+          };
+          addLoanToStore(loanItem);
+        });
+      }
+
       console.log('Onboarding completed:', onboardingProfile);
       Alert.alert(
         'Hotovo! 🎉',
@@ -184,7 +226,7 @@ export default function OnboardingScreen() {
     }));
   };
 
-  const addLoan = () => {
+  const addLoanToForm = () => {
     const newLoan: Loan = {
       id: Date.now().toString(),
       loanType: 'mortgage',
@@ -454,7 +496,7 @@ export default function OnboardingScreen() {
                 onPress={() => {
                   setData({ ...data, loanData: { ...data.loanData, hasLoan: true } });
                   if (data.loanData.loans.length === 0) {
-                    addLoan();
+                    addLoanToForm();
                   }
                 }}
                 isDarkMode={isDarkMode}
@@ -589,7 +631,7 @@ export default function OnboardingScreen() {
 
                 <TouchableOpacity
                   style={[styles.addLoanButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-                  onPress={addLoan}
+                  onPress={addLoanToForm}
                 >
                   <LinearGradient
                     colors={['#667eea', '#764ba2']}
