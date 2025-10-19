@@ -204,21 +204,28 @@ export default function FinancialGoalsScreen() {
     const isDragging = draggingIndex === index;
     const dragStartIndex = useRef<number>(index);
     const lastReorderTime = useRef<number>(0);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const isDragEnabled = useRef<boolean>(false);
     
     const panResponder = useMemo(
       () => PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dy) > 10;
+          return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
         },
         onPanResponderGrant: () => {
-          dragStartIndex.current = index;
-          draggingGoalId.current = goal.id;
-          setDraggingIndex(index);
-          pan.setOffset({ x: 0, y: 0 });
-          pan.setValue({ x: 0, y: 0 });
+          longPressTimer.current = setTimeout(() => {
+            isDragEnabled.current = true;
+            dragStartIndex.current = index;
+            draggingGoalId.current = goal.id;
+            setDraggingIndex(index);
+            pan.setOffset({ x: 0, y: 0 });
+            pan.setValue({ x: 0, y: 0 });
+          }, 300);
         },
         onPanResponderMove: (evt, gestureState: PanResponderGestureState) => {
+          if (!isDragEnabled.current) return;
+          
           pan.setValue({ x: 0, y: gestureState.dy });
           
           const now = Date.now();
@@ -253,6 +260,11 @@ export default function FinancialGoalsScreen() {
           }
         },
         onPanResponderRelease: () => {
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+          isDragEnabled.current = false;
           draggingGoalId.current = null;
           setDraggingIndex(null);
           Animated.spring(pan, {
@@ -474,7 +486,7 @@ export default function FinancialGoalsScreen() {
         ref={scrollViewRef}
         style={styles.container} 
         showsVerticalScrollIndicator={false}
-        scrollEnabled={draggingIndex === null}
+        scrollEnabled={true}
       >
         <LinearGradient
           colors={['#667eea', '#764ba2']}
