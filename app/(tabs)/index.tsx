@@ -584,24 +584,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      <View style={styles.learningContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialEducation')}</Text>
-        <TouchableOpacity style={styles.learningCard}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.learningGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <BookOpen color="white" size={24} />
-            <View style={styles.learningContent}>
-              <Text style={styles.learningTitle}>{t('whatIsInflation')}</Text>
-              <Text style={styles.learningSubtitle}>2 min • +10 {t('points')}</Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
       {categoryExpenses.length > 0 && (
         <View style={styles.categoriesContainer}>
           <View style={styles.sectionHeader}>
