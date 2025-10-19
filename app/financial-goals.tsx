@@ -140,6 +140,7 @@ export default function FinancialGoalsScreen() {
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const cardRefs = useRef<{ [key: string]: { y: number; height: number } }>({});
+  const draggingGoalId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -193,7 +194,7 @@ export default function FinancialGoalsScreen() {
     );
   }, [goals, deleteFinancialGoal, addFinancialGoal, deadlineDefault]);
 
-  const GoalCard = ({ goal, index }: { goal: FinancialGoal; index: number }) => {
+  const GoalCard = React.memo(({ goal, index }: { goal: FinancialGoal; index: number }) => {
     const progress = (goal.currentAmount / goal.targetAmount) * 100;
     const IconComponent = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.icon || Target;
     const isOverLimit = goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount;
@@ -202,20 +203,26 @@ export default function FinancialGoalsScreen() {
     const pan = useRef(new Animated.ValueXY()).current;
     const isDragging = draggingIndex === index;
     const dragStartIndex = useRef<number>(index);
+    const lastReorderTime = useRef<number>(0);
     
-    const panResponder = useRef(
-      PanResponder.create({
+    const panResponder = useMemo(
+      () => PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, gestureState) => {
           return Math.abs(gestureState.dy) > 10;
         },
         onPanResponderGrant: () => {
           dragStartIndex.current = index;
+          draggingGoalId.current = goal.id;
           setDraggingIndex(index);
-          pan.flattenOffset();
+          pan.setOffset({ x: 0, y: 0 });
+          pan.setValue({ x: 0, y: 0 });
         },
         onPanResponderMove: (evt, gestureState: PanResponderGestureState) => {
           pan.setValue({ x: 0, y: gestureState.dy });
+          
+          const now = Date.now();
+          if (now - lastReorderTime.current < 150) return;
           
           const currentY = (cardRefs.current[goal.id]?.y || 0) + gestureState.dy;
           let targetIndex = dragStartIndex.current;
@@ -230,12 +237,14 @@ export default function FinancialGoalsScreen() {
             
             if (currentY < itemMiddle && i < dragStartIndex.current) {
               targetIndex = i;
+              break;
             } else if (currentY > itemMiddle && i > dragStartIndex.current) {
               targetIndex = i;
             }
           }
           
           if (targetIndex !== dragStartIndex.current) {
+            lastReorderTime.current = now;
             const newGoals = [...goals];
             const [removed] = newGoals.splice(dragStartIndex.current, 1);
             newGoals.splice(targetIndex, 0, removed);
@@ -244,16 +253,18 @@ export default function FinancialGoalsScreen() {
           }
         },
         onPanResponderRelease: () => {
+          draggingGoalId.current = null;
           setDraggingIndex(null);
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
-            friction: 7,
-            tension: 40,
+            useNativeDriver: true,
+            friction: 8,
+            tension: 50,
           }).start();
         },
-      })
-    ).current;
+      }),
+      [index, goal.id, goals, reorderFinancialGoals]
+    );
     
     return (
       <Animated.View 
@@ -265,6 +276,7 @@ export default function FinancialGoalsScreen() {
               { translateY: pan.y },
             ],
             zIndex: isDragging ? 1000 : 1,
+            elevation: isDragging ? 12 : 4,
           },
         ]}
         onLayout={(e) => {
@@ -389,7 +401,13 @@ export default function FinancialGoalsScreen() {
         </View>
       </Animated.View>
     );
-  };
+  }, (prevProps, nextProps) => {
+    return prevProps.goal.id === nextProps.goal.id && 
+           prevProps.index === nextProps.index &&
+           prevProps.goal.currentAmount === nextProps.goal.currentAmount &&
+           prevProps.goal.targetAmount === nextProps.goal.targetAmount &&
+           prevProps.goal.title === nextProps.goal.title;
+  });
 
   const handleSaveGoal = () => {
     if (!goalTitle || !goalAmount) {
