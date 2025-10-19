@@ -11,6 +11,7 @@ import {
   Switch,
   PanResponder,
   Animated,
+  PanResponderGestureState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -137,9 +138,8 @@ export default function FinancialGoalsScreen() {
   const [dayOfMonth, setDayOfMonth] = useState<string>('1');
   
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-  const draggedItemHeight = 200;
-  const cardHeights = useRef<{ [key: string]: number }>({});
-  const layoutY = useRef<{ [key: string]: number }>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+  const cardRefs = useRef<{ [key: string]: { y: number; height: number } }>({});
 
   useEffect(() => {
     if (!isLoaded) {
@@ -201,43 +201,45 @@ export default function FinancialGoalsScreen() {
     
     const pan = useRef(new Animated.ValueXY()).current;
     const isDragging = draggingIndex === index;
+    const dragStartIndex = useRef<number>(index);
     
     const panResponder = useRef(
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dy) > 5;
+          return Math.abs(gestureState.dy) > 10;
         },
         onPanResponderGrant: () => {
+          dragStartIndex.current = index;
           setDraggingIndex(index);
-          pan.setOffset({
-            x: 0,
-            y: 0,
-          });
-          pan.setValue({ x: 0, y: 0 });
+          pan.flattenOffset();
         },
-        onPanResponderMove: (_, gestureState) => {
+        onPanResponderMove: (evt, gestureState: PanResponderGestureState) => {
           pan.setValue({ x: 0, y: gestureState.dy });
           
-          const currentY = (layoutY.current[goal.id] || 0) + gestureState.dy;
-          let targetIndex = index;
+          const currentY = (cardRefs.current[goal.id]?.y || 0) + gestureState.dy;
+          let targetIndex = dragStartIndex.current;
           
           for (let i = 0; i < goals.length; i++) {
-            const itemY = layoutY.current[goals[i].id] || 0;
-            const itemHeight = cardHeights.current[goals[i].id] || draggedItemHeight;
+            if (i === dragStartIndex.current) continue;
             
-            if (i < index && currentY < itemY + itemHeight / 2) {
+            const itemRef = cardRefs.current[goals[i].id];
+            if (!itemRef) continue;
+            
+            const itemMiddle = itemRef.y + itemRef.height / 2;
+            
+            if (currentY < itemMiddle && i < dragStartIndex.current) {
               targetIndex = i;
-              break;
-            } else if (i > index && currentY > itemY + itemHeight / 2) {
+            } else if (currentY > itemMiddle && i > dragStartIndex.current) {
               targetIndex = i;
             }
           }
           
-          if (targetIndex !== index) {
+          if (targetIndex !== dragStartIndex.current) {
             const newGoals = [...goals];
-            const [removed] = newGoals.splice(index, 1);
+            const [removed] = newGoals.splice(dragStartIndex.current, 1);
             newGoals.splice(targetIndex, 0, removed);
+            dragStartIndex.current = targetIndex;
             reorderFinancialGoals(newGoals);
           }
         },
@@ -246,16 +248,12 @@ export default function FinancialGoalsScreen() {
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
             useNativeDriver: false,
+            friction: 7,
+            tension: 40,
           }).start();
         },
       })
     ).current;
-    
-    useEffect(() => {
-      if (!isDragging) {
-        pan.setValue({ x: 0, y: 0 });
-      }
-    }, [isDragging, pan]);
     
     return (
       <Animated.View 
@@ -271,8 +269,7 @@ export default function FinancialGoalsScreen() {
         ]}
         onLayout={(e) => {
           const { height, y } = e.nativeEvent.layout;
-          cardHeights.current[goal.id] = height;
-          layoutY.current[goal.id] = y;
+          cardRefs.current[goal.id] = { height, y };
         }}
       >
         <View style={styles.goalHeader}>
@@ -455,7 +452,12 @@ export default function FinancialGoalsScreen() {
         }} 
       />
       
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={draggingIndex === null}
+      >
         <LinearGradient
           colors={['#667eea', '#764ba2']}
           style={styles.header}
