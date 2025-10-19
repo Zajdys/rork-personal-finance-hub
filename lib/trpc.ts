@@ -7,7 +7,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
-  return 'https://baceknd-for-moneybuudy.onrender.com';
+  const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (backendUrl) {
+    return backendUrl;
+  }
+  
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3000';
+    }
+    return window.location.origin;
+  }
+  
+  return 'http://localhost:3000';
 };
 
 export const trpcClient = trpc.createClient({
