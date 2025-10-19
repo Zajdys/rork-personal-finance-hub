@@ -805,25 +805,6 @@ export default function AddTransactionScreen() {
             </LinearGradient>
           </TouchableOpacity>
           
-          <TouchableOpacity
-            testID="import-bank-statement"
-            accessibilityLabel="import-bank-statement"
-            style={styles.importButton}
-            onPress={onImportBank}
-            disabled={importing}
-          >
-            <LinearGradient colors={["#0ea5e9", "#2563eb"]} style={styles.importGradient}>
-              {importing ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <FileText color="#fff" size={20} />
-                  <Text style={styles.importText}>Import z bankovního výpisu</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-          
           <View style={styles.receiptButtons}>
             <TouchableOpacity
               style={[styles.receiptButton, styles.receiptButtonCamera]}
