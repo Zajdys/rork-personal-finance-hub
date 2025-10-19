@@ -148,19 +148,24 @@ export default function OnboardingScreen() {
 
   const handleComplete = async () => {
     try {
+      console.log('Starting onboarding completion...');
+      
       const onboardingProfile = {
         ...data,
         completedAt: new Date().toISOString(),
         userId: user?.id,
       };
 
+      console.log('Saving onboarding profile to AsyncStorage...');
       await AsyncStorage.setItem('onboarding_completed', 'true');
       await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
+      console.log('Onboarding profile saved');
 
       const suggestedCurrency = data.monthlyIncome?.includes('k') ? 'CZK' : 'EUR';
+      console.log('Setting currency to:', suggestedCurrency);
       setCurrency(suggestedCurrency);
 
-      if (user && data.employmentStatus) {
+      if (data.employmentStatus) {
         const employmentStatusLabels = {
           'employed': 'Zaměstnanec',
           'selfEmployed': 'OSVČ / Podnikatel',
@@ -169,24 +174,27 @@ export default function OnboardingScreen() {
           'retired': 'Důchodce',
         };
         
-        const updatedUser = {
-          ...user,
-          name: employmentStatusLabels[data.employmentStatus] || user.name,
-          employmentStatus: data.employmentStatus,
-          monthlyIncome: data.monthlyIncome,
-          financialGoals: data.financialGoals,
-          experienceLevel: data.experienceLevel,
-        };
+        console.log('Updating user with employment status:', data.employmentStatus);
         
-        if (setUser) {
+        if (user && setUser) {
+          const updatedUser = {
+            ...user,
+            name: employmentStatusLabels[data.employmentStatus] || user.name,
+            employmentStatus: data.employmentStatus,
+            monthlyIncome: data.monthlyIncome,
+            financialGoals: data.financialGoals,
+            experienceLevel: data.experienceLevel,
+          };
           setUser(updatedUser);
+          console.log('User updated:', updatedUser);
         }
       }
 
       if (data.loanData.hasLoan && data.loanData.loans.length > 0) {
-        data.loanData.loans.forEach((loan) => {
+        console.log('Adding loans to store:', data.loanData.loans.length);
+        data.loanData.loans.forEach((loan, index) => {
           const loanItem = {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
             loanType: loan.loanType,
             loanAmount: parseFloat(loan.loanAmount),
             interestRate: parseFloat(loan.interestRate),
@@ -196,21 +204,25 @@ export default function OnboardingScreen() {
             name: getLoanTypeLabel(loan.loanType),
             currentBalance: parseFloat(loan.loanAmount),
           };
+          console.log('Adding loan:', loanItem);
           addLoanToStore(loanItem);
         });
+        console.log('All loans added');
       }
 
-      console.log('Onboarding completed:', onboardingProfile);
-      Alert.alert(
-        'Hotovo! 🎉',
-        'Vaše aplikace je nyní nastavena podle vašich potřeb. Můžete začít!',
-        [
-          {
-            text: 'Začít',
-            onPress: () => router.replace('/(tabs)'),
-          },
-        ]
-      );
+      console.log('Onboarding completed successfully!');
+      console.log('Navigating to home screen...');
+      
+      router.replace('/(tabs)');
+      
+      setTimeout(() => {
+        Alert.alert(
+          'Hotovo! 🎉',
+          'Vaše aplikace je nyní nastavena podle vašich potřeb.',
+          [{ text: 'OK' }]
+        );
+      }, 500);
+      
     } catch (error) {
       console.error('Failed to save onboarding data:', error);
       Alert.alert('Chyba', 'Nepodařilo se uložit data. Zkuste to prosím znovu.');
