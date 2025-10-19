@@ -79,7 +79,7 @@ export default function DashboardScreen() {
           }, 5000);
         }
       } catch (error) {
-        console.error('Daily login check failed:', error);
+        console.log('Daily login feature unavailable, continuing without it');
       }
     };
     
