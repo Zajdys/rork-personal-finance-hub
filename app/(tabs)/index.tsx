@@ -395,7 +395,11 @@ export default function DashboardScreen() {
 
       <View style={styles.balanceContainer}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialOverview')}</Text>
-        <View style={styles.balanceCard}>
+        <TouchableOpacity 
+          style={styles.balanceCard}
+          onPress={() => router.push('/bank-accounts')}
+          activeOpacity={0.8}
+        >
           <LinearGradient
             colors={balance >= 0 ? ['#10B981', '#059669'] : ['#EF4444', '#DC2626']}
             style={styles.balanceGradient}
@@ -407,7 +411,7 @@ export default function DashboardScreen() {
               {balance.toLocaleString('cs-CZ')} Kč
             </Text>
           </LinearGradient>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.financeGrid}>
