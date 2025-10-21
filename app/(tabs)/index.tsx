@@ -88,6 +88,11 @@ export default function DashboardScreen() {
   }, [user?.id]);
   
   const currentMonthReport = getCurrentMonthReport();
+  const router = useRouter();
+  const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
+  
+  const currentCurrency = getCurrentCurrency();
   
   const getBudgetWarnings = () => {
     const warnings: Array<{ type: 'danger'|'warning'|'info'; title: string; message: string; icon: string }> = [];
@@ -135,11 +140,6 @@ export default function DashboardScreen() {
     const warningKey = `${warning.type}-${warning.title}-${index}`;
     return !dismissedWarnings.has(warningKey);
   });
-  const router = useRouter();
-  const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
-  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
-  
-  const currentCurrency = getCurrentCurrency();
 
   const QuickActionCard = ({ icon: Icon, title, color, onPress }: any) => (
     <TouchableOpacity style={styles.quickActionCard} onPress={onPress}>
