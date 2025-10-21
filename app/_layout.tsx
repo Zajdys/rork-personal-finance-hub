@@ -125,7 +125,7 @@ function RootLayoutNav() {
   
   // Full app access for authenticated users with active subscription
   return (
-    <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+    <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
       <Stack.Screen name="(tabs)" />
 
       <Stack.Screen 
@@ -135,25 +135,25 @@ function RootLayoutNav() {
           title: "Modal"
         }} 
       />
-      <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown') }} />
-      <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis') }} />
-      <Stack.Screen name="financial-goals" options={{ title: t('financialGoals') }} />
-      <Stack.Screen name="language-settings" options={{ title: t('language') }} />
-      <Stack.Screen name="currency-settings" options={{ title: t('currency') }} />
-      <Stack.Screen name="theme-settings" options={{ title: t('theme') }} />
-      <Stack.Screen name="general-settings" options={{ title: t('general') }} />
-      <Stack.Screen name="notifications-settings" options={{ title: t('notifications') }} />
-      <Stack.Screen name="privacy-settings" options={{ title: t('privacy') }} />
-      <Stack.Screen name="help-support" options={{ title: t('help') }} />
-      <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport') }} />
-      <Stack.Screen name="backend-test" options={{ title: 'Backend Test' }} />
-      <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio' }} />
-      <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail' }} />
-      <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
-      <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview' }} />
-      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
-      <Stack.Screen name="friends" options={{ title: 'Přátelé' }} />
-      <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání' }} />
+      <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown'), headerShown: true }} />
+      <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis'), headerShown: true }} />
+      <Stack.Screen name="financial-goals" options={{ title: t('financialGoals'), headerShown: true }} />
+      <Stack.Screen name="language-settings" options={{ title: t('language'), headerShown: true }} />
+      <Stack.Screen name="currency-settings" options={{ title: t('currency'), headerShown: true }} />
+      <Stack.Screen name="theme-settings" options={{ title: t('theme'), headerShown: true }} />
+      <Stack.Screen name="general-settings" options={{ title: t('general'), headerShown: true }} />
+      <Stack.Screen name="notifications-settings" options={{ title: t('notifications'), headerShown: true }} />
+      <Stack.Screen name="privacy-settings" options={{ title: t('privacy'), headerShown: true }} />
+      <Stack.Screen name="help-support" options={{ title: t('help'), headerShown: true }} />
+      <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport'), headerShown: true }} />
+      <Stack.Screen name="backend-test" options={{ title: 'Backend Test', headerShown: true }} />
+      <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio', headerShown: true }} />
+      <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail', headerShown: true }} />
+      <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: true }} />
+      <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview', headerShown: true }} />
+      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: true }} />
+      <Stack.Screen name="friends" options={{ title: 'Přátelé', headerShown: true }} />
+      <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání', headerShown: true }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
