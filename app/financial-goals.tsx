@@ -39,14 +39,14 @@ import { useFinanceStore, FinancialGoal, RecurrenceFrequency } from '@/store/fin
 
 
 const GOAL_CATEGORIES = {
-  'Bydlení': { icon: Home, color: '#8B5CF6' },
-  'Jídlo': { icon: Utensils, color: '#EF4444' },
-  'Doprava': { icon: Car, color: '#10B981' },
-  'Benzín': { icon: Fuel, color: '#F59E0B' },
-  'Nákupy': { icon: ShoppingBag, color: '#EC4899' },
-  'Spoření': { icon: PiggyBank, color: '#06B6D4' },
-  'Investice': { icon: TrendingUp, color: '#8B5CF6' },
-  'Ostatní': { icon: Target, color: '#6B7280' },
+  'Bydlení': { icon: Home, color: '#8B5CF6', emoji: '🏠' },
+  'Jídlo': { icon: Utensils, color: '#EF4444', emoji: '🍽️' },
+  'Doprava': { icon: Car, color: '#10B981', emoji: '🚗' },
+  'Benzín': { icon: Fuel, color: '#F59E0B', emoji: '⛽' },
+  'Nákupy': { icon: ShoppingBag, color: '#EC4899', emoji: '🛍️' },
+  'Spoření': { icon: PiggyBank, color: '#06B6D4', emoji: '💰' },
+  'Investice': { icon: TrendingUp, color: '#8B5CF6', emoji: '📈' },
+  'Ostatní': { icon: Target, color: '#6B7280', emoji: '🎯' },
 };
 
 
@@ -305,7 +305,12 @@ export default function FinancialGoalsScreen() {
               <IconComponent color={goalColor} size={24} />
             </View>
             <View style={styles.goalDetails}>
-              <Text style={styles.goalTitle}>{goal.title}</Text>
+              <View style={styles.goalTitleRow}>
+                <Text style={styles.goalEmoji}>
+                  {GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.emoji || '🎯'}
+                </Text>
+                <Text style={styles.goalTitle}>{goal.title}</Text>
+              </View>
               <Text style={styles.goalCategory}>{goal.category || 'Ostatní'}</Text>
             </View>
           </View>
@@ -932,11 +937,20 @@ const styles = StyleSheet.create({
   goalDetails: {
     flex: 1,
   },
+  goalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  goalEmoji: {
+    fontSize: 16,
+  },
   goalTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 2,
+    flex: 1,
   },
   goalCategory: {
     fontSize: 12,
