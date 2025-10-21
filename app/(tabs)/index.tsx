@@ -21,6 +21,7 @@ import {
   Lightbulb,
   MessageCircle,
   Calendar,
+  X,
 } from 'lucide-react-native';
 import { useFinanceStore, CategoryExpense, SubscriptionItem, LoanItem, LoanType } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
@@ -129,9 +130,14 @@ export default function DashboardScreen() {
     return warnings;
   };
   
-  const budgetWarnings = getBudgetWarnings();
+  const allBudgetWarnings = getBudgetWarnings();
+  const budgetWarnings = allBudgetWarnings.filter((warning, index) => {
+    const warningKey = `${warning.type}-${warning.title}-${index}`;
+    return !dismissedWarnings.has(warningKey);
+  });
   const router = useRouter();
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
   
   const currentCurrency = getCurrentCurrency();
 
@@ -335,38 +341,55 @@ export default function DashboardScreen() {
       
       {notifications.budgetWarnings && budgetWarnings.length > 0 && (
         <View style={styles.warningsContainer}>
-          {budgetWarnings.map((warning, index) => (
-            <View key={index} style={styles.warningContainer}>
-              <LinearGradient
-                colors={
-                  warning.type === 'danger' ? ['#FEE2E2', '#FECACA'] :
-                  warning.type === 'warning' ? ['#FEF3C7', '#FDE68A'] :
-                  ['#DBEAFE', '#BFDBFE']
-                }
-                style={styles.warningGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.warningIcon}>{warning.icon}</Text>
-                <View style={styles.warningContent}>
-                  <Text style={[
-                    styles.warningTitle,
-                    {
-                      color: warning.type === 'danger' ? '#DC2626' :
-                             warning.type === 'warning' ? '#D97706' : '#2563EB'
-                    }
-                  ]}>{warning.title}</Text>
-                  <Text style={[
-                    styles.warningText,
-                    {
-                      color: warning.type === 'danger' ? '#991B1B' :
-                             warning.type === 'warning' ? '#92400E' : '#1E40AF'
-                    }
-                  ]}>{warning.message}</Text>
-                </View>
-              </LinearGradient>
-            </View>
-          ))}
+          {budgetWarnings.map((warning, index) => {
+            const warningKey = `${warning.type}-${warning.title}-${allBudgetWarnings.indexOf(warning)}`;
+            return (
+              <View key={index} style={styles.warningContainer}>
+                <LinearGradient
+                  colors={
+                    warning.type === 'danger' ? ['#FEE2E2', '#FECACA'] :
+                    warning.type === 'warning' ? ['#FEF3C7', '#FDE68A'] :
+                    ['#DBEAFE', '#BFDBFE']
+                  }
+                  style={styles.warningGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.warningIcon}>{warning.icon}</Text>
+                  <View style={styles.warningContent}>
+                    <Text style={[
+                      styles.warningTitle,
+                      {
+                        color: warning.type === 'danger' ? '#DC2626' :
+                               warning.type === 'warning' ? '#D97706' : '#2563EB'
+                      }
+                    ]}>{warning.title}</Text>
+                    <Text style={[
+                      styles.warningText,
+                      {
+                        color: warning.type === 'danger' ? '#991B1B' :
+                               warning.type === 'warning' ? '#92400E' : '#1E40AF'
+                      }
+                    ]}>{warning.message}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.dismissButton}
+                    onPress={() => {
+                      setDismissedWarnings(prev => new Set(prev).add(warningKey));
+                    }}
+                  >
+                    <X 
+                      size={20} 
+                      color={
+                        warning.type === 'danger' ? '#DC2626' :
+                        warning.type === 'warning' ? '#D97706' : '#2563EB'
+                      }
+                    />
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            );
+          })}
         </View>
       )}
 
@@ -1096,6 +1119,7 @@ const styles = StyleSheet.create({
   },
   warningContent: {
     flex: 1,
+    marginRight: 8,
   },
   warningTitle: {
     fontSize: 16,
@@ -1105,6 +1129,12 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  dismissButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    alignSelf: 'flex-start',
   },
   dailyLoginContainer: {
     marginHorizontal: 20,
