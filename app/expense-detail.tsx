@@ -13,6 +13,7 @@ import {
   Lightbulb,
   Target,
   BarChart3,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useFinanceStore, EXPENSE_CATEGORIES } from '@/store/finance-store';
 import { useRouter, Stack } from 'expo-router';
@@ -166,6 +167,14 @@ export default function ExpenseDetailScreen() {
           headerStyle: { backgroundColor: '#EF4444' },
           headerTintColor: 'white',
           headerTitleStyle: { fontWeight: 'bold' },
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ marginLeft: 8 }}
+            >
+              <ArrowLeft color="white" size={24} />
+            </TouchableOpacity>
+          ),
         }} 
       />
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
