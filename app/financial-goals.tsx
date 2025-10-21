@@ -30,10 +30,10 @@ import {
   ShoppingBag,
   Fuel,
   RefreshCcw,
-
   GripVertical,
+  ArrowLeft,
 } from 'lucide-react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useFinanceStore, FinancialGoal, RecurrenceFrequency } from '@/store/finance-store';
 
 
@@ -117,6 +117,7 @@ const TEMPLATES: Array<{ id: string; title: string; description: string; color: 
 ] as const;
 
 export default function FinancialGoalsScreen() {
+  const router = useRouter();
   const { 
     financialGoals: goals, 
     addFinancialGoal, 
@@ -476,6 +477,14 @@ export default function FinancialGoalsScreen() {
           headerStyle: { backgroundColor: '#667eea' },
           headerTintColor: 'white',
           headerTitleStyle: { fontWeight: 'bold' },
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ marginLeft: 8 }}
+            >
+              <ArrowLeft color="white" size={24} />
+            </TouchableOpacity>
+          ),
         }} 
       />
       
