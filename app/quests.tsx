@@ -78,7 +78,7 @@ export default function QuestsScreen() {
               <Text style={styles.rewardText}>+{quest.rewardXp} XP</Text>
             </View>
             <View style={styles.rewardItem}>
-              <Text style={styles.rewardText}>+{quest.rewardCoins} BC</Text>
+              <Text style={styles.rewardText}>+{quest.rewardCoins} {language === 'cs' ? 'Kešáků' : 'Coins'}</Text>
             </View>
             {quest.expiresAt && (
               <View style={styles.expiryItem}>

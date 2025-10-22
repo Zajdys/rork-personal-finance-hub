@@ -233,10 +233,10 @@ export default function BadgesScreen() {
 
                   <View style={styles.modalStatItem}>
                     <Text style={[styles.modalStatLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {language === 'cs' ? 'Odměna Coins' : 'Coins Reward'}
+                      {language === 'cs' ? 'Odměna Kešáků' : 'Coins Reward'}
                     </Text>
                     <Text style={[styles.modalStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      +{selectedBadge.rewardCoins} BC
+                      +{selectedBadge.rewardCoins} {language === 'cs' ? 'Kešáků' : 'Coins'}
                     </Text>
                   </View>
 

@@ -164,7 +164,7 @@ export default function GamingStatsScreen() {
             />
             <StatCard
               icon={Zap}
-              title={language === 'cs' ? 'Coins' : 'Coins'}
+              title={language === 'cs' ? 'Kešáky' : 'Coins'}
               value={gamingStats.coins}
               subtitle={language === 'cs' ? 'Herní měna' : 'Game currency'}
               color="#8B5CF6"
