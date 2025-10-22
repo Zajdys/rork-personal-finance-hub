@@ -480,9 +480,10 @@ export default function FinancialGoalsScreen() {
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
-              style={{ marginLeft: 8 }}
+              style={{ marginLeft: 8, padding: 8 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <ArrowLeft color="white" size={24} />
+              <ArrowLeft color="white" size={26} strokeWidth={2.5} />
             </TouchableOpacity>
           ),
         }} 
