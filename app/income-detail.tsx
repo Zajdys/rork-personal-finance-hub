@@ -190,6 +190,7 @@ export default function IncomeDetailScreen() {
           headerTintColor: 'white',
           headerTitleStyle: { fontWeight: 'bold' },
           headerBackVisible: true,
+          headerBackTitle: '',
         }} 
       />
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
