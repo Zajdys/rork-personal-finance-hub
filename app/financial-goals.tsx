@@ -470,33 +470,34 @@ export default function FinancialGoalsScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen 
-        options={{
-          title: 'Finanční cíle',
-          headerStyle: { backgroundColor: '#667eea' },
-          headerTintColor: 'white',
-          headerTitleStyle: { fontWeight: 'bold' },
-          headerBackVisible: true,
-          headerBackTitle: '',
-        }} 
-      />
-      
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft color="white" size={24} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Finanční cíle</Text>
+            <Text style={styles.headerSubtitle}>Nastav si cíle a sleduj pokrok</Text>
+          </View>
+          <View style={styles.headerSpacer} />
+        </View>
+      </LinearGradient>
       <ScrollView 
         ref={scrollViewRef}
-        style={styles.container} 
+        style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
         scrollEnabled={true}
       >
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>Finanční cíle</Text>
-          <Text style={styles.headerSubtitle}>Nastav si cíle a sleduj pokrok</Text>
-        </LinearGradient>
 
         <View style={styles.templatesContainer}>
           <Text style={styles.sectionLabel}>Rychlé šablony</Text>
@@ -777,7 +778,7 @@ export default function FinancialGoalsScreen() {
           </View>
         </Modal>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
@@ -786,21 +787,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  header: {
+  scrollView: {
+    flex: 1,
+  },
+  headerGradient: {
     paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'white',
     opacity: 0.9,
+  },
+  headerSpacer: {
+    width: 40,
   },
   templatesContainer: {
     marginHorizontal: 20,

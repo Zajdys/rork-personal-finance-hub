@@ -160,35 +160,33 @@ export default function ExpenseDetailScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen 
-        options={{
-          title: 'Detailní přehled výdajů',
-          headerStyle: { backgroundColor: '#EF4444' },
-          headerTintColor: 'white',
-          headerTitleStyle: { fontWeight: 'bold' },
-          headerBackVisible: true,
-          headerBackTitle: '',
-        }} 
-      />
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <LinearGradient
-          colors={['#EF4444', '#DC2626']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.headerContent}>
-            <View>
-              <Text style={styles.headerTitle}>Celkové výdaje</Text>
-              <Text style={styles.headerAmount}>
-                {totalExpenses.toLocaleString('cs-CZ')} Kč
-              </Text>
-            </View>
-            <TrendingDown color="white" size={32} />
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient
+        colors={['#EF4444', '#DC2626']}
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft color="white" size={24} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Celkové výdaje</Text>
+            <Text style={styles.headerAmount}>
+              {totalExpenses.toLocaleString('cs-CZ')} Kč
+            </Text>
           </View>
-        </LinearGradient>
+          <View style={styles.headerIcon}>
+            <TrendingDown color="white" size={28} />
+          </View>
+        </View>
+      </LinearGradient>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
         {/* Period Selection */}
         <View style={styles.periodContainer}>
@@ -278,7 +276,7 @@ export default function ExpenseDetailScreen() {
           </LinearGradient>
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
@@ -287,15 +285,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  header: {
-    paddingTop: 20,
+  scrollView: {
+    flex: 1,
+  },
+  headerGradient: {
+    paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
   },
   headerContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
   },
   headerTitle: {
     fontSize: 16,
@@ -304,9 +317,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerAmount: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: 'white',
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   periodContainer: {
     marginHorizontal: 20,
