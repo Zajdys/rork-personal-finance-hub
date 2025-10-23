@@ -96,18 +96,15 @@ export default function ProfileScreen() {
   const personalityType = gamingStats.personality.type;
   const personalityLabel = personalityType === 'analyst' ? '🧊 Analytik' : personalityType === 'motivator' ? '🔥 Motivátor' : '⚖️ Vyvážený';
 
-  const StatCard = ({ title, value, subtitle, color }: any) => (
+  const StatCard = ({ title, value, subtitle, icon: Icon, color }: any) => (
     <View style={styles.statCard}>
-      <LinearGradient
-        colors={color}
-        style={styles.statGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statTitle}>{title}</Text>
-        <Text style={styles.statSubtitle}>{subtitle}</Text>
-      </LinearGradient>
+      <View style={[styles.statIconBg, { backgroundColor: color }]}>
+        <Icon size={24} color="#fff" />
+      </View>
+      <View style={styles.statContent}>
+        <Text style={[styles.statValue, { color: isDarkMode ? '#fff' : '#1F2937' }]}>{value}</Text>
+        <Text style={[styles.statTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
+      </View>
     </View>
   );
 
@@ -231,6 +228,7 @@ export default function ProfileScreen() {
         >
           <View style={styles.dailyRewardsContent}>
             <View style={styles.dailyRewardsLeft}>
+              <Text style={styles.dailyRewardsBigTitle}>Denní odměny</Text>
               <View style={styles.dailyRewardsStats}>
                 <View style={styles.dailyRewardsStat}>
                   <Text style={styles.dailyRewardsValue}>{totalKesaky}</Text>
@@ -240,10 +238,14 @@ export default function ProfileScreen() {
                   <Text style={styles.dailyRewardsValue}>{totalXp}</Text>
                   <Text style={styles.dailyRewardsLabel}>XP</Text>
                 </View>
+                <View style={styles.dailyRewardsStat}>
+                  <Text style={styles.dailyRewardsValue}>{currentStreak}</Text>
+                  <Text style={styles.dailyRewardsLabel}>Série</Text>
+                </View>
               </View>
             </View>
             <View style={styles.dailyRewardsRight}>
-              <Sparkles size={40} color="#FFFFFF" />
+              <Sparkles size={48} color="#FFFFFF" />
             </View>
           </View>
         </LinearGradient>
@@ -252,16 +254,16 @@ export default function ProfileScreen() {
       {/* Stats */}
       <View style={styles.statsContainer}>
         <StatCard
+          icon={TrendingUp}
           title={t('transactions')}
           value={totalTransactions}
-          subtitle={t('totalRecorded')}
-          color={['#10B981', '#059669']}
+          color="#10B981"
         />
         <StatCard
-          title={language === 'cs' ? 'Buddy Score' : 'Buddy Score'}
+          icon={Star}
+          title="Buddy Score"
           value={buddyScore}
-          subtitle={language === 'cs' ? 'Celkové skóre' : 'Total score'}
-          color={['#F59E0B', '#D97706']}
+          color="#F59E0B"
         />
       </View>
 
@@ -506,41 +508,44 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginTop: -16,
-    marginBottom: 32,
-    gap: 12,
+    marginTop: 24,
+    marginBottom: 24,
+    gap: 16,
   },
   statCard: {
     flex: 1,
+    backgroundColor: 'white',
     borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  statGradient: {
-    padding: 20,
+    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  statIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  statContent: {
+    flex: 1,
   },
   statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-  },
-  statTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#1F2937',
     marginBottom: 2,
   },
-  statSubtitle: {
+  statTitle: {
     fontSize: 12,
-    color: 'white',
-    opacity: 0.8,
-    textAlign: 'center',
+    fontWeight: '500' as const,
+    color: '#6B7280',
   },
   achievementsContainer: {
     marginHorizontal: 20,
@@ -689,18 +694,24 @@ const styles = StyleSheet.create({
   },
   dailyRewardsCard: {
     marginHorizontal: 20,
-    marginTop: -16,
-    marginBottom: 16,
+    marginTop: 24,
+    marginBottom: 0,
     borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#FFA500',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
     elevation: 8,
   },
   dailyRewardsGradient: {
-    padding: 20,
+    padding: 24,
+  },
+  dailyRewardsBigTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: 16,
   },
   dailyRewardsContent: {
     flexDirection: 'row',
@@ -713,24 +724,23 @@ const styles = StyleSheet.create({
   dailyRewardsStats: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 32,
-    marginBottom: 8,
+    gap: 24,
   },
   dailyRewardsStat: {
     alignItems: 'flex-start',
   },
   dailyRewardsValue: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700' as const,
     color: '#FFFFFF',
-    lineHeight: 36,
+    lineHeight: 32,
   },
   dailyRewardsLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#FFFFFF',
     opacity: 0.9,
-    marginTop: -4,
+    marginTop: 2,
   },
   dailyRewardsDivider: {
     width: 1,
