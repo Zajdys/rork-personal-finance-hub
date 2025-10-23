@@ -9,6 +9,8 @@ import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { AuthProvider, useAuth } from '@/store/auth-store';
 import { FriendsProvider } from '@/store/friends-store';
+import { DailyRewardsProvider } from '@/store/daily-rewards-store';
+import { DailyRewardModal } from '@/components/DailyRewardModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
 import { StyleSheet, Text, View } from 'react-native';
@@ -125,7 +127,9 @@ function RootLayoutNav() {
   
   // Full app access for authenticated users with active subscription
   return (
-    <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
+    <>
+      <DailyRewardModal />
+      <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
       <Stack.Screen name="(tabs)" />
 
       <Stack.Screen 
@@ -160,6 +164,7 @@ function RootLayoutNav() {
       <Stack.Screen name="subscription" options={{ title: 'Předplatné' }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
+    </>
   );
 }
 
@@ -239,9 +244,11 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <FriendsProvider>
-              <GestureHandlerRootView style={styles.container}>
-                <RootLayoutNav />
-              </GestureHandlerRootView>
+              <DailyRewardsProvider>
+                <GestureHandlerRootView style={styles.container}>
+                  <RootLayoutNav />
+                </GestureHandlerRootView>
+              </DailyRewardsProvider>
             </FriendsProvider>
           </AuthProvider>
         </QueryClientProvider>

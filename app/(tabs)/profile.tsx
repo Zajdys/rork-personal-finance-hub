@@ -34,6 +34,7 @@ import { useBuddyStore } from '@/store/buddy-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import { useDailyRewards } from '@/store/daily-rewards-store';
 import { useRouter } from 'expo-router';
 
 const getAchievements = (t: any) => [
@@ -76,6 +77,7 @@ export default function ProfileScreen() {
   const { totalTransactions, totalIncome } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
   const { t, language } = useLanguageStore();
+  const { totalKesaky, totalXp, currentStreak, openModal } = useDailyRewards();
   const router = useRouter();
   
   const currentCurrency = getCurrentCurrency();
@@ -214,6 +216,45 @@ export default function ProfileScreen() {
           </View>
         </View>
       </LinearGradient>
+
+      {/* Daily Rewards */}
+      <TouchableOpacity 
+        style={styles.dailyRewardsCard}
+        onPress={openModal}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={['#FFD700', '#FFA500']}
+          style={styles.dailyRewardsGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.dailyRewardsContent}>
+            <View style={styles.dailyRewardsLeft}>
+              <View style={styles.dailyRewardsStats}>
+                <View style={styles.dailyRewardsStat}>
+                  <Text style={styles.dailyRewardsValue}>{totalKesaky}</Text>
+                  <Text style={styles.dailyRewardsLabel}>Kešáky</Text>
+                </View>
+                <View style={styles.dailyRewardsDivider} />
+                <View style={styles.dailyRewardsStat}>
+                  <Text style={styles.dailyRewardsValue}>{totalXp}</Text>
+                  <Text style={styles.dailyRewardsLabel}>XP</Text>
+                </View>
+              </View>
+              {currentStreak > 0 && (
+                <View style={styles.streakBadge}>
+                  <Calendar size={16} color="#FFFFFF" />
+                  <Text style={styles.streakText}>{currentStreak} dní v řadě 🔥</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.dailyRewardsRight}>
+              <Sparkles size={40} color="#FFFFFF" />
+            </View>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
 
       {/* Stats */}
       <View style={styles.statsContainer}>
@@ -653,5 +694,72 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     textAlign: 'center',
   },
-
+  dailyRewardsCard: {
+    marginHorizontal: 20,
+    marginTop: -16,
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dailyRewardsGradient: {
+    padding: 20,
+  },
+  dailyRewardsContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dailyRewardsLeft: {
+    flex: 1,
+  },
+  dailyRewardsStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 12,
+  },
+  dailyRewardsStat: {
+    alignItems: 'center',
+  },
+  dailyRewardsValue: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  dailyRewardsLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+    opacity: 0.9,
+  },
+  dailyRewardsDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.3,
+  },
+  dailyRewardsRight: {
+    marginLeft: 16,
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
 });
