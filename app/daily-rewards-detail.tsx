@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Gift, Calendar, ChevronLeft, Sparkles } from 'lucide-react-native';
+import { Gift, Calendar, ChevronLeft, Sparkles, Check, Lock } from 'lucide-react-native';
 import { useDailyRewards } from '@/store/daily-rewards-store';
 
 const rewardsData = [
@@ -60,13 +60,11 @@ export default function DailyRewardsDetailScreen() {
           isUnlocked && styles.dayBadgeUnlocked,
           reward.milestone && styles.dayBadgeMilestone,
         ]}>
-          <Text style={[
-            styles.dayText,
-            isUnlocked && styles.dayTextUnlocked,
-            reward.milestone && styles.dayTextMilestone,
-          ]}>
-            {reward.day}
-          </Text>
+          {isUnlocked ? (
+            <Check size={24} color="#FFFFFF" strokeWidth={3} />
+          ) : (
+            <Lock size={20} color="#9CA3AF" />
+          )}
         </View>
         <View style={styles.rewardInfo}>
           <Text style={[
@@ -76,12 +74,15 @@ export default function DailyRewardsDetailScreen() {
             {reward.label}
           </Text>
           {reward.milestone && (
-            <Text style={[
-              styles.milestoneText,
-              isUnlocked && styles.milestoneTextUnlocked,
-            ]}>
-              {reward.milestone}
-            </Text>
+            <View style={styles.milestoneContainer}>
+              <Sparkles size={12} color={isUnlocked ? "#FFA500" : "#9CA3AF"} />
+              <Text style={[
+                styles.milestoneText,
+                isUnlocked && styles.milestoneTextUnlocked,
+              ]}>
+                {reward.milestone}
+              </Text>
+            </View>
           )}
         </View>
       </View>
@@ -115,6 +116,11 @@ export default function DailyRewardsDetailScreen() {
           </Text>
         </View>
       </View>
+      {isUnlocked && (
+        <View style={styles.claimedBadge}>
+          <Text style={styles.claimedText}>✓ Vyzvednutá</Text>
+        </View>
+      )}
     </View>
   );
 
@@ -375,7 +381,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rewardRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -383,10 +389,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 2,
     borderColor: '#E5E7EB',
+    position: 'relative',
+    opacity: 0.6,
   },
   rewardRowUnlocked: {
-    borderColor: '#4ECDC4',
-    backgroundColor: '#F0F9FF',
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+    opacity: 1,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   rewardRowMilestone: {
     borderWidth: 2,
@@ -400,13 +414,13 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
   dayBadgeUnlocked: {
-    backgroundColor: '#4ECDC4',
+    backgroundColor: '#10B981',
   },
   dayBadgeMilestone: {
     backgroundColor: '#FFD700',
@@ -434,13 +448,19 @@ const styles = StyleSheet.create({
   rewardLabelUnlocked: {
     color: '#1A1A1A',
   },
+  milestoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
   milestoneText: {
     fontSize: 12,
     fontWeight: '600' as const,
     color: '#9CA3AF',
   },
   milestoneTextUnlocked: {
-    color: '#FFA500',
+    color: '#F59E0B',
   },
   rewardRight: {
     flexDirection: 'row',
@@ -456,7 +476,21 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   rewardValueUnlocked: {
-    color: '#4ECDC4',
+    color: '#10B981',
+  },
+  claimedBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  claimedText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   rewardType: {
     fontSize: 11,
@@ -464,6 +498,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   rewardTypeUnlocked: {
-    color: '#4ECDC4',
+    color: '#10B981',
   },
 });
