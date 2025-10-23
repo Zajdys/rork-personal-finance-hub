@@ -71,6 +71,8 @@ export default function AddTransactionScreen() {
   const [importError, setImportError] = useState<string | null>(null);
   const [invoiceScanOpen, setInvoiceScanOpen] = useState<boolean>(false);
   const [scanningInvoice, setScanningInvoice] = useState<boolean>(false);
+  const [receiptScanOpen, setReceiptScanOpen] = useState<boolean>(false);
+  const [scanningReceipt, setScanningReceipt] = useState<boolean>(false);
   const [createCategoryOpen, setCreateCategoryOpen] = useState<boolean>(false);
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryIcon, setNewCategoryIcon] = useState<string>('📦');
@@ -400,6 +402,169 @@ export default function AddTransactionScreen() {
     setInvoiceScanOpen(true);
   }, []);
 
+  const scanReceiptWithCamera = useCallback(async () => {
+    setReceiptScanOpen(true);
+  }, []);
+
+  const processReceiptFile = useCallback(async (uri: string) => {
+    try {
+      setScanningReceipt(true);
+      console.log('Processing receipt from URI:', uri);
+      
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        try {
+          const result = reader.result as string;
+          if (!result) {
+            Alert.alert('Chyba', 'Soubor účtenky je prázdný.');
+            setScanningReceipt(false);
+            return;
+          }
+          
+          const base64Data = result.split(',')[1];
+          if (!base64Data) {
+            Alert.alert('Chyba', 'Nepodařilo se převést účtenku.');
+            setScanningReceipt(false);
+            return;
+          }
+          
+          console.log('Base64 data length:', base64Data.length);
+          
+          if (base64Data.length < 100) {
+            Alert.alert('Chyba', 'Obrázek účtenky je příliš malý nebo prázdný.');
+            setScanningReceipt(false);
+            return;
+          }
+          
+          const schema = z.object({
+            items: z.array(
+              z.object({
+                title: z.string().describe('Název položky, např. "Mléko 1L" nebo "Rohlíky 5ks"'),
+                amount: z.number().describe('CELKOVÁ číselná částka za tuto položku v Kč'),
+                category: z.string().describe('Kategorie - jedna z: Jídlo a nápoje, Nájem a bydlení, Oblečení, Doprava, Zábava, Zdraví, Vzdělání, Nákupy, Služby, Ostatní'),
+              })
+            ),
+          });
+
+          type ReceiptResult = z.infer<typeof schema>;
+          let receiptResult: ReceiptResult;
+          try {
+            console.log('Calling AI for receipt with image size:', base64Data.length);
+            
+            receiptResult = await Promise.race<ReceiptResult>([
+              generateObject({
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 50Kč, amount musí být 200, ne 50)\n2. Do title zahrň název produktu/služby + množství pokud je uvedeno\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš jednotkovou cenu a množství, vynásob je pro celkovou částku\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Mezisoučet" nebo "DPH" nebo "Celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je položka uvedena vícekrát, každá má vlastní záznam\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, internet, telefon\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: kino, hry, sport\n- Zdraví: léky, vitamíny, lékárna\n- Vzdělání: knihy, kurzy\n- Nákupy: elektronika, drogerie, domácnost\n- Služby: servis, opravy, služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtenke je: "Mléko 1,5%\n2 ks x 25 Kč\nCelkem: 50 Kč"\nVrať: {title: "Mléko 1,5% 2 ks", amount: 50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtenke je: "Rohlík\n5 ks x 3 Kč\n15 Kč"\nVrať: {title: "Rohlík 5 ks", amount: 15, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtenke je: "Benzín Natural 95\n35 L x 38,50 Kč\n1 347,50 Kč"\nVrať: {title: "Benzín Natural 95 35 L", amount: 1347.50, category: "Doprava"}',
+                      },
+                      {
+                        type: 'image',
+                        image: base64Data,
+                      },
+                    ],
+                  },
+                ],
+                schema,
+              }),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
+              )
+            ]);
+            
+            console.log('AI receipt call successful');
+          } catch (aiError) {
+            console.error('Receipt AI error:', aiError);
+            console.error('Error type:', typeof aiError);
+            console.error('Error name:', (aiError as any)?.name);
+            console.error('Error message:', (aiError as any)?.message);
+            console.error('Error stack:', (aiError as any)?.stack);
+            console.error('Error details:', JSON.stringify(aiError, Object.getOwnPropertyNames(aiError)));
+            
+            if (aiError instanceof Error) {
+              const errorMsg = aiError.message.toLowerCase();
+              
+              if (errorMsg.includes('network request failed') || 
+                  errorMsg.includes('failed to fetch') ||
+                  errorMsg.includes('network error') ||
+                  errorMsg.includes('fetch failed')) {
+                Alert.alert(
+                  'Chyba připojení', 
+                  'Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.\n\nMůžete také nahrát jinou účtenku nebo zadat transakci ručně.'
+                );
+              } else if (errorMsg.includes('timeout')) {
+                Alert.alert(
+                  'Timeout', 
+                  'AI zpracování trvalo příliš dlouho. Zkuste prosím:\n• Menší soubor\n• Jinou účtenku\n• Zadejte transakci ručně'
+                );
+              } else if (errorMsg.includes('not configured') || errorMsg.includes('undefined')) {
+                Alert.alert(
+                  'Služba nedostupná', 
+                  'AI služba pro zpracování účtenek není správně nakonfigurována. Zadejte prosím transakci ručně.'
+                );
+              } else {
+                Alert.alert(
+                  'Chyba', 
+                  `Nepodařilo se zpracovat účtenku: ${aiError.message}\n\nZadejte prosím transakci ručně.`
+                );
+              }
+            } else {
+              Alert.alert(
+                'Chyba', 
+                'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.'
+              );
+            }
+            setScanningReceipt(false);
+            return;
+          }
+
+          const receiptItems = receiptResult.items || [];
+          console.log('Parsed receipt items:', receiptItems);
+          
+          if (receiptItems.length === 0) {
+            Alert.alert('Chyba', 'Na účtence nebyly nalezeny žádné položky. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.');
+            setScanningReceipt(false);
+            return;
+          }
+          
+          const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
+            type: 'expense' as const,
+            amount: parseFloat(item.amount) || 0,
+            title: item.title || `Položka ${index + 1}`,
+            category: item.category || 'Ostatní',
+            date: new Date(),
+          }));
+          
+          console.log('Receipt transactions created:', receiptTransactions.length);
+          setPreview(receiptTransactions);
+          setPreviewOpen(true);
+          setScanningReceipt(false);
+          
+          addPoints(3);
+          showBuddyMessage('Účtenka byla úspěšně zpracována! Zkontrolujte položky a potvrďte.');
+          
+        } catch (error) {
+          console.error('Receipt processing error:', error);
+          Alert.alert('Chyba', 'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně. Chyba: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
+          setScanningReceipt(false);
+        }
+      };
+      
+      reader.readAsDataURL(blob);
+      
+    } catch (error) {
+      console.error('Receipt file processing error:', error);
+      Alert.alert('Chyba', 'Nepodařilo se načíst soubor účtenky.');
+      setScanningReceipt(false);
+    }
+  }, [addPoints, showBuddyMessage]);
+
   const processInvoiceFile = useCallback(async (uri: string) => {
     try {
       setScanningInvoice(true);
@@ -594,7 +759,7 @@ export default function AddTransactionScreen() {
     return status === 'granted';
   }, []);
 
-  const takePicture = useCallback(async () => {
+  const takePictureInvoice = useCallback(async () => {
     try {
       const hasPermission = await requestCameraPermission();
       if (!hasPermission) {
@@ -619,7 +784,7 @@ export default function AddTransactionScreen() {
     }
   }, [processInvoiceFile, requestCameraPermission, t]);
 
-  const selectFromGallery = useCallback(async () => {
+  const selectFromGalleryInvoice = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -643,6 +808,56 @@ export default function AddTransactionScreen() {
       Alert.alert(t('error'), t('galleryError'));
     }
   }, [processInvoiceFile, t]);
+
+  const takePictureReceipt = useCallback(async () => {
+    try {
+      const hasPermission = await requestCameraPermission();
+      if (!hasPermission) {
+        Alert.alert(t('errorMessage'), t('cameraPermissionNeeded'));
+        return;
+      }
+      
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets[0]) {
+        setReceiptScanOpen(false);
+        await processReceiptFile(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert(t('error'), t('cameraError'));
+    }
+  }, [processReceiptFile, requestCameraPermission, t]);
+
+  const selectFromGalleryReceipt = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('errorMessage'), t('galleryPermissionNeeded'));
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets[0]) {
+        setReceiptScanOpen(false);
+        await processReceiptFile(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Gallery error:', error);
+      Alert.alert(t('error'), t('galleryError'));
+    }
+  }, [processReceiptFile, t]);
 
   const availableColors = [
     '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', 
@@ -808,6 +1023,23 @@ export default function AddTransactionScreen() {
           <View style={styles.receiptButtons}>
             <TouchableOpacity
               style={[styles.receiptButton, styles.receiptButtonCamera]}
+              onPress={scanReceiptWithCamera}
+              disabled={scanningReceipt}
+            >
+              <LinearGradient colors={["#f59e0b", "#d97706"]} style={styles.receiptGradient}>
+                {scanningReceipt ? (
+                  <ActivityIndicator color="#fff" size={16} />
+                ) : (
+                  <>
+                    <Camera color="#fff" size={16} />
+                    <Text style={styles.receiptButtonText}>Vyfotit účtenku</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.receiptButton, styles.receiptButtonCamera]}
               onPress={scanInvoiceWithCamera}
               disabled={scanningInvoice}
             >
@@ -818,23 +1050,6 @@ export default function AddTransactionScreen() {
                   <>
                     <Camera color="#fff" size={16} />
                     <Text style={styles.receiptButtonText}>Vyfotit fakturu</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.receiptButton, styles.receiptButtonUpload]}
-              onPress={uploadInvoicePDF}
-              disabled={scanningInvoice}
-            >
-              <LinearGradient colors={["#8b5cf6", "#7c3aed"]} style={styles.receiptGradient}>
-                {scanningInvoice ? (
-                  <ActivityIndicator color="#fff" size={16} />
-                ) : (
-                  <>
-                    <Scan color="#fff" size={16} />
-                    <Text style={styles.receiptButtonText}>Nahrát fakturu</Text>
                   </>
                 )}
               </LinearGradient>
@@ -891,6 +1106,36 @@ export default function AddTransactionScreen() {
         </TouchableOpacity>
       </View>
 
+      <Modal visible={receiptScanOpen} transparent animationType="slide" onRequestClose={() => setReceiptScanOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.receiptScanModal}>
+            <Text style={styles.modalTitle}>Nahrát účtenku</Text>
+            <Text style={styles.modalSubtitle}>Vyberte způsob nahrání účtenky</Text>
+            
+            <View style={styles.receiptScanOptions}>
+              <TouchableOpacity style={styles.receiptScanOption} onPress={takePictureReceipt}>
+                <Camera color="#f59e0b" size={32} />
+                <Text style={styles.receiptScanOptionTitle}>Vyfotit</Text>
+                <Text style={styles.receiptScanOptionDesc}>Pořídit novou fotku</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.receiptScanOption} onPress={selectFromGalleryReceipt}>
+                <FileText color="#f59e0b" size={32} />
+                <Text style={styles.receiptScanOptionTitle}>Z galerie</Text>
+                <Text style={styles.receiptScanOptionDesc}>Vybrat existující foto</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.receiptScanCancel} 
+              onPress={() => setReceiptScanOpen(false)}
+            >
+              <Text style={styles.receiptScanCancelText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={invoiceScanOpen} transparent animationType="slide" onRequestClose={() => setInvoiceScanOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.receiptScanModal}>
@@ -898,13 +1143,13 @@ export default function AddTransactionScreen() {
             <Text style={styles.modalSubtitle}>Vyberte způsob nahrání faktury</Text>
             
             <View style={styles.receiptScanOptions}>
-              <TouchableOpacity style={styles.receiptScanOption} onPress={takePicture}>
+              <TouchableOpacity style={styles.receiptScanOption} onPress={takePictureInvoice}>
                 <Camera color="#10b981" size={32} />
                 <Text style={styles.receiptScanOptionTitle}>Vyfotit</Text>
                 <Text style={styles.receiptScanOptionDesc}>Pořídit novou fotku</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.receiptScanOption} onPress={selectFromGallery}>
+              <TouchableOpacity style={styles.receiptScanOption} onPress={selectFromGalleryInvoice}>
                 <FileText color="#8b5cf6" size={32} />
                 <Text style={styles.receiptScanOptionTitle}>Z galerie</Text>
                 <Text style={styles.receiptScanOptionDesc}>Vybrat existující foto</Text>
