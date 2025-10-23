@@ -217,7 +217,7 @@ export default function ProfileScreen() {
       {/* Daily Rewards */}
       <TouchableOpacity 
         style={styles.dailyRewardsCard}
-        onPress={openModal}
+        onPress={() => router.push('/daily-rewards-detail')}
         activeOpacity={0.8}
       >
         <LinearGradient
