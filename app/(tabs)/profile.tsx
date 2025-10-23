@@ -236,18 +236,11 @@ export default function ProfileScreen() {
                   <Text style={styles.dailyRewardsValue}>{totalKesaky}</Text>
                   <Text style={styles.dailyRewardsLabel}>Kešáky</Text>
                 </View>
-                <View style={styles.dailyRewardsDivider} />
                 <View style={styles.dailyRewardsStat}>
                   <Text style={styles.dailyRewardsValue}>{totalXp}</Text>
                   <Text style={styles.dailyRewardsLabel}>XP</Text>
                 </View>
               </View>
-              {currentStreak > 0 && (
-                <View style={styles.streakBadge}>
-                  <Calendar size={16} color="#FFFFFF" />
-                  <Text style={styles.streakText}>{currentStreak} dní v řadě 🔥</Text>
-                </View>
-              )}
             </View>
             <View style={styles.dailyRewardsRight}>
               <Sparkles size={40} color="#FFFFFF" />
@@ -719,24 +712,25 @@ const styles = StyleSheet.create({
   },
   dailyRewardsStats: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    gap: 32,
+    marginBottom: 8,
   },
   dailyRewardsStat: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   dailyRewardsValue: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700' as const,
     color: '#FFFFFF',
-    marginBottom: 2,
+    lineHeight: 36,
   },
   dailyRewardsLabel: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFFFFF',
     opacity: 0.9,
+    marginTop: -4,
   },
   dailyRewardsDivider: {
     width: 1,
@@ -745,7 +739,7 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   dailyRewardsRight: {
-    marginLeft: 16,
+    marginLeft: 8,
   },
   streakBadge: {
     flexDirection: 'row',
