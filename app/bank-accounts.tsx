@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Wallet, Plus, RefreshCw, ChevronRight } from 'lucide-react-native';
+import { Wallet, Plus, RefreshCw, ChevronRight, ArrowLeft } from 'lucide-react-native';
 import { useBankStore } from '@/store/bank-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useFinanceStore } from '@/store/finance-store';
@@ -81,6 +81,14 @@ export default function BankAccountsScreen() {
           },
           headerTintColor: isDarkMode ? '#FFFFFF' : '#000000',
           headerShadowVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ marginLeft: 16 }}
+            >
+              <ArrowLeft color={isDarkMode ? '#FFFFFF' : '#000000'} size={24} />
+            </TouchableOpacity>
+          ),
         }}
       />
 
