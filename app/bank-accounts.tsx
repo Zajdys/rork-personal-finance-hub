@@ -216,6 +216,7 @@ const styles = StyleSheet.create({
   },
   totalBalanceContainer: {
     margin: 20,
+    marginTop: 60,
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
