@@ -27,6 +27,7 @@ import {
   Scan,
   Plus,
   Building2,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useFinanceStore, CustomCategory } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
@@ -1169,8 +1170,19 @@ export default function AddTransactionScreen() {
       <Modal visible={previewOpen} transparent animationType="slide" onRequestClose={() => setPreviewOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Náhled importu</Text>
-            <Text style={styles.modalSubtitle}>Počet načtených transakcí: {preview.length}</Text>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity 
+                style={styles.modalBackButton} 
+                onPress={() => setPreviewOpen(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <ArrowLeft color="#6B7280" size={24} />
+              </TouchableOpacity>
+              <View style={styles.modalHeaderTexts}>
+                <Text style={styles.modalTitle}>Náhled importu</Text>
+                <Text style={styles.modalSubtitle}>Počet načtených transakcí: {preview.length}</Text>
+              </View>
+            </View>
             <ScrollView style={styles.previewList} contentContainerStyle={{ paddingBottom: 12 }}>
               {preview.slice(0, 50).map((p, idx) => (
                 <View key={`${p.title}-${idx}`} style={styles.previewItem} testID={`preview-item-${idx}`}>
@@ -1490,6 +1502,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  modalBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalHeaderTexts: {
+    flex: 1,
   },
   modalTitle: {
     fontSize: 18,
