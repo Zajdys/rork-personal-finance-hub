@@ -14,10 +14,13 @@ const bankProviderSchema = z.enum([
   'wise',
 ]);
 
+const accountTypeSchema = z.enum(['checking', 'savings', 'building_savings']);
+
 export const connectBankProcedure = publicProcedure
   .input(
     z.object({
       bankProvider: bankProviderSchema,
+      accountType: accountTypeSchema.default('checking'),
       credentials: z.object({
         username: z.string(),
         password: z.string(),
@@ -34,6 +37,7 @@ export const connectBankProcedure = publicProcedure
       bankProvider: input.bankProvider,
       accountNumber: '123456789/0100',
       accountName: 'Hlavní účet',
+      accountType: input.accountType,
       balance: 45000,
       currency: 'CZK',
       lastSyncedAt: new Date(),

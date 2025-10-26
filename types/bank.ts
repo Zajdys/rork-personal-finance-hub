@@ -10,11 +10,14 @@ export type BankProvider =
   | 'revolut'
   | 'wise';
 
+export type AccountType = 'checking' | 'savings' | 'building_savings';
+
 export interface BankAccount {
   id: string;
   bankProvider: BankProvider;
   accountNumber: string;
   accountName: string;
+  accountType: AccountType;
   balance: number;
   currency: string;
   lastSyncedAt: Date;

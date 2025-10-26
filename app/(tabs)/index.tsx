@@ -30,6 +30,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/store/auth-store';
+import { useBankStore } from '@/store/bank-store';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +41,7 @@ export default function DashboardScreen() {
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t, language, updateCounter } = useLanguageStore();
   const { user } = useAuth();
+  const { accounts, loadData } = useBankStore();
   const [dailyLoginReward, setDailyLoginReward] = useState<{
     awarded: boolean;
     xpGained: number;
@@ -52,7 +54,8 @@ export default function DashboardScreen() {
   
   useEffect(() => {
     refreshDailyTip();
-  }, [language, updateCounter, refreshDailyTip]);
+    loadData();
+  }, [language, updateCounter, refreshDailyTip, loadData]);
 
   useEffect(() => {
     const checkDailyLogin = async () => {

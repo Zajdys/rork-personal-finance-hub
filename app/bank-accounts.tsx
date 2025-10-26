@@ -8,10 +8,11 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Wallet, Plus, RefreshCw, ChevronRight, ArrowLeft } from 'lucide-react-native';
+import { Wallet, Plus, RefreshCw, ChevronRight, ArrowLeft, Landmark, PiggyBank, Home } from 'lucide-react-native';
 import { useBankStore } from '@/store/bank-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useFinanceStore } from '@/store/finance-store';
+import { AccountType } from '@/types/bank';
 
 export default function BankAccountsScreen() {
   const { accounts, isSyncing, syncAllAccounts } = useBankStore();
@@ -69,6 +70,131 @@ export default function BankAccountsScreen() {
       default:
         return provider.toUpperCase();
     }
+  };
+
+  const getAccountTypeLabel = (type: AccountType): string => {
+    switch (type) {
+      case 'checking':
+        return 'Běžný účet';
+      case 'savings':
+        return 'Spořicí účet';
+      case 'building_savings':
+        return 'Stavební spoření';
+      default:
+        return 'Účet';
+    }
+  };
+
+  const getAccountTypeIcon = (type: AccountType) => {
+    switch (type) {
+      case 'checking':
+        return Landmark;
+      case 'savings':
+        return PiggyBank;
+      case 'building_savings':
+        return Home;
+      default:
+        return Wallet;
+    }
+  };
+
+  const getAccountTypeColor = (type: AccountType): string => {
+    switch (type) {
+      case 'checking':
+        return '#3B82F6';
+      case 'savings':
+        return '#10B981';
+      case 'building_savings':
+        return '#F59E0B';
+      default:
+        return '#6B7280';
+    }
+  };
+
+  const checkingAccounts = accounts.filter(acc => acc.accountType === 'checking');
+  const savingsAccounts = accounts.filter(acc => acc.accountType === 'savings');
+  const buildingSavingsAccounts = accounts.filter(acc => acc.accountType === 'building_savings');
+
+  const renderAccountsByType = (accountsList: typeof accounts, type: AccountType) => {
+    if (accountsList.length === 0) return null;
+
+    const TypeIcon = getAccountTypeIcon(type);
+    const typeColor = getAccountTypeColor(type);
+    const typeTotal = accountsList.reduce((sum, acc) => sum + (acc.isActive ? acc.balance : 0), 0);
+
+    return (
+      <View style={styles.accountTypeSection} key={type}>
+        <View style={styles.accountTypeHeader}>
+          <View style={styles.accountTypeHeaderLeft}>
+            <View style={[styles.accountTypeIconContainer, { backgroundColor: `${typeColor}20` }]}>
+              <TypeIcon color={typeColor} size={20} />
+            </View>
+            <View>
+              <Text style={[styles.accountTypeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                {getAccountTypeLabel(type)}
+              </Text>
+              <Text style={[styles.accountTypeCount, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {accountsList.length} {accountsList.length === 1 ? 'účet' : 'účty'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.accountTypeTotalContainer}>
+            <Text style={[styles.accountTypeTotalLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              Celkem
+            </Text>
+            <Text style={[styles.accountTypeTotalAmount, { color: typeColor }]}>
+              {typeTotal.toLocaleString('cs-CZ')} Kč
+            </Text>
+          </View>
+        </View>
+
+        {accountsList.map((account) => (
+          <TouchableOpacity
+            key={account.id}
+            style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+          >
+            <View style={styles.accountHeader}>
+              <View style={styles.accountIconContainer}>
+                <Text style={styles.accountIcon}>{getBankIcon(account.bankProvider)}</Text>
+              </View>
+              <View style={styles.accountInfo}>
+                <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {account.accountName || getBankName(account.bankProvider)}
+                </Text>
+                <Text style={[styles.accountNumber, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  {account.accountNumber}
+                </Text>
+              </View>
+              <ChevronRight color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
+            </View>
+
+            <View style={styles.accountBalance}>
+              <Text style={[styles.accountBalanceLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                Aktuální zůstatek
+              </Text>
+              <Text style={[
+                styles.accountBalanceAmount,
+                { color: account.balance >= 0 ? '#10B981' : '#EF4444' }
+              ]}>
+                {account.balance.toLocaleString('cs-CZ')} Kč
+              </Text>
+            </View>
+
+            {account.lastSyncedAt && (
+              <Text style={[styles.lastSynced, { color: isDarkMode ? '#9CA3AF' : '#9CA3AF' }]}>
+                Poslední synchronizace: {new Date(account.lastSyncedAt).toLocaleString('cs-CZ')}
+              </Text>
+            )}
+
+            {!account.isActive && (
+              <View style={styles.inactiveBadge}>
+                <Text style={styles.inactiveBadgeText}>Neaktivní</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
   };
 
   return (
@@ -165,51 +291,11 @@ export default function BankAccountsScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            accounts.map((account) => (
-              <TouchableOpacity
-                key={account.id}
-                style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-              >
-                <View style={styles.accountHeader}>
-                  <View style={styles.accountIconContainer}>
-                    <Text style={styles.accountIcon}>{getBankIcon(account.bankProvider)}</Text>
-                  </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      {account.accountName || getBankName(account.bankProvider)}
-                    </Text>
-                    <Text style={[styles.accountNumber, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {account.accountNumber}
-                    </Text>
-                  </View>
-                  <ChevronRight color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                </View>
-
-                <View style={styles.accountBalance}>
-                  <Text style={[styles.accountBalanceLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Aktuální zůstatek
-                  </Text>
-                  <Text style={[
-                    styles.accountBalanceAmount,
-                    { color: account.balance >= 0 ? '#10B981' : '#EF4444' }
-                  ]}>
-                    {account.balance.toLocaleString('cs-CZ')} Kč
-                  </Text>
-                </View>
-
-                {account.lastSyncedAt && (
-                  <Text style={[styles.lastSynced, { color: isDarkMode ? '#9CA3AF' : '#9CA3AF' }]}>
-                    Poslední synchronizace: {new Date(account.lastSyncedAt).toLocaleString('cs-CZ')}
-                  </Text>
-                )}
-
-                {!account.isActive && (
-                  <View style={styles.inactiveBadge}>
-                    <Text style={styles.inactiveBadgeText}>Neaktivní</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))
+            <View>
+              {renderAccountsByType(checkingAccounts, 'checking')}
+              {renderAccountsByType(savingsAccounts, 'savings')}
+              {renderAccountsByType(buildingSavingsAccounts, 'building_savings')}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -420,5 +506,48 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#D97706',
+  },
+  accountTypeSection: {
+    marginBottom: 24,
+  },
+  accountTypeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  accountTypeHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  accountTypeIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  accountTypeTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  accountTypeCount: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  accountTypeTotalContainer: {
+    alignItems: 'flex-end',
+  },
+  accountTypeTotalLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  accountTypeTotalAmount: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

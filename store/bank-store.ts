@@ -136,6 +136,49 @@ export const useBankStore = create<BankState>((set, get) => ({
         }
       }
 
+      if (accounts.length === 0) {
+        const now = new Date();
+        accounts = [
+          {
+            id: 'demo-checking-1',
+            bankProvider: 'ceska-sporitelna',
+            accountNumber: '1234567890/0800',
+            accountName: 'Běžný účet',
+            accountType: 'checking',
+            balance: 45230,
+            currency: 'CZK',
+            lastSyncedAt: now,
+            isActive: true,
+            connectedAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+          },
+          {
+            id: 'demo-savings-1',
+            bankProvider: 'ceska-sporitelna',
+            accountNumber: '9876543210/0800',
+            accountName: 'Spořicí účet',
+            accountType: 'savings',
+            balance: 128500,
+            currency: 'CZK',
+            lastSyncedAt: now,
+            isActive: true,
+            connectedAt: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000),
+          },
+          {
+            id: 'demo-building-1',
+            bankProvider: 'csob',
+            accountNumber: '5555666677/0300',
+            accountName: 'Stavební spoření',
+            accountType: 'building_savings',
+            balance: 85600,
+            currency: 'CZK',
+            lastSyncedAt: now,
+            isActive: true,
+            connectedAt: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000),
+          },
+        ];
+        await AsyncStorage.setItem('bank_accounts', JSON.stringify(accounts));
+      }
+
       let transactions: BankTransaction[] = [];
       if (transactionsData) {
         try {

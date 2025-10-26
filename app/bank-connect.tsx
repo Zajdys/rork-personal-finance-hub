@@ -11,19 +11,21 @@ import {
   Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Building2, Lock, User, CheckCircle, RefreshCw, Trash2, XCircle } from 'lucide-react-native';
+import { ArrowLeft, Building2, Lock, User, CheckCircle, RefreshCw, Trash2, XCircle, ChevronDown } from 'lucide-react-native';
 import { Stack, router } from 'expo-router';
-import { SUPPORTED_BANKS, BankProvider } from '@/types/bank';
+import { SUPPORTED_BANKS, BankProvider, AccountType } from '@/types/bank';
 import { useBankStore } from '@/store/bank-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { trpcClient } from '@/lib/trpc';
 
 export default function BankConnectScreen() {
   const [selectedBank, setSelectedBank] = useState<BankProvider | null>(null);
+  const [accountType, setAccountType] = useState<AccountType>('checking');
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [showCredentials, setShowCredentials] = useState<boolean>(false);
+  const [showAccountTypeModal, setShowAccountTypeModal] = useState<boolean>(false);
 
   const { accounts, addAccount, removeAccount, syncAccount, isSyncing, loadData } = useBankStore();
   const { addTransaction } = useFinanceStore();
@@ -34,7 +36,21 @@ export default function BankConnectScreen() {
 
   const handleBankSelect = (bankId: BankProvider) => {
     setSelectedBank(bankId);
+    setAccountType('checking');
     setShowCredentials(true);
+  };
+
+  const getAccountTypeLabel = (type: AccountType): string => {
+    switch (type) {
+      case 'checking':
+        return 'Běžný účet';
+      case 'savings':
+        return 'Spořicí účet';
+      case 'building_savings':
+        return 'Stavební spoření';
+      default:
+        return 'Účet';
+    }
   };
 
   const handleConnect = async () => {
@@ -47,6 +63,7 @@ export default function BankConnectScreen() {
     try {
       const result = await trpcClient.banking.connect.mutate({
         bankProvider: selectedBank,
+        accountType,
         credentials: { username, password },
       });
 
@@ -271,6 +288,18 @@ export default function BankConnectScreen() {
               />
             </View>
 
+            <TouchableOpacity
+              style={styles.accountTypeSelector}
+              onPress={() => setShowAccountTypeModal(true)}
+              disabled={isConnecting}
+            >
+              <Text style={styles.accountTypeSelectorLabel}>Typ účtu</Text>
+              <View style={styles.accountTypeSelectorValue}>
+                <Text style={styles.accountTypeSelectorText}>{getAccountTypeLabel(accountType)}</Text>
+                <ChevronDown color="#6B7280" size={20} />
+              </View>
+            </TouchableOpacity>
+
             <View style={styles.securityNote}>
               <Lock color="#10B981" size={16} />
               <Text style={styles.securityNoteText}>
@@ -309,6 +338,39 @@ export default function BankConnectScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal visible={showAccountTypeModal} transparent animationType="fade" onRequestClose={() => setShowAccountTypeModal(false)}>
+        <TouchableOpacity 
+          style={styles.accountTypeModalBackdrop} 
+          activeOpacity={1}
+          onPress={() => setShowAccountTypeModal(false)}
+        >
+          <View style={styles.accountTypeModalCard}>
+            <Text style={styles.accountTypeModalTitle}>Vyberte typ účtu</Text>
+            {(['checking', 'savings', 'building_savings'] as AccountType[]).map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.accountTypeOption,
+                  accountType === type && styles.accountTypeOptionSelected,
+                ]}
+                onPress={() => {
+                  setAccountType(type);
+                  setShowAccountTypeModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.accountTypeOptionText,
+                  accountType === type && styles.accountTypeOptionTextSelected,
+                ]}>
+                  {getAccountTypeLabel(type)}
+                </Text>
+                {accountType === type && <CheckCircle color="#10B981" size={20} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -529,5 +591,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
     color: '#1F2937',
+  },
+  accountTypeSelector: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  accountTypeSelectorLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  accountTypeSelectorValue: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  accountTypeSelectorText: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '600' as const,
+  },
+  accountTypeModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  accountTypeModalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+  },
+  accountTypeModalTitle: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  accountTypeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    marginBottom: 8,
+  },
+  accountTypeOptionSelected: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  accountTypeOptionText: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '600' as const,
+  },
+  accountTypeOptionTextSelected: {
+    color: '#10B981',
   },
 });
