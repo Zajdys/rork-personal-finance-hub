@@ -140,85 +140,138 @@ export default function BankAccountsScreen() {
     return (
       <View style={styles.bankGroupSection} key={bankProvider}>
         <TouchableOpacity
-          style={[styles.bankGroupHeader, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
           onPress={() => toggleBank(bankProvider)}
-          activeOpacity={0.7}
+          activeOpacity={0.9}
         >
-          <View style={styles.bankGroupHeaderLeft}>
-            <View style={styles.bankIconContainer}>
-              <Text style={styles.bankIcon}>{getBankIcon(bankProvider)}</Text>
+          <LinearGradient
+            colors={isDarkMode ? ['#374151', '#1F2937'] : ['#FFFFFF', '#F9FAFB']}
+            style={styles.bankGroupHeader}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.bankGroupHeaderContent}>
+              <View style={styles.bankGroupHeaderLeft}>
+                <LinearGradient
+                  colors={['#667eea', '#764ba2']}
+                  style={styles.bankIconContainer}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.bankIcon}>{getBankIcon(bankProvider)}</Text>
+                </LinearGradient>
+                <View style={styles.bankInfo}>
+                  <Text style={[styles.bankName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    {getBankName(bankProvider)}
+                  </Text>
+                  <View style={styles.bankMetaRow}>
+                    <View style={[styles.accountCountBadge, { backgroundColor: isDarkMode ? '#4B5563' : '#EEF2FF' }]}>
+                      <Text style={[styles.bankAccountCount, { color: isDarkMode ? '#D1D5DB' : '#667eea' }]}>
+                        {bankAccounts.length} {bankAccounts.length === 1 ? 'účet' : 'účty'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.bankGroupHeaderRight}>
+                <View style={styles.bankTotalContainer}>
+                  <Text style={[styles.bankTotalLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                    Celkem
+                  </Text>
+                  <Text style={[styles.bankTotalAmount, { color: bankTotal >= 0 ? '#10B981' : '#EF4444' }]}>
+                    {bankTotal.toLocaleString('cs-CZ')} Kč
+                  </Text>
+                </View>
+                <View style={[styles.chevronCircle, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
+                  <ChevronIcon color={isDarkMode ? '#D1D5DB' : '#667eea'} size={18} />
+                </View>
+              </View>
             </View>
-            <View>
-              <Text style={[styles.bankName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                {getBankName(bankProvider)}
-              </Text>
-              <Text style={[styles.bankAccountCount, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                {bankAccounts.length} {bankAccounts.length === 1 ? 'účet' : 'účty'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.bankGroupHeaderRight}>
-            <View style={styles.bankTotalContainer}>
-              <Text style={[styles.bankTotalLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                Celkem
-              </Text>
-              <Text style={[styles.bankTotalAmount, { color: bankTotal >= 0 ? '#10B981' : '#EF4444' }]}>
-                {bankTotal.toLocaleString('cs-CZ')} Kč
-              </Text>
-            </View>
-            <ChevronIcon color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
 
         {isExpanded && (
           <View style={styles.bankAccountsContainer}>
-            {bankAccounts.map((account) => {
+            {bankAccounts.map((account, index) => {
               const TypeIcon = getAccountTypeIcon(account.accountType);
               const typeColor = getAccountTypeColor(account.accountType);
 
               return (
-                <TouchableOpacity
+                <View
                   key={account.id}
-                  style={[styles.accountCard, { backgroundColor: isDarkMode ? '#2D3748' : '#F9FAFB' }]}
+                  style={styles.accountCardWrapper}
                 >
-                  <View style={styles.accountHeader}>
-                    <View style={[styles.accountTypeIconContainer, { backgroundColor: `${typeColor}20` }]}>
-                      <TypeIcon color={typeColor} size={18} />
+                  <LinearGradient
+                    colors={isDarkMode ? ['#2D3748', '#1F2937'] : ['#FFFFFF', '#FAFBFF']}
+                    style={styles.accountCard}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                  >
+                    <View style={styles.accountTopRow}>
+                      <View style={styles.accountHeader}>
+                        <LinearGradient
+                          colors={[typeColor, typeColor + 'CC']}
+                          style={styles.accountTypeIconContainer}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        >
+                          <TypeIcon color="white" size={20} />
+                        </LinearGradient>
+                        <View style={styles.accountInfo}>
+                          <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                            {account.accountName}
+                          </Text>
+                          <Text style={[styles.accountTypeLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                            {getAccountTypeLabel(account.accountType)}
+                          </Text>
+                        </View>
+                      </View>
+                      {!account.isActive && (
+                        <View style={styles.inactiveBadge}>
+                          <Text style={styles.inactiveBadgeText}>Neaktivní</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={styles.accountInfo}>
-                      <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {account.accountName}
-                      </Text>
-                      <Text style={[styles.accountTypeLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                        {getAccountTypeLabel(account.accountType)} • {account.accountNumber}
-                      </Text>
+
+                    <View style={styles.accountDivider} />
+
+                    <View style={styles.accountBottomRow}>
+                      <View style={styles.accountNumberContainer}>
+                        <Text style={[styles.accountNumberLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                          Číslo účtu
+                        </Text>
+                        <Text style={[styles.accountNumberValue, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
+                          {account.accountNumber}
+                        </Text>
+                      </View>
+
+                      <View style={styles.accountBalance}>
+                        <Text style={[styles.accountBalanceLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                          Zůstatek
+                        </Text>
+                        <Text style={[
+                          styles.accountBalanceAmount,
+                          { color: account.balance >= 0 ? '#10B981' : '#EF4444' }
+                        ]}>
+                          {account.balance.toLocaleString('cs-CZ')} Kč
+                        </Text>
+                      </View>
                     </View>
-                  </View>
 
-                  <View style={styles.accountBalance}>
-                    <Text style={[styles.accountBalanceLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Aktuální zůstatek
-                    </Text>
-                    <Text style={[
-                      styles.accountBalanceAmount,
-                      { color: account.balance >= 0 ? '#10B981' : '#EF4444' }
-                    ]}>
-                      {account.balance.toLocaleString('cs-CZ')} Kč
-                    </Text>
-                  </View>
-
-                  {account.lastSyncedAt && (
-                    <Text style={[styles.lastSynced, { color: isDarkMode ? '#9CA3AF' : '#9CA3AF' }]}>
-                      Poslední synchronizace: {new Date(account.lastSyncedAt).toLocaleString('cs-CZ')}
-                    </Text>
-                  )}
-
-                  {!account.isActive && (
-                    <View style={styles.inactiveBadge}>
-                      <Text style={styles.inactiveBadgeText}>Neaktivní</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                    {account.lastSyncedAt && (
+                      <View style={styles.syncInfoContainer}>
+                        <RefreshCw size={10} color={isDarkMode ? '#6B7280' : '#9CA3AF'} />
+                        <Text style={[styles.lastSynced, { color: isDarkMode ? '#6B7280' : '#9CA3AF' }]}>
+                          {new Date(account.lastSyncedAt).toLocaleString('cs-CZ', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </Text>
+                      </View>
+                    )}
+                  </LinearGradient>
+                </View>
               );
             })}
           </View>
@@ -474,152 +527,228 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  accountCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 18,
-    marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
   accountHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
-
   accountInfo: {
     flex: 1,
   },
   accountName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#1F2937',
     marginBottom: 4,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
-
   accountBalance: {
-    paddingTop: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
+    alignItems: 'flex-end',
   },
   accountBalanceLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   accountBalanceAmount: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#10B981',
-    letterSpacing: -0.5,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.6,
   },
   lastSynced: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    marginTop: 8,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   inactiveBadge: {
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
   inactiveBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#D97706',
+    letterSpacing: 0.3,
   },
   bankGroupSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   bankGroupHeader: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.1)',
+  },
+  bankGroupHeaderContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 20,
     padding: 20,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
   },
   bankGroupHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     flex: 1,
   },
   bankGroupHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   bankIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F3F4F6',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   bankIcon: {
-    fontSize: 28,
+    fontSize: 30,
+  },
+  bankInfo: {
+    flex: 1,
   },
   bankName: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
     color: '#1F2937',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  bankMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accountCountBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   bankAccountCount: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginTop: 4,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   bankTotalContainer: {
     alignItems: 'flex-end',
   },
   bankTotalLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
+    fontSize: 10,
     marginBottom: 4,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontWeight: '600',
+    letterSpacing: 0.8,
+    fontWeight: '700',
   },
   bankTotalAmount: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.6,
   },
-  bankAccountsContainer: {
-    marginTop: 8,
-    gap: 8,
-  },
-  accountTypeIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  chevronCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  bankAccountsContainer: {
+    marginTop: 12,
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  accountCardWrapper: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  accountCard: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.08)',
+  },
+  accountTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  accountTypeIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   accountTypeLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  accountDivider: {
+    height: 1,
+    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    marginVertical: 16,
+  },
+  accountBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: 16,
+  },
+  accountNumberContainer: {
+    flex: 1,
+  },
+  accountNumberLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  accountNumberValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  syncInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(102, 126, 234, 0.08)',
   },
 });
