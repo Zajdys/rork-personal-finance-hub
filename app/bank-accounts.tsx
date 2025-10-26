@@ -231,7 +231,7 @@ export default function BankAccountsScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen
         options={{
-          title: 'Bankovní účty',
+          title: 'Celkový zůstatek',
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
           },
@@ -249,30 +249,37 @@ export default function BankAccountsScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.totalBalanceContainer}>
-          <LinearGradient
-            colors={totalBalance >= 0 ? ['#10B981', '#059669'] : ['#EF4444', '#DC2626']}
-            style={styles.totalBalanceGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.totalBalanceLabel}>Celkový zůstatek</Text>
-            <Text style={styles.totalBalanceAmount}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          style={styles.headerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.headerContent}>
+            <Text style={styles.headerLabel}>Celkový zůstatek</Text>
+            <Text style={styles.headerAmount}>
               {totalBalance.toLocaleString('cs-CZ')} Kč
             </Text>
-            <View style={styles.balanceBreakdown}>
-              <View style={styles.breakdownItem}>
-                <Text style={styles.breakdownLabel}>Manuální</Text>
-                <Text style={styles.breakdownAmount}>{balance.toLocaleString('cs-CZ')} Kč</Text>
+            
+            <View style={styles.quickStatsRow}>
+              <View style={styles.quickStatCard}>
+                <Wallet size={16} color="rgba(255,255,255,0.8)" />
+                <View style={styles.quickStatContent}>
+                  <Text style={styles.quickStatLabel}>Manuální</Text>
+                  <Text style={styles.quickStatValue}>{balance.toLocaleString('cs-CZ')} Kč</Text>
+                </View>
               </View>
-              <View style={styles.breakdownSeparator} />
-              <View style={styles.breakdownItem}>
-                <Text style={styles.breakdownLabel}>Banky</Text>
-                <Text style={styles.breakdownAmount}>{totalBankBalance.toLocaleString('cs-CZ')} Kč</Text>
+              
+              <View style={styles.quickStatCard}>
+                <Landmark size={16} color="rgba(255,255,255,0.8)" />
+                <View style={styles.quickStatContent}>
+                  <Text style={styles.quickStatLabel}>Banky</Text>
+                  <Text style={styles.quickStatValue}>{totalBankBalance.toLocaleString('cs-CZ')} Kč</Text>
+                </View>
               </View>
             </View>
-          </LinearGradient>
-        </View>
+          </View>
+        </LinearGradient>
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity
@@ -338,63 +345,63 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  totalBalanceContainer: {
-    margin: 20,
-    marginTop: 60,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+  headerGradient: {
+    paddingTop: 24,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
   },
-  totalBalanceGradient: {
-    padding: 24,
+  headerContent: {
     alignItems: 'center',
   },
-  totalBalanceLabel: {
+  headerLabel: {
     fontSize: 14,
-    color: 'white',
-    opacity: 0.9,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.85)',
     marginBottom: 8,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-  totalBalanceAmount: {
-    fontSize: 36,
+  headerAmount: {
+    fontSize: 48,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 20,
+    marginBottom: 24,
+    letterSpacing: -1,
   },
-  balanceBreakdown: {
+  quickStatsRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    padding: 16,
     width: '100%',
+    gap: 12,
   },
-  breakdownItem: {
+  quickStatCard: {
     flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  breakdownLabel: {
-    fontSize: 12,
-    color: 'white',
-    opacity: 0.8,
+  quickStatContent: {
+    flex: 1,
+  },
+  quickStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
     marginBottom: 4,
+    fontWeight: '500',
   },
-  breakdownAmount: {
-    fontSize: 16,
-    fontWeight: '600',
+  quickStatValue: {
+    fontSize: 15,
+    fontWeight: '700',
     color: 'white',
-  },
-  breakdownSeparator: {
-    width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: 16,
   },
   actionsContainer: {
     flexDirection: 'row',
     marginHorizontal: 20,
+    marginTop: 20,
     marginBottom: 24,
     gap: 12,
   },
@@ -404,29 +411,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#667eea',
+    letterSpacing: -0.2,
   },
   accountsContainer: {
     marginHorizontal: 20,
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#1F2937',
-    marginBottom: 16,
+    marginBottom: 20,
+    letterSpacing: -0.5,
   },
   emptyState: {
     backgroundColor: 'white',
@@ -465,8 +476,14 @@ const styles = StyleSheet.create({
   },
   accountCard: {
     backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
+    marginHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   accountHeader: {
     flexDirection: 'row',
@@ -480,9 +497,10 @@ const styles = StyleSheet.create({
   },
   accountName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1F2937',
     marginBottom: 4,
+    letterSpacing: -0.2,
   },
 
   accountBalance: {
@@ -496,9 +514,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   accountBalanceAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#10B981',
+    letterSpacing: -0.5,
   },
   lastSynced: {
     fontSize: 11,
@@ -526,13 +545,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
   bankGroupHeaderLeft: {
     flexDirection: 'row',
@@ -546,52 +565,61 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bankIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#E5E7EB',
   },
   bankIcon: {
-    fontSize: 24,
+    fontSize: 28,
   },
   bankName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
+    letterSpacing: -0.3,
   },
   bankAccountCount: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+    fontWeight: '500',
   },
   bankTotalContainer: {
     alignItems: 'flex-end',
   },
   bankTotalLabel: {
     fontSize: 11,
-    color: '#6B7280',
-    marginBottom: 2,
+    color: '#9CA3AF',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontWeight: '600',
   },
   bankTotalAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   bankAccountsContainer: {
     marginTop: 8,
     gap: 8,
   },
   accountTypeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   accountTypeLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#9CA3AF',
     marginTop: 2,
+    fontWeight: '500',
   },
 });
