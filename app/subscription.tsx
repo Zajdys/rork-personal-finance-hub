@@ -6,407 +6,284 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  CreditCard,
-  Crown,
-  Check,
-  Star,
-  Zap,
-  Shield,
-  ExternalLink,
   ArrowLeft,
+  Calendar,
+  CreditCard,
+  DollarSign,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react-native';
+import { useFinanceStore, SubscriptionItem } from '@/store/finance-store';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
-import { useLanguageStore } from '@/store/language-store';
-import { useAuth } from '@/store/auth-store';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  period: string;
-  features: string[];
-  popular?: boolean;
-  color: string[];
-}
-
-const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    id: 'monthly',
-    name: 'Měsíční',
-    price: 299,
-    period: 'měsíc',
-    features: [
-      'Sledování příjmů a výdajů',
-      'AI finanční asistent',
-      'Pokročilé analýzy',
-      'Investiční tracking',
-      'Vlastní kategorie',
-      'Měsíční reporty',
-      'Přístup na Discord komunitu',
-    ],
-    color: ['#6B7280', '#4B5563'],
-  },
-  {
-    id: 'quarterly',
-    name: '3 měsíce',
-    price: 799,
-    period: '3 měsíce',
-    popular: true,
-    features: [
-      'Vše z měsíčního plánu',
-      'Úspora 98 Kč měsíčně',
-      'Pokročilé reporty',
-      'Prioritní podpora',
-      'Finanční cíle a plánování',
-      'Detailní analýzy výdajů',
-      'Přístup na Discord komunitu',
-    ],
-    color: ['#667eea', '#764ba2'],
-  },
-  {
-    id: 'yearly',
-    name: 'Roční',
-    price: 2999,
-    period: 'rok',
-    features: [
-      'Vše z 3měsíčního plánu',
-      'Úspora 589 Kč ročně',
-      'Pokročilé investiční nástroje',
-      'Portfolio tracking',
-      'Detailní výkonnostní metriky',
-      'Nejlepší hodnota za peníze',
-      'Přístup na Discord komunitu',
-    ],
-    color: ['#F59E0B', '#D97706'],
-  },
-];
-
-export default function SubscriptionScreen() {
-  const [selectedPlan, setSelectedPlan] = useState<string>('quarterly');
-  const [loading, setLoading] = useState<boolean>(false);
-  
-  const { isDarkMode } = useSettingsStore();
-  const { user, activateSubscription } = useAuth();
+export default function SubscriptionDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { subscriptions, updateSubscription, deleteSubscription } = useFinanceStore();
+  const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  
-  const userSubscription = user?.subscription;
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
 
-  const handleSubscribe = async (planId: string) => {
-    setLoading(true);
-    
-    try {
-      // Simulace Stripe platby
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      await activateSubscription(planId as 'monthly' | 'quarterly' | 'yearly');
-      
-      const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
-      Alert.alert(
-        'Úspěch!', 
-        `Předplatné ${plan?.name} bylo aktivováno. Děkujeme!`,
-        [{ text: 'OK', onPress: () => {
-          // Navigation will be handled automatically by the auth system
-        }}]
-      );
-    } catch {
-      Alert.alert('Chyba', 'Nepodařilo se zpracovat platbu. Zkuste to prosím znovu.');
-    } finally {
-      setLoading(false);
+  const subscription = subscriptions.find(s => s.id === id);
+  const currentCurrency = getCurrentCurrency();
+
+  if (!subscription) {
+    return (
+      <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <AlertCircle color="#EF4444" size={48} />
+          <Text style={[styles.errorText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+            Předplatné nenalezeno
+          </Text>
+          <TouchableOpacity
+            style={styles.backToHomeButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backToHomeButtonText}>Zpět</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const getNextPaymentDate = () => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    let nextPaymentDate: Date;
+
+    if (currentDay < subscription.dayOfMonth) {
+      nextPaymentDate = new Date(currentYear, currentMonth, subscription.dayOfMonth);
+    } else {
+      nextPaymentDate = new Date(currentYear, currentMonth + 1, subscription.dayOfMonth);
     }
+
+    return nextPaymentDate;
   };
 
-  const handleManageSubscription = () => {
-    // Simulace přesměrování na Stripe Customer Portal
+  const getDaysUntilNextPayment = () => {
+    const today = new Date();
+    const nextPayment = getNextPaymentDate();
+    const diffTime = nextPayment.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const getSubscriptionDuration = () => {
+    return 'Informace o délce předplatného není dostupná';
+  };
+
+  const handleToggleActive = () => {
+    updateSubscription(subscription.id, { active: !subscription.active });
+  };
+
+  const handleCancelSubscription = () => {
     Alert.alert(
-      'Správa předplatného',
-      'Budete přesměrováni na bezpečný portál pro správu vašeho předplatného.',
+      'Zrušit předplatné',
+      `Opravdu chceš zrušit předplatné ${subscription.name}? Tato akce pouze odstraní předplatné z tvého seznamu, nezruší skutečné předplatné u poskytovatele.`,
       [
-        { text: 'Zrušit', style: 'cancel' },
-        { text: 'Pokračovat', onPress: () => {
-          // V reálné aplikaci by zde bylo otevření webového prohlížeče
-          Alert.alert('Info', 'Tato funkce bude dostupná v plné verzi aplikace.');
-        }}
+        {
+          text: 'Zrušit',
+          style: 'cancel',
+        },
+        {
+          text: 'Odstranit',
+          style: 'destructive',
+          onPress: () => {
+            setIsCancelling(true);
+            setTimeout(() => {
+              deleteSubscription(subscription.id);
+              router.back();
+            }, 500);
+          },
+        },
       ]
     );
   };
 
-  const PlanCard = ({ plan }: { plan: SubscriptionPlan }) => {
-    const isSelected = selectedPlan === plan.id;
-    const isCurrentPlan = userSubscription?.plan === plan.id && userSubscription?.active;
-    
-    return (
-      <TouchableOpacity
-        style={[
-          styles.planCard,
-          { backgroundColor: isDarkMode ? '#374151' : 'white' },
-          isSelected && styles.planCardSelected,
-          plan.popular && styles.planCardPopular,
-        ]}
-        onPress={() => setSelectedPlan(plan.id)}
-        disabled={isCurrentPlan}
-      >
-        {plan.popular && (
-          <View style={styles.popularBadge}>
-            <LinearGradient
-              colors={['#F59E0B', '#D97706']}
-              style={styles.popularGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Star color="white" size={12} fill="white" />
-              <Text style={styles.popularText}>Nejoblíbenější</Text>
-            </LinearGradient>
-          </View>
-        )}
-        
-        {isCurrentPlan && (
-          <View style={styles.currentBadge}>
-            <Check color="#10B981" size={16} />
-            <Text style={styles.currentText}>Aktivní</Text>
-          </View>
-        )}
-
-        <View style={styles.planHeader}>
-          <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {plan.name}
-          </Text>
-          <View style={styles.priceContainer}>
-            <Text style={[styles.planPrice, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              {plan.price} Kč
-            </Text>
-            <Text style={[styles.planPeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              /{plan.period}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.featuresContainer}>
-          {plan.features.map((feature, index) => (
-            <View key={`${plan.id}-feature-${index}`} style={styles.featureItem}>
-              <Check color="#10B981" size={16} />
-              <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                {feature}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {!isCurrentPlan && (
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() => handleSubscribe(plan.id)}
-            disabled={loading}
-          >
-            <LinearGradient
-              colors={isSelected ? (plan.color as any) : (['#F3F4F6', '#E5E7EB'] as any)}
-              style={styles.selectGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={[
-                styles.selectText,
-                { color: isSelected ? 'white' : (isDarkMode ? '#6B7280' : '#6B7280') }
-              ]}>
-                {loading && selectedPlan === plan.id ? 'Zpracování...' : 'Vybrat plán'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    );
-  };
+  const nextPaymentDate = getNextPaymentDate();
+  const daysUntilPayment = getDaysUntilNextPayment();
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC', paddingTop: insets.top }]}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient
+        colors={subscription.active ? ['#667eea', '#764ba2'] : ['#6B7280', '#4B5563']}
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.header}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
           >
-            {/* Back Button */}
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => router.push('/account')}
-            >
-              <ArrowLeft color="white" size={24} />
-            </TouchableOpacity>
-            
-            <View style={styles.headerContent}>
-              <View style={styles.logoContainer}>
-                <Crown color="white" size={32} />
-              </View>
-              <Text style={styles.headerTitle}>MoneyBuddy Premium</Text>
-              <Text style={styles.headerSubtitle}>
-                Vyberte si předplatné, které vám vyhovuje
+            <ArrowLeft color="white" size={24} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerSubtitle}>Předplatné</Text>
+            <Text style={styles.headerTitle}>{subscription.name}</Text>
+          </View>
+        </View>
+        <View style={styles.amountContainer}>
+          <Text style={styles.amountLabel}>Měsíční platba</Text>
+          <Text style={styles.amountValue}>
+            {subscription.amount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+          </Text>
+          <View style={styles.statusBadge}>
+            <View style={[styles.statusDot, { backgroundColor: subscription.active ? '#10B981' : '#EF4444' }]} />
+            <Text style={styles.statusText}>
+              {subscription.active ? 'Aktivní' : 'Neaktivní'}
+            </Text>
+          </View>
+        </View>
+      </LinearGradient>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Next Payment */}
+          <View style={[styles.card, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+            <View style={styles.cardHeader}>
+              <Calendar color="#667eea" size={24} />
+              <Text style={[styles.cardTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                Příští platba
               </Text>
             </View>
-          </LinearGradient>
-
-          <View style={styles.content}>
-            {/* Current Subscription Status */}
-            {userSubscription && (
-              <View style={[styles.statusContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-                <View style={styles.statusHeader}>
-                  <View style={styles.statusIcon}>
-                    <CreditCard color="#667eea" size={24} />
-                  </View>
-                  <View style={styles.statusInfo}>
-                    <Text style={[styles.statusTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      Vaše předplatné
-                    </Text>
-                    <Text style={[styles.statusSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {userSubscription.active ? 'Aktivní' : 'Neaktivní'} • {
-                        SUBSCRIPTION_PLANS.find(p => p.id === userSubscription.plan)?.name
-                      }
-                    </Text>
-                  </View>
-                  <View style={[
-                    styles.statusBadge,
-                    { backgroundColor: userSubscription.active ? '#10B981' : '#EF4444' }
-                  ]}>
-                    <Text style={styles.statusBadgeText}>
-                      {userSubscription.active ? 'Aktivní' : 'Neaktivní'}
-                    </Text>
-                  </View>
-                </View>
-                
-                {userSubscription.active && (
-                  <View style={styles.statusDetails}>
-                    <Text style={[styles.statusDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Platné do: {userSubscription.expiresAt ? userSubscription.expiresAt.toLocaleDateString('cs-CZ') : 'Neznámé'}
-                    </Text>
-                    
-                    <TouchableOpacity 
-                      style={styles.manageButton}
-                      onPress={handleManageSubscription}
-                    >
-                      <Text style={styles.manageButtonText}>Spravovat předplatné</Text>
-                      <ExternalLink color="#667eea" size={16} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Pricing Comparison */}
-            <View style={[styles.comparisonContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <Text style={[styles.comparisonTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Porovnání cen
+            <View style={styles.cardContent}>
+              <Text style={[styles.nextPaymentDate, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                {nextPaymentDate.toLocaleDateString('cs-CZ', { 
+                  day: 'numeric', 
+                  month: 'long', 
+                  year: 'numeric' 
+                })}
               </Text>
-              <View style={styles.comparisonGrid}>
-                <View style={styles.comparisonItem}>
-                  <Text style={[styles.comparisonPlan, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Měsíčně:</Text>
-                  <Text style={[styles.comparisonPrice, { color: isDarkMode ? 'white' : '#1F2937' }]}>299 Kč/měsíc</Text>
-                </View>
-                <View style={styles.comparisonItem}>
-                  <Text style={[styles.comparisonPlan, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>3 měsíce:</Text>
-                  <Text style={[styles.comparisonPrice, { color: '#10B981' }]}>266 Kč/měsíc</Text>
-                  <Text style={[styles.comparisonSavings, { color: '#10B981' }]}>Úspora 98 Kč</Text>
-                </View>
-                <View style={styles.comparisonItem}>
-                  <Text style={[styles.comparisonPlan, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Ročně:</Text>
-                  <Text style={[styles.comparisonPrice, { color: '#F59E0B' }]}>250 Kč/měsíc</Text>
-                  <Text style={[styles.comparisonSavings, { color: '#F59E0B' }]}>Úspora 589 Kč</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Benefits Section */}
-            <View style={styles.benefitsContainer}>
-              <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Proč si vybrat Premium?
-              </Text>
-              
-              <View style={styles.benefitsList}>
-                <View style={styles.benefitItem}>
-                  <View style={[styles.benefitIcon, { backgroundColor: '#EFF6FF' }]}>
-                    <Zap color="#3B82F6" size={20} />
-                  </View>
-                  <View style={styles.benefitContent}>
-                    <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      AI Finanční Asistent
-                    </Text>
-                    <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Personalizované rady a analýzy založené na vašich finančních datech
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.benefitItem}>
-                  <View style={[styles.benefitIcon, { backgroundColor: '#F0FDF4' }]}>
-                    <Shield color="#10B981" size={20} />
-                  </View>
-                  <View style={styles.benefitContent}>
-                    <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      Pokročilá Bezpečnost
-                    </Text>
-                    <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Šifrování dat na bankovní úrovni a pravidelné bezpečnostní audity
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.benefitItem}>
-                  <View style={[styles.benefitIcon, { backgroundColor: '#FEF3C7' }]}>
-                    <Star color="#F59E0B" size={20} />
-                  </View>
-                  <View style={styles.benefitContent}>
-                    <Text style={[styles.benefitTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      Prioritní Podpora
-                    </Text>
-                    <Text style={[styles.benefitDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Rychlá odpověď na vaše dotazy a osobní konzultace
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Subscription Plans */}
-            <View style={styles.plansContainer}>
-              <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Vyberte si předplatné
-              </Text>
-              
-              <View style={styles.plansList}>
-                {SUBSCRIPTION_PLANS.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} />
-                ))}
-              </View>
-            </View>
-
-            {/* Money Back Guarantee */}
-            <View style={[styles.guaranteeContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <View style={styles.guaranteeContent}>
-                <Shield color="#10B981" size={24} />
-                <View style={styles.guaranteeText}>
-                  <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    14denní záruka vrácení peněz
-                  </Text>
-                  <Text style={[styles.guaranteeDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Pokud nebudete spokojeni do 14 dnů, vrátíme vám peníze bez otázek
+              <View style={styles.daysUntilContainer}>
+                <View style={[styles.daysUntilBadge, { 
+                  backgroundColor: daysUntilPayment <= 7 ? '#FEF3C7' : isDarkMode ? '#374151' : '#F3F4F6' 
+                }]}>
+                  <Text style={[styles.daysUntilText, { 
+                    color: daysUntilPayment <= 7 ? '#F59E0B' : isDarkMode ? '#D1D5DB' : '#6B7280' 
+                  }]}>
+                    {daysUntilPayment === 0 ? 'Dnes!' : 
+                     daysUntilPayment === 1 ? 'Zítra!' : 
+                     `Za ${daysUntilPayment} dní`}
                   </Text>
                 </View>
               </View>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+          {/* Subscription Details */}
+          <View style={[styles.card, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+            <View style={styles.cardHeader}>
+              <CreditCard color="#667eea" size={24} />
+              <Text style={[styles.cardTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                Detaily předplatného
+              </Text>
+            </View>
+            <View style={styles.cardContent}>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Kategorie
+                </Text>
+                <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {subscription.category}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Den platby
+                </Text>
+                <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {subscription.dayOfMonth}. den v měsíci
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Zdroj
+                </Text>
+                <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {subscription.source === 'bank' ? 'Bankovní výpis' : 'Manuální'}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  Délka předplatného
+                </Text>
+                <Text style={[styles.detailValue, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  {getSubscriptionDuration()}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Yearly Cost */}
+          <View style={[styles.card, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+            <View style={styles.cardHeader}>
+              <DollarSign color="#667eea" size={24} />
+              <Text style={[styles.cardTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                Roční náklady
+              </Text>
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={[styles.yearlyAmount, { color: '#667eea' }]}>
+                {(subscription.amount * 12).toLocaleString('cs-CZ')} {currentCurrency.symbol}
+              </Text>
+              <Text style={[styles.yearlySubtext, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                Celkem za rok
+              </Text>
+            </View>
+          </View>
+
+          {/* Info Box */}
+          <View style={styles.infoBox}>
+            <AlertCircle color="#3B82F6" size={20} />
+            <Text style={styles.infoText}>
+              Tato aplikace pouze sleduje tvá předplatná. Pro skutečné zrušení předplatného kontaktuj přímo poskytovatele služby.
+            </Text>
+          </View>
+
+          {/* Actions */}
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.toggleButton, {
+                backgroundColor: subscription.active ? '#FEF3C7' : '#D1FAE5'
+              }]}
+              onPress={handleToggleActive}
+            >
+              {subscription.active ? (
+                <XCircle color="#F59E0B" size={20} />
+              ) : (
+                <CheckCircle color="#10B981" size={20} />
+              )}
+              <Text style={[styles.actionButtonText, {
+                color: subscription.active ? '#F59E0B' : '#10B981'
+              }]}>
+                {subscription.active ? 'Označit jako neaktivní' : 'Označit jako aktivní'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={handleCancelSubscription}
+              disabled={isCancelling}
+            >
+              <Trash2 color="white" size={20} />
+              <Text style={styles.deleteButtonText}>
+                {isCancelling ? 'Odstraňuji...' : 'Odstranit předplatné'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -414,359 +291,212 @@ export default function SubscriptionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    flexGrow: 1,
+  scrollView: {
+    flex: 1,
   },
-  header: {
-    paddingTop: 20,
-    paddingBottom: 40,
+  headerGradient: {
+    paddingTop: 60,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    position: 'relative',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   backButton: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
   },
-  headerContent: {
-    alignItems: 'center',
-  },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: 'white',
-    opacity: 0.9,
-    textAlign: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  statusContainer: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    marginTop: -20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  statusIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  statusInfo: {
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  statusSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: 'white',
+    opacity: 0.8,
+    marginBottom: 4,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  amountContainer: {
+    alignItems: 'center',
+  },
+  amountLabel: {
+    fontSize: 14,
+    color: 'white',
+    opacity: 0.8,
+    marginBottom: 8,
+  },
+  amountValue: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 12,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  statusBadgeText: {
-    fontSize: 12,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 14,
     fontWeight: '600',
     color: 'white',
   },
-  statusDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+  content: {
+    padding: 20,
   },
-  statusDetailText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  manageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  manageButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#667eea',
-  },
-  comparisonContainer: {
+  card: {
     backgroundColor: 'white',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  comparisonTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  comparisonGrid: {
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginLeft: 12,
+  },
+  cardContent: {
     gap: 12,
   },
-  comparisonItem: {
+  nextPaymentDate: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  daysUntilContainer: {
+    flexDirection: 'row',
+  },
+  daysUntilBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  daysUntilText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  comparisonPlan: {
+  detailLabel: {
     fontSize: 14,
     color: '#6B7280',
-    flex: 1,
   },
-  comparisonPrice: {
-    fontSize: 16,
+  detailValue: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
-    marginRight: 8,
   },
-  comparisonSavings: {
-    fontSize: 12,
-    fontWeight: '600',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  },
-  benefitsContainer: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 20,
+  yearlyAmount: {
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 20,
+    color: '#667eea',
   },
-  benefitsList: {
-    gap: 16,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
-  },
-  benefitIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  benefitContent: {
-    flex: 1,
-  },
-  benefitTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  benefitDescription: {
+  yearlySubtext: {
     fontSize: 14,
     color: '#6B7280',
-    lineHeight: 20,
   },
-  plansContainer: {
-    marginBottom: 32,
-  },
-  plansList: {
-    gap: 16,
-  },
-  planCard: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-    position: 'relative',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  planCardSelected: {
-    borderColor: '#667eea',
-    transform: [{ scale: 1.02 }],
-  },
-  planCardPopular: {
-    borderColor: '#F59E0B',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -8,
-    left: 20,
-    right: 20,
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#DBEAFE',
     borderRadius: 12,
-    overflow: 'hidden',
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
   },
-  popularGradient: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E40AF',
+    lineHeight: 18,
+  },
+  actionsContainer: {
+    gap: 12,
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
   },
-  popularText: {
-    fontSize: 12,
+  toggleButton: {
+    backgroundColor: '#FEF3C7',
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#EF4444',
+  },
+  deleteButtonText: {
+    fontSize: 16,
     fontWeight: '600',
     color: 'white',
   },
-  currentBadge: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    flexDirection: 'row',
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    padding: 20,
   },
-  currentText: {
-    fontSize: 12,
+  errorText: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#10B981',
-  },
-  planHeader: {
-    marginBottom: 20,
-    marginTop: 8,
-  },
-  planName: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: '#1F2937',
-    marginBottom: 8,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-  },
-  planPrice: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  planPeriod: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  featuresContainer: {
-    gap: 12,
+    marginTop: 16,
     marginBottom: 24,
   },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  featureText: {
-    fontSize: 16,
-    color: '#6B7280',
-    flex: 1,
-  },
-  selectButton: {
+  backToHomeButton: {
+    backgroundColor: '#667eea',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 12,
-    overflow: 'hidden',
   },
-  selectGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectText: {
+  backToHomeButtonText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  guaranteeContainer: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  guaranteeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  guaranteeText: {
-    flex: 1,
-  },
-  guaranteeTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  guaranteeDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
+    color: 'white',
   },
 });

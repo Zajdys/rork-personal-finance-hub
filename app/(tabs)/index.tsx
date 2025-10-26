@@ -493,18 +493,34 @@ export default function DashboardScreen() {
           ) : (
             <>
               {finance.subscriptions.map((s) => (
-                <View key={s.id} style={styles.subRow} testID={`sub-${s.id}`}>
+                <TouchableOpacity 
+                  key={s.id} 
+                  style={styles.subRow} 
+                  testID={`sub-${s.id}`}
+                  onPress={() => router.push({
+                    pathname: '/subscription',
+                    params: { id: s.id }
+                  })}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.subMain}>
                     <Text style={styles.subName}>{s.name}</Text>
                     <Text style={styles.subMeta}>{s.category} • den {s.dayOfMonth}</Text>
                   </View>
                   <View style={styles.subRight}>
                     <Text style={[styles.subAmount, { color: s.active ? '#10B981' : '#9CA3AF' }]}>{s.amount.toLocaleString('cs-CZ')} {currentCurrency.symbol}</Text>
-                    <TouchableOpacity onPress={() => toggleActive(s.id)} testID={`toggle-sub-${s.id}`} style={styles.subToggle}>
+                    <TouchableOpacity 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleActive(s.id);
+                      }} 
+                      testID={`toggle-sub-${s.id}`} 
+                      style={styles.subToggle}
+                    >
                       <Text style={{ color: s.active ? '#10B981' : '#9CA3AF', fontWeight: '700' }}>{s.active ? 'ON' : 'OFF'}</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
               {detectedSubscriptions.length > 0 && (
                 <View style={styles.detectedWrap}>
