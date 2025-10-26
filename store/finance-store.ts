@@ -167,7 +167,17 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   categoryExpenses: [],
   monthlyReports: [],
   financialGoals: [],
-  subscriptions: [],
+  subscriptions: [
+    {
+      id: 'patreon-test',
+      name: 'Patreon',
+      amount: 450,
+      category: 'Služby',
+      dayOfMonth: 25,
+      source: 'manual' as SubscriptionSource,
+      active: true,
+    },
+  ],
   customCategories: [],
   loans: [],
   isLoaded: false,
