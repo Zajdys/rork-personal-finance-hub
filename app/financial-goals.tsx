@@ -156,12 +156,21 @@ export default function FinancialGoalsScreen() {
   }, []);
 
   const applyTemplate = useCallback((templateId: string) => {
+    console.log('Apply template called with ID:', templateId);
     const template = TEMPLATES.find(t => t.id === templateId);
-    if (!template) return;
+    if (!template) {
+      console.log('Template not found');
+      return;
+    }
+    console.log('Template found:', template.title);
+
+    const alertMessage = goals.length > 0 
+      ? `Nahradit ${goals.length} aktuální${goals.length === 1 ? '' : 'ch'} cíl${goals.length === 1 ? '' : 'ů'} šablonou "${template.title}"?`
+      : `Přidat ${template.goals.length} cílů ze šablony "${template.title}"?`;
 
     Alert.alert(
       'Použít šablonu',
-      `Nahradit aktuální cíle šablonou "${template.title}"?`,
+      alertMessage,
       [
         { text: 'Zrušit', style: 'cancel' },
         {
@@ -169,7 +178,9 @@ export default function FinancialGoalsScreen() {
           style: 'default',
           onPress: () => {
             try {
+              console.log('Applying template, deleting', goals.length, 'goals');
               goals.forEach(g => deleteFinancialGoal(g.id));
+              console.log('Adding', template.goals.length, 'new goals');
               template.goals.forEach((g, idx) => {
                 const id = `${template.id}-${Date.now()}-${idx}`;
                 const goalData: FinancialGoal = {
@@ -183,11 +194,13 @@ export default function FinancialGoalsScreen() {
                   recurring: g.recurring,
                 };
                 addFinancialGoal(goalData);
+                console.log('Added goal:', goalData.title);
               });
-              Alert.alert('Hotovo', `Šablona "${template.title}" byla použita.`);
+              console.log('Template applied successfully');
+              Alert.alert('Hotovo! 🎉', `Šablona "${template.title}" byla použita. Přidáno ${template.goals.length} cílů.`);
             } catch (e) {
               Alert.alert('Chyba', 'Nepodařilo se použít šablonu.');
-              console.error(e);
+              console.error('Error applying template:', e);
             }
           }
         }
