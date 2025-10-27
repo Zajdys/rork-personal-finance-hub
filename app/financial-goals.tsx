@@ -40,7 +40,7 @@ import { useFinanceStore, FinancialGoal, RecurrenceFrequency } from '@/store/fin
 
 const GOAL_CATEGORIES = {
   'Bydlení': { icon: Home, color: '#8B5CF6', emoji: '🏠' },
-  'Jídlo': { icon: Utensils, color: '#EF4444', emoji: '🍽️' },
+  'Jídlo a nápoje': { icon: Utensils, color: '#EF4444', emoji: '🍽️' },
   'Doprava': { icon: Car, color: '#10B981', emoji: '🚗' },
   'Benzín': { icon: Fuel, color: '#F59E0B', emoji: '⛽' },
   'Nákupy': { icon: ShoppingBag, color: '#EC4899', emoji: '🛍️' },
@@ -63,7 +63,7 @@ const TEMPLATES: Array<{ id: string; title: string; description: string; color: 
       { title: 'Nájem (měsíčně)', targetAmount: 12000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 1 } },
       { title: 'Energie a služby (měsíčně)', targetAmount: 2500, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 15 } },
       { title: 'Internet/telefon (měsíčně)', targetAmount: 800, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 10 } },
-      { title: 'Jídlo (měsíční limit)', targetAmount: 6000, category: 'Jídlo', type: 'spending_limit' as const },
+      { title: 'Jídlo (měsíční limit)', targetAmount: 6000, category: 'Jídlo a nápoje', type: 'spending_limit' as const },
       { title: 'Doprava (MHD/benzín)', targetAmount: 1200, category: 'Doprava', type: 'spending_limit' as const },
       { title: 'Dovolená', targetAmount: 30000, category: 'Ostatní', type: 'saving' as const },
       { title: 'Rezerva na vybavení bytu', targetAmount: 10000, category: 'Bydlení', type: 'saving' as const },
@@ -82,7 +82,7 @@ const TEMPLATES: Array<{ id: string; title: string; description: string; color: 
       { title: 'Internet/TV (měsíčně)', targetAmount: 900, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 20 } },
       { title: 'Rezerva 3× měsíční náklady', targetAmount: 60000, category: 'Spoření', type: 'saving' as const },
       { title: 'Nákupy drogerie (měsíčně)', targetAmount: 1200, category: 'Nákupy', type: 'spending_limit' as const },
-      { title: 'Jídlo (měsíčně)', targetAmount: 8000, category: 'Jídlo', type: 'spending_limit' as const },
+      { title: 'Jídlo (měsíčně)', targetAmount: 8000, category: 'Jídlo a nápoje', type: 'spending_limit' as const },
     ],
   },
   {
@@ -94,7 +94,7 @@ const TEMPLATES: Array<{ id: string; title: string; description: string; color: 
       { title: 'Rezerva 6× měsíčních nákladů', targetAmount: 120000, category: 'Spoření', type: 'saving' as const },
       { title: 'Nájem (měsíčně)', targetAmount: 20000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 1 } },
       { title: 'Energie (měsíčně)', targetAmount: 4000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 10 } },
-      { title: 'Jídlo (měsíční limit)', targetAmount: 10000, category: 'Jídlo', type: 'spending_limit' as const },
+      { title: 'Jídlo (měsíční limit)', targetAmount: 10000, category: 'Jídlo a nápoje', type: 'spending_limit' as const },
       { title: 'Auto: servis/pojistka (roční)', targetAmount: 15000, category: 'Doprava', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'yearly' as RecurrenceFrequency, dayOfMonth: 1 } },
       { title: 'Benzín (měsíčně)', targetAmount: 3000, category: 'Benzín', type: 'spending_limit' as const },
       { title: 'Dětské potřeby (měsíčně)', targetAmount: 2000, category: 'Nákupy', type: 'spending_limit' as const },

@@ -243,8 +243,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           goal => goal.type === 'spending_limit' && goal.category === category
         );
         
-        const budget = categoryGoal?.targetAmount || totalExpenses;
-        const percentage = budget > 0 ? Math.round((amount / budget) * 100) : 0;
+        let percentage = 0;
+        if (categoryGoal) {
+          percentage = categoryGoal.targetAmount > 0 ? Math.round((amount / categoryGoal.targetAmount) * 100) : 0;
+        } else {
+          percentage = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0;
+        }
         
         return {
           category,
