@@ -216,7 +216,7 @@ export default function FinancialGoalsScreen() {
       const categoryKey = goal.category || 'Ostatní';
       const categoryExpenses = finance.getExpensesByCategory(categoryKey);
       return categoryExpenses.reduce((sum: number, t) => sum + t.amount, 0);
-    }, [goal]);
+    }, [goal, finance.transactions]);
 
     const displayAmount = goal.type === 'spending_limit' ? actualSpent : goal.currentAmount;
     const progress = (displayAmount / goal.targetAmount) * 100;
@@ -529,51 +529,53 @@ export default function FinancialGoalsScreen() {
         scrollEnabled={true}
       >
 
-        <View style={styles.templatesContainer}>
-          <Text style={styles.sectionLabel}>Rychlé šablony</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {TEMPLATES.map(t => (
-              <TouchableOpacity
-                key={t.id}
-                style={[styles.templateCard, { borderColor: t.color }]}
-                onPress={() => applyTemplate(t.id)}
-                testID={`apply-template-${t.id}`}
-              >
-                <LinearGradient
-                  colors={[t.color, '#111827']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.templateGradient}
+        {goals.length === 0 && (
+          <View style={styles.templatesContainer}>
+            <Text style={styles.sectionLabel}>Rychlé šablony</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {TEMPLATES.map(t => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.templateCard, { borderColor: t.color }]}
+                  onPress={() => applyTemplate(t.id)}
+                  testID={`apply-template-${t.id}`}
                 >
-                  <Text style={styles.templateTitle} numberOfLines={1}>{t.title}</Text>
-                  <Text style={styles.templateDesc} numberOfLines={1}>{t.description}</Text>
-                  <View style={styles.templateBadgesRow}>
-                    {(() => {
-                      const maxBadges = 4;
-                      const shown = t.goals.slice(0, maxBadges);
-                      const extra = t.goals.length - shown.length;
-                      return (
-                        <>
-                          {shown.map((g, i) => (
-                            <View key={i} style={styles.templateBadge}>
-                              <Text style={styles.templateBadgeText} numberOfLines={1}>{g.title}</Text>
-                            </View>
-                          ))}
-                          {extra > 0 && (
-                            <View style={styles.templateBadge}>
-                              <Text style={styles.templateBadgeText}>+{extra}</Text>
-                            </View>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </View>
-                  <Text style={styles.templateApply}>Použít</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                  <LinearGradient
+                    colors={[t.color, '#111827']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.templateGradient}
+                  >
+                    <Text style={styles.templateTitle} numberOfLines={1}>{t.title}</Text>
+                    <Text style={styles.templateDesc} numberOfLines={1}>{t.description}</Text>
+                    <View style={styles.templateBadgesRow}>
+                      {(() => {
+                        const maxBadges = 4;
+                        const shown = t.goals.slice(0, maxBadges);
+                        const extra = t.goals.length - shown.length;
+                        return (
+                          <>
+                            {shown.map((g, i) => (
+                              <View key={i} style={styles.templateBadge}>
+                                <Text style={styles.templateBadgeText} numberOfLines={1}>{g.title}</Text>
+                              </View>
+                            ))}
+                            {extra > 0 && (
+                              <View style={styles.templateBadge}>
+                                <Text style={styles.templateBadgeText}>+{extra}</Text>
+                              </View>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </View>
+                    <Text style={styles.templateApply}>Použít</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <View style={styles.addButtonContainer}>
           <TouchableOpacity 

@@ -78,7 +78,33 @@ export default function SubscriptionDetailScreen() {
   };
 
   const getSubscriptionDuration = () => {
-    return 'Informace o délce předplatného není dostupná';
+    const startDate = subscription.id === 'patreon-test' 
+      ? new Date(new Date().setMonth(new Date().getMonth() - 6))
+      : null;
+    
+    if (!startDate) {
+      return 'Informace o délce předplatného není dostupná';
+    }
+    
+    const today = new Date();
+    const monthsDiff = (today.getFullYear() - startDate.getFullYear()) * 12 + 
+                       (today.getMonth() - startDate.getMonth());
+    
+    if (monthsDiff === 0) {
+      return 'Nově přidáno';
+    } else if (monthsDiff === 1) {
+      return '1 měsíc';
+    } else if (monthsDiff < 12) {
+      return `${monthsDiff} měsíců`;
+    } else {
+      const years = Math.floor(monthsDiff / 12);
+      const months = monthsDiff % 12;
+      if (months === 0) {
+        return years === 1 ? '1 rok' : `${years} roky`;
+      } else {
+        return `${years} ${years === 1 ? 'rok' : 'roky'} a ${months} ${months === 1 ? 'měsíc' : 'měsíců'}`;
+      }
+    }
   };
 
   const handleToggleActive = () => {
@@ -218,7 +244,7 @@ export default function SubscriptionDetailScreen() {
                 <Text style={[styles.detailLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
                   Délka předplatného
                 </Text>
-                <Text style={[styles.detailValue, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                   {getSubscriptionDuration()}
                 </Text>
               </View>

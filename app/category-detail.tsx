@@ -16,7 +16,7 @@ export default function CategoryDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category: string; type: 'income' | 'expense' }>();
   const { category, type } = params;
-  const { getExpensesByCategory, getIncomesByCategory, getAllCategories } = useFinanceStore();
+  const { getExpensesByCategory, getIncomesByCategory, getAllCategories, financialGoals } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   
   const transactions = type === 'expense' 
@@ -29,6 +29,14 @@ export default function CategoryDetailScreen() {
   const currentCurrency = getCurrentCurrency();
   
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+  
+  const categoryGoal = financialGoals.find(
+    goal => goal.category === category && goal.type === 'spending_limit'
+  );
+  
+  const budgetPercentage = categoryGoal 
+    ? Math.round((totalAmount / categoryGoal.targetAmount) * 100)
+    : null;
   
   const formatDate = (date: Date) => {
     const d = new Date(date);
@@ -68,6 +76,18 @@ export default function CategoryDetailScreen() {
           <Text style={styles.totalAmount}>
             {totalAmount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
           </Text>
+          {categoryGoal && budgetPercentage !== null && (
+            <View style={styles.budgetInfoContainer}>
+              <Text style={styles.budgetInfoText}>
+                {budgetPercentage}% z budžetu {categoryGoal.targetAmount.toLocaleString('cs-CZ')} Kč
+              </Text>
+              {budgetPercentage > 100 && (
+                <Text style={styles.overBudgetText}>
+                  ⚠️ Překročen budžet o {(totalAmount - categoryGoal.targetAmount).toLocaleString('cs-CZ')} Kč
+                </Text>
+              )}
+            </View>
+          )}
         </View>
       </LinearGradient>
       
@@ -165,6 +185,26 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: 'white',
+  },
+  budgetInfoContainer: {
+    marginTop: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  budgetInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
+  },
+  overBudgetText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
+    marginTop: 4,
   },
   scrollView: {
     flex: 1,
