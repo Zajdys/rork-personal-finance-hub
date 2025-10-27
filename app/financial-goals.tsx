@@ -233,7 +233,7 @@ export default function FinancialGoalsScreen() {
     
     const panResponder = useMemo(
       () => PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponder: () => true,
         onStartShouldSetPanResponderCapture: () => false,
         onMoveShouldSetPanResponder: (_, gestureState) => {
           return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
@@ -241,7 +241,7 @@ export default function FinancialGoalsScreen() {
         onMoveShouldSetPanResponderCapture: (_, gestureState) => {
           return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
         },
-        onPanResponderGrant: (_, gestureState) => {
+        onPanResponderGrant: () => {
           if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
           }
@@ -253,7 +253,7 @@ export default function FinancialGoalsScreen() {
             pan.setOffset({ x: 0, y: 0 });
             pan.setValue({ x: 0, y: 0 });
             console.log('Drag started for goal:', goal.title);
-          }, 500);
+          }, 300);
         },
         onPanResponderMove: (evt, gestureState: PanResponderGestureState) => {
           if (!isDragEnabled.current) return;
