@@ -571,6 +571,18 @@ export default function DashboardScreen() {
             const isOverLimit = goal.type === 'spending_limit' && displayAmount > goal.targetAmount;
             const color = isOverLimit ? '#EF4444' : '#10B981';
             
+            const categoryEmojis: { [key: string]: string } = {
+              'Bydlení': '🏠',
+              'Jídlo a nápoje': '🍽️',
+              'Doprava': '🚗',
+              'Benzín': '⛽',
+              'Nákupy': '🛍️',
+              'Spoření': '💰',
+              'Investice': '📈',
+              'Ostatní': '🎯',
+            };
+            const emoji = categoryEmojis[goal.category || 'Ostatní'] || '🎯';
+            
             return (
               <TouchableOpacity 
                 key={goal.id} 
@@ -579,7 +591,10 @@ export default function DashboardScreen() {
               >
                 <View style={styles.goalCardHeader}>
                   <View style={styles.goalCardInfo}>
-                    <Text style={[styles.goalCardTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{goal.title}</Text>
+                    <View style={styles.goalCardTitleRow}>
+                      <Text style={styles.goalCardEmoji}>{emoji}</Text>
+                      <Text style={[styles.goalCardTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{goal.title}</Text>
+                    </View>
                     <Text style={[styles.goalCardCategory, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{goal.category}</Text>
                   </View>
                   <View style={styles.goalCardAmounts}>
@@ -1365,11 +1380,20 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  goalCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  goalCardEmoji: {
+    fontSize: 16,
+  },
   goalCardTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 4,
+    flex: 1,
   },
   goalCardCategory: {
     fontSize: 12,
