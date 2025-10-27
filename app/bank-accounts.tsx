@@ -292,7 +292,7 @@ export default function BankAccountsScreen() {
           headerShadowVisible: false,
           headerLeft: () => (
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => router.push('/(tabs)')}
               style={{ marginLeft: 16 }}
             >
               <ArrowLeft color={isDarkMode ? '#FFFFFF' : '#000000'} size={24} />
