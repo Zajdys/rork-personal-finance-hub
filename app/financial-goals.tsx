@@ -118,6 +118,7 @@ const TEMPLATES: Array<{ id: string; title: string; description: string; color: 
 
 export default function FinancialGoalsScreen() {
   const router = useRouter();
+  const finance = useFinanceStore();
   const { 
     financialGoals: goals, 
     addFinancialGoal, 
@@ -126,7 +127,7 @@ export default function FinancialGoalsScreen() {
     reorderFinancialGoals,
     loadData, 
     isLoaded 
-  } = useFinanceStore();
+  } = finance;
   
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingGoal, setEditingGoal] = useState<FinancialGoal | null>(null);
@@ -209,9 +210,18 @@ export default function FinancialGoalsScreen() {
   }, [goals, deleteFinancialGoal, addFinancialGoal, deadlineDefault]);
 
   const GoalCard = React.memo(({ goal, index }: { goal: FinancialGoal; index: number }) => {
-    const progress = (goal.currentAmount / goal.targetAmount) * 100;
+    const actualSpent = useMemo(() => {
+      if (goal.type !== 'spending_limit') return goal.currentAmount;
+      
+      const categoryKey = goal.category || 'Ostatní';
+      const categoryExpenses = finance.getExpensesByCategory(categoryKey);
+      return categoryExpenses.reduce((sum: number, t) => sum + t.amount, 0);
+    }, [goal]);
+
+    const displayAmount = goal.type === 'spending_limit' ? actualSpent : goal.currentAmount;
+    const progress = (displayAmount / goal.targetAmount) * 100;
     const IconComponent = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.icon || Target;
-    const isOverLimit = goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount;
+    const isOverLimit = goal.type === 'spending_limit' && displayAmount > goal.targetAmount;
     const goalColor = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.color || '#6B7280';
     
     const pan = useRef(new Animated.ValueXY()).current;
@@ -382,7 +392,7 @@ export default function FinancialGoalsScreen() {
         <View style={styles.goalProgress}>
           <View style={styles.progressHeader}>
             <Text style={styles.currentAmount}>
-              {goal.currentAmount.toLocaleString('cs-CZ')} Kč
+              {displayAmount.toLocaleString('cs-CZ')} Kč
             </Text>
             <Text style={styles.targetAmount}>
               {goal.type === 'spending_limit' ? (goal.recurring?.isRecurring ? 'částka k úhradě' : 'limit') : 'cíl'}: {goal.targetAmount.toLocaleString('cs-CZ')} Kč
@@ -411,13 +421,19 @@ export default function FinancialGoalsScreen() {
           
           {isOverLimit && (
             <Text style={styles.overLimitText}>
-              ⚠️ Překročil jsi limit o {(goal.currentAmount - goal.targetAmount).toLocaleString('cs-CZ')} Kč
+              ⚠️ Překročil jsi limit o {(displayAmount - goal.targetAmount).toLocaleString('cs-CZ')} Kč
+            </Text>
+          )}
+          
+          {goal.type === 'spending_limit' && !isOverLimit && (
+            <Text style={styles.remainingText}>
+              Zbývá: {(goal.targetAmount - displayAmount).toLocaleString('cs-CZ')} Kč
             </Text>
           )}
           
           {goal.type === 'saving' && progress < 100 && (
             <Text style={styles.remainingText}>
-              Zbývá: {(goal.targetAmount - goal.currentAmount).toLocaleString('cs-CZ')} Kč
+              Zbývá: {(goal.targetAmount - displayAmount).toLocaleString('cs-CZ')} Kč
             </Text>
           )}
 
@@ -437,7 +453,8 @@ export default function FinancialGoalsScreen() {
            prevProps.index === nextProps.index &&
            prevProps.goal.currentAmount === nextProps.goal.currentAmount &&
            prevProps.goal.targetAmount === nextProps.goal.targetAmount &&
-           prevProps.goal.title === nextProps.goal.title;
+           prevProps.goal.title === nextProps.goal.title &&
+           JSON.stringify(prevProps.goal.category) === JSON.stringify(nextProps.goal.category);
   });
 
   const handleSaveGoal = () => {

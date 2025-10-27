@@ -562,8 +562,13 @@ export default function DashboardScreen() {
           </View>
           
           {financialGoals.slice(0, 2).map((goal) => {
-            const progress = (goal.currentAmount / goal.targetAmount) * 100;
-            const isOverLimit = goal.type === 'spending_limit' && goal.currentAmount > goal.targetAmount;
+            const actualSpent = goal.type === 'spending_limit' 
+              ? finance.getExpensesByCategory(goal.category || 'Ostatní').reduce((sum, t) => sum + t.amount, 0)
+              : goal.currentAmount;
+            
+            const displayAmount = goal.type === 'spending_limit' ? actualSpent : goal.currentAmount;
+            const progress = (displayAmount / goal.targetAmount) * 100;
+            const isOverLimit = goal.type === 'spending_limit' && displayAmount > goal.targetAmount;
             const color = isOverLimit ? '#EF4444' : '#10B981';
             
             return (
@@ -579,10 +584,10 @@ export default function DashboardScreen() {
                   </View>
                   <View style={styles.goalCardAmounts}>
                     <Text style={[styles.goalCurrentAmount, { color }]}>
-                      {goal.currentAmount.toLocaleString('cs-CZ')} Kč
+                      {displayAmount.toLocaleString('cs-CZ')} Kč
                     </Text>
                     <Text style={[styles.goalTargetAmount, { color: isDarkMode ? '#D1D5DB' : '#9CA3AF' }]}>
-                      z {goal.targetAmount.toLocaleString('cs-CZ')} Kč
+                      {goal.type === 'spending_limit' ? 'z' : 'z'} {goal.targetAmount.toLocaleString('cs-CZ')} Kč
                     </Text>
                   </View>
                 </View>
