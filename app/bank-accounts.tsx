@@ -41,7 +41,7 @@ export default function BankAccountsScreen() {
         return '🏦';
       case 'kb':
         return '🏛️';
-      case 'csas':
+      case 'ceska-sporitelna':
         return '💰';
       case 'moneta':
         return '💵';
@@ -60,7 +60,7 @@ export default function BankAccountsScreen() {
         return 'ČSOB';
       case 'kb':
         return 'Komerční banka';
-      case 'csas':
+      case 'ceska-sporitelna':
         return 'Česká spořitelna';
       case 'moneta':
         return 'Moneta Money Bank';
@@ -292,7 +292,7 @@ export default function BankAccountsScreen() {
           headerShadowVisible: false,
           headerLeft: () => (
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)')}
+              onPress={() => router.back()}
               style={{ marginLeft: 16 }}
             >
               <ArrowLeft color={isDarkMode ? '#FFFFFF' : '#000000'} size={24} />
