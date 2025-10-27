@@ -234,10 +234,17 @@ export default function FinancialGoalsScreen() {
     const panResponder = useMemo(
       () => PanResponder.create({
         onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponderCapture: () => false,
         onMoveShouldSetPanResponder: (_, gestureState) => {
           return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
         },
-        onPanResponderGrant: () => {
+        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+          return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
+        },
+        onPanResponderGrant: (_, gestureState) => {
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+          }
           longPressTimer.current = setTimeout(() => {
             isDragEnabled.current = true;
             dragStartIndex.current = index;
@@ -245,7 +252,8 @@ export default function FinancialGoalsScreen() {
             setDraggingIndex(index);
             pan.setOffset({ x: 0, y: 0 });
             pan.setValue({ x: 0, y: 0 });
-          }, 300);
+            console.log('Drag started for goal:', goal.title);
+          }, 500);
         },
         onPanResponderMove: (evt, gestureState: PanResponderGestureState) => {
           if (!isDragEnabled.current) return;
@@ -280,10 +288,29 @@ export default function FinancialGoalsScreen() {
             const [removed] = newGoals.splice(dragStartIndex.current, 1);
             newGoals.splice(targetIndex, 0, removed);
             dragStartIndex.current = targetIndex;
+            console.log('Reordering goals, moving from', dragStartIndex.current, 'to', targetIndex);
             reorderFinancialGoals(newGoals);
           }
         },
         onPanResponderRelease: () => {
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+          if (isDragEnabled.current) {
+            console.log('Drag ended for goal:', goal.title);
+          }
+          isDragEnabled.current = false;
+          draggingGoalId.current = null;
+          setDraggingIndex(null);
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true,
+            friction: 8,
+            tension: 50,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
           if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
             longPressTimer.current = null;
