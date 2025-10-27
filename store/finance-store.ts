@@ -238,13 +238,22 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const allCategories = get().getAllCategories('expense');
     
     return Object.entries(categoryTotals)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        percentage: Math.round((amount / totalExpenses) * 100),
-        icon: allCategories[category]?.icon || '📦',
-        color: allCategories[category]?.color || '#6B7280',
-      }))
+      .map(([category, amount]) => {
+        const categoryGoal = state.financialGoals.find(
+          goal => goal.type === 'spending_limit' && goal.category === category
+        );
+        
+        const budget = categoryGoal?.targetAmount || totalExpenses;
+        const percentage = budget > 0 ? Math.round((amount / budget) * 100) : 0;
+        
+        return {
+          category,
+          amount,
+          percentage,
+          icon: allCategories[category]?.icon || '📦',
+          color: allCategories[category]?.color || '#6B7280',
+        };
+      })
       .sort((a, b) => b.amount - a.amount);
   },
 
