@@ -244,8 +244,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         );
         
         let percentage = 0;
+        let color = allCategories[category]?.color || '#6B7280';
+        
         if (categoryGoal) {
           percentage = categoryGoal.targetAmount > 0 ? Math.round((amount / categoryGoal.targetAmount) * 100) : 0;
+          if (percentage > 100) {
+            color = '#EF4444';
+          }
         } else {
           percentage = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0;
         }
@@ -255,7 +260,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           amount,
           percentage,
           icon: allCategories[category]?.icon || '📦',
-          color: allCategories[category]?.color || '#6B7280',
+          color,
         };
       })
       .sort((a, b) => b.amount - a.amount);
