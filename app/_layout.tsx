@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from '@/store/auth-store';
 import { FriendsProvider } from '@/store/friends-store';
 import { DailyRewardsProvider } from '@/store/daily-rewards-store';
 import { DailyRewardModal } from '@/components/DailyRewardModal';
+import { LifeEventProvider } from '@/store/life-event-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
 import { StyleSheet, Text, View } from 'react-native';
@@ -158,6 +159,7 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: true }} />
       <Stack.Screen name="friends" options={{ title: 'Přátelé', headerShown: true }} />
       <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání', headerShown: true }} />
+      <Stack.Screen name="life-event" options={{ title: 'Life-Event Mode', headerShown: false }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
@@ -245,9 +247,11 @@ export default function RootLayout() {
           <AuthProvider>
             <FriendsProvider>
               <DailyRewardsProvider>
-                <GestureHandlerRootView style={styles.container}>
-                  <RootLayoutNav />
-                </GestureHandlerRootView>
+                <LifeEventProvider>
+                  <GestureHandlerRootView style={styles.container}>
+                    <RootLayoutNav />
+                  </GestureHandlerRootView>
+                </LifeEventProvider>
               </DailyRewardsProvider>
             </FriendsProvider>
           </AuthProvider>

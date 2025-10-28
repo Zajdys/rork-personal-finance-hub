@@ -31,6 +31,7 @@ import { useRouter } from 'expo-router';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/store/auth-store';
 import { useBankStore } from '@/store/bank-store';
+import { LifeEventModeIndicator } from '@/components/LifeEventModeIndicator';
 
 const { width } = Dimensions.get('window');
 
@@ -294,6 +295,8 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </LinearGradient>
+
+      <LifeEventModeIndicator />
 
       {notifications.dailyTips && (
         <View style={styles.tipContainer}>

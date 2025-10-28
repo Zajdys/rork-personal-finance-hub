@@ -15,6 +15,8 @@ import { dailyLoginProcedure } from "./routes/gaming/daily-login/route";
 import { connectBankProcedure } from "./routes/banking/connect/route";
 import { syncBankAccountProcedure } from "./routes/banking/sync/route";
 import { disconnectBankProcedure } from "./routes/banking/disconnect/route";
+import { getLifeEventProcedure } from "./routes/life-event/get/route";
+import { updateLifeEventProcedure } from "./routes/life-event/update/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -44,6 +46,10 @@ export const appRouter = createTRPCRouter({
     connect: connectBankProcedure,
     sync: syncBankAccountProcedure,
     disconnect: disconnectBankProcedure,
+  }),
+  lifeEvent: createTRPCRouter({
+    get: getLifeEventProcedure,
+    update: updateLifeEventProcedure,
   }),
 });
 

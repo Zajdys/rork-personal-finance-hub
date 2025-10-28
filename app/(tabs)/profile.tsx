@@ -28,7 +28,7 @@ import {
   CreditCard,
   Users,
   Trophy,
-
+  Zap,
 } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useFinanceStore } from '@/store/finance-store';
@@ -36,6 +36,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useDailyRewards } from '@/store/daily-rewards-store';
 import { useRouter } from 'expo-router';
+import { useLifeEvent } from '@/store/life-event-store';
 
 const getAchievements = (t: any) => [
   {
@@ -78,6 +79,7 @@ export default function ProfileScreen() {
   const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
   const { t, language } = useLanguageStore();
   const { totalKesaky, totalXp, currentStreak, openModal } = useDailyRewards();
+  const { getModeInfo, isActive } = useLifeEvent();
   const router = useRouter();
   
   const currentCurrency = getCurrentCurrency();
@@ -347,6 +349,13 @@ export default function ProfileScreen() {
           title={language === 'cs' ? 'Přátelé' : 'Friends'}
           subtitle={language === 'cs' ? 'Přidej přátele a porovnej se' : 'Add friends and compare'}
           onPress={() => router.push('/friends')}
+        />
+        
+        <MenuButton
+          icon={Zap}
+          title="Life-Event Mode"
+          subtitle={isActive ? `${getModeInfo().emoji} ${getModeInfo().title}` : (language === 'cs' ? 'Přizpůsob aplikaci své situaci' : 'Adapt app to your life situation')}
+          onPress={() => router.push('/life-event')}
         />
         
         <MenuButton
