@@ -352,6 +352,13 @@ export default function ProfileScreen() {
         />
         
         <MenuButton
+          icon={Users}
+          title={language === 'cs' ? 'Domácnost' : 'Household'}
+          subtitle={language === 'cs' ? 'Sdílení financí s partnerem' : 'Share finances with partner'}
+          onPress={() => router.push('/household')}
+        />
+        
+        <MenuButton
           icon={Zap}
           title="Life-Event Mode"
           subtitle={isActive ? `${getModeInfo().emoji} ${getModeInfo().title}` : (language === 'cs' ? 'Přizpůsob aplikaci své situaci' : 'Adapt app to your life situation')}
