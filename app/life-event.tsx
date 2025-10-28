@@ -12,6 +12,8 @@ import {
   ArrowLeft,
   Check,
   Info,
+  Edit2,
+  Plus,
 } from 'lucide-react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useLifeEvent } from '@/store/life-event-store';
@@ -209,18 +211,47 @@ export default function LifeEventScreen() {
 
                 {LIFE_EVENT_MODES[selectedModeForInfo].defaultGoals.length > 0 && (
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Přednastavené cíle</Text>
+                    <View style={styles.modalSectionHeader}>
+                      <Text style={styles.modalSectionTitle}>Doporučené cíle</Text>
+                      <TouchableOpacity
+                        style={styles.editGoalsButton}
+                        onPress={() => {
+                          setShowInfoModal(false);
+                          router.push('/financial-goals');
+                        }}
+                      >
+                        <Edit2 color="#667eea" size={16} />
+                        <Text style={styles.editGoalsButtonText}>Upravit</Text>
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.modalGoalsInfo}>
-                      Automaticky přidáme {LIFE_EVENT_MODES[selectedModeForInfo].defaultGoals.length} doporučených cílů pro tento režim.
+                      Tyto cíle ti pomůžou lépe spravovat finance v režimu {LIFE_EVENT_MODES[selectedModeForInfo].title}. Můžeš je upravit podle svých potřeb.
                     </Text>
                     {LIFE_EVENT_MODES[selectedModeForInfo].defaultGoals.map((goal, index) => (
                       <View key={index} style={styles.modalGoalItem}>
-                        <Text style={styles.modalGoalTitle}>{goal.title}</Text>
+                        <View style={styles.modalGoalContent}>
+                          <Text style={styles.modalGoalTitle}>{goal.title}</Text>
+                          <Text style={styles.modalGoalType}>
+                            {goal.type === 'saving' ? '💰 Spoření' : '📊 Limit'}
+                          </Text>
+                        </View>
                         <Text style={styles.modalGoalAmount}>
                           {goal.targetAmount.toLocaleString('cs-CZ')} Kč
                         </Text>
                       </View>
                     ))}
+                    <TouchableOpacity
+                      style={styles.customizeGoalsButton}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        router.push('/financial-goals');
+                      }}
+                    >
+                      <Plus color="#667eea" size={16} />
+                      <Text style={styles.customizeGoalsButtonText}>
+                        Přizpůsobit cíle pro tento režim
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -503,24 +534,73 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     lineHeight: 20,
   },
+  modalSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  editGoalsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+  },
+  editGoalsButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#667eea',
+  },
   modalGoalItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: 'white',
-    padding: 12,
+    padding: 14,
     borderRadius: 12,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  modalGoalContent: {
+    flex: 1,
+    gap: 4,
   },
   modalGoalTitle: {
     fontSize: 14,
+    fontWeight: '500' as const,
     color: '#1F2937',
-    flex: 1,
+  },
+  modalGoalType: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   modalGoalAmount: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#10B981',
+  },
+  customizeGoalsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed' as const,
+    marginTop: 8,
+  },
+  customizeGoalsButtonText: {
     fontSize: 14,
     fontWeight: '600' as const,
-    color: '#10B981',
+    color: '#667eea',
   },
   modalWarning: {
     backgroundColor: '#FEF3C7',
