@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Household,
   SharedPolicy,
@@ -12,23 +13,58 @@ import type {
 
 export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const householdsQuery = trpc.household.list.useQuery();
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const token = await AsyncStorage.getItem('authToken');
+        setIsAuthenticated(!!token);
+        console.log('Household store auth check:', !!token);
+      } catch (err) {
+        console.error('Failed to check auth:', err);
+        setIsAuthenticated(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const householdsQuery = trpc.household.list.useQuery(undefined, {
+    enabled: false,
+    retry: false,
+  });
+  
   const householdQuery = trpc.household.get.useQuery(
     { householdId: selectedHouseholdId || undefined },
-    { enabled: !!selectedHouseholdId }
+    { 
+      enabled: false,
+      retry: false,
+    }
   );
+  
   const dashboardQuery = trpc.household.dashboard.useQuery(
     { householdId: selectedHouseholdId || '' },
-    { enabled: !!selectedHouseholdId }
+    { 
+      enabled: false,
+      retry: false,
+    }
   );
+  
   const policiesQuery = trpc.household.policies.list.useQuery(
     { householdId: selectedHouseholdId || '' },
-    { enabled: !!selectedHouseholdId }
+    { 
+      enabled: false,
+      retry: false,
+    }
   );
+  
   const settlementsQuery = trpc.household.settlements.list.useQuery(
     { householdId: selectedHouseholdId || '' },
-    { enabled: !!selectedHouseholdId }
+    { 
+      enabled: false,
+      retry: false,
+    }
   );
 
   const createMutation = trpc.household.create.useMutation({
@@ -281,6 +317,8 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       isInviting: inviteMutation.isPending,
       isSharingTransaction: shareTransactionMutation.isPending,
       isCreatingSettlement: createSettlementMutation.isPending,
+      error,
+      isAuthenticated,
       refetch,
     }),
     [
@@ -305,6 +343,8 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       inviteMutation.isPending,
       shareTransactionMutation.isPending,
       createSettlementMutation.isPending,
+      error,
+      isAuthenticated,
       refetch,
     ]
   );

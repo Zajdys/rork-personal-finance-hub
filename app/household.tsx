@@ -28,6 +28,8 @@ export default function HouseholdScreen() {
     isLoading,
     isCreating,
     isInviting,
+    error,
+    isAuthenticated,
   } = useHousehold();
   const { getCurrentCurrency } = useSettingsStore();
   const currency = getCurrentCurrency();
@@ -78,6 +80,28 @@ export default function HouseholdScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#8B5CF6" />
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ title: 'Domácnost', headerShown: true }} />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.emptyState}>
+            <Users size={64} color="#F59E0B" strokeWidth={1.5} />
+            <Text style={styles.emptyTitle}>Funkce domácnosti není dostupná</Text>
+            <Text style={styles.emptyText}>
+              Tato funkce vyžaduje připojení k backendu. Pro testování domácností prosím kontaktujte podporu.
+            </Text>
+            {error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>Chyba: {error}</Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -583,5 +607,19 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    marginTop: 16,
+    width: '100%',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    textAlign: 'center' as const,
   },
 });
