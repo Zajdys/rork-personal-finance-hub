@@ -9,12 +9,20 @@ import type {
   Settlement,
   Visibility,
   SplitRule,
+  HouseholdDashboard,
 } from '@/types/household';
+
+const USE_MOCK_MODE = true;
 
 export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(USE_MOCK_MODE);
   const [error, setError] = useState<string | null>(null);
+  
+  const [mockHouseholds, setMockHouseholds] = useState<Household[]>([]);
+  const [mockPolicies, setMockPolicies] = useState<SharedPolicy[]>([]);
+  const [mockSettlements, setMockSettlements] = useState<Settlement[]>([]);
+  const [mockIsLoading, setMockIsLoading] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -125,10 +133,37 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
 
   const createHousehold = useCallback(
     async (name: string): Promise<Household> => {
+      if (USE_MOCK_MODE) {
+        setMockIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const newHousehold: Household = {
+          id: `household_${Date.now()}`,
+          name,
+          ownerUserId: 'mock_user_1',
+          members: [
+            {
+              userId: 'mock_user_1',
+              userName: 'Já',
+              userEmail: 'me@example.com',
+              role: 'OWNER',
+              joinStatus: 'ACTIVE',
+              joinedAt: new Date(),
+              invitedAt: new Date(),
+            },
+          ],
+          defaultSplits: {},
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        setMockHouseholds([...mockHouseholds, newHousehold]);
+        setSelectedHouseholdId(newHousehold.id);
+        setMockIsLoading(false);
+        return newHousehold;
+      }
       const result = await createMutation.mutateAsync({ name });
       return result;
     },
-    [createMutation]
+    [createMutation, mockHouseholds]
   );
 
   const inviteMember = useCallback(
@@ -136,6 +171,30 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       if (!selectedHouseholdId) {
         throw new Error('No household selected');
       }
+      
+      if (USE_MOCK_MODE) {
+        setMockIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const newMember = {
+          userId: `mock_user_${Date.now()}`,
+          userName: email.split('@')[0],
+          userEmail: email,
+          role,
+          joinStatus: 'ACTIVE' as const,
+          joinedAt: new Date(),
+          invitedAt: new Date(),
+        };
+        setMockHouseholds(prev => 
+          prev.map(h => 
+            h.id === selectedHouseholdId 
+              ? { ...h, members: [...h.members, newMember] }
+              : h
+          )
+        );
+        setMockIsLoading(false);
+        return;
+      }
+      
       await inviteMutation.mutateAsync({
         householdId: selectedHouseholdId,
         inviteeEmail: email,
@@ -263,11 +322,17 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   );
 
   const currentHousehold = useMemo(() => {
+    if (USE_MOCK_MODE) {
+      if (selectedHouseholdId) {
+        return mockHouseholds.find(h => h.id === selectedHouseholdId) || null;
+      }
+      return mockHouseholds[0] || null;
+    }
     if (selectedHouseholdId) {
       return householdQuery.data || null;
     }
     return householdsQuery.data?.[0] || null;
-  }, [selectedHouseholdId, householdQuery.data, householdsQuery.data]);
+  }, [selectedHouseholdId, householdQuery.data, householdsQuery.data, mockHouseholds]);
 
   const isInHousehold = useMemo(() => {
     return !!currentHousehold;
@@ -290,13 +355,49 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
     }
   }, [householdsQuery, selectedHouseholdId, householdQuery, dashboardQuery, policiesQuery, settlementsQuery]);
 
+  const mockDashboard: HouseholdDashboard | null = useMemo(() => {
+    if (!USE_MOCK_MODE || !currentHousehold) return null;
+    
+    const balances = currentHousehold.members
+      .filter(m => m.joinStatus === 'ACTIVE')
+      .map((member, idx) => ({
+        userId: member.userId,
+        userName: member.userName,
+        totalShared: 15000 + idx * 5000,
+        totalPaid: 17500 + idx * 3000,
+        balance: idx === 0 ? 2500 : -2500,
+      }));
+    
+    return {
+      household: currentHousehold,
+      totalSharedIncome: 45000,
+      totalSharedExpenses: 32500,
+      sharedBalance: 12500,
+      balances,
+      categoryBreakdown: [
+        { category: 'Bydlení', amount: 12000, percentage: 37, icon: '🏠', color: '#8B5CF6' },
+        { category: 'Jídlo', amount: 8500, percentage: 26, icon: '🍽️', color: '#10B981' },
+        { category: 'Doprava', amount: 6000, percentage: 18, icon: '🚗', color: '#F59E0B' },
+        { category: 'Zábava', amount: 6000, percentage: 19, icon: '🎬', color: '#EF4444' },
+      ],
+      settlementSummary: balances[1] ? [{
+        fromUserId: balances[1].userId,
+        fromUserName: balances[1].userName,
+        toUserId: balances[0].userId,
+        toUserName: balances[0].userName,
+        amount: 2500,
+      }] : [],
+      recentActivity: [],
+    };
+  }, [currentHousehold]);
+
   return useMemo(
     () => ({
-      households: householdsQuery.data || [],
+      households: USE_MOCK_MODE ? mockHouseholds : (householdsQuery.data || []),
       currentHousehold,
-      dashboard: dashboardQuery.data || null,
-      policies: policiesQuery.data || [],
-      settlements: settlementsQuery.data || [],
+      dashboard: USE_MOCK_MODE ? mockDashboard : (dashboardQuery.data || null),
+      policies: USE_MOCK_MODE ? mockPolicies : (policiesQuery.data || []),
+      settlements: USE_MOCK_MODE ? mockSettlements : (settlementsQuery.data || []),
       isInHousehold,
       isOwner,
       selectedHouseholdId,
@@ -309,12 +410,13 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       shareTransaction,
       createSettlement,
       getVisibilityForTransaction,
-      isLoading:
+      isLoading: USE_MOCK_MODE ? mockIsLoading : (
         householdsQuery.isLoading ||
         householdQuery.isLoading ||
-        dashboardQuery.isLoading,
-      isCreating: createMutation.isPending,
-      isInviting: inviteMutation.isPending,
+        dashboardQuery.isLoading
+      ),
+      isCreating: USE_MOCK_MODE ? mockIsLoading : createMutation.isPending,
+      isInviting: USE_MOCK_MODE ? mockIsLoading : inviteMutation.isPending,
       isSharingTransaction: shareTransactionMutation.isPending,
       isCreatingSettlement: createSettlementMutation.isPending,
       error,
@@ -322,6 +424,11 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       refetch,
     }),
     [
+      mockHouseholds,
+      mockPolicies,
+      mockSettlements,
+      mockIsLoading,
+      mockDashboard,
       householdsQuery,
       householdQuery.isLoading,
       currentHousehold,

@@ -306,7 +306,7 @@ export default function HouseholdScreen() {
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => console.log('Policies')}
+            onPress={() => router.push('/household-policies')}
           >
             <View style={styles.menuItemLeft}>
               <Eye size={22} color="#8B5CF6" strokeWidth={2} />
@@ -317,11 +317,11 @@ export default function HouseholdScreen() {
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => console.log('Settlements')}
+            onPress={() => router.push('/household-splits')}
           >
             <View style={styles.menuItemLeft}>
               <DollarSign size={22} color="#10B981" strokeWidth={2} />
-              <Text style={styles.menuItemText}>Historie vyrovnání</Text>
+              <Text style={styles.menuItemText}>Rozdělení výdajů</Text>
             </View>
             <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
           </TouchableOpacity>
