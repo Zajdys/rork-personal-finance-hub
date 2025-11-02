@@ -134,7 +134,7 @@ export default function LifeEventScreen() {
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Life-Event Mode</Text>
+            <Text style={styles.headerTitle}>Životní režim</Text>
             <Text style={styles.headerSubtitle}>Přizpůsob aplikaci své životní situaci</Text>
           </View>
           <View style={styles.headerSpacer} />

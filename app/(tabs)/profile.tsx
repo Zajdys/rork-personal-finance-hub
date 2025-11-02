@@ -360,7 +360,7 @@ export default function ProfileScreen() {
         
         <MenuButton
           icon={Zap}
-          title="Life-Event Mode"
+          title={language === 'cs' ? 'Životní režim' : 'Life-Event Mode'}
           subtitle={isActive ? `${getModeInfo().emoji} ${getModeInfo().title}` : (language === 'cs' ? 'Přizpůsob aplikaci své situaci' : 'Adapt app to your life situation')}
           onPress={() => router.push('/life-event')}
         />
