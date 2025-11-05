@@ -18,12 +18,80 @@ import type {
 const USE_MOCK_MODE = true;
 
 export const [HouseholdProvider, useHousehold] = createContextHook(() => {
-  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>('test_household_1');
   const [isAuthenticated] = useState<boolean>(true);
   const [error] = useState<string | null>(null);
   
-  const [mockHouseholds, setMockHouseholds] = useState<Household[]>([]);
-  const [mockPolicies, setMockPolicies] = useState<SharedPolicy[]>([]);
+  const [mockHouseholds, setMockHouseholds] = useState<Household[]>(() => {
+    const testHousehold: Household = {
+      id: 'test_household_1',
+      name: 'Testovací domácnost',
+      ownerUserId: 'mock_user_1',
+      members: [
+        {
+          userId: 'mock_user_1',
+          userName: 'Já',
+          userEmail: 'me@example.com',
+          role: 'OWNER',
+          joinStatus: 'ACTIVE',
+          joinedAt: new Date(),
+          invitedAt: new Date(),
+        },
+        {
+          userId: 'mock_user_2',
+          userName: 'Partner',
+          userEmail: 'partner@example.com',
+          role: 'PARTNER',
+          joinStatus: 'ACTIVE',
+          joinedAt: new Date(),
+          invitedAt: new Date(),
+        },
+      ],
+      defaultSplits: {
+        'Nájem a bydlení': {
+          type: 'WEIGHTED',
+          weights: {
+            'mock_user_1': 0.5,
+            'mock_user_2': 0.5,
+          },
+        },
+        'Bydlení': {
+          type: 'WEIGHTED',
+          weights: {
+            'mock_user_1': 0.5,
+            'mock_user_2': 0.5,
+          },
+        },
+      },
+      categoryBudgets: {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    return [testHousehold];
+  });
+  const [mockPolicies, setMockPolicies] = useState<SharedPolicy[]>(() => [
+    {
+      id: 'policy_1',
+      householdId: 'test_household_1',
+      scope: { type: 'CATEGORY', id: 'Nájem a bydlení' },
+      visibility: 'SHARED',
+      priority: 10,
+    },
+    {
+      id: 'policy_2',
+      householdId: 'test_household_1',
+      scope: { type: 'CATEGORY', id: 'Bydlení' },
+      visibility: 'SHARED',
+      priority: 10,
+    },
+    {
+      id: 'policy_3',
+      householdId: 'test_household_1',
+      scope: { type: 'CATEGORY', id: 'Jídlo a nápoje' },
+      visibility: 'SHARED',
+      priority: 5,
+    },
+  ]);
   const [mockSettlements] = useState<Settlement[]>([]);
   const [mockIsLoading, setMockIsLoading] = useState(false);
 

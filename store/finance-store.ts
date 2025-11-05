@@ -63,6 +63,7 @@ export interface SubscriptionItem {
 export const EXPENSE_CATEGORIES = {
   'Jídlo a nápoje': { icon: '🍽️', color: '#EF4444' },
   'Nájem a bydlení': { icon: '🏠', color: '#8B5CF6' },
+  'Bydlení': { icon: '🏡', color: '#7C3AED' },
   'Oblečení': { icon: '👕', color: '#F59E0B' },
   'Doprava': { icon: '🚗', color: '#10B981' },
   'Zábava': { icon: '🎬', color: '#EC4899' },
@@ -158,7 +159,56 @@ function normalizeTitle(s: string): string {
 }
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
-  transactions: [],
+  transactions: [
+    {
+      id: 'test_income_1',
+      type: 'income' as const,
+      amount: 45000,
+      title: 'Plat - Já',
+      category: 'Mzda',
+      date: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    },
+    {
+      id: 'test_income_2',
+      type: 'income' as const,
+      amount: 38000,
+      title: 'Plat - Partner',
+      category: 'Mzda',
+      date: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    },
+    {
+      id: 'test_rent_1',
+      type: 'expense' as const,
+      amount: 15000,
+      title: 'Nájem',
+      category: 'Nájem a bydlení',
+      date: new Date(new Date().getFullYear(), new Date().getMonth(), 5),
+    },
+    {
+      id: 'test_utilities_1',
+      type: 'expense' as const,
+      amount: 3500,
+      title: 'Energie a služby',
+      category: 'Bydlení',
+      date: new Date(new Date().getFullYear(), new Date().getMonth(), 8),
+    },
+    {
+      id: 'test_food_1',
+      type: 'expense' as const,
+      amount: 4200,
+      title: 'Nákup v supermarketu',
+      category: 'Jídlo a nápoje',
+      date: new Date(new Date().getFullYear(), new Date().getMonth(), 10),
+    },
+    {
+      id: 'test_food_2',
+      type: 'expense' as const,
+      amount: 1800,
+      title: 'Restaurace',
+      category: 'Jídlo a nápoje',
+      date: new Date(new Date().getFullYear(), new Date().getMonth(), 15),
+    },
+  ],
   totalIncome: 0,
   totalExpenses: 0,
   balance: 0,
