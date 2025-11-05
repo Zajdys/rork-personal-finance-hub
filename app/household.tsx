@@ -9,9 +9,10 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Plus, ArrowRight, DollarSign, Eye, Settings } from 'lucide-react-native';
+import { Users, Plus, ArrowRight, DollarSign, Eye, Settings, Info } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -112,7 +113,7 @@ export default function HouseholdScreen() {
         <Stack.Screen options={{ title: 'Domácnost', headerShown: true }} />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.emptyState}>
-            <Users size={64} color="#9CA3AF" strokeWidth={1.5} />
+            <Users size={80} color="#8B5CF6" strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>Zatím nejste v žádné domácnosti</Text>
             <Text style={styles.emptyText}>
               Vytvořte domácnost pro sdílení financí s partnerem nebo rodinou
@@ -169,166 +170,235 @@ export default function HouseholdScreen() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: currentHousehold?.name || 'Domácnost',
+          title: '',
           headerShown: true,
+          headerTransparent: true,
           headerRight: () => (
             <TouchableOpacity
               style={styles.headerButton}
               onPress={() => console.log('Settings')}
             >
-              <Settings size={22} color="#1F2937" strokeWidth={2} />
+              <Settings size={22} color="#FFF" strokeWidth={2} />
             </TouchableOpacity>
           ),
         }}
       />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Členové</Text>
-          {currentHousehold?.members
-            .filter(m => m.joinStatus === 'ACTIVE')
-            .map(member => (
-              <View key={member.userId} style={styles.memberCard}>
-                <View style={styles.memberInfo}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {member.userName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.memberDetails}>
-                    <Text style={styles.memberName}>{member.userName}</Text>
-                    <Text style={styles.memberRole}>{getRoleLabel(member.role)}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-
-          {isOwner && (
-            <>
-              {!showInviteForm ? (
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => setShowInviteForm(true)}
-                >
-                  <Plus size={20} color="#8B5CF6" strokeWidth={2.5} />
-                  <Text style={styles.addButtonText}>Pozvat člena</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.form}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="E-mail člena"
-                    value={inviteEmail}
-                    onChangeText={setInviteEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoFocus
-                  />
-                  <View style={styles.formButtons}>
-                    <TouchableOpacity
-                      style={styles.secondaryButton}
-                      onPress={() => {
-                        setShowInviteForm(false);
-                        setInviteEmail('');
-                      }}
-                    >
-                      <Text style={styles.secondaryButtonText}>Zrušit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.primaryButton}
-                      onPress={handleInviteMember}
-                      disabled={isInviting}
-                    >
-                      {isInviting ? (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      ) : (
-                        <Text style={styles.primaryButtonText}>Odeslat</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </>
-          )}
-        </View>
+        <LinearGradient
+          colors={['#8B5CF6', '#7C3AED']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={styles.headerEmoji}>🏠</Text>
+          <Text style={styles.headerTitle}>{currentHousehold?.name || 'Domácnost'}</Text>
+          <Text style={styles.headerSubtitle}>
+            Sdílené finance s {currentHousehold?.members.filter(m => m.joinStatus === 'ACTIVE').length || 0} členy
+          </Text>
+        </LinearGradient>
 
         {dashboard && (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Bilance</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Sdílené příjmy</Text>
+                <Text style={[styles.statValue, { color: '#10B981' }]}>
+                  {dashboard.totalSharedIncome.toLocaleString('cs-CZ')}
+                </Text>
+                <Text style={styles.statCurrency}>{currency.symbol}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Sdílené výdaje</Text>
+                <Text style={[styles.statValue, { color: '#EF4444' }]}>
+                  {dashboard.totalSharedExpenses.toLocaleString('cs-CZ')}
+                </Text>
+                <Text style={styles.statCurrency}>{currency.symbol}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Členové</Text>
+            {isOwner && !showInviteForm && (
+              <TouchableOpacity
+                style={styles.sectionAction}
+                onPress={() => setShowInviteForm(true)}
+              >
+                <Text style={styles.sectionActionText}>Přidat</Text>
+                <Plus size={16} color="#8B5CF6" strokeWidth={2.5} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.membersContainer}>
+            {currentHousehold?.members
+              .filter(m => m.joinStatus === 'ACTIVE')
+              .map(member => (
+                <View key={member.userId} style={styles.memberCard}>
+                  <View style={styles.memberInfo}>
+                    <LinearGradient
+                      colors={['#8B5CF6', '#7C3AED']}
+                      style={styles.avatar}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.avatarText}>
+                        {member.userName.charAt(0).toUpperCase()}
+                      </Text>
+                    </LinearGradient>
+                    <View style={styles.memberDetails}>
+                      <Text style={styles.memberName}>{member.userName}</Text>
+                      <Text style={styles.memberRole}>{getRoleLabel(member.role)}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+
+            {isOwner && showInviteForm && (
+              <View style={styles.form}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="E-mail člena"
+                  value={inviteEmail}
+                  onChangeText={setInviteEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoFocus
+                />
+                <View style={styles.formButtons}>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={() => {
+                      setShowInviteForm(false);
+                      setInviteEmail('');
+                    }}
+                  >
+                    <Text style={styles.secondaryButtonText}>Zrušit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={handleInviteMember}
+                    disabled={isInviting}
+                  >
+                    {isInviting ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Odeslat</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {dashboard && dashboard.balances.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Bilance členů</Text>
+            <View style={styles.balancesContainer}>
               {dashboard.balances.map(balance => (
                 <View key={balance.userId} style={styles.balanceCard}>
-                  <View style={styles.balanceInfo}>
-                    <Text style={styles.balanceName}>{balance.userName}</Text>
-                    <Text style={styles.balanceDetail}>
-                      Celkem zaplaceno: {balance.totalPaid.toFixed(0)} {currency.symbol}
-                    </Text>
+                  <View style={styles.balanceHeader}>
+                    <View style={styles.balanceUserInfo}>
+                      <Text style={styles.balanceName}>{balance.userName}</Text>
+                      <Text style={styles.balanceDetail}>
+                        Zaplaceno: {balance.totalPaid.toFixed(0)} {currency.symbol}
+                      </Text>
+                    </View>
+                    <View style={styles.balanceAmountContainer}>
+                      <Text
+                        style={[
+                          styles.balanceAmount,
+                          balance.balance > 0 && styles.balancePositive,
+                          balance.balance < 0 && styles.balanceNegative,
+                        ]}
+                      >
+                        {balance.balance > 0 ? '+' : ''}
+                        {balance.balance.toFixed(0)}
+                      </Text>
+                      <Text style={styles.balanceLabel}>
+                        {balance.balance > 0 ? 'Přeplatek' : balance.balance < 0 ? 'Dluh' : 'Vyrovnáno'}
+                      </Text>
+                    </View>
                   </View>
-                  <Text
-                    style={[
-                      styles.balanceAmount,
-                      balance.balance > 0 && styles.balancePositive,
-                      balance.balance < 0 && styles.balanceNegative,
-                    ]}
-                  >
-                    {balance.balance > 0 ? '+' : ''}
-                    {balance.balance.toFixed(0)} {currency.symbol}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {dashboard && dashboard.settlementSummary.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Doporučené vyrovnání</Text>
+            <View style={styles.settlementsContainer}>
+              {dashboard.settlementSummary.map((settlement, index) => (
+                <View key={index} style={styles.settlementCard}>
+                  <View style={styles.settlementHeader}>
+                    <Text style={styles.settlementUser}>{settlement.fromUserName}</Text>
+                    <View style={styles.settlementArrow}>
+                      <ArrowRight size={20} color="#8B5CF6" strokeWidth={2.5} />
+                    </View>
+                    <Text style={styles.settlementUser}>{settlement.toUserName}</Text>
+                  </View>
+                  <Text style={styles.settlementAmount}>
+                    {settlement.amount.toFixed(0)} {currency.symbol}
                   </Text>
                 </View>
               ))}
             </View>
-
-            {dashboard.settlementSummary.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Doporučené vyrovnání</Text>
-                {dashboard.settlementSummary.map((settlement, index) => (
-                  <View key={index} style={styles.settlementCard}>
-                    <View style={styles.settlementInfo}>
-                      <Text style={styles.settlementText}>
-                        <Text style={styles.settlementName}>
-                          {settlement.fromUserName}
-                        </Text>
-                        {' → '}
-                        <Text style={styles.settlementName}>
-                          {settlement.toUserName}
-                        </Text>
-                      </Text>
-                    </View>
-                    <Text style={styles.settlementAmount}>
-                      {settlement.amount.toFixed(0)} {currency.symbol}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </>
+          </View>
         )}
 
         <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => router.push('/household-policies')}
-          >
-            <View style={styles.menuItemLeft}>
-              <Eye size={22} color="#8B5CF6" strokeWidth={2} />
-              <Text style={styles.menuItemText}>Pravidla sdílení</Text>
-            </View>
-            <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Nastavení</Text>
+          <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/household-policies')}
+            >
+              <View style={styles.menuItemLeft}>
+                <LinearGradient
+                  colors={['#EDE9FE', '#DDD6FE']}
+                  style={styles.menuItemIconContainer}
+                >
+                  <Eye size={22} color="#8B5CF6" strokeWidth={2} />
+                </LinearGradient>
+                <View style={styles.menuItemContent}>
+                  <Text style={styles.menuItemTitle}>Pravidla sdílení</Text>
+                  <Text style={styles.menuItemSubtitle}>Nastavte, co se sdílí</Text>
+                </View>
+              </View>
+              <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => router.push('/household-splits')}
-          >
-            <View style={styles.menuItemLeft}>
-              <DollarSign size={22} color="#10B981" strokeWidth={2} />
-              <Text style={styles.menuItemText}>Rozdělení výdajů</Text>
-            </View>
-            <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/household-splits')}
+            >
+              <View style={styles.menuItemLeft}>
+                <LinearGradient
+                  colors={['#D1FAE5', '#A7F3D0']}
+                  style={styles.menuItemIconContainer}
+                >
+                  <DollarSign size={22} color="#10B981" strokeWidth={2} />
+                </LinearGradient>
+                <View style={styles.menuItemContent}>
+                  <Text style={styles.menuItemTitle}>Rozdělení výdajů</Text>
+                  <Text style={styles.menuItemSubtitle}>Nastavte poměry</Text>
+                </View>
+              </View>
+              <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>Jak funguje sdílení?</Text>
+          <View style={styles.infoHeader}>
+            <Info size={22} color="#3B82F6" strokeWidth={2} />
+            <Text style={styles.infoTitle}>Jak funguje sdílení?</Text>
+          </View>
           <Text style={styles.infoText}>
             • Můžete sdílet vybrané kategorie výdajů s partnery{'\n'}
             • Každá transakce může být soukromá, sdílená nebo jen jako součet{'\n'}
@@ -359,10 +429,9 @@ function getRoleLabel(role: string): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    padding: 16,
     paddingBottom: 32,
   },
   centered: {
@@ -391,30 +460,115 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 24,
   },
-  section: {
+  header: {
+    paddingTop: 100,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
+  headerEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+    textAlign: 'center' as const,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: '#FFF',
+    marginBottom: 6,
+    textAlign: 'center' as const,
+  },
+  headerSubtitle: {
+    fontSize: 15,
+    color: '#FFF',
+    opacity: 0.9,
+    textAlign: 'center' as const,
+  },
+  statsContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  statsGrid: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontWeight: '500' as const,
+  },
+  statValue: {
+    fontSize: 24,
     fontWeight: '700' as const,
     color: '#1F2937',
-    marginBottom: 12,
+  },
+  statCurrency: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  section: {
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  sectionAction: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+  },
+  sectionActionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#8B5CF6',
   },
   form: {
     gap: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    marginTop: 8,
   },
   input: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     fontSize: 16,
     color: '#1F2937',
   },
   formButtons: {
     flexDirection: 'row' as const,
     gap: 12,
+    marginTop: 8,
   },
   primaryButton: {
     flexDirection: 'row' as const,
@@ -426,6 +580,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
     flex: 1,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   primaryButtonText: {
     color: '#FFF',
@@ -446,91 +605,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
   },
+  membersContainer: {
+    gap: 10,
+  },
   memberCard: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
   memberInfo: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#8B5CF6',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   avatarText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700' as const,
   },
   memberDetails: {
-    marginLeft: 12,
+    marginLeft: 14,
     flex: 1,
   },
   memberName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600' as const,
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   memberRole: {
     fontSize: 14,
     color: '#6B7280',
   },
-  addButton: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed' as const,
-  },
-  addButtonText: {
-    color: '#8B5CF6',
-    fontSize: 16,
-    fontWeight: '600' as const,
+  balancesContainer: {
+    gap: 10,
   },
   balanceCard: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  balanceHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
   },
-  balanceInfo: {
+  balanceUserInfo: {
     flex: 1,
   },
   balanceName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600' as const,
     color: '#1F2937',
     marginBottom: 4,
   },
   balanceDetail: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
   },
+  balanceAmountContainer: {
+    alignItems: 'flex-end' as const,
+  },
   balanceAmount: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700' as const,
     color: '#1F2937',
+    marginBottom: 2,
   },
   balancePositive: {
     color: '#10B981',
@@ -538,40 +699,56 @@ const styles = StyleSheet.create({
   balanceNegative: {
     color: '#EF4444',
   },
+  balanceLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500' as const,
+  },
+  settlementsContainer: {
+    gap: 10,
+  },
   settlementCard: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  settlementHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
+    marginBottom: 12,
+    justifyContent: 'center' as const,
   },
-  settlementInfo: {
-    flex: 1,
+  settlementArrow: {
+    marginHorizontal: 8,
   },
-  settlementText: {
+  settlementUser: {
     fontSize: 15,
-    color: '#6B7280',
-  },
-  settlementName: {
     fontWeight: '600' as const,
     color: '#1F2937',
   },
   settlementAmount: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700' as const,
     color: '#8B5CF6',
+    textAlign: 'center' as const,
+  },
+  menuContainer: {
+    gap: 10,
   },
   menuItem: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
@@ -579,31 +756,53 @@ const styles = StyleSheet.create({
   menuItemLeft: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
-  menuItemText: {
+  menuItemIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  menuItemContent: {
+    flex: 1,
+  },
+  menuItemTitle: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#1F2937',
+    marginBottom: 2,
+  },
+  menuItemSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
   },
   infoBox: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 16,
+    padding: 18,
+    marginHorizontal: 20,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: '#DBEAFE',
-    marginTop: 8,
+  },
+  infoHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: 12,
+    gap: 10,
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#1E40AF',
-    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
     color: '#3B82F6',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   headerButton: {
     padding: 8,
