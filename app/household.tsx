@@ -121,40 +121,44 @@ export default function HouseholdScreen() {
 
             {!showCreateForm ? (
               <TouchableOpacity
-                style={styles.primaryButton}
+                style={styles.createButton}
                 onPress={() => setShowCreateForm(true)}
               >
-                <Plus size={20} color="#FFF" strokeWidth={2.5} />
-                <Text style={styles.primaryButtonText}>Vytvořit domácnost</Text>
+                <Plus size={22} color="#FFF" strokeWidth={2.5} />
+                <Text style={styles.createButtonText}>Vytvořit domácnost</Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.form}>
+              <View style={styles.createForm}>
                 <TextInput
-                  style={styles.input}
+                  style={styles.createInput}
                   placeholder="Název domácnosti (např. 'Naše rodina')"
+                  placeholderTextColor="#9CA3AF"
                   value={householdName}
                   onChangeText={setHouseholdName}
                   autoFocus
                 />
-                <View style={styles.formButtons}>
+                <View style={styles.createFormButtons}>
                   <TouchableOpacity
-                    style={styles.secondaryButton}
+                    style={styles.cancelButton}
                     onPress={() => {
                       setShowCreateForm(false);
                       setHouseholdName('');
                     }}
                   >
-                    <Text style={styles.secondaryButtonText}>Zrušit</Text>
+                    <Text style={styles.cancelButtonText}>Zrušit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.primaryButton}
+                    style={[styles.confirmButton, isCreating && styles.confirmButtonDisabled]}
                     onPress={handleCreateHousehold}
                     disabled={isCreating}
                   >
                     {isCreating ? (
                       <ActivityIndicator size="small" color="#FFF" />
                     ) : (
-                      <Text style={styles.primaryButtonText}>Vytvořit</Text>
+                      <>
+                        <Plus size={20} color="#FFF" strokeWidth={2.5} />
+                        <Text style={styles.confirmButtonText}>Vytvořit</Text>
+                      </>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -623,6 +627,90 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 16,
     fontWeight: '600' as const,
+  },
+  createButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    gap: 10,
+    marginTop: 8,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  createButtonText: {
+    color: '#FFF',
+    fontSize: 17,
+    fontWeight: '700' as const,
+  },
+  createForm: {
+    width: '100%',
+    gap: 16,
+    marginTop: 12,
+  },
+  createInput: {
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 16,
+    color: '#1F2937',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  createFormButtons: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  cancelButtonText: {
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  confirmButton: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    gap: 8,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  confirmButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700' as const,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
   },
   membersContainer: {
     gap: 10,
