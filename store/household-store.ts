@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useFinanceStore } from './finance-store';
+import { useBankStore } from './bank-store';
 import type {
   Household,
   SharedPolicy,
@@ -401,6 +402,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   }, [householdsQuery, selectedHouseholdId, householdQuery, dashboardQuery, policiesQuery, settlementsQuery]);
 
   const { transactions } = useFinanceStore();
+  const { transactions: bankTransactions } = useBankStore();
 
   const calculateDashboard = useCallback((household: Household): HouseholdDashboard | null => {
     if (!household) return null;
@@ -409,13 +411,31 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
     if (activeMembers.length === 0) return null;
 
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const monthTransactions = transactions.filter(t => {
+    
+    const manualTransactions = transactions.filter(t => {
       const txMonth = new Date(t.date).toISOString().slice(0, 7);
       return txMonth === currentMonth;
     });
 
-    const sharedExpenses = monthTransactions.filter(t => t.type === 'expense');
-    const sharedIncome = monthTransactions.filter(t => t.type === 'income');
+    const sharedBankTransactions = bankTransactions
+      .filter(t => {
+        const txMonth = new Date(t.date).toISOString().slice(0, 7);
+        const visibility = t.householdVisibility || 'PRIVATE';
+        return txMonth === currentMonth && (visibility === 'SHARED' || visibility === 'SUMMARY_ONLY');
+      })
+      .map(t => ({
+        id: t.id,
+        type: t.type,
+        amount: t.amount,
+        title: t.description,
+        category: t.category || 'Ostatní',
+        date: t.date,
+      }));
+
+    const allTransactions = [...manualTransactions, ...sharedBankTransactions];
+
+    const sharedExpenses = allTransactions.filter(t => t.type === 'expense');
+    const sharedIncome = allTransactions.filter(t => t.type === 'income');
 
     const totalSharedExpenses = sharedExpenses.reduce((sum, t) => sum + t.amount, 0);
     const totalSharedIncome = sharedIncome.reduce((sum, t) => sum + t.amount, 0);
@@ -528,7 +548,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       settlementSummary,
       recentActivity: [],
     };
-  }, [transactions]);
+  }, [transactions, bankTransactions]);
 
   const mockDashboard: HouseholdDashboard | null = useMemo(() => {
     if (!USE_MOCK_MODE || !currentHousehold) return null;

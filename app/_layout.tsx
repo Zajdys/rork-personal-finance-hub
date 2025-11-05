@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
+import { useBankStore } from '@/store/bank-store';
 import { AuthProvider, useAuth } from '@/store/auth-store';
 import { FriendsProvider } from '@/store/friends-store';
 import { DailyRewardsProvider } from '@/store/daily-rewards-store';
@@ -177,6 +178,7 @@ export default function RootLayout() {
   const { loadLanguage, isLoaded } = useLanguageStore();
   const { loadData: loadFinanceData } = useFinanceStore();
   const { loadData: loadBuddyData } = useBuddyStore();
+  const { loadData: loadBankData } = useBankStore();
   const [appReady, setAppReady] = useState<boolean>(false);
   
   useEffect(() => {
@@ -190,6 +192,7 @@ export default function RootLayout() {
           loadLanguage(),
           loadFinanceData(),
           loadBuddyData(),
+          loadBankData(),
         ]);
         console.log('App initialized successfully');
         setAppReady(true);
@@ -209,6 +212,7 @@ export default function RootLayout() {
               loadLanguage(),
               loadFinanceData(),
               loadBuddyData(),
+              loadBankData(),
             ]);
           } catch (clearError) {
             console.error('Failed to clear AsyncStorage or reinitialize:', clearError);
@@ -233,7 +237,7 @@ export default function RootLayout() {
         clearTimeout(timeoutId);
       }
     };
-  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData]);
+  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadBankData]);
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);

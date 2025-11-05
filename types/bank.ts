@@ -39,6 +39,7 @@ export interface BankTransaction {
   specificSymbol?: string;
   constantSymbol?: string;
   transactionId: string;
+  householdVisibility?: 'PRIVATE' | 'SHARED' | 'SUMMARY_ONLY';
 }
 
 export interface BankConnectionStatus {
