@@ -9,6 +9,7 @@ import type {
   Visibility,
   SplitRule,
   HouseholdDashboard,
+  CategoryBudget,
 } from '@/types/household';
 
 const USE_MOCK_MODE = true;
@@ -137,6 +138,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
             },
           ],
           defaultSplits: {},
+          categoryBudgets: {},
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -261,6 +263,31 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       });
     },
     [setDefaultSplitMutation, selectedHouseholdId]
+  );
+
+  const setCategoryBudget = useCallback(
+    async (categoryId: string, budget: CategoryBudget): Promise<void> => {
+      if (!selectedHouseholdId) {
+        throw new Error('No household selected');
+      }
+      
+      if (USE_MOCK_MODE) {
+        setMockIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setMockHouseholds(prev => 
+          prev.map(h => 
+            h.id === selectedHouseholdId 
+              ? { ...h, categoryBudgets: { ...h.categoryBudgets, [categoryId]: budget } }
+              : h
+          )
+        );
+        setMockIsLoading(false);
+        return;
+      }
+      
+      console.log('Setting category budget (backend not implemented)', categoryId, budget);
+    },
+    [selectedHouseholdId]
   );
 
   const shareTransaction = useCallback(
@@ -423,6 +450,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       acceptInvitation,
       createPolicy,
       setDefaultSplit,
+      setCategoryBudget,
       shareTransaction,
       createSettlement,
       getVisibilityForTransaction,
@@ -459,6 +487,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       acceptInvitation,
       createPolicy,
       setDefaultSplit,
+      setCategoryBudget,
       shareTransaction,
       createSettlement,
       getVisibilityForTransaction,

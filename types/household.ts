@@ -16,6 +16,7 @@ export interface Household {
   ownerUserId: string;
   members: HouseholdMember[];
   defaultSplits: Record<string, SplitRule>;
+  categoryBudgets: Record<string, CategoryBudget>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +34,14 @@ export interface HouseholdMember {
 export interface SplitRule {
   type: SplitType;
   weights?: Record<string, number>;
+}
+
+export interface CategoryBudget {
+  categoryId: string;
+  monthlyLimit: number;
+  currency: string;
+  enabled: boolean;
+  notifyAtPercentage?: number;
 }
 
 export interface SharedPolicy {

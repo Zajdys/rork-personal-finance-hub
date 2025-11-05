@@ -12,7 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Plus, ArrowRight, DollarSign, Eye, Settings, Info } from 'lucide-react-native';
+import { Users, Plus, ArrowRight, DollarSign, Eye, Settings, Info, PiggyBank } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -387,6 +387,25 @@ export default function HouseholdScreen() {
                 <View style={styles.menuItemContent}>
                   <Text style={styles.menuItemTitle}>Rozdělení výdajů</Text>
                   <Text style={styles.menuItemSubtitle}>Nastavte poměry</Text>
+                </View>
+              </View>
+              <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/household-budgets')}
+            >
+              <View style={styles.menuItemLeft}>
+                <LinearGradient
+                  colors={['#FEF3C7', '#FDE68A']}
+                  style={styles.menuItemIconContainer}
+                >
+                  <PiggyBank size={22} color="#F59E0B" strokeWidth={2} />
+                </LinearGradient>
+                <View style={styles.menuItemContent}>
+                  <Text style={styles.menuItemTitle}>Rozpočty kategorií</Text>
+                  <Text style={styles.menuItemSubtitle}>Měsíční limity</Text>
                 </View>
               </View>
               <ArrowRight size={20} color="#9CA3AF" strokeWidth={2} />
