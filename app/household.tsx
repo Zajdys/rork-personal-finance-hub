@@ -332,7 +332,7 @@ export default function HouseholdScreen() {
           </View>
         </View>
 
-        {dashboard && dashboard.categoryBalances && dashboard.categoryBalances.length > 0 && (
+        {dashboard && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Rozpad po kategoriích</Text>
@@ -408,7 +408,7 @@ export default function HouseholdScreen() {
           </View>
         )}
 
-        {dashboard && dashboard.balances.length > 0 && (
+        {dashboard && dashboard.balances && dashboard.balances.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Celková bilance</Text>
             <View style={styles.balancesContainer}>
@@ -443,7 +443,7 @@ export default function HouseholdScreen() {
           </View>
         )}
 
-        {dashboard && dashboard.settlementSummary.length > 0 && (
+        {dashboard && dashboard.settlementSummary && dashboard.settlementSummary.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Doporučené vyrovnání</Text>
             <View style={styles.settlementsContainer}>
