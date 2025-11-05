@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
+import { useFinanceStore } from './finance-store';
 import type {
   Household,
   SharedPolicy,
@@ -10,6 +11,7 @@ import type {
   SplitRule,
   HouseholdDashboard,
   CategoryBudget,
+  CategoryBalance,
 } from '@/types/household';
 
 const USE_MOCK_MODE = true;
@@ -398,41 +400,172 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
     }
   }, [householdsQuery, selectedHouseholdId, householdQuery, dashboardQuery, policiesQuery, settlementsQuery]);
 
-  const mockDashboard: HouseholdDashboard | null = useMemo(() => {
-    if (!USE_MOCK_MODE || !currentHousehold) return null;
-    
-    const balances = currentHousehold.members
-      .filter(m => m.joinStatus === 'ACTIVE')
-      .map((member, idx) => ({
+  const { transactions } = useFinanceStore();
+
+  const calculateDashboard = useCallback((household: Household): HouseholdDashboard | null => {
+    if (!household) return null;
+
+    const activeMembers = household.members.filter(m => m.joinStatus === 'ACTIVE');
+    if (activeMembers.length === 0) return null;
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const monthTransactions = transactions.filter(t => {
+      const txMonth = new Date(t.date).toISOString().slice(0, 7);
+      return txMonth === currentMonth;
+    });
+
+    const sharedExpenses = monthTransactions.filter(t => t.type === 'expense');
+    const sharedIncome = monthTransactions.filter(t => t.type === 'income');
+
+    const totalSharedExpenses = sharedExpenses.reduce((sum, t) => sum + t.amount, 0);
+    const totalSharedIncome = sharedIncome.reduce((sum, t) => sum + t.amount, 0);
+
+    const categoryMap: Record<string, { amount: number; byUser: Record<string, number> }> = {};
+
+    sharedExpenses.forEach(tx => {
+      const category = tx.category || 'Ostatní';
+      if (!categoryMap[category]) {
+        categoryMap[category] = { amount: 0, byUser: {} };
+      }
+      categoryMap[category].amount += tx.amount;
+
+      const userId = activeMembers[0].userId;
+      if (!categoryMap[category].byUser[userId]) {
+        categoryMap[category].byUser[userId] = 0;
+      }
+      categoryMap[category].byUser[userId] += tx.amount;
+    });
+
+    const categoryBalances: CategoryBalance[] = Object.entries(categoryMap).map(([category, data]) => {
+      const splitRule = household.defaultSplits[category] || { type: 'EQUAL' };
+      const memberBalances: Record<string, { paid: number; shouldPay: number; balance: number }> = {};
+
+      activeMembers.forEach(member => {
+        const paid = data.byUser[member.userId] || 0;
+        let shouldPay = 0;
+
+        if (splitRule.type === 'EQUAL') {
+          shouldPay = data.amount / activeMembers.length;
+        } else if (splitRule.type === 'WEIGHTED' && splitRule.weights) {
+          const weight = splitRule.weights[member.userId] || 0;
+          shouldPay = data.amount * weight;
+        }
+
+        memberBalances[member.userId] = {
+          paid,
+          shouldPay,
+          balance: paid - shouldPay,
+        };
+      });
+
+      return {
+        category,
+        totalAmount: data.amount,
+        memberBalances,
+        splitRule,
+      };
+    });
+
+    const balances = activeMembers.map(member => {
+      const totalPaid = categoryBalances.reduce(
+        (sum, cat) => sum + (cat.memberBalances[member.userId]?.paid || 0),
+        0
+      );
+      const totalShouldPay = categoryBalances.reduce(
+        (sum, cat) => sum + (cat.memberBalances[member.userId]?.shouldPay || 0),
+        0
+      );
+      const balance = totalPaid - totalShouldPay;
+
+      return {
         userId: member.userId,
         userName: member.userName,
-        totalShared: 15000 + idx * 5000,
-        totalPaid: 17500 + idx * 3000,
-        balance: idx === 0 ? 2500 : -2500,
-      }));
-    
+        totalShared: totalShouldPay,
+        totalPaid,
+        balance,
+      };
+    });
+
+    const categoryBreakdown = Object.entries(categoryMap)
+      .map(([category, data]) => ({
+        category,
+        amount: data.amount,
+        percentage: totalSharedExpenses > 0 ? Math.round((data.amount / totalSharedExpenses) * 100) : 0,
+        icon: getCategoryIcon(category),
+        color: getCategoryColor(category),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 10);
+
+    const settlementSummary = [];
+    const positiveBalances = balances.filter(b => b.balance > 0).sort((a, b) => b.balance - a.balance);
+    const negativeBalances = balances.filter(b => b.balance < 0).sort((a, b) => a.balance - b.balance);
+
+    for (let i = 0; i < Math.min(positiveBalances.length, negativeBalances.length); i++) {
+      const creditor = positiveBalances[i];
+      const debtor = negativeBalances[i];
+      const amount = Math.min(creditor.balance, Math.abs(debtor.balance));
+
+      if (amount > 1) {
+        settlementSummary.push({
+          fromUserId: debtor.userId,
+          fromUserName: debtor.userName,
+          toUserId: creditor.userId,
+          toUserName: creditor.userName,
+          amount,
+        });
+      }
+    }
+
     return {
-      household: currentHousehold,
-      totalSharedIncome: 45000,
-      totalSharedExpenses: 32500,
-      sharedBalance: 12500,
+      household,
+      totalSharedIncome,
+      totalSharedExpenses,
+      sharedBalance: totalSharedIncome - totalSharedExpenses,
       balances,
-      categoryBreakdown: [
-        { category: 'Bydlení', amount: 12000, percentage: 37, icon: '🏠', color: '#8B5CF6' },
-        { category: 'Jídlo', amount: 8500, percentage: 26, icon: '🍽️', color: '#10B981' },
-        { category: 'Doprava', amount: 6000, percentage: 18, icon: '🚗', color: '#F59E0B' },
-        { category: 'Zábava', amount: 6000, percentage: 19, icon: '🎬', color: '#EF4444' },
-      ],
-      settlementSummary: balances[1] ? [{
-        fromUserId: balances[1].userId,
-        fromUserName: balances[1].userName,
-        toUserId: balances[0].userId,
-        toUserName: balances[0].userName,
-        amount: 2500,
-      }] : [],
+      categoryBreakdown,
+      categoryBalances,
+      settlementSummary,
       recentActivity: [],
     };
-  }, [currentHousehold]);
+  }, [transactions]);
+
+  const mockDashboard: HouseholdDashboard | null = useMemo(() => {
+    if (!USE_MOCK_MODE || !currentHousehold) return null;
+    return calculateDashboard(currentHousehold);
+  }, [currentHousehold, calculateDashboard]);
+
+  function getCategoryIcon(category: string): string {
+    const icons: Record<string, string> = {
+      'Jídlo a nápoje': '🍽️',
+      'Nájem a bydlení': '🏠',
+      'Bydlení': '🏠',
+      'Doprava': '🚗',
+      'Zábava': '🎬',
+      'Zdraví': '⚕️',
+      'Vzdělání': '📚',
+      'Nákupy': '🛍️',
+      'Oblečení': '👕',
+      'Služby': '🔧',
+    };
+    return icons[category] || '📦';
+  }
+
+  function getCategoryColor(category: string): string {
+    const colors: Record<string, string> = {
+      'Jídlo a nápoje': '#EF4444',
+      'Nájem a bydlení': '#8B5CF6',
+      'Bydlení': '#8B5CF6',
+      'Doprava': '#10B981',
+      'Zábava': '#EC4899',
+      'Zdraví': '#06B6D4',
+      'Vzdělání': '#6366F1',
+      'Nákupy': '#F97316',
+      'Oblečení': '#F59E0B',
+      'Služby': '#84CC16',
+    };
+    return colors[category] || '#6B7280';
+  }
 
   return useMemo(
     () => ({

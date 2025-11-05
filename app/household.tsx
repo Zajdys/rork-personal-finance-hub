@@ -8,11 +8,12 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Plus, ArrowRight, DollarSign, Eye, Settings, Info, PiggyBank } from 'lucide-react-native';
+import { Users, Plus, ArrowRight, DollarSign, Eye, Settings, Info, PiggyBank, CheckCircle, TrendingUp, X } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -39,6 +40,14 @@ export default function HouseholdScreen() {
   const [householdName, setHouseholdName] = useState('');
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [showSettlementModal, setShowSettlementModal] = useState(false);
+  const [selectedSettlement, setSelectedSettlement] = useState<{
+    fromUserId: string;
+    fromUserName: string;
+    toUserId: string;
+    toUserName: string;
+    amount: number;
+  } | null>(null);
 
   const handleCreateHousehold = async () => {
     if (!householdName.trim()) {
@@ -72,6 +81,31 @@ export default function HouseholdScreen() {
       Alert.alert('Chyba', 'Nepodařilo se odeslat pozvánku');
       console.error(error);
     }
+  };
+
+  const handleSettlement = (settlement: typeof selectedSettlement) => {
+    setSelectedSettlement(settlement);
+    setShowSettlementModal(true);
+  };
+
+  const confirmSettlement = () => {
+    if (!selectedSettlement) return;
+    
+    Alert.alert(
+      'Potvrdit vyrovnání?',
+      `${selectedSettlement.fromUserName} zaplatil ${selectedSettlement.amount.toFixed(0)} ${currency.symbol} uživateli ${selectedSettlement.toUserName}?`,
+      [
+        { text: 'Zrušit', style: 'cancel' },
+        {
+          text: 'Potvrdit',
+          onPress: () => {
+            Alert.alert('Úspěch', 'Dluh byl označen jako vyrovnaný');
+            setShowSettlementModal(false);
+            setSelectedSettlement(null);
+          },
+        },
+      ]
+    );
   };
 
   if (isLoading) {
@@ -298,9 +332,85 @@ export default function HouseholdScreen() {
           </View>
         </View>
 
+        {dashboard && dashboard.categoryBalances && dashboard.categoryBalances.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Rozpad po kategoriích</Text>
+              <TouchableOpacity
+                style={styles.infoButton}
+                onPress={() => Alert.alert('Rozpad výdajů', 'Zdě vidíte, kdo kolik utratil v jednotlivých kategoriích a kdo by měl doplatit podle nastavených poměrů.')}
+              >
+                <Info size={18} color="#8B5CF6" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categoriesContainer}>
+              {dashboard.categoryBalances.map((catBalance, idx) => {
+                const members = currentHousehold?.members.filter(m => m.joinStatus === 'ACTIVE') || [];
+                const hasImbalance = Object.values(catBalance.memberBalances).some(mb => Math.abs(mb.balance) > 1);
+                
+                return (
+                  <View key={idx} style={styles.categoryBalanceCard}>
+                    <View style={styles.categoryBalanceHeader}>
+                      <Text style={styles.categoryBalanceTitle}>
+                        {catBalance.category}
+                      </Text>
+                      <Text style={styles.categoryBalanceTotal}>
+                        {catBalance.totalAmount.toFixed(0)} {currency.symbol}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.memberBalancesContainer}>
+                      {members.map(member => {
+                        const mb = catBalance.memberBalances[member.userId];
+                        if (!mb) return null;
+                        
+                        return (
+                          <View key={member.userId} style={styles.memberBalanceRow}>
+                            <View style={styles.memberBalanceLeft}>
+                              <Text style={styles.memberBalanceName}>{member.userName}</Text>
+                              <Text style={styles.memberBalanceDetail}>
+                                Zaplatil {mb.paid.toFixed(0)} / Měl {mb.shouldPay.toFixed(0)}
+                              </Text>
+                            </View>
+                            <View style={styles.memberBalanceRight}>
+                              <Text
+                                style={[
+                                  styles.memberBalanceAmount,
+                                  mb.balance > 1 && styles.memberBalancePositive,
+                                  mb.balance < -1 && styles.memberBalanceNegative,
+                                ]}
+                              >
+                                {mb.balance > 0 ? '+' : ''}{mb.balance.toFixed(0)}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    
+                    {hasImbalance && (
+                      <View style={styles.splitRuleInfo}>
+                        <Text style={styles.splitRuleText}>
+                          {catBalance.splitRule.type === 'EQUAL' 
+                            ? 'Rovnoměrně' 
+                            : `Vlastní poměry: ${Object.entries(catBalance.splitRule.weights || {}).map(([uid, w]) => {
+                              const m = members.find(mem => mem.userId === uid);
+                              return `${m?.userName || '?'} ${Math.round(w * 100)}%`;
+                            }).join(', ')}`
+                          }
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         {dashboard && dashboard.balances.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bilance členů</Text>
+            <Text style={styles.sectionTitle}>Celková bilance</Text>
             <View style={styles.balancesContainer}>
               {dashboard.balances.map(balance => (
                 <View key={balance.userId} style={styles.balanceCard}>
@@ -338,18 +448,29 @@ export default function HouseholdScreen() {
             <Text style={styles.sectionTitle}>Doporučené vyrovnání</Text>
             <View style={styles.settlementsContainer}>
               {dashboard.settlementSummary.map((settlement, index) => (
-                <View key={index} style={styles.settlementCard}>
-                  <View style={styles.settlementHeader}>
-                    <Text style={styles.settlementUser}>{settlement.fromUserName}</Text>
-                    <View style={styles.settlementArrow}>
-                      <ArrowRight size={20} color="#8B5CF6" strokeWidth={2.5} />
+                <TouchableOpacity
+                  key={index}
+                  style={styles.settlementCard}
+                  onPress={() => handleSettlement(settlement)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.settlementContent}>
+                    <View style={styles.settlementHeader}>
+                      <Text style={styles.settlementUser}>{settlement.fromUserName}</Text>
+                      <View style={styles.settlementArrow}>
+                        <ArrowRight size={20} color="#8B5CF6" strokeWidth={2.5} />
+                      </View>
+                      <Text style={styles.settlementUser}>{settlement.toUserName}</Text>
                     </View>
-                    <Text style={styles.settlementUser}>{settlement.toUserName}</Text>
+                    <Text style={styles.settlementAmount}>
+                      {settlement.amount.toFixed(0)} {currency.symbol}
+                    </Text>
                   </View>
-                  <Text style={styles.settlementAmount}>
-                    {settlement.amount.toFixed(0)} {currency.symbol}
-                  </Text>
-                </View>
+                  <View style={styles.settlementAction}>
+                    <CheckCircle size={20} color="#10B981" strokeWidth={2} />
+                    <Text style={styles.settlementActionText}>Vyrovnat</Text>
+                  </View>
+                </TouchableOpacity>
               ))}
             </View>
           </View>
@@ -430,6 +551,73 @@ export default function HouseholdScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <Modal visible={showSettlementModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Potvrdit vyrovnání</Text>
+              <TouchableOpacity onPress={() => setShowSettlementModal(false)}>
+                <X size={24} color="#6B7280" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              {selectedSettlement && (
+                <>
+                  <View style={styles.settlementPreview}>
+                    <View style={styles.settlementParticipants}>
+                      <View style={styles.participantBox}>
+                        <View style={styles.participantAvatar}>
+                          <Text style={styles.participantAvatarText}>
+                            {selectedSettlement.fromUserName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <Text style={styles.participantName}>{selectedSettlement.fromUserName}</Text>
+                      </View>
+                      
+                      <ArrowRight size={32} color="#8B5CF6" strokeWidth={2.5} />
+                      
+                      <View style={styles.participantBox}>
+                        <View style={styles.participantAvatar}>
+                          <Text style={styles.participantAvatarText}>
+                            {selectedSettlement.toUserName.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <Text style={styles.participantName}>{selectedSettlement.toUserName}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.amountPreview}>
+                      <TrendingUp size={28} color="#10B981" strokeWidth={2} />
+                      <Text style={styles.amountPreviewValue}>
+                        {selectedSettlement.amount.toFixed(0)} {currency.symbol}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.infoBox}>
+                    <Info size={20} color="#3B82F6" strokeWidth={2} />
+                    <Text style={styles.infoText}>
+                      Po potvrzení bude tento dluh označen jako vyrovnaný a zmizí z doporučených vyrovnání.
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={confirmSettlement}
+              >
+                <CheckCircle size={20} color="#FFF" strokeWidth={2.5} />
+                <Text style={styles.confirmButtonText}>Potvrdit vyrovnání</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -927,5 +1115,187 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#DC2626',
     textAlign: 'center' as const,
+  },
+  infoButton: {
+    padding: 6,
+  },
+  categoriesContainer: {
+    gap: 12,
+  },
+  categoryBalanceCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  categoryBalanceHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  categoryBalanceTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  categoryBalanceTotal: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#8B5CF6',
+  },
+  memberBalancesContainer: {
+    gap: 10,
+  },
+  memberBalanceRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 8,
+  },
+  memberBalanceLeft: {
+    flex: 1,
+  },
+  memberBalanceName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 3,
+  },
+  memberBalanceDetail: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  memberBalanceRight: {
+    alignItems: 'flex-end' as const,
+  },
+  memberBalanceAmount: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#6B7280',
+  },
+  memberBalancePositive: {
+    color: '#10B981',
+  },
+  memberBalanceNegative: {
+    color: '#EF4444',
+  },
+  splitRuleInfo: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  splitRuleText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+  },
+  settlementContent: {
+    marginBottom: 12,
+  },
+  settlementAction: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  settlementActionText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end' as const,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  settlementPreview: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+  },
+  settlementParticipants: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 20,
+  },
+  participantBox: {
+    alignItems: 'center' as const,
+    flex: 1,
+  },
+  participantAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 8,
+  },
+  participantAvatarText: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: '#FFF',
+  },
+  participantName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  amountPreview: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 12,
+    paddingTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E7EB',
+  },
+  amountPreviewValue: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: '#10B981',
   },
 });

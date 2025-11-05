@@ -108,6 +108,17 @@ export interface HouseholdBalance {
   balance: number;
 }
 
+export interface CategoryBalance {
+  category: string;
+  totalAmount: number;
+  memberBalances: Record<string, {
+    paid: number;
+    shouldPay: number;
+    balance: number;
+  }>;
+  splitRule: SplitRule;
+}
+
 export interface HouseholdDashboard {
   household: Household;
   totalSharedIncome: number;
@@ -121,6 +132,7 @@ export interface HouseholdDashboard {
     icon: string;
     color: string;
   }[];
+  categoryBalances: CategoryBalance[];
   settlementSummary: {
     fromUserId: string;
     fromUserName: string;
