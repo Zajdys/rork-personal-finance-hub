@@ -8,18 +8,19 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Wallet, Plus, RefreshCw, ChevronRight, ChevronDown, ArrowLeft, Landmark, PiggyBank, Home } from 'lucide-react-native';
+import { Wallet, Plus, RefreshCw, ChevronRight, ChevronDown, ArrowLeft, Landmark, PiggyBank, Home, Receipt, AlertCircle } from 'lucide-react-native';
 import { useBankStore } from '@/store/bank-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { AccountType } from '@/types/bank';
 
 export default function BankAccountsScreen() {
-  const { accounts, isSyncing, syncAllAccounts } = useBankStore();
+  const { accounts, transactions, isSyncing, syncAllAccounts } = useBankStore();
   const { isDarkMode } = useSettingsStore();
   const { balance } = useFinanceStore();
   const router = useRouter();
   const [expandedBanks, setExpandedBanks] = useState<Set<string>>(new Set());
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
 
   const totalBankBalance = accounts
     .filter(acc => acc.isActive)
@@ -388,6 +389,80 @@ export default function BankAccountsScreen() {
             </View>
           )}
         </View>
+
+        {transactions.length > 0 && (
+          <View style={styles.transactionsContainer}>
+            <View style={styles.transactionsHeader}>
+              <View style={styles.transactionsHeaderLeft}>
+                <Receipt color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={24} />
+                <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 0 }]}>
+                  Transakce ({transactions.length})
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAllTransactions(!showAllTransactions)}
+                style={styles.showAllButton}
+              >
+                <Text style={styles.showAllButtonText}>
+                  {showAllTransactions ? 'Zobrazit méně' : 'Zobrazit vše'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.transactionsList}>
+              {(showAllTransactions ? transactions : transactions.slice(0, 10)).map((txn) => (
+                <TouchableOpacity
+                  key={txn.id}
+                  style={[styles.transactionCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}
+                  onPress={() => router.push(`/edit-bank-transaction?transactionId=${txn.id}`)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.transactionLeft}>
+                    <View
+                      style={[
+                        styles.transactionTypeIndicator,
+                        { backgroundColor: txn.type === 'income' ? '#10B981' : '#EF4444' }
+                      ]}
+                    />
+                    <View style={styles.transactionInfo}>
+                      <Text style={[styles.transactionDescription, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                        {txn.description}
+                      </Text>
+                      {txn.category ? (
+                        <Text style={[styles.transactionCategory, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                          {txn.category}
+                        </Text>
+                      ) : (
+                        <View style={styles.uncategorizedBadge}>
+                          <AlertCircle size={12} color="#F59E0B" />
+                          <Text style={styles.uncategorizedText}>Bez kategorie</Text>
+                        </View>
+                      )}
+                      <Text style={[styles.transactionDate, { color: isDarkMode ? '#6B7280' : '#9CA3AF' }]}>
+                        {new Date(txn.date).toLocaleDateString('cs-CZ', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.transactionRight}>
+                    <Text
+                      style={[
+                        styles.transactionAmount,
+                        { color: txn.type === 'income' ? '#10B981' : '#EF4444' }
+                      ]}
+                    >
+                      {txn.type === 'income' ? '+' : '-'}{txn.amount.toLocaleString('cs-CZ')} Kč
+                    </Text>
+                    <ChevronRight size={20} color={isDarkMode ? '#6B7280' : '#9CA3AF'} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -750,5 +825,99 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(102, 126, 234, 0.08)',
+  },
+  transactionsContainer: {
+    marginHorizontal: 20,
+    marginBottom: 40,
+  },
+  transactionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  transactionsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  showAllButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+  },
+  showAllButtonText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  transactionsList: {
+    gap: 12,
+  },
+  transactionCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  transactionTypeIndicator: {
+    width: 4,
+    height: 48,
+    borderRadius: 2,
+  },
+  transactionInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  transactionDescription: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  transactionCategory: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  transactionDate: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  transactionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  uncategorizedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  uncategorizedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#F59E0B',
   },
 });

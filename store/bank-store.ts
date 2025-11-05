@@ -12,6 +12,7 @@ interface BankState {
   removeAccount: (accountId: string) => void;
   updateAccount: (accountId: string, updates: Partial<BankAccount>) => void;
   addTransactions: (transactions: BankTransaction[]) => void;
+  updateTransaction: (transactionId: string, updates: Partial<BankTransaction>) => void;
   getAccountTransactions: (accountId: string) => BankTransaction[];
   syncAccount: (accountId: string) => Promise<void>;
   syncAllAccounts: () => Promise<void>;
@@ -61,6 +62,15 @@ export const useBankStore = create<BankState>((set, get) => ({
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       };
     });
+    get().saveData();
+  },
+
+  updateTransaction: (transactionId: string, updates: Partial<BankTransaction>) => {
+    set((state) => ({
+      transactions: state.transactions.map(txn =>
+        txn.id === transactionId ? { ...txn, ...updates } : txn
+      ),
+    }));
     get().saveData();
   },
 
