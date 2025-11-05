@@ -36,14 +36,14 @@ const VISIBILITY_OPTIONS = [
 
 export default function HouseholdPoliciesScreen() {
   const router = useRouter();
-  const { currentHousehold, policies } = useHousehold();
+  const { currentHousehold, policies, createPolicy } = useHousehold();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedVisibility, setSelectedVisibility] = useState<Visibility>('SHARED');
   const [customTag, setCustomTag] = useState('');
   const [scopeType, setScopeType] = useState<'CATEGORY' | 'TAG'>('CATEGORY');
 
-  const handleAddPolicy = () => {
+  const handleAddPolicy = async () => {
     if (scopeType === 'CATEGORY' && !selectedCategory) {
       Alert.alert('Chyba', 'Vyberte kategorii');
       return;
@@ -53,17 +53,29 @@ export default function HouseholdPoliciesScreen() {
       return;
     }
 
-    Alert.alert(
-      'Pravidlo přidáno',
-      `${scopeType === 'CATEGORY' ? 'Kategorie' : 'Tag'}: ${
-        scopeType === 'CATEGORY' ? selectedCategory : customTag
-      } → ${selectedVisibility}`
-    );
-    
-    setShowAddModal(false);
-    setSelectedCategory('');
-    setCustomTag('');
-    setSelectedVisibility('SHARED');
+    try {
+      await createPolicy(
+        scopeType,
+        scopeType === 'CATEGORY' ? selectedCategory : customTag,
+        selectedVisibility,
+        0
+      );
+      
+      Alert.alert(
+        'Pravidlo přidáno',
+        `${scopeType === 'CATEGORY' ? 'Kategorie' : 'Tag'}: ${
+          scopeType === 'CATEGORY' ? getCategoryLabel(selectedCategory) : customTag
+        } → ${getVisibilityLabel(selectedVisibility)}`
+      );
+      
+      setShowAddModal(false);
+      setSelectedCategory('');
+      setCustomTag('');
+      setSelectedVisibility('SHARED');
+    } catch (error) {
+      Alert.alert('Chyba', 'Nepodařilo se přidat pravidlo');
+      console.error(error);
+    }
   };
 
   const getPolicyVisibility = (categoryId: string): Visibility | null => {
@@ -74,6 +86,19 @@ export default function HouseholdPoliciesScreen() {
   const getCategoryLabel = (categoryId: string): string => {
     const category = CATEGORIES.find(c => c.id === categoryId);
     return category ? `${category.icon} ${category.name}` : categoryId;
+  };
+
+  const getVisibilityLabel = (visibility: Visibility): string => {
+    switch (visibility) {
+      case 'SHARED':
+        return 'Sdílené';
+      case 'SUMMARY_ONLY':
+        return 'Jen součty';
+      case 'PRIVATE':
+        return 'Soukromé';
+      default:
+        return visibility;
+    }
   };
 
   return (

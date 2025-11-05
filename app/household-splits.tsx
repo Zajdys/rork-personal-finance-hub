@@ -27,7 +27,7 @@ const CATEGORIES = [
 ];
 
 export default function HouseholdSplitsScreen() {
-  const { currentHousehold } = useHousehold();
+  const { currentHousehold, setDefaultSplit } = useHousehold();
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [splitType, setSplitType] = useState<'EQUAL' | 'WEIGHTED'>('EQUAL');
@@ -64,7 +64,7 @@ export default function HouseholdSplitsScreen() {
     setShowEditModal(true);
   };
 
-  const handleSaveSplit = () => {
+  const handleSaveSplit = async () => {
     if (splitType === 'WEIGHTED') {
       const total = Object.values(weights).reduce((sum, w) => sum + (parseFloat(w) || 0), 0);
       if (Math.abs(total - 100) > 0.1) {
@@ -73,15 +73,30 @@ export default function HouseholdSplitsScreen() {
       }
     }
 
-    const category = CATEGORIES.find(c => c.id === selectedCategory);
-    Alert.alert(
-      'Pravidlo uloženo',
-      `Kategorie "${category?.name}" bude rozdělena ${
-        splitType === 'EQUAL' ? 'rovnoměrně' : 'podle nastavených poměrů'
-      }`
-    );
-    
-    setShowEditModal(false);
+    try {
+      const splitRule: SplitRule = {
+        type: splitType,
+        weights: splitType === 'WEIGHTED' ? 
+          Object.fromEntries(
+            Object.entries(weights).map(([userId, w]) => [userId, parseFloat(w) / 100])
+          ) : undefined,
+      };
+      
+      await setDefaultSplit(selectedCategory, splitRule);
+      
+      const category = CATEGORIES.find(c => c.id === selectedCategory);
+      Alert.alert(
+        'Pravidlo uloženo',
+        `Kategorie "${category?.name}" bude rozdělena ${
+          splitType === 'EQUAL' ? 'rovnoměrně' : 'podle nastavených poměrů'
+        }`
+      );
+      
+      setShowEditModal(false);
+    } catch (error) {
+      Alert.alert('Chyba', 'Nepodařilo se uložit pravidlo');
+      console.error(error);
+    }
   };
 
   const getSplitLabel = (split: SplitRule | null): string => {

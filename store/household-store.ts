@@ -22,6 +22,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   const [mockHouseholds, setMockHouseholds] = useState<Household[]>([]);
   const [mockPolicies, setMockPolicies] = useState<SharedPolicy[]>([]);
   const [mockSettlements, setMockSettlements] = useState<Settlement[]>([]);
+  const [mockSplits, setMockSplits] = useState<Record<string, SplitRule>>({});
   const [mockIsLoading, setMockIsLoading] = useState(false);
 
   useEffect(() => {
@@ -221,6 +222,22 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       if (!selectedHouseholdId) {
         throw new Error('No household selected');
       }
+      
+      if (USE_MOCK_MODE) {
+        setMockIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const newPolicy: SharedPolicy = {
+          id: `policy_${Date.now()}`,
+          householdId: selectedHouseholdId,
+          scope: { type: scopeType, id: scopeId },
+          visibility,
+          priority,
+        };
+        setMockPolicies(prev => [...prev, newPolicy]);
+        setMockIsLoading(false);
+        return newPolicy;
+      }
+      
       const result = await createPolicyMutation.mutateAsync({
         householdId: selectedHouseholdId,
         scopeType,
@@ -230,7 +247,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       });
       return result;
     },
-    [createPolicyMutation, selectedHouseholdId]
+    [createPolicyMutation, selectedHouseholdId, mockPolicies]
   );
 
   const setDefaultSplit = useCallback(
@@ -238,13 +255,29 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       if (!selectedHouseholdId) {
         throw new Error('No household selected');
       }
+      
+      if (USE_MOCK_MODE) {
+        setMockIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setMockSplits(prev => ({ ...prev, [categoryId]: splitRule }));
+        setMockHouseholds(prev => 
+          prev.map(h => 
+            h.id === selectedHouseholdId 
+              ? { ...h, defaultSplits: { ...h.defaultSplits, [categoryId]: splitRule } }
+              : h
+          )
+        );
+        setMockIsLoading(false);
+        return;
+      }
+      
       await setDefaultSplitMutation.mutateAsync({
         householdId: selectedHouseholdId,
         categoryId,
         splitRule,
       });
     },
-    [setDefaultSplitMutation, selectedHouseholdId]
+    [setDefaultSplitMutation, selectedHouseholdId, mockSplits, mockHouseholds]
   );
 
   const shareTransaction = useCallback(
