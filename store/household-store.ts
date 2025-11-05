@@ -1,7 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Household,
   SharedPolicy,
@@ -16,28 +15,13 @@ const USE_MOCK_MODE = true;
 
 export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(USE_MOCK_MODE);
-  const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated] = useState<boolean>(true);
+  const [error] = useState<string | null>(null);
   
   const [mockHouseholds, setMockHouseholds] = useState<Household[]>([]);
   const [mockPolicies, setMockPolicies] = useState<SharedPolicy[]>([]);
-  const [mockSettlements, setMockSettlements] = useState<Settlement[]>([]);
-  const [mockSplits, setMockSplits] = useState<Record<string, SplitRule>>({});
+  const [mockSettlements] = useState<Settlement[]>([]);
   const [mockIsLoading, setMockIsLoading] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = await AsyncStorage.getItem('authToken');
-        setIsAuthenticated(!!token);
-        console.log('Household store auth check:', !!token);
-      } catch (err) {
-        console.error('Failed to check auth:', err);
-        setIsAuthenticated(false);
-      }
-    };
-    checkAuth();
-  }, []);
 
   const householdsQuery = trpc.household.list.useQuery(undefined, {
     enabled: false,
@@ -247,7 +231,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       });
       return result;
     },
-    [createPolicyMutation, selectedHouseholdId, mockPolicies]
+    [createPolicyMutation, selectedHouseholdId]
   );
 
   const setDefaultSplit = useCallback(
@@ -259,7 +243,6 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       if (USE_MOCK_MODE) {
         setMockIsLoading(true);
         await new Promise(resolve => setTimeout(resolve, 300));
-        setMockSplits(prev => ({ ...prev, [categoryId]: splitRule }));
         setMockHouseholds(prev => 
           prev.map(h => 
             h.id === selectedHouseholdId 
@@ -277,7 +260,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
         splitRule,
       });
     },
-    [setDefaultSplitMutation, selectedHouseholdId, mockSplits, mockHouseholds]
+    [setDefaultSplitMutation, selectedHouseholdId]
   );
 
   const shareTransaction = useCallback(
