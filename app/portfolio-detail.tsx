@@ -1089,7 +1089,7 @@ export default function PortfolioDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
             {portfolioDataWithPercentages.length > 0 && (
@@ -1745,7 +1745,7 @@ const styles = StyleSheet.create({
   },
   totalValueContainer: {
     marginHorizontal: 20,
-    marginTop: -12,
+    marginTop: 16,
     marginBottom: 24,
   },
   totalValueCard: {
@@ -1822,9 +1822,9 @@ const styles = StyleSheet.create({
   tabButtonTextActive: {
     color: 'white',
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   portfolioContainer: {
     gap: 16,
