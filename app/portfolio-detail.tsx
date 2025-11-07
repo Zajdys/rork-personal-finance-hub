@@ -1746,7 +1746,7 @@ const styles = StyleSheet.create({
   totalValueContainer: {
     marginHorizontal: 20,
     marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   totalValueCard: {
     borderRadius: 16,
@@ -1792,7 +1792,7 @@ const styles = StyleSheet.create({
   tabSelector: {
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: 16,
     gap: 8,
   },
   tabButton: {
@@ -1824,7 +1824,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   portfolioContainer: {
     gap: 16,
