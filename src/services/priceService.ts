@@ -40,7 +40,15 @@ async function fetchFromYahoo(tickers: string[]): Promise<YahooQuote[]> {
   const url = `${base}/api/quotes?symbols=${joined}`;
   console.log('[priceService] yahoo proxy fetch', { url, count: unique.length, platform: Platform.OS });
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+  if (!res.ok) {
+    console.warn(`[priceService] Proxy HTTP ${res.status}`);
+    return [];
+  }
+  const contentType = res.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    console.warn('[priceService] Response is not JSON:', contentType);
+    return [];
+  }
   const json = (await res.json()) as { quotes?: YahooQuote[] };
   const list = json?.quotes ?? [];
   return list;

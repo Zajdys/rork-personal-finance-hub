@@ -120,9 +120,13 @@ export default function PortfolioDetailScreen() {
       try {
         console.log('🟢 Fetching current prices for', symbols);
         const prices = await fetchCurrentPrices(symbols);
-        if (!cancelled) setPriceMap(prices);
+        if (!cancelled) {
+          console.log('✅ Prices fetched:', Object.keys(prices).length, 'symbols');
+          setPriceMap(prices);
+        }
       } catch (e) {
-        console.warn('Price fetch failed', e);
+        console.warn('⚠️ Price fetch failed, using fallback prices:', e);
+        if (!cancelled) setPriceMap({});
       }
     })();
     return () => {
@@ -1089,7 +1093,12 @@ export default function PortfolioDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={true}
+        nestedScrollEnabled={true}
+      >
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
             {portfolioDataWithPercentages.length > 0 && (
@@ -1745,8 +1754,9 @@ const styles = StyleSheet.create({
   },
   totalValueContainer: {
     marginHorizontal: 20,
-    marginTop: 16,
+    marginTop: -60,
     marginBottom: 16,
+    zIndex: 10,
   },
   totalValueCard: {
     borderRadius: 16,
