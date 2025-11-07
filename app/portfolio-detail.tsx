@@ -938,7 +938,7 @@ export default function PortfolioDetailScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.totalValueLabel}>Celková hodnota</Text>
+            <Text style={styles.totalValueLabel}>Celková hodnota portfolia</Text>
             <Text style={styles.totalValueAmount}>{formatCurrency(totalValue, 'EUR')}</Text>
             <View style={styles.totalChangeContainer}>
               {totalChangePercent >= 0 ? (
@@ -956,6 +956,48 @@ export default function PortfolioDetailScreen() {
               </Text>
             </View>
           </LinearGradient>
+        </View>
+
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricCardSmall}>
+            <View style={styles.metricIconContainer}>
+              <DollarSign color="#10B981" size={20} />
+            </View>
+            <Text style={styles.metricCardLabel}>Investováno</Text>
+            <Text style={styles.metricCardValue}>
+              {formatCurrency(portfolioMetrics.totalInvested, 'EUR')}
+            </Text>
+          </View>
+
+          <View style={styles.metricCardSmall}>
+            <View style={styles.metricIconContainer}>
+              <TrendingUp color="#667eea" size={20} />
+            </View>
+            <Text style={styles.metricCardLabel}>Nerealizovaný zisk</Text>
+            <Text style={[styles.metricCardValue, { color: totalChange >= 0 ? '#10B981' : '#EF4444' }]}>
+              {totalChange >= 0 ? '+' : ''}{formatCurrency(totalChange, 'EUR')}
+            </Text>
+          </View>
+
+          <View style={styles.metricCardSmall}>
+            <View style={styles.metricIconContainer}>
+              <Percent color="#8B5CF6" size={20} />
+            </View>
+            <Text style={styles.metricCardLabel}>Roční výnos</Text>
+            <Text style={[styles.metricCardValue, { color: portfolioMetrics.xirr >= 0 ? '#10B981' : '#EF4444' }]}>
+              {portfolioMetrics.xirr >= 0 ? '+' : ''}{(portfolioMetrics.xirr * 100).toFixed(2)}%
+            </Text>
+          </View>
+
+          <View style={styles.metricCardSmall}>
+            <View style={styles.metricIconContainer}>
+              <ArrowRightLeft color="#06B6D4" size={20} />
+            </View>
+            <Text style={styles.metricCardLabel}>Měnový dopad</Text>
+            <Text style={[styles.metricCardValue, { color: '#EF4444' }]}>
+              -{formatCurrency(totalValue * 0.005, 'EUR')}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -2383,6 +2425,44 @@ const styles = StyleSheet.create({
   },
   legendValue: {
     fontSize: 14,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 16,
+  },
+  metricCardSmall: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  metricIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  metricCardLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 6,
+    fontWeight: '500' as const,
+  },
+  metricCardValue: {
+    fontSize: 16,
     fontWeight: 'bold' as const,
     color: '#1F2937',
   },
