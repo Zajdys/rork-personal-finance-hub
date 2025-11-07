@@ -214,27 +214,29 @@ export default function T212PortfolioScreen() {
       ) : null}
 
       {rows.length > 0 ? (
-        <>
-          <View style={styles.totals} testID="totals">
-            <Text style={styles.totalText}>Invested: €{formatNumber(totalLine.invested)}</Text>
-            <Text style={styles.totalText}>Value: €{formatNumber(totalLine.value)}</Text>
-            <Text style={[styles.totalText, { color: totalLine.pnl >= 0 ? '#059669' : '#DC2626' }]}>P/L: €{formatNumber(totalLine.pnl)} ({formatNumber(totalLine.pnlPct)}%)</Text>
-            {lastUpdate && (
-              <Text style={[styles.totalText, { fontSize: 10, color: '#6B7280' }]}>
-                Aktualizováno: {lastUpdate.toLocaleTimeString('cs-CZ')}
-              </Text>
-            )}
-          </View>
-          {renderHeader()}
-          <FlatList
-            data={rows}
-            keyExtractor={(r) => r.ticker}
-            renderItem={renderItem}
-            ItemSeparatorComponent={() => <View style={styles.sep} />}
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={() => computeRows(items, false)} />}
-            contentContainerStyle={styles.listContent}
-          />
-        </>
+        <FlatList
+          data={rows}
+          keyExtractor={(r) => r.ticker}
+          renderItem={renderItem}
+          ItemSeparatorComponent={() => <View style={styles.sep} />}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => computeRows(items, false)} />}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <>
+              <View style={styles.totals} testID="totals">
+                <Text style={styles.totalText}>Invested: €{formatNumber(totalLine.invested)}</Text>
+                <Text style={styles.totalText}>Value: €{formatNumber(totalLine.value)}</Text>
+                <Text style={[styles.totalText, { color: totalLine.pnl >= 0 ? '#059669' : '#DC2626' }]}>P/L: €{formatNumber(totalLine.pnl)} ({formatNumber(totalLine.pnlPct)}%)</Text>
+                {lastUpdate && (
+                  <Text style={[styles.totalText, { fontSize: 10, color: '#6B7280' }]}>
+                    Aktualizováno: {lastUpdate.toLocaleTimeString('cs-CZ')}
+                  </Text>
+                )}
+              </View>
+              {renderHeader()}
+            </>
+          }
+        />
       ) : (
         !loading && (
           <View style={styles.center}>
