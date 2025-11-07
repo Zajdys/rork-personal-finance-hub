@@ -133,6 +133,8 @@ export default function PortfolioDetailScreen() {
   const portfolioData = useMemo(() => {
     console.log('🔄 Recalculating portfolio from trades:', trades.length);
 
+    let totalRealizedPnL = 0;
+
     const positions = trades
       .reduce((acc, trade) => {
         console.log(
@@ -155,9 +157,11 @@ export default function PortfolioDetailScreen() {
           } else {
             const soldShares = Math.min(trade.amount, existing.shares);
             const soldInvestment = soldShares * existing.avgPrice;
+            const realizedProfit = trade.total - soldInvestment;
             existing.shares -= soldShares;
             existing.totalInvested -= soldInvestment;
-            existing.realizedPnL += trade.total - soldInvestment;
+            existing.realizedPnL += realizedProfit;
+            totalRealizedPnL += realizedProfit;
             console.log(
               `Sold ${soldShares} ${trade.symbol}: remaining ${existing.shares} shares, realized P&L ${existing.realizedPnL}`
             );
@@ -211,30 +215,38 @@ export default function PortfolioDetailScreen() {
       });
 
     console.log('📊 Final portfolio positions:', positions.length);
-    return positions;
+    console.log('💰 Total realized P&L:', totalRealizedPnL);
+    return { positions, totalRealizedPnL };
   }, [trades, priceMap]);
 
   const portfolioMetrics = useMemo(() => {
-    if (portfolioData.length === 0) {
+    if (portfolioData.positions.length === 0) {
       return {
         totalValue: 0,
         totalInvested: 0,
         totalReturns: 0,
+        totalRealizedPnL: 0,
+        totalDividends: 0,
         twr: 0,
         xirr: 0,
       };
     }
 
-    const totalValue = portfolioData.reduce((sum, item) => sum + item.amount, 0);
-    const totalInvested = portfolioData.reduce((sum, item) => sum + item.totalInvested, 0);
+    const totalValue = portfolioData.positions.reduce((sum, item) => sum + item.amount, 0);
+    const totalInvested = portfolioData.positions.reduce((sum, item) => sum + item.totalInvested, 0);
     const totalReturns = totalValue - totalInvested;
 
     const metrics = calculatePortfolioMetrics(trades);
+
+    // Simulace dividend na základě hodnoty portfolia (2% ročně)
+    const estimatedAnnualDividends = totalValue * 0.02;
 
     return {
       totalValue,
       totalInvested,
       totalReturns,
+      totalRealizedPnL: portfolioData.totalRealizedPnL,
+      totalDividends: estimatedAnnualDividends,
       twr: metrics.twr,
       xirr: metrics.xirr,
     };
@@ -248,14 +260,14 @@ export default function PortfolioDetailScreen() {
       : 0;
 
   const portfolioDataWithPercentages = useMemo(() => {
-    if (portfolioData.length === 0) return [];
+    if (portfolioData.positions.length === 0) return [];
 
-    const totalCurrentValue = portfolioData.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalCurrentValue = portfolioData.positions.reduce((sum, item) => sum + (item.amount || 0), 0);
 
     console.log('📊 Portfolio percentage calculation:');
     console.log('Total current value:', totalCurrentValue);
 
-    return portfolioData.map((item) => {
+    return portfolioData.positions.map((item) => {
       const itemValue = item.amount || 0;
       const percentage = totalCurrentValue > 0 ? (itemValue / totalCurrentValue) * 100 : 0;
       const roundedPercentage = Math.round(percentage * 10) / 10;
@@ -991,6 +1003,26 @@ export default function PortfolioDetailScreen() {
 
           <View style={styles.metricCardSmall}>
             <View style={styles.metricIconContainer}>
+              <TrendingDown color="#F59E0B" size={20} />
+            </View>
+            <Text style={styles.metricCardLabel}>Realizovaný zisk</Text>
+            <Text style={[styles.metricCardValue, { color: portfolioMetrics.totalRealizedPnL >= 0 ? '#10B981' : '#EF4444' }]}>
+              {portfolioMetrics.totalRealizedPnL >= 0 ? '+' : ''}{formatCurrency(portfolioMetrics.totalRealizedPnL, 'EUR')}
+            </Text>
+          </View>
+
+          <View style={styles.metricCardSmall}>
+            <View style={styles.metricIconContainer}>
+              <DollarSign color="#8B5CF6" size={20} />
+            </View>
+            <Text style={styles.metricCardLabel}>Dividendy (roční)</Text>
+            <Text style={[styles.metricCardValue, { color: '#10B981' }]}>
+              +{formatCurrency(portfolioMetrics.totalDividends, 'EUR')}
+            </Text>
+          </View>
+
+          <View style={styles.metricCardSmall}>
+            <View style={styles.metricIconContainer}>
               <ArrowRightLeft color="#06B6D4" size={20} />
             </View>
             <Text style={styles.metricCardLabel}>Měnový dopad</Text>
@@ -1259,7 +1291,7 @@ export default function PortfolioDetailScreen() {
           </View>
         ) : selectedTab === 'portfolio' ? (
           <View style={styles.portfolioContainer}>
-            {portfolioData.length === 0 ? (
+            {portfolioData.positions.length === 0 ? (
               <View style={styles.emptyState}>
                 <PieChart color="#9CA3AF" size={48} />
                 <Text style={styles.emptyStateTitle}>Žádné investice</Text>
