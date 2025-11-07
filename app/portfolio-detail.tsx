@@ -940,7 +940,8 @@ export default function PortfolioDetailScreen() {
         </View>
       </LinearGradient>
 
-      <View style={styles.totalValueContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.totalValueContainer}>
         <View style={styles.totalValueCard}>
           <LinearGradient
             colors={
@@ -1031,9 +1032,9 @@ export default function PortfolioDetailScreen() {
             </Text>
           </View>
         </View>
-      </View>
+        </View>
 
-      <View style={styles.tabSelector}>
+        <View style={styles.tabSelector}>
         <TouchableOpacity
           style={[styles.tabButton, selectedTab === 'portfolio' && styles.tabButtonActive]}
           onPress={() => setSelectedTab('portfolio')}
@@ -1087,9 +1088,8 @@ export default function PortfolioDetailScreen() {
             Obchody
           </Text>
         </TouchableOpacity>
-      </View>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
             {portfolioDataWithPercentages.length > 0 && (
@@ -1744,7 +1744,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   totalValueContainer: {
-    marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 16,
   },
@@ -1791,7 +1790,6 @@ const styles = StyleSheet.create({
   },
   tabSelector: {
     flexDirection: 'row',
-    marginHorizontal: 20,
     marginBottom: 16,
     gap: 8,
   },
@@ -1824,11 +1822,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingBottom: 40,
   },
   portfolioContainer: {
     gap: 16,
-    paddingBottom: 32,
   },
   portfolioItem: {
     backgroundColor: 'white',
@@ -1911,7 +1908,6 @@ const styles = StyleSheet.create({
   },
   tradesContainer: {
     gap: 16,
-    paddingBottom: 32,
   },
   tradeCard: {
     backgroundColor: 'white',
@@ -2325,7 +2321,6 @@ const styles = StyleSheet.create({
   },
   performanceContainer: {
     gap: 16,
-    paddingBottom: 32,
   },
   performanceCard: {
     backgroundColor: 'white',
