@@ -18,6 +18,16 @@ import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 
 
+function getRoleLabel(role: string): string {
+  const roleLabels: Record<string, string> = {
+    'OWNER': 'Vlastník',
+    'PARTNER': 'Partner',
+    'SUMMARY_VIEWER': 'Pouze souhrn',
+    'READ_ONLY': 'Pouze čtení',
+  };
+  return roleLabels[role] || role;
+}
+
 export default function HouseholdScreen() {
   const router = useRouter();
   const {
@@ -620,21 +630,6 @@ export default function HouseholdScreen() {
       </Modal>
     </SafeAreaView>
   );
-}
-
-function getRoleLabel(role: string): string {
-  switch (role) {
-    case 'OWNER':
-      return 'Vlastník';
-    case 'PARTNER':
-      return 'Partner';
-    case 'SUMMARY_VIEWER':
-      return 'Prohlížeč součtů';
-    case 'READ_ONLY':
-      return 'Pouze čtení';
-    default:
-      return role;
-  }
 }
 
 const styles = StyleSheet.create({
