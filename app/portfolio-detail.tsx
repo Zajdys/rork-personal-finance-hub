@@ -1160,7 +1160,11 @@ export default function PortfolioDetailScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.totalValueCard}>
           <LinearGradient
             colors={
@@ -1867,6 +1871,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     paddingTop: 60,
