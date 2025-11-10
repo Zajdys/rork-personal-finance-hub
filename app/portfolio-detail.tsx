@@ -1161,7 +1161,6 @@ export default function PortfolioDetailScreen() {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.totalValueContainer}>
         <View style={styles.totalValueCard}>
           <LinearGradient
             colors={
@@ -1251,7 +1250,6 @@ export default function PortfolioDetailScreen() {
               -{formatCurrency(totalValue * 0.005, 'EUR')}
             </Text>
           </View>
-        </View>
         </View>
 
         <View style={styles.tabSelector}>
@@ -1911,11 +1909,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  totalValueContainer: {
+  totalValueCard: {
     marginTop: 16,
     marginBottom: 16,
-  },
-  totalValueCard: {
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
