@@ -917,27 +917,29 @@ export default function PortfolioDetailScreen() {
     return (
       <View style={styles.donutChartContainer}>
         <Svg width={size} height={size}>
-          <G rotation="0" origin={`${centerX}, ${centerY}`}>
+          <G>
             {slices.map((slice, index) => {
               const strokeDashoffset =
                 circumference - (slice.angle / 360) * circumference;
               const rotation = slice.startAngle + 90;
 
               return (
-                <Circle
+                <G
                   key={index}
-                  cx={centerX}
-                  cy={centerY}
-                  r={radius}
-                  stroke={slice.color}
-                  strokeWidth={strokeWidth}
-                  fill="transparent"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  rotation={rotation}
-                  origin={`${centerX}, ${centerY}`}
-                  strokeLinecap="round"
-                />
+                  transform={`rotate(${rotation} ${centerX} ${centerY})`}
+                >
+                  <Circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radius}
+                    stroke={slice.color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </G>
               );
             })}
           </G>
@@ -977,27 +979,29 @@ export default function PortfolioDetailScreen() {
     return (
       <View style={styles.donutChartContainer}>
         <Svg width={size} height={size}>
-          <G rotation="0" origin={`${centerX}, ${centerY}`}>
+          <G>
             {slices.map((slice, index) => {
               const strokeDashoffset =
                 circumference - (slice.angle / 360) * circumference;
               const rotation = slice.startAngle + 90;
 
               return (
-                <Circle
+                <G
                   key={index}
-                  cx={centerX}
-                  cy={centerY}
-                  r={radius}
-                  stroke={slice.color}
-                  strokeWidth={strokeWidth}
-                  fill="transparent"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  rotation={rotation}
-                  origin={`${centerX}, ${centerY}`}
-                  strokeLinecap="round"
-                />
+                  transform={`rotate(${rotation} ${centerX} ${centerY})`}
+                >
+                  <Circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radius}
+                    stroke={slice.color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </G>
               );
             })}
           </G>
@@ -1037,27 +1041,29 @@ export default function PortfolioDetailScreen() {
     return (
       <View style={styles.donutChartContainer}>
         <Svg width={size} height={size}>
-          <G rotation="0" origin={`${centerX}, ${centerY}`}>
+          <G>
             {slices.map((slice, index) => {
               const strokeDashoffset =
                 circumference - (slice.angle / 360) * circumference;
               const rotation = slice.startAngle + 90;
 
               return (
-                <Circle
+                <G
                   key={index}
-                  cx={centerX}
-                  cy={centerY}
-                  r={radius}
-                  stroke={slice.color}
-                  strokeWidth={strokeWidth}
-                  fill="transparent"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  rotation={rotation}
-                  origin={`${centerX}, ${centerY}`}
-                  strokeLinecap="round"
-                />
+                  transform={`rotate(${rotation} ${centerX} ${centerY})`}
+                >
+                  <Circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radius}
+                    stroke={slice.color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </G>
               );
             })}
           </G>

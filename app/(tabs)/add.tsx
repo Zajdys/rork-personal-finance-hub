@@ -36,7 +36,7 @@ import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { parseBankCsvToTransactions, readUriText, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
-import { generateObject } from '@rork/toolkit-sdk';
+import { generateObject } from '@rork-ai/toolkit-sdk';
 import { Platform } from 'react-native';
 import { z } from 'zod';
 

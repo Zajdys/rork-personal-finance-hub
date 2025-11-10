@@ -1,7 +1,7 @@
 import { toNum } from "../../lib/num";
 import { Platform } from "react-native";
 import { parseXlsxArrayBuffer, ParsedTable } from "@/src/utils/fileParser";
-import { generateObject } from "@rork/toolkit-sdk";
+import { generateObject } from "@rork-ai/toolkit-sdk";
 import { z } from "zod";
 
 export type BankCsvRecord = Record<string, string | undefined>;
