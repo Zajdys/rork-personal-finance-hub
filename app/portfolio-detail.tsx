@@ -29,6 +29,8 @@ import {
   AlertCircle,
   ArrowRightLeft,
   ZoomIn,
+  Globe,
+  Coins,
 } from 'lucide-react-native';
 import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -780,6 +782,104 @@ export default function PortfolioDetailScreen() {
     </TouchableOpacity>
   );
 
+  const CURRENCY_COLORS: Record<string, string> = {
+    USD: '#10B981',
+    EUR: '#3B82F6',
+    GBP: '#F59E0B',
+    CZK: '#8B5CF6',
+    OTHER: '#9CA3AF',
+  };
+
+  const COUNTRY_COLORS: Record<string, string> = {
+    'USA': '#EF4444',
+    'Čína': '#F59E0B',
+    'Evropa': '#3B82F6',
+    'Velká Británie': '#8B5CF6',
+    'Japonsko': '#EC4899',
+    'Ostatní': '#9CA3AF',
+  };
+
+  const SYMBOL_TO_COUNTRY: Record<string, string> = {
+    AAPL: 'USA',
+    MSFT: 'USA',
+    GOOGL: 'USA',
+    AMZN: 'USA',
+    TSLA: 'USA',
+    SPY: 'USA',
+    QQQ: 'USA',
+    VOO: 'USA',
+    BTC: 'Ostatní',
+    ETH: 'Ostatní',
+    BABA: 'Čína',
+    TSM: 'Čína',
+    VEA: 'Evropa',
+    EWU: 'Velká Británie',
+    EWJ: 'Japonsko',
+  };
+
+  const SYMBOL_TO_CURRENCY: Record<string, string> = {
+    AAPL: 'USD',
+    MSFT: 'USD',
+    GOOGL: 'USD',
+    AMZN: 'USD',
+    TSLA: 'USD',
+    SPY: 'USD',
+    QQQ: 'USD',
+    VOO: 'USD',
+    BTC: 'USD',
+    ETH: 'USD',
+    BABA: 'USD',
+    TSM: 'USD',
+    VEA: 'USD',
+    EWU: 'GBP',
+    EWJ: 'USD',
+    GLD: 'USD',
+  };
+
+  const getCurrencyAllocation = (data: any[]) => {
+    const currencyMap = new Map<string, { value: number; color: string }>();
+    
+    data.forEach((item) => {
+      const currency = SYMBOL_TO_CURRENCY[item.symbol] || 'USD';
+      const existing = currencyMap.get(currency) || { value: 0, color: CURRENCY_COLORS[currency] || CURRENCY_COLORS.OTHER };
+      existing.value += item.amount || 0;
+      currencyMap.set(currency, existing);
+    });
+
+    const total = Array.from(currencyMap.values()).reduce((sum, item) => sum + item.value, 0);
+    
+    return Array.from(currencyMap.entries())
+      .map(([currency, data]) => ({
+        currency,
+        value: data.value,
+        percentage: total > 0 ? (data.value / total) * 100 : 0,
+        color: data.color,
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+  };
+
+  const getCountryAllocation = (data: any[]) => {
+    const countryMap = new Map<string, { value: number; color: string }>();
+    
+    data.forEach((item) => {
+      const country = SYMBOL_TO_COUNTRY[item.symbol] || 'USA';
+      const existing = countryMap.get(country) || { value: 0, color: COUNTRY_COLORS[country] || COUNTRY_COLORS['Ostatní'] };
+      existing.value += item.amount || 0;
+      countryMap.set(country, existing);
+    });
+
+    const total = Array.from(countryMap.values()).reduce((sum, item) => sum + item.value, 0);
+    
+    return Array.from(countryMap.entries())
+      .map(([country, data]) => ({
+        country,
+        value: data.value,
+        percentage: total > 0 ? (data.value / total) * 100 : 0,
+        color: data.color,
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+  };
+
   const DonutChart = ({ data, totalValue }: { data: any[]; totalValue: number }) => {
     const size = 200;
     const strokeWidth = 40;
@@ -845,6 +945,126 @@ export default function PortfolioDetailScreen() {
         <View style={styles.donutChartCenter}>
           <Text style={styles.donutChartValue}>{formatCurrency(totalValue, 'EUR')}</Text>
           <Text style={styles.donutChartLabel}>Celková hodnota</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const CurrencyDonutChart = ({ data, totalValue }: { data: any[]; totalValue: number }) => {
+    const size = 200;
+    const strokeWidth = 40;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const centerX = size / 2;
+    const centerY = size / 2;
+
+    const currencyAllocation = getCurrencyAllocation(data);
+
+    let currentAngle = -90;
+    const slices = currencyAllocation.map((item) => {
+      const percentage = item.percentage;
+      const angle = (percentage / 100) * 360;
+      const slice = {
+        color: item.color,
+        percentage,
+        startAngle: currentAngle,
+        angle,
+      };
+      currentAngle += angle;
+      return slice;
+    });
+
+    return (
+      <View style={styles.donutChartContainer}>
+        <Svg width={size} height={size}>
+          <G rotation="0" origin={`${centerX}, ${centerY}`}>
+            {slices.map((slice, index) => {
+              const strokeDashoffset =
+                circumference - (slice.angle / 360) * circumference;
+              const rotation = slice.startAngle + 90;
+
+              return (
+                <Circle
+                  key={index}
+                  cx={centerX}
+                  cy={centerY}
+                  r={radius}
+                  stroke={slice.color}
+                  strokeWidth={strokeWidth}
+                  fill="transparent"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  rotation={rotation}
+                  origin={`${centerX}, ${centerY}`}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </G>
+        </Svg>
+        <View style={styles.donutChartCenter}>
+          <Text style={styles.donutChartValue}>{formatCurrency(totalValue, 'EUR')}</Text>
+          <Text style={styles.donutChartLabel}>Celkem</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const CountryDonutChart = ({ data, totalValue }: { data: any[]; totalValue: number }) => {
+    const size = 200;
+    const strokeWidth = 40;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const centerX = size / 2;
+    const centerY = size / 2;
+
+    const countryAllocation = getCountryAllocation(data);
+
+    let currentAngle = -90;
+    const slices = countryAllocation.map((item) => {
+      const percentage = item.percentage;
+      const angle = (percentage / 100) * 360;
+      const slice = {
+        color: item.color,
+        percentage,
+        startAngle: currentAngle,
+        angle,
+      };
+      currentAngle += angle;
+      return slice;
+    });
+
+    return (
+      <View style={styles.donutChartContainer}>
+        <Svg width={size} height={size}>
+          <G rotation="0" origin={`${centerX}, ${centerY}`}>
+            {slices.map((slice, index) => {
+              const strokeDashoffset =
+                circumference - (slice.angle / 360) * circumference;
+              const rotation = slice.startAngle + 90;
+
+              return (
+                <Circle
+                  key={index}
+                  cx={centerX}
+                  cy={centerY}
+                  r={radius}
+                  stroke={slice.color}
+                  strokeWidth={strokeWidth}
+                  fill="transparent"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  rotation={rotation}
+                  origin={`${centerX}, ${centerY}`}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+          </G>
+        </Svg>
+        <View style={styles.donutChartCenter}>
+          <Text style={styles.donutChartValue}>{formatCurrency(totalValue, 'EUR')}</Text>
+          <Text style={styles.donutChartLabel}>Celkem</Text>
         </View>
       </View>
     );
@@ -1126,90 +1346,38 @@ export default function PortfolioDetailScreen() {
             )}
             <View style={styles.performanceCard}>
               <View style={styles.performanceHeader}>
-                <DollarSign color="#10B981" size={24} />
-                <Text style={styles.performanceTitle}>Zisk / Ztráta</Text>
+                <Coins color="#8B5CF6" size={24} />
+                <Text style={styles.performanceTitle}>Rozložení podle měn</Text>
               </View>
-              <View style={styles.performanceMetrics}>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Celkový zisk/ztráta:</Text>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      { color: totalChange >= 0 ? '#10B981' : '#EF4444' },
-                    ]}
-                  >
-                    {totalChange >= 0 ? '+' : ''}
-                    {formatCurrency(totalChange, 'EUR')}
-                  </Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Procentuální výnos:</Text>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      { color: totalChangePercent >= 0 ? '#10B981' : '#EF4444' },
-                    ]}
-                  >
-                    {totalChangePercent >= 0 ? '+' : ''}
-                    {totalChangePercent.toFixed(2)}%
-                  </Text>
-                </View>
-                <View style={styles.metricDivider} />
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Investováno:</Text>
-                  <Text style={styles.metricValue}>
-                    {formatCurrency(portfolioMetrics.totalInvested, 'EUR')}
-                  </Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Současná hodnota:</Text>
-                  <Text style={styles.metricValue}>
-                    {formatCurrency(portfolioMetrics.totalValue, 'EUR')}
-                  </Text>
+              <View style={styles.chartContainer}>
+                <CurrencyDonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
+                <View style={styles.chartLegend}>
+                  {getCurrencyAllocation(portfolioDataWithPercentages).map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendLabel}>{item.currency}</Text>
+                      <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
+                    </View>
+                  ))}
                 </View>
               </View>
             </View>
 
             <View style={styles.performanceCard}>
               <View style={styles.performanceHeader}>
-                <Percent color="#8B5CF6" size={24} />
-                <Text style={styles.performanceTitle}>Výkonnostní metriky</Text>
+                <Globe color="#10B981" size={24} />
+                <Text style={styles.performanceTitle}>Rozložení podle zemí</Text>
               </View>
-              <View style={styles.performanceMetrics}>
-                <View style={styles.metricRow}>
-                  <View style={styles.metricLabelContainer}>
-                    <Text style={styles.metricLabel}>TWR (Time-Weighted Return):</Text>
-                    <Text style={styles.metricDescription}>
-                      Výnos nezávislý na vkladech/výběrech
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      { color: portfolioMetrics.twr >= 0 ? '#10B981' : '#EF4444' },
-                    ]}
-                  >
-                    {portfolioMetrics.twr >= 0 ? '+' : ''}
-                    {(portfolioMetrics.twr * 100).toFixed(2)}%
-                  </Text>
-                </View>
-                <View style={styles.metricDivider} />
-                <View style={styles.metricRow}>
-                  <View style={styles.metricLabelContainer}>
-                    <Text style={styles.metricLabel}>XIRR (Roční výnos):</Text>
-                    <Text style={styles.metricDescription}>
-                      Anualizovaný výnos portfolia
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      { color: portfolioMetrics.xirr >= 0 ? '#10B981' : '#EF4444' },
-                    ]}
-                  >
-                    {portfolioMetrics.xirr >= 0 ? '+' : ''}
-                    {(portfolioMetrics.xirr * 100).toFixed(2)}% p.a.
-                  </Text>
+              <View style={styles.chartContainer}>
+                <CountryDonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
+                <View style={styles.chartLegend}>
+                  {getCountryAllocation(portfolioDataWithPercentages).map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendLabel}>{item.country}</Text>
+                      <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
+                    </View>
+                  ))}
                 </View>
               </View>
             </View>
