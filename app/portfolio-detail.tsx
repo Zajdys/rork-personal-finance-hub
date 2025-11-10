@@ -32,7 +32,7 @@ import {
   Globe,
   Coins,
 } from 'lucide-react-native';
-import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePortfolioStore, Trade } from '@/store/portfolio-store';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
