@@ -1917,7 +1917,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   totalValueCard: {
-    marginTop: 8,
+    marginTop: -40,
     marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
