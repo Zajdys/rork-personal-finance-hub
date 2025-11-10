@@ -156,7 +156,6 @@ function RootLayoutNav() {
       <Stack.Screen name="backend-test" options={{ title: 'Backend Test', headerShown: true }} />
       <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio', headerShown: true }} />
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail', headerShown: true }} />
-      <Stack.Screen name="portfolio-detail" options={{ title: 'Portfolio Detail', headerShown: false }} />
       <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: true }} />
       <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview', headerShown: true }} />
       <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: true }} />
@@ -164,27 +163,6 @@ function RootLayoutNav() {
       <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání', headerShown: true }} />
       <Stack.Screen name="life-event" options={{ title: 'Life-Event Mode', headerShown: false }} />
       <Stack.Screen name="household" options={{ title: 'Domácnost', headerShown: false }} />
-      <Stack.Screen name="category-detail" options={{ title: 'Category Detail', headerShown: true }} />
-      <Stack.Screen name="badges" options={{ title: t('badges'), headerShown: true }} />
-      <Stack.Screen name="quests" options={{ title: t('quests'), headerShown: true }} />
-      <Stack.Screen name="hall-of-fame" options={{ title: 'Hall of Fame', headerShown: true }} />
-      <Stack.Screen name="gaming-stats" options={{ title: 'Gaming Stats', headerShown: true }} />
-      <Stack.Screen name="support-chat" options={{ title: 'Support Chat', headerShown: true }} />
-      <Stack.Screen name="bank-connect" options={{ title: 'Bank Connect', headerShown: true }} />
-      <Stack.Screen name="bank-accounts" options={{ title: 'Bank Accounts', headerShown: true }} />
-      <Stack.Screen name="daily-rewards-detail" options={{ title: 'Daily Rewards', headerShown: true }} />
-      <Stack.Screen name="household-policies" options={{ title: 'Household Policies', headerShown: true }} />
-      <Stack.Screen name="household-splits" options={{ title: 'Household Splits', headerShown: true }} />
-      <Stack.Screen name="household-budgets" options={{ title: 'Household Budgets', headerShown: true }} />
-      <Stack.Screen name="edit-bank-transaction" options={{ title: 'Edit Transaction', headerShown: true }} />
-      <Stack.Screen name="loans" options={{ title: 'Loans', headerShown: true }} />
-      <Stack.Screen name="loan-detail" options={{ title: 'Loan Detail', headerShown: true }} />
-      <Stack.Screen name="add-loan" options={{ title: 'Add Loan', headerShown: true }} />
-      <Stack.Screen name="edit-loan" options={{ title: 'Edit Loan', headerShown: true }} />
-      <Stack.Screen name="loan-finder" options={{ title: 'Loan Finder', headerShown: true }} />
-      <Stack.Screen name="leaderboard" options={{ title: 'Leaderboard', headerShown: true }} />
-      <Stack.Screen name="register" options={{ title: 'Register', headerShown: true }} />
-      <Stack.Screen name="chat" options={{ title: 'Chat', headerShown: true }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />

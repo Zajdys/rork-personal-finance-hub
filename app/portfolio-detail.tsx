@@ -32,7 +32,7 @@ import {
   Globe,
   Coins,
 } from 'lucide-react-native';
-import Svg, { Circle, G } from 'react-native-svg';
+import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePortfolioStore, Trade } from '@/store/portfolio-store';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
@@ -1160,11 +1160,8 @@ export default function PortfolioDetailScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent} 
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.totalValueContainer}>
         <View style={styles.totalValueCard}>
           <LinearGradient
             colors={
@@ -1254,6 +1251,7 @@ export default function PortfolioDetailScreen() {
               -{formatCurrency(totalValue * 0.005, 'EUR')}
             </Text>
           </View>
+        </View>
         </View>
 
         <View style={styles.tabSelector}>
@@ -1872,12 +1870,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  scrollView: {
-    flex: 1,
-  },
   header: {
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 24,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -1916,9 +1911,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  totalValueCard: {
-    marginTop: -40,
+  totalValueContainer: {
+    marginTop: 16,
     marginBottom: 16,
+  },
+  totalValueCard: {
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -1993,7 +1990,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 8,
     paddingBottom: 40,
   },
   portfolioContainer: {
