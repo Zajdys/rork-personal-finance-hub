@@ -1312,57 +1312,6 @@ export default function PortfolioDetailScreen() {
 
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
-            {portfolioDataWithPercentages.length > 0 && (
-              <View style={styles.performanceCard}>
-                <View style={styles.performanceHeader}>
-                  <PieChart color="#667eea" size={24} />
-                  <Text style={styles.performanceTitle}>Typy aktiv</Text>
-                </View>
-                <View style={styles.chartContainer}>
-                  <DonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
-                  <View style={styles.chartLegend}>
-                    {portfolioDataWithPercentages.slice(0, 5).map((item, index) => (
-                      <View key={index} style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                        <Text style={styles.legendLabel}>{item.symbol}</Text>
-                        <Text style={styles.legendValue}>{item.percentage}%</Text>
-                      </View>
-                    ))}
-                    {portfolioDataWithPercentages.length > 5 && (
-                      <View style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: '#9CA3AF' }]} />
-                        <Text style={styles.legendLabel}>Ostatní</Text>
-                        <Text style={styles.legendValue}>
-                          {portfolioDataWithPercentages
-                            .slice(5)
-                            .reduce((sum, item) => sum + item.percentage, 0)
-                            .toFixed(1)}%
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-            )}
-            <View style={styles.performanceCard}>
-              <View style={styles.performanceHeader}>
-                <Coins color="#8B5CF6" size={24} />
-                <Text style={styles.performanceTitle}>Rozložení podle měn</Text>
-              </View>
-              <View style={styles.chartContainer}>
-                <CurrencyDonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
-                <View style={styles.chartLegend}>
-                  {getCurrencyAllocation(portfolioDataWithPercentages).map((item, index) => (
-                    <View key={index} style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                      <Text style={styles.legendLabel}>{item.currency}</Text>
-                      <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </View>
-
             <View style={styles.performanceCard}>
               <View style={styles.performanceHeader}>
                 <Globe color="#10B981" size={24} />
@@ -1384,75 +1333,19 @@ export default function PortfolioDetailScreen() {
 
             <View style={styles.performanceCard}>
               <View style={styles.performanceHeader}>
-                <AlertCircle color="#F59E0B" size={24} />
-                <Text style={styles.performanceTitle}>Daňové informace</Text>
+                <Coins color="#8B5CF6" size={24} />
+                <Text style={styles.performanceTitle}>Rozložení podle měn</Text>
               </View>
-              <View style={styles.performanceMetrics}>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Zdanitelný zisk:</Text>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      { color: totalChange >= 0 ? '#F59E0B' : '#6B7280' },
-                    ]}
-                  >
-                    {totalChange >= 0 ? formatCurrency(totalChange, 'EUR') : 'Žádný'}
-                  </Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Odhadovaná daň (15%):</Text>
-                  <Text style={styles.metricValue}>
-                    {totalChange >= 0
-                      ? formatCurrency(totalChange * 0.15, 'EUR')
-                      : formatCurrency(0, 'EUR')}
-                  </Text>
-                </View>
-                <View style={styles.metricDivider} />
-                <View style={styles.taxInfoBox}>
-                  <AlertCircle color="#F59E0B" size={16} />
-                  <Text style={styles.taxInfoText}>
-                    {totalChange >= 0
-                      ? 'Zisky z prodeje akcií podléhají dani z příjmu 15%. Pokud držíte akcie déle než 3 roky, můžete být osvobozeni od daně.'
-                      : 'Aktuálně nemáte realizované zisky podléhající zdanění.'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.performanceCard}>
-              <View style={styles.performanceHeader}>
-                <ArrowRightLeft color="#06B6D4" size={24} />
-                <Text style={styles.performanceTitle}>Měnové konverze</Text>
-              </View>
-              <View style={styles.performanceMetrics}>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Měna portfolia:</Text>
-                  <Text style={styles.metricValue}>{portfolio.currency || 'EUR'}</Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <Text style={styles.metricLabel}>Zobrazovací měna:</Text>
-                  <Text style={styles.metricValue}>
-                    {currencyScope === 'investmentsOnly' ? investmentCurrency : currency}
-                  </Text>
-                </View>
-                <View style={styles.metricDivider} />
-                <View style={styles.metricRow}>
-                  <View style={styles.metricLabelContainer}>
-                    <Text style={styles.metricLabel}>Ztráta na konverzi:</Text>
-                    <Text style={styles.metricDescription}>
-                      Odhadovaný rozdíl při směně měn
-                    </Text>
-                  </View>
-                  <Text style={[styles.metricValue, { color: '#EF4444' }]}>
-                    ~{formatCurrency(totalValue * 0.005, 'EUR')}
-                  </Text>
-                </View>
-                <View style={styles.currencyInfoBox}>
-                  <ArrowRightLeft color="#06B6D4" size={16} />
-                  <Text style={styles.currencyInfoText}>
-                    Při převodu mezi měnami obvykle ztrácíte 0.5-2% na směnném kurzu a
-                    poplatcích. Doporučujeme minimalizovat konverze.
-                  </Text>
+              <View style={styles.chartContainer}>
+                <CurrencyDonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
+                <View style={styles.chartLegend}>
+                  {getCurrencyAllocation(portfolioDataWithPercentages).map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendLabel}>{item.currency}</Text>
+                      <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
+                    </View>
+                  ))}
                 </View>
               </View>
             </View>
