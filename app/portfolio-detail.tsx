@@ -1877,7 +1877,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 24,
+    paddingBottom: 20,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -1917,7 +1917,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   totalValueCard: {
-    marginTop: 16,
+    marginTop: 8,
     marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
@@ -1993,6 +1993,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 40,
   },
   portfolioContainer: {
