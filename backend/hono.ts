@@ -354,6 +354,56 @@ app.get("/quotes", async (c) => {
   }
 });
 
+// Get sectors for multiple stocks
+app.get("/quotes/sectors", async (c) => {
+  try {
+    const raw = c.req.query("symbols") ?? "";
+    const symbols = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (symbols.length === 0) {
+      return c.json({ sectors: [] });
+    }
+
+    const results = await Promise.all(
+      symbols.map(async (symbol) => {
+        try {
+          const resp = (await (yahooFinance as any).quoteSummary(symbol, {
+            modules: ["assetProfile"],
+          })) as any;
+          
+          const first = resp?.assetProfile ? resp : resp?.quoteSummary?.result?.[0];
+          const sector = first?.assetProfile?.sector ?? "Other";
+          const industry = first?.assetProfile?.industry ?? null;
+          const country = first?.assetProfile?.country ?? null;
+          
+          return {
+            symbol,
+            sector,
+            industry,
+            country,
+          };
+        } catch (err) {
+          console.error(`[quotes/sectors] Failed to fetch sector for ${symbol}`, err);
+          return {
+            symbol,
+            sector: "Other",
+            industry: null,
+            country: null,
+          };
+        }
+      })
+    );
+
+    return c.json({ sectors: results });
+  } catch (e) {
+    console.error("/quotes/sectors error", e);
+    return c.json({ sectors: [], error: "Failed to fetch sectors" }, 500);
+  }
+});
+
 // Detailed fundamentals and summary for an instrument
 app.get("/finance/summary", async (c) => {
   try {

@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Upload, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react-native';
 import { parseT212Csv, buildFifoFromT212Rows, type T212PortfolioItem } from '@/src/services/trading212/portfolioFromCsv';
-import { fetchCurrentPrices } from '@/src/services/priceService';
+import { fetchCurrentPrices, fetchStockSectors, type StockSector } from '@/src/services/priceService';
 import { runNumberParsingTests } from '@/src/tests/miniSelfTest';
 
 export type TableRow = {
@@ -18,6 +18,13 @@ export type TableRow = {
   pnlPct: number;
   priceChange?: number;
   priceChangePct?: number;
+  sector?: string;
+};
+
+type SectorAllocation = {
+  sector: string;
+  value: number;
+  percentage: number;
 };
 
 function formatNumber(n: number, digits: number = 2): string {
@@ -32,15 +39,23 @@ export default function T212PortfolioScreen() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const [sectors, setSectors] = useState<Record<string, StockSector>>({});
   const previousPrices = useRef<Record<string, number>>({});
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const computeRows = useCallback(async (fifoItems: T212PortfolioItem[], silent: boolean = false) => {
+  const computeRows = useCallback(async (fifoItems: T212PortfolioItem[], silent: boolean = false, skipSectors: boolean = false) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
       const tickers = fifoItems.map(i => i.ticker).filter((t) => t && t.length > 0);
       const prices = await fetchCurrentPrices(tickers);
+      
+      let sectorData = sectors;
+      if (!skipSectors && Object.keys(sectors).length === 0) {
+        sectorData = await fetchStockSectors(tickers);
+        setSectors(sectorData);
+      }
+      
       const out: TableRow[] = fifoItems.map((i) => {
         const sym = i.ticker.toUpperCase();
         const currentPrice = prices[sym] ?? 0;
@@ -65,7 +80,8 @@ export default function T212PortfolioScreen() {
           pnl, 
           pnlPct,
           priceChange,
-          priceChangePct
+          priceChangePct,
+          sector: sectorData[sym]?.sector
         };
       }).sort((a, b) => b.currentValue - a.currentValue);
       setRows(out);
@@ -79,7 +95,7 @@ export default function T212PortfolioScreen() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [sectors]);
 
   const onPickFile = useCallback(async () => {
     setError(null);
@@ -101,7 +117,7 @@ export default function T212PortfolioScreen() {
       const fifo = buildFifoFromT212Rows(table);
       console.log('[T212] FIFO items:', fifo);
       setItems(fifo);
-      await computeRows(fifo, false);
+      await computeRows(fifo, false, false);
     } catch (e) {
       console.error('[T212] onPickFile error', e);
       setError('Soubor se nepodařilo načíst nebo má neplatný formát.');
@@ -160,11 +176,35 @@ export default function T212PortfolioScreen() {
     );
   }, []);
 
+  const sectorAllocations = useMemo(() => {
+    if (rows.length === 0) return [];
+    
+    const sectorMap = new Map<string, number>();
+    let total = 0;
+    
+    for (const row of rows) {
+      const sector = row.sector ?? 'Other';
+      sectorMap.set(sector, (sectorMap.get(sector) ?? 0) + row.currentValue);
+      total += row.currentValue;
+    }
+    
+    const allocations: SectorAllocation[] = [];
+    for (const [sector, value] of sectorMap.entries()) {
+      allocations.push({
+        sector,
+        value,
+        percentage: total > 0 ? (value / total) * 100 : 0
+      });
+    }
+    
+    return allocations.sort((a, b) => b.value - a.value);
+  }, [rows]);
+
   useEffect(() => {
     if (autoRefresh && items.length > 0) {
       intervalRef.current = setInterval(() => {
         console.log('[T212] Auto-refreshing prices...');
-        computeRows(items, true);
+        computeRows(items, true, true);
       }, 30000);
     } else {
       if (intervalRef.current) {
@@ -219,7 +259,7 @@ export default function T212PortfolioScreen() {
           keyExtractor={(r) => r.ticker}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => computeRows(items, false)} />}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => computeRows(items, false, false)} />}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <>
@@ -233,6 +273,35 @@ export default function T212PortfolioScreen() {
                   </Text>
                 )}
               </View>
+              
+              {sectorAllocations.length > 0 && (
+                <View style={styles.chartSection}>
+                  <Text style={styles.chartTitle}>Sektorová alokace</Text>
+                  <View style={styles.sectorBars}>
+                    {sectorAllocations.map((alloc, idx) => (
+                      <View key={alloc.sector} style={styles.sectorRow}>
+                        <View style={styles.sectorInfo}>
+                          <View style={[styles.sectorDot, { backgroundColor: getSectorColor(idx) }]} />
+                          <Text style={styles.sectorName}>{alloc.sector}</Text>
+                        </View>
+                        <View style={styles.sectorBarContainer}>
+                          <View 
+                            style={[
+                              styles.sectorBar, 
+                              { 
+                                width: `${alloc.percentage}%`, 
+                                backgroundColor: getSectorColor(idx) 
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={styles.sectorPercent}>{formatNumber(alloc.percentage, 1)}%</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              
               {renderHeader()}
             </>
           }
@@ -265,4 +334,31 @@ const styles = StyleSheet.create({
   totals: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6, flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   totalText: { fontSize: 12, color: '#374151' },
   muted: { color: '#6B7280', paddingHorizontal: 24, textAlign: 'center' as const },
+  chartSection: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginHorizontal: 12, marginBottom: 12 },
+  chartTitle: { fontSize: 16, fontWeight: '700' as const, color: '#111827', marginBottom: 12 },
+  sectorBars: { gap: 10 },
+  sectorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectorInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 140 },
+  sectorDot: { width: 10, height: 10, borderRadius: 5 },
+  sectorName: { fontSize: 12, color: '#374151', flex: 1 },
+  sectorBarContainer: { flex: 1, height: 20, backgroundColor: '#F3F4F6', borderRadius: 4, overflow: 'hidden' as const },
+  sectorBar: { height: '100%', borderRadius: 4 },
+  sectorPercent: { fontSize: 12, fontWeight: '600' as const, color: '#111827', width: 50, textAlign: 'right' as const },
 });
+
+const SECTOR_COLORS = [
+  '#3B82F6',
+  '#10B981', 
+  '#F59E0B',
+  '#EF4444',
+  '#8B5CF6',
+  '#EC4899',
+  '#14B8A6',
+  '#F97316',
+  '#6366F1',
+  '#84CC16',
+];
+
+function getSectorColor(index: number): string {
+  return SECTOR_COLORS[index % SECTOR_COLORS.length];
+}

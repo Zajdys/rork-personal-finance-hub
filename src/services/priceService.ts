@@ -120,3 +120,41 @@ export async function fetchCurrentPrices(symbols: string[]): Promise<Record<stri
     return {};
   }
 }
+
+export type StockSector = {
+  symbol: string;
+  sector: string;
+  industry: string | null;
+  country: string | null;
+};
+
+export async function fetchStockSectors(symbols: string[]): Promise<Record<string, StockSector>> {
+  const unique = normalizeTickers(symbols);
+  if (!unique.length) return {};
+  const base = getApiBaseUrl();
+  if (!base) {
+    console.warn('[priceService] API base URL not configured, skipping sector fetch');
+    return {};
+  }
+  
+  try {
+    const joined = encodeURIComponent(unique.join(','));
+    const url = `${base}/api/quotes/sectors?symbols=${joined}`;
+    console.log('[priceService] sectors fetch', { url, count: unique.length });
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Sectors HTTP ${res.status}`);
+    const json = (await res.json()) as { sectors?: StockSector[] };
+    const list = json?.sectors ?? [];
+    
+    const out: Record<string, StockSector> = {};
+    for (const s of list) {
+      if (s.symbol) {
+        out[s.symbol.toUpperCase()] = s;
+      }
+    }
+    return out;
+  } catch (e) {
+    console.error('[priceService] fetchStockSectors error', e);
+    return {};
+  }
+}
