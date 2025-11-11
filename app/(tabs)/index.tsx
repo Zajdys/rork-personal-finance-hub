@@ -162,23 +162,21 @@ export default function DashboardScreen() {
     </TouchableOpacity>
   );
 
-  const FinanceCard = ({ title, amount, icon: Icon, trend, color }: any) => (
+  const FinanceCard = ({ title, amount, icon, trend, color, emoji }: any) => (
     <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
       <View style={styles.financeCardHeader}>
-        <View style={styles.financeCardIconContainer}>
-          <Icon color={color} size={20} strokeWidth={2} />
-        </View>
+        <Text style={styles.financeCardEmoji}>{emoji}</Text>
         <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
       </View>
       <Text style={[styles.financeCardAmount, { color }]}>
-        {amount.toLocaleString('cs-CZ')}{title === 'Závazky' ? '' : ` ${currentCurrency.symbol}`}
+        {typeof amount === 'number' ? amount.toLocaleString('cs-CZ') : amount}{title === 'Závazky' ? '' : ` ${currentCurrency.symbol}`}
       </Text>
       {trend !== null && (
         <View style={styles.trendContainer}>
           {trend > 0 ? (
-            <TrendingUp color="#10B981" size={16} />
+            <TrendingUp color="#10B981" size={14} />
           ) : (
-            <TrendingDown color="#EF4444" size={16} />
+            <TrendingDown color="#EF4444" size={14} />
           )}
           <Text style={[styles.trendText, { color: trend > 0 ? '#10B981' : '#EF4444' }]}>
             {Math.abs(trend)}%
@@ -188,44 +186,26 @@ export default function DashboardScreen() {
     </View>
   );
 
-  const HouseholdCard = ({ householdDashboard, currentCurrency, isDarkMode }: any) => {
+  const getHouseholdInfo = (householdDashboard: any, currentCurrency: any) => {
     const myBalance = householdDashboard.balances.find((b: any) => b.userName === 'Já');
     const balance = myBalance?.balance || 0;
     
-    let statusText = '';
-    let statusIcon = '';
-    let statusColor = '#10B981';
-    
     if (Math.abs(balance) <= 100) {
-      statusText = 'Vyrovnáno';
-      statusIcon = '✅';
-      statusColor = '#10B981';
+      return {
+        statusText: 'Vyrovnáno',
+        statusColor: '#10B981'
+      };
     } else if (balance > 100) {
-      statusText = `Přeplatek ${Math.abs(balance).toFixed(0)} ${currentCurrency.symbol}`;
-      statusIcon = '⚠️';
-      statusColor = '#F59E0B';
+      return {
+        statusText: `Přeplatek ${Math.abs(balance).toFixed(0)} ${currentCurrency.symbol}`,
+        statusColor: '#F59E0B'
+      };
     } else {
-      statusText = `Dluh ${Math.abs(balance).toFixed(0)} ${currentCurrency.symbol}`;
-      statusIcon = '⚠️';
-      statusColor = '#EF4444';
+      return {
+        statusText: `Dluh ${Math.abs(balance).toFixed(0)} ${currentCurrency.symbol}`,
+        statusColor: '#EF4444'
+      };
     }
-    
-    return (
-      <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-        <View style={styles.financeCardHeader}>
-          <View style={styles.financeCardIconContainer}>
-            <Home color="#06B6D4" size={20} strokeWidth={2} />
-          </View>
-          <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Domácnost</Text>
-        </View>
-        <View style={styles.householdStatusContainer}>
-          <Text style={styles.householdStatusIcon}>{statusIcon}</Text>
-          <Text style={[styles.householdStatusText, { color: statusColor }]} numberOfLines={2}>
-            {statusText}
-          </Text>
-        </View>
-      </View>
-    );
   };
 
   const CategoryExpenseCard = ({ category }: { category: CategoryExpense }) => (
@@ -468,7 +448,7 @@ export default function DashboardScreen() {
           <FinanceCard
             title={t('income')}
             amount={totalIncome}
-            icon={TrendingUp}
+            emoji="💰"
             trend={12}
             color="#10B981"
           />
@@ -477,7 +457,7 @@ export default function DashboardScreen() {
           <FinanceCard
             title={t('expense')}
             amount={totalExpenses}
-            icon={TrendingDown}
+            emoji="💸"
             trend={-8}
             color="#EF4444"
           />
@@ -486,17 +466,19 @@ export default function DashboardScreen() {
           <FinanceCard
             title="Závazky"
             amount={loans.length}
-            icon={CreditCard}
+            emoji="💳"
             trend={null}
             color="#8B5CF6"
           />
         </TouchableOpacity>
         {isInHousehold && householdDashboard && (
           <TouchableOpacity onPress={() => router.push('/household')} style={styles.financeCardWrapper}>
-            <HouseholdCard
-              householdDashboard={householdDashboard}
-              currentCurrency={currentCurrency}
-              isDarkMode={isDarkMode}
+            <FinanceCard
+              title="Domácnost"
+              amount={getHouseholdInfo(householdDashboard, currentCurrency).statusText}
+              emoji="🏠"
+              trend={null}
+              color={getHouseholdInfo(householdDashboard, currentCurrency).statusColor}
             />
           </TouchableOpacity>
         )}
@@ -862,51 +844,50 @@ const styles = StyleSheet.create({
   },
   financeGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginHorizontal: 20,
     marginBottom: 24,
-    gap: 8,
+    gap: 12,
   },
   financeCardWrapper: {
-    flex: 1,
+    width: (width - 52) / 2,
   },
   financeCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 16,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    minHeight: 100,
+    minHeight: 110,
   },
   financeCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    gap: 6,
   },
-  financeCardIconContainer: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  financeCardEmoji: {
+    fontSize: 20,
   },
   financeCardTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
-    marginLeft: 6,
+    fontWeight: '500',
   },
   financeCardAmount: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   trendContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   trendText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -1517,18 +1498,5 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
   },
-  householdStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  householdStatusIcon: {
-    fontSize: 16,
-  },
-  householdStatusText: {
-    fontSize: 13,
-    fontWeight: '600',
-    flex: 1,
-  },
+
 });
