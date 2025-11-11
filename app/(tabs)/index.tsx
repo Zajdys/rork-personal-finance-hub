@@ -32,6 +32,8 @@ import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/store/auth-store';
 import { useBankStore } from '@/store/bank-store';
 import { LifeEventModeIndicator } from '@/components/LifeEventModeIndicator';
+import { useHousehold } from '@/store/household-store';
+import { Home } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +45,7 @@ export default function DashboardScreen() {
   const { t, language, updateCounter } = useLanguageStore();
   const { user } = useAuth();
   const { accounts, loadData } = useBankStore();
+  const { currentHousehold, dashboard: householdDashboard, isInHousehold } = useHousehold();
   const [dailyLoginReward, setDailyLoginReward] = useState<{
     awarded: boolean;
     xpGained: number;
@@ -184,6 +187,46 @@ export default function DashboardScreen() {
       )}
     </View>
   );
+
+  const HouseholdCard = ({ householdDashboard, currentCurrency, isDarkMode }: any) => {
+    const myBalance = householdDashboard.balances.find((b: any) => b.userName === 'Já');
+    const balance = myBalance?.balance || 0;
+    
+    let statusText = '';
+    let statusIcon = '';
+    let statusColor = '#10B981';
+    
+    if (Math.abs(balance) <= 100) {
+      statusText = 'Vyrovnáno';
+      statusIcon = '✅';
+      statusColor = '#10B981';
+    } else if (balance > 100) {
+      statusText = `Přeplatek ${Math.abs(balance).toFixed(0)} ${currentCurrency.symbol}`;
+      statusIcon = '⚠️';
+      statusColor = '#F59E0B';
+    } else {
+      statusText = `Dluh ${Math.abs(balance).toFixed(0)} ${currentCurrency.symbol}`;
+      statusIcon = '⚠️';
+      statusColor = '#EF4444';
+    }
+    
+    return (
+      <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+        <View style={styles.financeCardHeader}>
+          <View style={styles.financeCardIconContainer}>
+            <Home color="#06B6D4" size={20} strokeWidth={2} />
+          </View>
+          <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Domácnost</Text>
+        </View>
+        <View style={styles.householdStatusContainer}>
+          <Text style={styles.householdStatusIcon}>{statusIcon}</Text>
+          <Text style={[styles.householdStatusText, { color: statusColor }]} numberOfLines={2}>
+            {statusText}
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
   const CategoryExpenseCard = ({ category }: { category: CategoryExpense }) => (
     <TouchableOpacity 
@@ -448,6 +491,15 @@ export default function DashboardScreen() {
             color="#8B5CF6"
           />
         </TouchableOpacity>
+        {isInHousehold && householdDashboard && (
+          <TouchableOpacity onPress={() => router.push('/household')} style={styles.financeCardWrapper}>
+            <HouseholdCard
+              householdDashboard={householdDashboard}
+              currentCurrency={currentCurrency}
+              isDarkMode={isDarkMode}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
 
@@ -1464,5 +1516,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  householdStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  householdStatusIcon: {
+    fontSize: 16,
+  },
+  householdStatusText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
 });

@@ -163,6 +163,9 @@ function RootLayoutNav() {
       <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání', headerShown: true }} />
       <Stack.Screen name="life-event" options={{ title: 'Life-Event Mode', headerShown: false }} />
       <Stack.Screen name="household" options={{ title: 'Domácnost', headerShown: false }} />
+      <Stack.Screen name="household-policies" options={{ title: 'Pravidla sdílení', headerShown: true }} />
+      <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
+      <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
