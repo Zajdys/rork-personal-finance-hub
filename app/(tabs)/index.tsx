@@ -611,7 +611,7 @@ export default function DashboardScreen() {
                 style={styles.showMoreButton}
               >
                 <Text style={styles.showMoreText}>
-                  {showAllCategories ? t('less') : t('more')}
+                  {showAllCategories ? 'Méně' : 'Více'}
                 </Text>
               </TouchableOpacity>
             )}
