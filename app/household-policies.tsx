@@ -42,6 +42,7 @@ export default function HouseholdPoliciesScreen() {
   const [selectedVisibility, setSelectedVisibility] = useState<Visibility>('SHARED');
   const [customTag, setCustomTag] = useState('');
   const [scopeType, setScopeType] = useState<'CATEGORY' | 'TAG'>('CATEGORY');
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
 
   const handleAddPolicy = async () => {
     if (scopeType === 'CATEGORY' && !selectedCategory) {
@@ -61,17 +62,20 @@ export default function HouseholdPoliciesScreen() {
         0
       );
       
-      Alert.alert(
-        'Pravidlo přidáno',
-        `${scopeType === 'CATEGORY' ? 'Kategorie' : 'Tag'}: ${
-          scopeType === 'CATEGORY' ? getCategoryLabel(selectedCategory) : customTag
-        } → ${getVisibilityLabel(selectedVisibility)}`
-      );
+      if (!isEditingExisting) {
+        Alert.alert(
+          'Pravidlo přidáno',
+          `${scopeType === 'CATEGORY' ? 'Kategorie' : 'Tag'}: ${
+            scopeType === 'CATEGORY' ? getCategoryLabel(selectedCategory) : customTag
+          } → ${getVisibilityLabel(selectedVisibility)}`
+        );
+      }
       
       setShowAddModal(false);
       setSelectedCategory('');
       setCustomTag('');
       setSelectedVisibility('SHARED');
+      setIsEditingExisting(false);
     } catch (error) {
       Alert.alert('Chyba', 'Nepodařilo se přidat pravidlo');
       console.error(error);
@@ -142,6 +146,8 @@ export default function HouseholdPoliciesScreen() {
             const handleCategoryPress = () => {
               if (isGift) return;
               setSelectedCategory(category.id);
+              setSelectedVisibility(visibility || 'SHARED');
+              setIsEditingExisting(!!visibility);
               setScopeType('CATEGORY');
               setShowAddModal(true);
             };
@@ -373,12 +379,21 @@ export default function HouseholdPoliciesScreen() {
                         {
                           borderColor:
                             selectedVisibility === option.value ? option.color : '#E5E7EB',
+                          backgroundColor:
+                            selectedVisibility === option.value
+                              ? option.color + '15'
+                              : '#FFF',
                         },
                       ]}
                       onPress={() => setSelectedVisibility(option.value)}
                     >
                       <Icon size={20} color={option.color} strokeWidth={2} />
                       <Text style={styles.visibilityLabel}>{option.label}</Text>
+                      {selectedVisibility === option.value && (
+                        <View style={styles.checkmark}>
+                          <Text style={{ color: option.color, fontSize: 18, fontWeight: '700' }}>✓</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -612,7 +627,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   visibilityOptionActive: {
-    backgroundColor: '#F9FAFB',
+  },
+  checkmark: {
+    marginLeft: 'auto' as const,
   },
   visibilityLabel: {
     fontSize: 16,
