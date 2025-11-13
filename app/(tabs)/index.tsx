@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Calendar,
   X,
+  Lightbulb,
 } from 'lucide-react-native';
 import { useFinanceStore, CategoryExpense, SubscriptionItem } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -260,7 +261,26 @@ export default function DashboardScreen() {
 
       <LifeEventModeIndicator />
 
-
+      <View style={styles.tipContainer}>
+        <LinearGradient
+          colors={['#FEEBC8', '#FED7AA']}
+          style={styles.tipGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Lightbulb color="#92400E" size={24} fill="#F59E0B" />
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Tip dne</Text>
+            <Text style={styles.tipText}>Životní pojištění s investicí? Raději odděl pojištění a investice 🛡️</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={() => router.push('/chat')}
+          >
+            <MessageCircle color="#F59E0B" size={20} />
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
       
       {notifications.budgetWarnings && budgetWarnings.length > 0 && (
         <View style={styles.warningsContainer}>
