@@ -664,6 +664,27 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           console.error('Failed to parse subscriptions data:', error, 'Data:', subsData);
           await AsyncStorage.removeItem('finance_subscriptions');
         }
+      } else {
+        subscriptions = [
+          {
+            id: 'patreon-test',
+            name: 'Patreon',
+            amount: 450,
+            category: 'Služby',
+            dayOfMonth: 25,
+            source: 'manual' as SubscriptionSource,
+            active: true,
+          },
+          {
+            id: 'netflix-test',
+            name: 'Netflix',
+            amount: 399,
+            category: 'Zábava',
+            dayOfMonth: 18,
+            source: 'manual' as SubscriptionSource,
+            active: true,
+          },
+        ];
       }
       
       let customCategories: CustomCategory[] = [];
