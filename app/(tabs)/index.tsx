@@ -13,86 +13,33 @@ import {
   TrendingUp,
   TrendingDown,
   Target,
-  BookOpen,
-  Award,
   DollarSign,
-  CreditCard,
   PiggyBank,
-  Lightbulb,
   MessageCircle,
   Calendar,
   X,
 } from 'lucide-react-native';
-import { useFinanceStore, CategoryExpense, SubscriptionItem, LoanItem, LoanType } from '@/store/finance-store';
-import { useBuddyStore } from '@/store/buddy-store';
+import { useFinanceStore, CategoryExpense, SubscriptionItem } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
-import { trpc } from '@/lib/trpc';
-import { useAuth } from '@/store/auth-store';
 import { useBankStore } from '@/store/bank-store';
 import { LifeEventModeIndicator } from '@/components/LifeEventModeIndicator';
 import { useHousehold } from '@/store/household-store';
-import { Home } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const finance = useFinanceStore();
-  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals, loans, getLoanProgress } = finance;
-  const { level, points, dailyTip, refreshDailyTip, addXp, gamingStats, saveData } = useBuddyStore();
+  const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals, loans } = finance;
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t, language, updateCounter } = useLanguageStore();
-  const { user } = useAuth();
-  const { accounts, loadData } = useBankStore();
-  const { currentHousehold, dashboard: householdDashboard, isInHousehold } = useHousehold();
-  const [dailyLoginReward, setDailyLoginReward] = useState<{
-    awarded: boolean;
-    xpGained: number;
-    newStreak: number;
-    message: string;
-    leveledUp?: boolean;
-  } | null>(null);
-  
-  const dailyLoginMutation = trpc.gaming.dailyLogin.useMutation();
+  const { loadData } = useBankStore();
+  const { dashboard: householdDashboard, isInHousehold } = useHousehold();
   
   useEffect(() => {
-    refreshDailyTip();
     loadData();
-  }, [language, updateCounter, refreshDailyTip, loadData]);
-
-  useEffect(() => {
-    const checkDailyLogin = async () => {
-      if (!user?.id) return;
-      
-      try {
-        const result = await dailyLoginMutation.mutateAsync({
-          userId: user.id,
-        });
-        
-        if (result.awarded) {
-          addXp(result.xpGained);
-          useBuddyStore.setState((state) => ({
-            gamingStats: {
-              ...state.gamingStats,
-              loginStreak: result.newStreak,
-              lastLoginDate: new Date().toISOString().split('T')[0],
-            },
-          }));
-          await saveData();
-          setDailyLoginReward(result);
-          
-          setTimeout(() => {
-            setDailyLoginReward(null);
-          }, 5000);
-        }
-      } catch (error) {
-        console.log('Daily login feature unavailable, continuing without it');
-      }
-    };
-    
-    checkDailyLogin();
-  }, [user?.id]);
+  }, [language, updateCounter, loadData]);
   
   const currentMonthReport = getCurrentMonthReport();
   const router = useRouter();
@@ -308,65 +255,12 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>{t('hello')}! 👋</Text>
             <Text style={styles.headerTitle}>{t('moneyBuddy')}</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.levelContainer}
-            onPress={() => router.push('/gaming-stats')}
-          >
-            <Award color="white" size={20} />
-            <Text style={styles.levelText}>Level {level}</Text>
-            <Text style={styles.pointsText}>{points} {t('points')}</Text>
-          </TouchableOpacity>
         </View>
       </LinearGradient>
 
       <LifeEventModeIndicator />
 
-      {notifications.dailyTips && (
-        <View style={styles.tipContainer}>
-          <LinearGradient
-            colors={['#ffecd2', '#fcb69f']}
-            style={styles.tipGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Lightbulb color="#F59E0B" size={24} />
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitle}>{t('dailyTip')}</Text>
-              <Text style={styles.tipText}>{dailyTip}</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.chatButton}
-              onPress={() => router.push('/chat')}
-            >
-              <MessageCircle color="#F59E0B" size={20} />
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
-      )}
 
-      {dailyLoginReward && dailyLoginReward.awarded && (
-        <View style={styles.dailyLoginContainer}>
-          <LinearGradient
-            colors={['#10B981', '#059669']}
-            style={styles.dailyLoginGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.dailyLoginContent}>
-              <Text style={styles.dailyLoginEmoji}>🎉</Text>
-              <View style={styles.dailyLoginText}>
-                <Text style={styles.dailyLoginTitle}>Denní odměna!</Text>
-                <Text style={styles.dailyLoginMessage}>{dailyLoginReward.message}</Text>
-                {dailyLoginReward.newStreak > 1 && (
-                  <Text style={styles.dailyLoginStreak}>
-                    🔥 {dailyLoginReward.newStreak} dní v řadě!
-                  </Text>
-                )}
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
       
       {notifications.budgetWarnings && budgetWarnings.length > 0 && (
         <View style={styles.warningsContainer}>

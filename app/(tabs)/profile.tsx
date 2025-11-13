@@ -9,16 +9,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   User,
-  Award,
-  Target,
   Settings,
   Bell,
   Shield,
   HelpCircle,
-  Star,
-  TrendingUp,
-  BookOpen,
-  Calendar,
   Globe,
   DollarSign,
   Palette,
@@ -27,58 +21,22 @@ import {
   Sparkles,
   CreditCard,
   Users,
-  Trophy,
   Zap,
 } from 'lucide-react-native';
-import { useBuddyStore } from '@/store/buddy-store';
+
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
-import { useDailyRewards } from '@/store/daily-rewards-store';
+
 import { useRouter } from 'expo-router';
 import { useLifeEvent } from '@/store/life-event-store';
 
-const getAchievements = (t: any) => [
-  {
-    id: '1',
-    title: t('firstSteps'),
-    description: t('firstStepsDesc'),
-    icon: Star,
-    unlocked: true,
-    color: '#F59E0B',
-  },
-  {
-    id: '2',
-    title: t('financeStudent'),
-    description: t('financeStudentDesc'),
-    icon: BookOpen,
-    unlocked: false,
-    color: '#8B5CF6',
-  },
-  {
-    id: '3',
-    title: t('investor'),
-    description: t('investorDesc'),
-    icon: TrendingUp,
-    unlocked: false,
-    color: '#10B981',
-  },
-  {
-    id: '4',
-    title: t('consistent'),
-    description: t('consistentDesc'),
-    icon: Calendar,
-    unlocked: false,
-    color: '#EF4444',
-  },
-];
+
 
 export default function ProfileScreen() {
-  const { level, points, completedLessons, gamingStats, getBuddyScore } = useBuddyStore();
   const { totalTransactions, totalIncome } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
   const { t, language } = useLanguageStore();
-  const { totalKesaky, totalXp, currentStreak, openModal } = useDailyRewards();
   const { getModeInfo, isActive } = useLifeEvent();
   const router = useRouter();
   
@@ -92,66 +50,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const pointsToNextLevel = (level * 100) - (points % 100);
-  const progressToNextLevel = ((points % 100) / 100) * 100;
-  const buddyScore = getBuddyScore();
-  const personalityType = gamingStats.personality.type;
-  const personalityLabel = personalityType === 'analyst' ? '🧊 Analytik' : personalityType === 'motivator' ? '🔥 Motivátor' : '⚖️ Vyvážený';
 
-  const StatCard = ({ title, value, subtitle, icon: Icon, color }: any) => (
-    <View style={styles.statCard}>
-      <View style={[styles.statIconBg, { backgroundColor: color }]}>
-        <Icon size={24} color="#fff" />
-      </View>
-      <View style={styles.statContent}>
-        <Text style={[styles.statValue, { color: isDarkMode ? '#fff' : '#1F2937' }]}>{value}</Text>
-        <Text style={[styles.statTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
-      </View>
-    </View>
-  );
-
-  const AchievementCard = ({ achievement }: { achievement: any }) => {
-    const Icon = achievement.icon;
-    
-    return (
-      <View style={[
-        styles.achievementCard,
-        { backgroundColor: isDarkMode ? '#374151' : 'white' },
-        !achievement.unlocked && styles.achievementCardLocked
-      ]}>
-        <View style={[
-          styles.achievementIcon,
-          { backgroundColor: achievement.color + '20' }
-        ]}>
-          <Icon 
-            color={achievement.unlocked ? achievement.color : '#9CA3AF'} 
-            size={24} 
-          />
-        </View>
-        <View style={styles.achievementContent}>
-          <Text style={[
-            styles.achievementTitle,
-            { color: isDarkMode ? 'white' : '#1F2937' },
-            !achievement.unlocked && styles.achievementTitleLocked
-          ]}>
-            {achievement.title}
-          </Text>
-          <Text style={[
-            styles.achievementDescription,
-            { color: isDarkMode ? '#D1D5DB' : '#6B7280' },
-            !achievement.unlocked && styles.achievementDescriptionLocked
-          ]}>
-            {achievement.description}
-          </Text>
-        </View>
-        {achievement.unlocked && (
-          <View style={styles.achievementBadge}>
-            <Star color="#F59E0B" size={16} fill="#F59E0B" />
-          </View>
-        )}
-      </View>
-    );
-  };
 
   const MenuButton = ({ icon: Icon, title, subtitle, onPress }: any) => (
     <TouchableOpacity style={styles.menuButton} onPress={onPress}>
@@ -198,76 +97,10 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.profileText}>
             <Text style={styles.profileName}>MoneyBuddy {t('user')}</Text>
-            <Text style={styles.profileLevel}>Level {level} • {points} {t('points')}</Text>
-          </View>
-        </View>
-        
-        {/* Level Progress */}
-        <View style={styles.levelProgress}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>{t('progressTo')} Level {level + 1}</Text>
-            <Text style={styles.progressPoints}>{pointsToNextLevel} {t('pointsLeft')}</Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View 
-              style={[styles.progressFill, { width: `${progressToNextLevel}%` }]} 
-            />
+            <Text style={styles.profileLevel}>{t('personalFinance')}</Text>
           </View>
         </View>
       </LinearGradient>
-
-      {/* Daily Rewards */}
-      <TouchableOpacity 
-        style={styles.dailyRewardsCard}
-        onPress={() => router.push('/daily-rewards-detail')}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={['#FFD700', '#FFA500']}
-          style={styles.dailyRewardsGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.dailyRewardsContent}>
-            <View style={styles.dailyRewardsLeft}>
-              <Text style={styles.dailyRewardsBigTitle}>Denní odměny</Text>
-              <View style={styles.dailyRewardsStats}>
-                <View style={styles.dailyRewardsStat}>
-                  <Text style={styles.dailyRewardsValue}>{totalKesaky}</Text>
-                  <Text style={styles.dailyRewardsLabel}>Kešáky</Text>
-                </View>
-                <View style={styles.dailyRewardsStat}>
-                  <Text style={styles.dailyRewardsValue}>{totalXp}</Text>
-                  <Text style={styles.dailyRewardsLabel}>XP</Text>
-                </View>
-                <View style={styles.dailyRewardsStat}>
-                  <Text style={styles.dailyRewardsValue}>{currentStreak}</Text>
-                  <Text style={styles.dailyRewardsLabel}>Série</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.dailyRewardsRight}>
-              <Sparkles size={48} color="#FFFFFF" />
-            </View>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* Stats */}
-      <View style={styles.statsContainer}>
-        <StatCard
-          icon={TrendingUp}
-          title={t('transactions')}
-          value={totalTransactions}
-          color="#10B981"
-        />
-        <StatCard
-          icon={Star}
-          title="Buddy Score"
-          value={buddyScore}
-          color="#F59E0B"
-        />
-      </View>
 
 
 
@@ -290,48 +123,7 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Achievements */}
-      <View style={styles.achievementsContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('achievements')}</Text>
-        <View style={styles.achievementsList}>
-          {getAchievements(t).map((achievement) => (
-            <AchievementCard key={achievement.id} achievement={achievement} />
-          ))}
-        </View>
-      </View>
 
-      {/* Gaming Features */}
-      <View style={styles.menuContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{language === 'cs' ? 'Herní funkce' : 'Gaming Features'}</Text>
-        
-        <MenuButton
-          icon={Sparkles}
-          title={language === 'cs' ? 'Herní statistiky' : 'Gaming Stats'}
-          subtitle={language === 'cs' ? `Level ${level} • ${buddyScore} Buddy Score` : `Level ${level} • ${buddyScore} Buddy Score`}
-          onPress={() => router.push('/gaming-stats')}
-        />
-        
-        <MenuButton
-          icon={Award}
-          title={language === 'cs' ? 'Odznaky' : 'Badges'}
-          subtitle={language === 'cs' ? `${gamingStats.badges.length} odemčených odznaků` : `${gamingStats.badges.length} unlocked badges`}
-          onPress={() => router.push('/badges')}
-        />
-        
-        <MenuButton
-          icon={Target}
-          title={language === 'cs' ? 'Questy' : 'Quests'}
-          subtitle={language === 'cs' ? 'Denní, týdenní a měsíční výzvy' : 'Daily, weekly and monthly challenges'}
-          onPress={() => router.push('/quests')}
-        />
-        
-        <MenuButton
-          icon={Trophy}
-          title={language === 'cs' ? 'Síň slávy' : 'Hall of Fame'}
-          subtitle={language === 'cs' ? 'Top hráči sezóny' : 'Top players of the season'}
-          onPress={() => router.push('/hall-of-fame')}
-        />
-      </View>
 
       {/* Features */}
       <View style={styles.menuContainer}>
@@ -366,7 +158,7 @@ export default function ProfileScreen() {
         />
         
         <MenuButton
-          icon={Target}
+          icon={Sparkles}
           title={t('financialGoals')}
           subtitle={language === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
           onPress={() => router.push('/financial-goals')}
