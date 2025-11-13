@@ -139,8 +139,21 @@ export default function HouseholdPoliciesScreen() {
             const visibility = getPolicyVisibility(category.id);
             const isGift = category.id === 'gifts';
             
+            const handleCategoryPress = () => {
+              if (isGift) return;
+              setSelectedCategory(category.id);
+              setScopeType('CATEGORY');
+              setShowAddModal(true);
+            };
+            
             return (
-              <View key={category.id} style={styles.policyCard}>
+              <TouchableOpacity
+                key={category.id}
+                style={styles.policyCard}
+                onPress={handleCategoryPress}
+                disabled={isGift}
+                activeOpacity={isGift ? 1 : 0.7}
+              >
                 <View style={styles.policyLeft}>
                   <Text style={styles.categoryIcon}>{category.icon}</Text>
                   <Text style={styles.categoryName}>{category.name}</Text>
@@ -195,10 +208,13 @@ export default function HouseholdPoliciesScreen() {
                     </View>
                   )}
                   {!isGift && !visibility && (
-                    <Text style={styles.noPolicy}>Nenastaveno</Text>
+                    <View style={styles.unsetButton}>
+                      <Text style={styles.noPolicy}>Nenastaveno</Text>
+                      <Text style={styles.tapHint}>→</Text>
+                    </View>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -480,10 +496,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600' as const,
   },
+  unsetButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
   noPolicy: {
     fontSize: 14,
     color: '#9CA3AF',
     fontStyle: 'italic' as const,
+  },
+  tapHint: {
+    fontSize: 16,
+    color: '#8B5CF6',
+    fontWeight: '600' as const,
   },
   modalOverlay: {
     flex: 1,
