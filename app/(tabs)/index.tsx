@@ -110,20 +110,22 @@ export default function DashboardScreen() {
   );
 
   const FinanceCard = ({ title, amount, icon, trend, color, emoji }: any) => (
-    <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+    <View style={[styles.financeCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
       <View style={styles.financeCardHeader}>
-        <Text style={styles.financeCardEmoji}>{emoji}</Text>
-        <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{title}</Text>
+        <View style={[styles.financeCardIconContainer, { backgroundColor: color + '15' }]}>
+          <Text style={styles.financeCardEmoji}>{emoji}</Text>
+        </View>
       </View>
-      <Text style={[styles.financeCardAmount, { color }]}>
+      <Text style={[styles.financeCardTitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{title}</Text>
+      <Text style={[styles.financeCardAmount, { color: isDarkMode ? 'white' : '#111827' }]}>
         {typeof amount === 'number' ? amount.toLocaleString('cs-CZ') : amount}{title === 'Závazky' ? '' : ` ${currentCurrency.symbol}`}
       </Text>
       {trend !== null && (
         <View style={styles.trendContainer}>
           {trend > 0 ? (
-            <TrendingUp color="#10B981" size={14} />
+            <TrendingUp color="#10B981" size={12} strokeWidth={2.5} />
           ) : (
-            <TrendingDown color="#EF4444" size={14} />
+            <TrendingDown color="#EF4444" size={12} strokeWidth={2.5} />
           )}
           <Text style={[styles.trendText, { color: trend > 0 ? '#10B981' : '#EF4444' }]}>
             {Math.abs(trend)}%
@@ -323,17 +325,12 @@ export default function DashboardScreen() {
           onPress={() => router.push('/bank-accounts')}
           activeOpacity={0.8}
         >
-          <LinearGradient
-            colors={balance >= 0 ? ['#10B981', '#059669'] : ['#EF4444', '#DC2626']}
-            style={styles.balanceGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.balanceLabel}>{t('totalBalance')}</Text>
-            <Text style={styles.balanceAmount}>
+          <View style={[styles.balanceCardInner, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+            <Text style={[styles.balanceLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('totalBalance')}</Text>
+            <Text style={[styles.balanceAmount, { color: balance >= 0 ? '#10B981' : '#EF4444' }]}>
               {balance.toLocaleString('cs-CZ')} Kč
             </Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -721,71 +718,76 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
   },
-  balanceGradient: {
-    padding: 24,
+  balanceCardInner: {
+    padding: 20,
     alignItems: 'center',
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   balanceLabel: {
-    fontSize: 14,
-    color: 'white',
-    opacity: 0.9,
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
     marginBottom: 8,
   },
   balanceAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 36,
+    fontWeight: '700',
   },
   financeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     marginHorizontal: 20,
     marginBottom: 24,
-    gap: 8,
+    gap: 12,
   },
   financeCardWrapper: {
-    width: (width - 56) / 2,
+    width: '100%',
   },
   financeCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 16,
+    padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 2,
-    minHeight: 95,
   },
   financeCardHeader: {
-    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  financeCardIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
   },
   financeCardEmoji: {
-    fontSize: 18,
+    fontSize: 20,
   },
   financeCardTitle: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#6B7280',
-    fontWeight: '600',
-    textTransform: 'uppercase' as 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   financeCardAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   trendContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
   trendText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
-    marginLeft: 4,
   },
   quickActionsContainer: {
     marginHorizontal: 20,
