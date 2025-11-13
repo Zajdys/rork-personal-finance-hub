@@ -16,14 +16,14 @@ import { useHousehold } from '@/store/household-store';
 import type { SplitRule } from '@/types/household';
 
 const CATEGORIES = [
-  { id: 'housing', name: 'Bydlení', icon: '🏠' },
-  { id: 'food', name: 'Jídlo', icon: '🍽️' },
-  { id: 'transport', name: 'Doprava', icon: '🚗' },
-  { id: 'entertainment', name: 'Zábava', icon: '🎬' },
-  { id: 'utilities', name: 'Energie', icon: '⚡' },
-  { id: 'shopping', name: 'Nákupy', icon: '🛒' },
-  { id: 'health', name: 'Zdraví', icon: '💊' },
-  { id: 'education', name: 'Vzdělání', icon: '📚' },
+  { id: 'Bydlení', name: 'Bydlení', icon: '🏠' },
+  { id: 'Jídlo', name: 'Jídlo', icon: '🍽️' },
+  { id: 'Doprava', name: 'Doprava', icon: '🚗' },
+  { id: 'Zábava', name: 'Zábava', icon: '🎬' },
+  { id: 'Energie', name: 'Energie', icon: '⚡' },
+  { id: 'Nákupy', name: 'Nákupy', icon: '🛒' },
+  { id: 'Zdraví', name: 'Zdraví', icon: '💊' },
+  { id: 'Vzdělání', name: 'Vzdělání', icon: '📚' },
 ];
 
 export default function HouseholdSplitsScreen() {
