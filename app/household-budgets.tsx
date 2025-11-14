@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DollarSign, Plus, X, Save, TrendingUp } from 'lucide-react-native';
+import { DollarSign, Plus, X, Save, TrendingUp, Trash2 } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 import type { CategoryBudget } from '@/types/household';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { id: 'housing', name: 'Bydlení (Nájem)', icon: '🏠' },
   { id: 'food', name: 'Jídlo', icon: '🍽️' },
   { id: 'transport', name: 'Doprava', icon: '🚗' },
@@ -28,16 +29,53 @@ const CATEGORIES = [
   { id: 'education', name: 'Vzdělání', icon: '📚' },
 ];
 
+interface CustomCategoryType {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 export default function HouseholdBudgetsScreen() {
   const { currentHousehold, setCategoryBudget } = useHousehold();
   const { getCurrentCurrency } = useSettingsStore();
   const currency = getCurrentCurrency();
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [enabled, setEnabled] = useState<boolean>(true);
   const [notifyAt, setNotifyAt] = useState<string>('80');
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
+  const [customCategories, setCustomCategories] = useState<CustomCategoryType[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState<string>('📦');
+
+  useEffect(() => {
+    loadCustomCategories();
+  }, []);
+
+  const loadCustomCategories = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('household_custom_categories');
+      if (stored) {
+        setCustomCategories(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load custom categories:', error);
+    }
+  };
+
+  const saveCustomCategories = async (categories: CustomCategoryType[]) => {
+    try {
+      await AsyncStorage.setItem('household_custom_categories', JSON.stringify(categories));
+      setCustomCategories(categories);
+    } catch (error) {
+      console.error('Failed to save custom categories:', error);
+    }
+  };
+
+  const allCategories = [...DEFAULT_CATEGORIES, ...customCategories];
 
   const getBudgetForCategory = (categoryId: string): CategoryBudget | null => {
     return currentHousehold?.categoryBudgets[categoryId] || null;
@@ -51,13 +89,62 @@ export default function HouseholdBudgetsScreen() {
       setAmount(String(budget.monthlyLimit));
       setEnabled(budget.enabled);
       setNotifyAt(String(budget.notifyAtPercentage || 80));
+      setNotificationsEnabled(budget.notifyAtPercentage !== undefined && budget.notifyAtPercentage > 0);
     } else {
       setAmount('');
       setEnabled(true);
       setNotifyAt('80');
+      setNotificationsEnabled(true);
     }
     
     setShowEditModal(true);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert('Chyba', 'Zadejte název kategorie');
+      return;
+    }
+
+    const newCategory: CustomCategoryType = {
+      id: `custom_${Date.now()}`,
+      name: newCategoryName.trim(),
+      icon: newCategoryIcon || '📦',
+    };
+
+    await saveCustomCategories([...customCategories, newCategory]);
+    setNewCategoryName('');
+    setNewCategoryIcon('📦');
+    setShowAddCategoryModal(false);
+    Alert.alert('Hotovo', `Kategorie "${newCategory.name}" byla přidána`);
+  };
+
+  const handleDeleteCustomCategory = async (categoryId: string) => {
+    const category = customCategories.find(c => c.id === categoryId);
+    if (!category) return;
+
+    Alert.alert(
+      'Smazat kategorii?',
+      `Opravdu chcete smazat kategorii "${category.name}"? Rozpočet pro tuto kategorii bude také odstraněn.`,
+      [
+        { text: 'Zrušit', style: 'cancel' },
+        {
+          text: 'Smazat',
+          style: 'destructive',
+          onPress: async () => {
+            const budget: CategoryBudget = {
+              categoryId,
+              monthlyLimit: 0,
+              currency: currency.code,
+              enabled: false,
+            };
+            await setCategoryBudget(categoryId, budget);
+            await saveCustomCategories(customCategories.filter(c => c.id !== categoryId));
+            Alert.alert('Hotovo', 'Kategorie byla smazána');
+          },
+        },
+      ]
+    );
   };
 
   const handleSaveBudget = async () => {
@@ -66,9 +153,9 @@ export default function HouseholdBudgetsScreen() {
       return;
     }
 
-    const notifyPercent = parseFloat(notifyAt);
-    if (notifyPercent < 0 || notifyPercent > 100) {
-      Alert.alert('Chyba', 'Procento upozornění musí být mezi 0-100%');
+    const notifyPercent = notificationsEnabled ? parseFloat(notifyAt) : 0;
+    if (notificationsEnabled && (notifyPercent < 1 || notifyPercent > 100)) {
+      Alert.alert('Chyba', 'Procento upozornění musí být mezi 1-100%');
       return;
     }
 
@@ -78,12 +165,12 @@ export default function HouseholdBudgetsScreen() {
         monthlyLimit: parseFloat(amount),
         currency: currency.code,
         enabled,
-        notifyAtPercentage: notifyPercent,
+        notifyAtPercentage: notificationsEnabled ? notifyPercent : undefined,
       };
       
       await setCategoryBudget(selectedCategory, budget);
       
-      const category = CATEGORIES.find(c => c.id === selectedCategory);
+      const category = allCategories.find(c => c.id === selectedCategory);
       Alert.alert(
         'Rozpočet uložen',
         `Měsíční limit pro "${category?.name}": ${parseFloat(amount).toLocaleString('cs-CZ')} ${currency.symbol}`
@@ -169,37 +256,57 @@ export default function HouseholdBudgetsScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kategorie</Text>
-          {CATEGORIES.map(category => {
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Kategorie</Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowAddCategoryModal(true)}
+            >
+              <Plus size={18} color="#8B5CF6" strokeWidth={2.5} />
+              <Text style={styles.addButtonText}>Přidat vlastní</Text>
+            </TouchableOpacity>
+          </View>
+          {allCategories.map(category => {
             const budget = getBudgetForCategory(category.id);
             const hasLimit = budget && budget.enabled && budget.monthlyLimit > 0;
             
+            const isCustom = customCategories.some(c => c.id === category.id);
+            
             return (
-              <TouchableOpacity
-                key={category.id}
-                style={styles.categoryCard}
-                onPress={() => handleOpenEdit(category.id)}
-              >
-                <View style={styles.categoryLeft}>
-                  <Text style={styles.categoryIcon}>{category.icon}</Text>
-                  <View style={styles.categoryInfo}>
-                    <Text style={styles.categoryName}>{category.name}</Text>
-                    <Text style={[
-                      styles.categoryBudget,
-                      hasLimit && styles.categoryBudgetActive
-                    ]}>
-                      {getBudgetLabel(budget)}
-                    </Text>
+              <View key={category.id} style={styles.categoryCardWrapper}>
+                <TouchableOpacity
+                  style={styles.categoryCard}
+                  onPress={() => handleOpenEdit(category.id)}
+                >
+                  <View style={styles.categoryLeft}>
+                    <Text style={styles.categoryIcon}>{category.icon}</Text>
+                    <View style={styles.categoryInfo}>
+                      <Text style={styles.categoryName}>{category.name}</Text>
+                      <Text style={[
+                        styles.categoryBudget,
+                        hasLimit && styles.categoryBudgetActive
+                      ]}>
+                        {getBudgetLabel(budget)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                {hasLimit ? (
-                  <View style={styles.activeBadge}>
-                    <DollarSign size={16} color="#10B981" strokeWidth={2.5} />
-                  </View>
-                ) : (
-                  <Plus size={20} color="#9CA3AF" strokeWidth={2} />
+                  {hasLimit ? (
+                    <View style={styles.activeBadge}>
+                      <DollarSign size={16} color="#10B981" strokeWidth={2.5} />
+                    </View>
+                  ) : (
+                    <Plus size={20} color="#9CA3AF" strokeWidth={2} />
+                  )}
+                </TouchableOpacity>
+                {isCustom && (
+                  <TouchableOpacity
+                    style={styles.deleteCustomButton}
+                    onPress={() => handleDeleteCustomCategory(category.id)}
+                  >
+                    <Trash2 size={16} color="#EF4444" strokeWidth={2} />
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -210,7 +317,7 @@ export default function HouseholdBudgetsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Kategorie'}
+                {allCategories.find(c => c.id === selectedCategory)?.name || 'Kategorie'}
               </Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <X size={24} color="#6B7280" strokeWidth={2} />
@@ -251,22 +358,41 @@ export default function HouseholdBudgetsScreen() {
 
               {enabled && (
                 <>
-                  <Text style={styles.label}>Upozornit při ({notifyAt}%)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={notifyAt}
-                    onChangeText={text => {
-                      const numericText = text.replace(/[^0-9]/g, '');
-                      const value = Math.min(100, Math.max(0, parseInt(numericText) || 0));
-                      setNotifyAt(String(value));
-                    }}
-                    keyboardType="numeric"
-                    placeholder="80"
-                  />
-                  <Text style={styles.helperText}>
-                    Dostanete upozornění, když výdaje v této kategorii dosáhnou {notifyAt}% z limitu
-                    {amount && parseFloat(amount) > 0 && ` (${((parseFloat(amount) * parseFloat(notifyAt)) / 100).toFixed(0)} ${currency.symbol})`}
-                  </Text>
+                  <View style={styles.switchRow}>
+                    <View style={styles.switchLeft}>
+                      <Text style={styles.label}>Upozornění na limit</Text>
+                      <Text style={styles.labelSubtitle}>
+                        Upozornit při dosažení určitého procenta
+                      </Text>
+                    </View>
+                    <Switch
+                      value={notificationsEnabled}
+                      onValueChange={setNotificationsEnabled}
+                      trackColor={{ false: '#E5E7EB', true: '#C4B5FD' }}
+                      thumbColor={notificationsEnabled ? '#8B5CF6' : '#9CA3AF'}
+                    />
+                  </View>
+
+                  {notificationsEnabled && (
+                    <>
+                      <Text style={styles.label}>Upozornit při ({notifyAt}%)</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={notifyAt}
+                        onChangeText={text => {
+                          const numericText = text.replace(/[^0-9]/g, '');
+                          const value = Math.min(100, Math.max(1, parseInt(numericText) || 80));
+                          setNotifyAt(String(value));
+                        }}
+                        keyboardType="numeric"
+                        placeholder="80"
+                      />
+                      <Text style={styles.helperText}>
+                        Dostanete upozornění, když výdaje v této kategorii dosáhnou {notifyAt}% z limitu
+                        {amount && parseFloat(amount) > 0 && ` (${((parseFloat(amount) * parseFloat(notifyAt)) / 100).toFixed(0)} ${currency.symbol})`}
+                      </Text>
+                    </>
+                  )}
                 </>
               )}
 
@@ -288,6 +414,52 @@ export default function HouseholdBudgetsScreen() {
               >
                 <Save size={20} color="#FFF" strokeWidth={2} />
                 <Text style={styles.saveButtonText}>Uložit rozpočet</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showAddCategoryModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nová kategorie</Text>
+              <TouchableOpacity onPress={() => setShowAddCategoryModal(false)}>
+                <X size={24} color="#6B7280" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.label}>Název kategorie</Text>
+              <TextInput
+                style={styles.input}
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="např. Domácí mazlíčci"
+                autoFocus
+              />
+
+              <Text style={styles.label}>Ikona (emoji)</Text>
+              <TextInput
+                style={styles.input}
+                value={newCategoryIcon}
+                onChangeText={setNewCategoryIcon}
+                placeholder="📦"
+                maxLength={2}
+              />
+              <Text style={styles.helperText}>
+                Vložte emoji, které reprezentuje vaši kategorii (např. 🐕 pro domácí mazlíčky)
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleAddCategory}
+              >
+                <Plus size={20} color="#FFF" strokeWidth={2} />
+                <Text style={styles.saveButtonText}>Přidat kategorii</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -358,22 +530,55 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700' as const,
     color: '#1F2937',
-    marginBottom: 12,
+  },
+  addButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#8B5CF6',
+  },
+  categoryCardWrapper: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 8,
   },
   categoryCard: {
     backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
+    flex: 1,
+  },
+  deleteCustomButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   categoryLeft: {
     flexDirection: 'row' as const,
