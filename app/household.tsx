@@ -246,56 +246,101 @@ export default function HouseholdScreen() {
         </LinearGradient>
 
         {dashboard && (
-          <View style={styles.budgetSection}>
-            <View style={styles.budgetCard}>
-              <Text style={styles.budgetLabel}>Celkový měsíční rozpočet</Text>
-              <Text style={styles.budgetValue}>
-                {(currentHousehold?.categoryBudgets && 
-                  Object.values(currentHousehold.categoryBudgets).reduce(
-                    (sum, b) => sum + (b.monthlyLimit || 0), 0
-                  ).toLocaleString('cs-CZ')) || '0'} {currency.symbol}
-              </Text>
-              <Text style={styles.budgetSubtext}>Společný rozpočet domácnosti</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Sdílené příjmy</Text>
+                <Text style={[styles.statValue, { color: '#10B981' }]}>
+                  {dashboard.totalSharedIncome.toLocaleString('cs-CZ')}
+                </Text>
+                <Text style={styles.statCurrency}>{currency.symbol}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Sdílené výdaje</Text>
+                <Text style={[styles.statValue, { color: '#EF4444' }]}>
+                  {dashboard.totalSharedExpenses.toLocaleString('cs-CZ')}
+                </Text>
+                <Text style={styles.statCurrency}>{currency.symbol}</Text>
+              </View>
             </View>
           </View>
         )}
 
-        {currentHousehold?.categoryBudgets && Object.keys(currentHousehold.categoryBudgets).length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Limity kategorií</Text>
-            <View style={styles.limitsContainer}>
-              {Object.entries(currentHousehold.categoryBudgets).map(([categoryId, budget]) => {
-                const categoryBalance = dashboard?.categoryBalances.find(cb => cb.category === categoryId);
-                const spent = categoryBalance?.totalAmount || 0;
-                const limit = budget.monthlyLimit || 0;
-                const percentage = limit > 0 ? (spent / limit) * 100 : 0;
-                
-                return (
-                  <View key={categoryId} style={styles.limitCard}>
-                    <View style={styles.limitHeader}>
-                      <Text style={styles.limitCategory}>{categoryId}</Text>
-                      <Text style={styles.limitAmount}>
-                        {spent.toFixed(0)} / {limit.toFixed(0)} {currency.symbol}
-                      </Text>
-                    </View>
-                    <View style={styles.progressBar}>
-                      <View 
-                        style={[
-                          styles.progressFill, 
-                          { 
-                            width: `${Math.min(percentage, 100)}%`,
-                            backgroundColor: percentage > 100 ? '#EF4444' : percentage > 80 ? '#F59E0B' : '#10B981'
-                          }
-                        ]} 
-                      />
-                    </View>
-                    <Text style={styles.limitPercentage}>{percentage.toFixed(0)}% využito</Text>
-                  </View>
-                );
-              })}
-            </View>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Členové</Text>
+            {isOwner && !showInviteForm && (
+              <TouchableOpacity
+                style={styles.sectionAction}
+                onPress={() => setShowInviteForm(true)}
+              >
+                <Text style={styles.sectionActionText}>Přidat</Text>
+                <Plus size={16} color="#8B5CF6" strokeWidth={2.5} />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
+
+          <View style={styles.membersContainer}>
+            {currentHousehold?.members
+              .filter(m => m.joinStatus === 'ACTIVE')
+              .map(member => (
+                <View key={member.userId} style={styles.memberCard}>
+                  <View style={styles.memberInfo}>
+                    <LinearGradient
+                      colors={['#8B5CF6', '#7C3AED']}
+                      style={styles.avatar}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.avatarText}>
+                        {member.userName.charAt(0).toUpperCase()}
+                      </Text>
+                    </LinearGradient>
+                    <View style={styles.memberDetails}>
+                      <Text style={styles.memberName}>{member.userName}</Text>
+                      <Text style={styles.memberRole}>{getRoleLabel(member.role)}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+
+            {isOwner && showInviteForm && (
+              <View style={styles.form}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="E-mail člena"
+                  value={inviteEmail}
+                  onChangeText={setInviteEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoFocus
+                />
+                <View style={styles.formButtons}>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={() => {
+                      setShowInviteForm(false);
+                      setInviteEmail('');
+                    }}
+                  >
+                    <Text style={styles.secondaryButtonText}>Zrušit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={handleInviteMember}
+                    disabled={isInviting}
+                  >
+                    {isInviting ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Odeslat</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
 
         {dashboard && (
           <View style={styles.section}>
@@ -373,9 +418,73 @@ export default function HouseholdScreen() {
           </View>
         )}
 
+        {dashboard && dashboard.balances && dashboard.balances.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Celková bilance</Text>
+            <View style={styles.balancesContainer}>
+              {dashboard.balances.map(balance => (
+                <View key={balance.userId} style={styles.balanceCard}>
+                  <View style={styles.balanceHeader}>
+                    <View style={styles.balanceUserInfo}>
+                      <Text style={styles.balanceName}>{balance.userName}</Text>
+                      <Text style={styles.balanceDetail}>
+                        Zaplaceno: {balance.totalPaid.toFixed(0)} {currency.symbol}
+                      </Text>
+                    </View>
+                    <View style={styles.balanceAmountContainer}>
+                      <Text
+                        style={[
+                          styles.balanceAmount,
+                          balance.balance > 0 && styles.balancePositive,
+                          balance.balance < 0 && styles.balanceNegative,
+                        ]}
+                      >
+                        {balance.balance > 0 ? '+' : ''}
+                        {balance.balance.toFixed(0)}
+                      </Text>
+                      <Text style={styles.balanceLabel}>
+                        {balance.balance > 0 ? 'Přeplatek' : balance.balance < 0 ? 'Dluh' : 'Vyrovnáno'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
-
-
+        {dashboard && dashboard.settlementSummary && dashboard.settlementSummary.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Doporučené vyrovnání</Text>
+            <View style={styles.settlementsContainer}>
+              {dashboard.settlementSummary.map((settlement, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.settlementCard}
+                  onPress={() => handleSettlement(settlement)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.settlementContent}>
+                    <View style={styles.settlementHeader}>
+                      <Text style={styles.settlementUser}>{settlement.fromUserName}</Text>
+                      <View style={styles.settlementArrow}>
+                        <ArrowRight size={20} color="#8B5CF6" strokeWidth={2.5} />
+                      </View>
+                      <Text style={styles.settlementUser}>{settlement.toUserName}</Text>
+                    </View>
+                    <Text style={styles.settlementAmount}>
+                      {settlement.amount.toFixed(0)} {currency.symbol}
+                    </Text>
+                  </View>
+                  <View style={styles.settlementAction}>
+                    <CheckCircle size={20} color="#10B981" strokeWidth={2} />
+                    <Text style={styles.settlementActionText}>Vyrovnat</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nastavení</Text>
@@ -439,7 +548,18 @@ export default function HouseholdScreen() {
           </View>
         </View>
 
-
+        <View style={styles.infoBox}>
+          <View style={styles.infoHeader}>
+            <Info size={22} color="#3B82F6" strokeWidth={2} />
+            <Text style={styles.infoTitle}>Jak funguje sdílení?</Text>
+          </View>
+          <Text style={styles.infoText}>
+            • Můžete sdílet vybrané kategorie výdajů s partnery{'\n'}
+            • Každá transakce může být soukromá, sdílená nebo jen jako součet{'\n'}
+            • Appka sleduje, kdo kolik zaplatil a navrhuje vyrovnání{'\n'}
+            • Dárky jsou automaticky skryté pro zachování překvapení
+          </Text>
+        </View>
       </ScrollView>
 
       <Modal visible={showSettlementModal} animationType="slide" transparent>
@@ -570,80 +690,40 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     textAlign: 'center' as const,
   },
-  budgetSection: {
+  statsContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
-  budgetCard: {
+  statsGrid: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
     backgroundColor: '#FFF',
     borderRadius: 16,
-    padding: 24,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
-    alignItems: 'center' as const,
   },
-  budgetLabel: {
-    fontSize: 14,
+  statLabel: {
+    fontSize: 13,
     color: '#6B7280',
     marginBottom: 8,
     fontWeight: '500' as const,
   },
-  budgetValue: {
-    fontSize: 36,
-    fontWeight: '800' as const,
-    color: '#8B5CF6',
-    marginBottom: 4,
-  },
-  budgetSubtext: {
-    fontSize: 13,
-    color: '#9CA3AF',
-  },
-  limitsContainer: {
-    gap: 12,
-  },
-  limitCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  limitHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 12,
-  },
-  limitCategory: {
-    fontSize: 16,
-    fontWeight: '600' as const,
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700' as const,
     color: '#1F2937',
   },
-  limitAmount: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 4,
-    overflow: 'hidden' as const,
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  limitPercentage: {
-    fontSize: 13,
-    color: '#6B7280',
+  statCurrency: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
   section: {
     marginBottom: 24,
