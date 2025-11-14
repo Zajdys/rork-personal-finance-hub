@@ -4,7 +4,8 @@ import {
   PlusCircle, 
   BookOpen, 
   TrendingUp, 
-  User
+  User,
+  Users
 } from "lucide-react-native";
 import React from "react";
 import { useSettingsStore } from '@/store/settings-store';
@@ -56,6 +57,13 @@ export default function TabLayout() {
         options={{
           title: t('add'),
           tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="household"
+        options={{
+          title: 'Domácnost',
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
       <Tabs.Screen

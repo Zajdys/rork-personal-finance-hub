@@ -145,8 +145,8 @@ export default function ProfileScreen() {
         
         <MenuButton
           icon={Users}
-          title={language === 'cs' ? 'Domácnost' : 'Household'}
-          subtitle={language === 'cs' ? 'Sdílení financí s partnerem' : 'Share finances with partner'}
+          title={language === 'cs' ? 'Nastavení domácnosti' : 'Household Settings'}
+          subtitle={language === 'cs' ? 'Správa partnerů a bilance' : 'Manage partners and balance'}
           onPress={() => router.push('/household')}
         />
         
