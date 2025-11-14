@@ -434,7 +434,15 @@ export default function DashboardScreen() {
 
       {/* Subscriptions from bank statements */}
       <View style={styles.subsContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]} testID="subs-title">Měsíční předplatné</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]} testID="subs-title">Měsíční předplatné</Text>
+          <TouchableOpacity
+            style={styles.addSubscriptionButton}
+            onPress={() => router.push('/add-subscription')}
+          >
+            <PlusCircle color="white" size={20} />
+          </TouchableOpacity>
+        </View>
         <View style={[styles.subsCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
           <View style={styles.subsHeader}>
             <Text style={styles.subsHeaderText}>Aktivní: {totalActiveSubs.toLocaleString('cs-CZ')} {currentCurrency.symbol}/měs.</Text>
@@ -838,6 +846,19 @@ const styles = StyleSheet.create({
   subsContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
+  },
+  addSubscriptionButton: {
+    backgroundColor: '#667eea',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   subsCard: {
     borderRadius: 16,
