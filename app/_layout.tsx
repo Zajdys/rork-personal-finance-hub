@@ -10,8 +10,6 @@ import { useBuddyStore } from '@/store/buddy-store';
 import { useBankStore } from '@/store/bank-store';
 import { AuthProvider, useAuth } from '@/store/auth-store';
 import { FriendsProvider } from '@/store/friends-store';
-import { DailyRewardsProvider } from '@/store/daily-rewards-store';
-import { DailyRewardModal } from '@/components/DailyRewardModal';
 import { LifeEventProvider } from '@/store/life-event-store';
 import { HouseholdProvider } from '@/store/household-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -131,7 +129,6 @@ function RootLayoutNav() {
   // Full app access for authenticated users with active subscription
   return (
     <>
-      <DailyRewardModal />
       <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
       <Stack.Screen name="(tabs)" />
 
@@ -255,15 +252,13 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <FriendsProvider>
-              <DailyRewardsProvider>
-                <LifeEventProvider>
-                  <HouseholdProvider>
-                    <GestureHandlerRootView style={styles.container}>
-                      <RootLayoutNav />
-                    </GestureHandlerRootView>
-                  </HouseholdProvider>
-                </LifeEventProvider>
-              </DailyRewardsProvider>
+              <LifeEventProvider>
+                <HouseholdProvider>
+                  <GestureHandlerRootView style={styles.container}>
+                    <RootLayoutNav />
+                  </GestureHandlerRootView>
+                </HouseholdProvider>
+              </LifeEventProvider>
             </FriendsProvider>
           </AuthProvider>
         </QueryClientProvider>
