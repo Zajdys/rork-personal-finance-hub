@@ -386,7 +386,7 @@ export default function DashboardScreen() {
           />
         </TouchableOpacity>
         {isInHousehold && householdDashboard && (
-          <TouchableOpacity onPress={() => router.push('/household')} style={styles.financeCardWrapper}>
+          <TouchableOpacity onPress={() => router.push('/household-overview')} style={styles.financeCardWrapper}>
             <FinanceCard
               title="Domácnost"
               amount={getHouseholdInfo(householdDashboard, currentCurrency).statusText}
