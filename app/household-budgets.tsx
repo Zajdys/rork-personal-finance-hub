@@ -243,7 +243,7 @@ export default function HouseholdBudgetsScreen() {
         {totalMonthlyBudget > 0 && (
           <View style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
-              <TrendingUp size={24} color="#8B5CF6" strokeWidth={2} />
+              <TrendingUp size={20} color="#8B5CF6" strokeWidth={2} />
               <Text style={styles.summaryTitle}>Celkový měsíční rozpočet</Text>
             </View>
             <Text style={styles.summaryAmount}>
@@ -262,7 +262,7 @@ export default function HouseholdBudgetsScreen() {
               style={styles.addButton}
               onPress={() => setShowAddCategoryModal(true)}
             >
-              <Plus size={18} color="#8B5CF6" strokeWidth={2.5} />
+              <Plus size={16} color="#8B5CF6" strokeWidth={2} />
               <Text style={styles.addButtonText}>Přidat vlastní</Text>
             </TouchableOpacity>
           </View>
@@ -292,10 +292,10 @@ export default function HouseholdBudgetsScreen() {
                   </View>
                   {hasLimit ? (
                     <View style={styles.activeBadge}>
-                      <DollarSign size={16} color="#10B981" strokeWidth={2.5} />
+                      <DollarSign size={14} color="#10B981" strokeWidth={2} />
                     </View>
                   ) : (
-                    <Plus size={20} color="#9CA3AF" strokeWidth={2} />
+                    <Plus size={18} color="#9CA3AF" strokeWidth={2} />
                   )}
                 </TouchableOpacity>
                 {isCustom && (
@@ -320,7 +320,7 @@ export default function HouseholdBudgetsScreen() {
                 {allCategories.find(c => c.id === selectedCategory)?.name || 'Kategorie'}
               </Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <X size={24} color="#6B7280" strokeWidth={2} />
+                <X size={22} color="#6B7280" strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -412,7 +412,7 @@ export default function HouseholdBudgetsScreen() {
                 onPress={handleSaveBudget}
                 disabled={!enabled && !getBudgetForCategory(selectedCategory)}
               >
-                <Save size={20} color="#FFF" strokeWidth={2} />
+                <Save size={18} color="#FFF" strokeWidth={2} />
                 <Text style={styles.saveButtonText}>Uložit rozpočet</Text>
               </TouchableOpacity>
             </View>
@@ -426,7 +426,7 @@ export default function HouseholdBudgetsScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nová kategorie</Text>
               <TouchableOpacity onPress={() => setShowAddCategoryModal(false)}>
-                <X size={24} color="#6B7280" strokeWidth={2} />
+                <X size={22} color="#6B7280" strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -458,7 +458,7 @@ export default function HouseholdBudgetsScreen() {
                 style={styles.saveButton}
                 onPress={handleAddCategory}
               >
-                <Plus size={20} color="#FFF" strokeWidth={2} />
+                <Plus size={18} color="#FFF" strokeWidth={2} />
                 <Text style={styles.saveButtonText}>Přidat kategorii</Text>
               </TouchableOpacity>
             </View>
@@ -607,9 +607,9 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   activeBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#D1FAE5',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,

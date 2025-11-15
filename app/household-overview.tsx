@@ -78,7 +78,7 @@ export default function HouseholdOverviewScreen() {
         {/* Celkový rozpočet */}
         <View style={styles.section}>
           <View style={styles.budgetCard}>
-            <PiggyBank size={32} color="#8B5CF6" strokeWidth={2} />
+            <PiggyBank size={28} color="#8B5CF6" strokeWidth={2} />
             <Text style={styles.budgetLabel}>Celkový měsíční rozpočet</Text>
             <Text style={styles.budgetValue}>
               {totalBudget.toLocaleString('cs-CZ')} {currency.symbol}
@@ -199,7 +199,7 @@ export default function HouseholdOverviewScreen() {
             style={styles.advancedButton}
             onPress={() => router.push('/household')}
           >
-            <Settings size={20} color="#8B5CF6" strokeWidth={2} />
+            <Settings size={18} color="#8B5CF6" strokeWidth={2} />
             <Text style={styles.advancedButtonText}>Pokročilé nastavení</Text>
           </TouchableOpacity>
         </View>
