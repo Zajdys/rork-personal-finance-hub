@@ -217,7 +217,7 @@ export default function AccountScreen() {
             style={styles.backButton} 
             onPress={() => {
               if (hasActiveSubscription) {
-                router.push('/(tabs)');
+                router.push('/');
               } else {
                 router.push('/subscription');
               }

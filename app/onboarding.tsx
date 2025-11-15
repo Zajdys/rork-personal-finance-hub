@@ -213,7 +213,7 @@ export default function OnboardingScreen() {
       console.log('Onboarding completed successfully!');
       console.log('Navigating to home screen...');
       
-      router.replace('/(tabs)');
+      router.replace('/');
       
       setTimeout(() => {
         Alert.alert(

@@ -141,7 +141,7 @@ export default function AuthScreen() {
       if (isLogin) {
         success = await login(email, password);
         if (success) {
-          router.replace('/(tabs)');
+          router.replace('/');
         } else {
           setError('Nesprávné přihlašovací údaje');
         }
