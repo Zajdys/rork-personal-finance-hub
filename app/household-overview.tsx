@@ -139,10 +139,35 @@ export default function HouseholdOverviewScreen() {
                 const limit = budget.monthlyLimit || 0;
                 const percentage = limit > 0 ? (spent / limit) * 100 : 0;
 
+                const getCategoryName = (id: string): string => {
+                  const categoryNames: Record<string, string> = {
+                    'housing': 'Bydlení (Nájem)',
+                    'food': 'Jídlo',
+                    'transport': 'Doprava',
+                    'entertainment': 'Zábava',
+                    'utilities': 'Energie',
+                    'shopping': 'Nákupy',
+                    'health': 'Zdraví',
+                    'education': 'Vzdělání',
+                    'Nájem a bydlení': 'Nájem a bydlení',
+                    'Bydlení': 'Bydlení',
+                    'Jídlo a nápoje': 'Jídlo a nápoje',
+                    'Doprava': 'Doprava',
+                    'Zábava': 'Zábava',
+                    'Zdraví': 'Zdraví',
+                    'Vzdělání': 'Vzdělání',
+                    'Nákupy': 'Nákupy',
+                    'Oblečení': 'Oblečení',
+                    'Služby': 'Služby',
+                    'Auto': 'Auto',
+                  };
+                  return categoryNames[id] || id;
+                };
+
                 return (
                   <View key={categoryId} style={styles.categoryCard}>
                     <View style={styles.categoryHeader}>
-                      <Text style={styles.categoryName}>{categoryId}</Text>
+                      <Text style={styles.categoryName}>{getCategoryName(categoryId)}</Text>
                       <View style={styles.categoryAmount}>
                         <Text style={[styles.categorySpent, { color: percentage > 100 ? '#EF4444' : '#10B981' }]}>
                           {spent.toFixed(0)} {currency.symbol}
