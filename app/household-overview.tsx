@@ -87,51 +87,10 @@ export default function HouseholdOverviewScreen() {
           </View>
         </View>
 
-        {/* Rozložení plateb */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rozložení plateb</Text>
-          {Object.entries(currentHousehold.defaultSplits).length > 0 ? (
-            <View style={styles.splitsContainer}>
-              {Object.entries(currentHousehold.defaultSplits).map(([category, splitRule]) => (
-                <View key={category} style={styles.splitCard}>
-                  <View style={styles.splitHeader}>
-                    <Text style={styles.splitCategory}>{category}</Text>
-                  </View>
-                  <View style={styles.splitDetails}>
-                    {splitRule.type === 'EQUAL' ? (
-                      <View style={styles.splitRow}>
-                        <Text style={styles.splitText}>Rovnoměrně mezi členy</Text>
-                        <Text style={styles.splitPercentage}>
-                          {Math.round(100 / currentHousehold.members.filter(m => m.joinStatus === 'ACTIVE').length)}% každý
-                        </Text>
-                      </View>
-                    ) : splitRule.type === 'WEIGHTED' && splitRule.weights ? (
-                      currentHousehold.members
-                        .filter(m => m.joinStatus === 'ACTIVE')
-                        .map(member => (
-                          <View key={member.userId} style={styles.splitRow}>
-                            <Text style={styles.splitMember}>{member.userName}</Text>
-                            <Text style={styles.splitPercentage}>
-                              {Math.round((splitRule.weights![member.userId] || 0) * 100)}%
-                            </Text>
-                          </View>
-                        ))
-                    ) : null}
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>Zatím nebylo nastaveno žádné rozložení</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Limity kategorií - co už platíme */}
+        {/* Limity kategorií */}
         {currentHousehold.categoryBudgets && Object.keys(currentHousehold.categoryBudgets).length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Co už platíme</Text>
+            <Text style={styles.sectionTitle}>Limity kategorií</Text>
             <View style={styles.categoriesContainer}>
               {Object.entries(currentHousehold.categoryBudgets).map(([categoryId, budget]) => {
                 const categoryBalance = dashboard.categoryBalances.find(cb => cb.category === categoryId);
@@ -139,7 +98,7 @@ export default function HouseholdOverviewScreen() {
 
                 const getCategoryName = (id: string): string => {
                   const categoryNames: Record<string, string> = {
-                    'housing': 'Bydlení (Nájem)',
+                    'housing': 'Bydlení',
                     'food': 'Jídlo',
                     'transport': 'Doprava',
                     'entertainment': 'Zábava',
@@ -147,17 +106,6 @@ export default function HouseholdOverviewScreen() {
                     'shopping': 'Nákupy',
                     'health': 'Zdraví',
                     'education': 'Vzdělání',
-                    'Nájem a bydlení': 'Nájem a bydlení',
-                    'Bydlení': 'Bydlení',
-                    'Jídlo a nápoje': 'Jídlo a nápoje',
-                    'Doprava': 'Doprava',
-                    'Zábava': 'Zábava',
-                    'Zdraví': 'Zdraví',
-                    'Vzdělání': 'Vzdělání',
-                    'Nákupy': 'Nákupy',
-                    'Oblečení': 'Oblečení',
-                    'Služby': 'Služby',
-                    'Auto': 'Auto',
                   };
                   return categoryNames[id] || id;
                 };
@@ -169,74 +117,32 @@ export default function HouseholdOverviewScreen() {
                 const partnerPaid = categoryBalance?.memberBalances[partnerUserId]?.paid || 0;
                 const totalPaid = myPaid + partnerPaid;
 
-                const myPercentage = limit > 0 ? (myPaid / limit) * 100 : 0;
-                const partnerPercentage = limit > 0 ? (partnerPaid / limit) * 100 : 0;
-                const unpaidPercentage = limit > 0 ? Math.max(0, 100 - (totalPaid / limit) * 100) : 100;
+                const totalUsagePercent = limit > 0 ? (totalPaid / limit) * 100 : 0;
 
                 return (
                   <View key={categoryId} style={styles.categoryCard}>
                     <View style={styles.categoryHeader}>
                       <Text style={styles.categoryName}>{getCategoryName(categoryId)}</Text>
-                      <View style={styles.categoryAmount}>
-                        <Text style={[styles.categorySpent, { color: totalPaid > limit ? '#EF4444' : '#10B981' }]}>
-                          {totalPaid.toFixed(0)} {currency.symbol}
-                        </Text>
-                        <Text style={styles.categoryLimit}>z {limit.toFixed(0)} {currency.symbol}</Text>
-                      </View>
+                      <Text style={styles.categoryLimit}>
+                        {totalPaid.toFixed(0)} / {limit.toFixed(0)} {currency.symbol}
+                      </Text>
                     </View>
 
-                    <View style={styles.multiProgressBar}>
-                      {myPercentage > 0 && (
-                        <View
-                          style={[
-                            styles.multiProgressSegment,
-                            {
-                              width: `${Math.min(myPercentage, 100)}%`,
-                              backgroundColor: '#3B82F6',
-                            }
-                          ]}
-                        />
-                      )}
-                      {partnerPercentage > 0 && (
-                        <View
-                          style={[
-                            styles.multiProgressSegment,
-                            {
-                              width: `${Math.min(partnerPercentage, 100)}%`,
-                              backgroundColor: '#10B981',
-                            }
-                          ]}
-                        />
-                      )}
-                      {unpaidPercentage > 0 && totalPaid < limit && (
-                        <View
-                          style={[
-                            styles.multiProgressSegment,
-                            {
-                              width: `${unpaidPercentage}%`,
-                              backgroundColor: '#E5E7EB',
-                            }
-                          ]}
-                        />
-                      )}
+                    <View style={styles.progressBar}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${Math.min(totalUsagePercent, 100)}%`,
+                            backgroundColor: totalUsagePercent > 80 ? '#EF4444' : '#8B5CF6',
+                          }
+                        ]}
+                      />
                     </View>
 
-                    <View style={styles.paymentLegend}>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
-                        <Text style={styles.legendText}>Já: {myPaid.toFixed(0)} {currency.symbol} ({myPercentage.toFixed(0)}%)</Text>
-                      </View>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-                        <Text style={styles.legendText}>Partner: {partnerPaid.toFixed(0)} {currency.symbol} ({partnerPercentage.toFixed(0)}%)</Text>
-                      </View>
-                      {unpaidPercentage > 0 && totalPaid < limit && (
-                        <View style={styles.legendItem}>
-                          <View style={[styles.legendDot, { backgroundColor: '#E5E7EB' }]} />
-                          <Text style={styles.legendText}>Zbývá: {(limit - totalPaid).toFixed(0)} {currency.symbol}</Text>
-                        </View>
-                      )}
-                    </View>
+                    <Text style={styles.categoryPercentage}>
+                      {totalUsagePercent.toFixed(0)}% využito
+                    </Text>
                   </View>
                 );
               })}
@@ -463,7 +369,7 @@ const styles = StyleSheet.create({
   categoryCard: {
     backgroundColor: '#FFF',
     borderRadius: 16,
-    padding: 18,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -473,70 +379,34 @@ const styles = StyleSheet.create({
   categoryHeader: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
-    alignItems: 'flex-start' as const,
-    marginBottom: 12,
+    alignItems: 'center' as const,
+    marginBottom: 14,
   },
   categoryName: {
-    fontSize: 17,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    flex: 1,
-  },
-  categoryAmount: {
-    alignItems: 'flex-end' as const,
-  },
-  categorySpent: {
     fontSize: 18,
-    fontWeight: '700' as const,
-    marginBottom: 2,
+    fontWeight: '600' as const,
+    color: '#1F2937',
   },
   categoryLimit: {
-    fontSize: 13,
-    color: '#9CA3AF',
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500' as const,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E5E7EB',
     borderRadius: 4,
     overflow: 'hidden' as const,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   progressFill: {
     height: '100%',
     borderRadius: 4,
   },
-  multiProgressBar: {
-    height: 12,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 6,
-    overflow: 'hidden' as const,
-    marginBottom: 12,
-    flexDirection: 'row' as const,
-  },
-  multiProgressSegment: {
-    height: '100%',
-  },
-  paymentLegend: {
-    gap: 6,
-  },
-  legendItem: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendText: {
-    fontSize: 13,
+  categoryPercentage: {
+    fontSize: 14,
     color: '#6B7280',
     fontWeight: '500' as const,
-  },
-  categoryPercentage: {
-    fontSize: 13,
-    fontWeight: '600' as const,
   },
   balancesContainer: {
     gap: 12,
