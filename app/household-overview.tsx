@@ -135,9 +135,7 @@ export default function HouseholdOverviewScreen() {
             <View style={styles.categoriesContainer}>
               {Object.entries(currentHousehold.categoryBudgets).map(([categoryId, budget]) => {
                 const categoryBalance = dashboard.categoryBalances.find(cb => cb.category === categoryId);
-                const spent = categoryBalance?.totalAmount || 0;
                 const limit = budget.monthlyLimit || 0;
-                const percentage = limit > 0 ? (spent / limit) * 100 : 0;
 
                 const getCategoryName = (id: string): string => {
                   const categoryNames: Record<string, string> = {
@@ -164,31 +162,81 @@ export default function HouseholdOverviewScreen() {
                   return categoryNames[id] || id;
                 };
 
+                const myUserId = 'mock_user_1';
+                const partnerUserId = 'mock_user_2';
+
+                const myPaid = categoryBalance?.memberBalances[myUserId]?.paid || 0;
+                const partnerPaid = categoryBalance?.memberBalances[partnerUserId]?.paid || 0;
+                const totalPaid = myPaid + partnerPaid;
+
+                const myPercentage = limit > 0 ? (myPaid / limit) * 100 : 0;
+                const partnerPercentage = limit > 0 ? (partnerPaid / limit) * 100 : 0;
+                const unpaidPercentage = limit > 0 ? Math.max(0, 100 - (totalPaid / limit) * 100) : 100;
+
                 return (
                   <View key={categoryId} style={styles.categoryCard}>
                     <View style={styles.categoryHeader}>
                       <Text style={styles.categoryName}>{getCategoryName(categoryId)}</Text>
                       <View style={styles.categoryAmount}>
-                        <Text style={[styles.categorySpent, { color: percentage > 100 ? '#EF4444' : '#10B981' }]}>
-                          {spent.toFixed(0)} {currency.symbol}
+                        <Text style={[styles.categorySpent, { color: totalPaid > limit ? '#EF4444' : '#10B981' }]}>
+                          {totalPaid.toFixed(0)} {currency.symbol}
                         </Text>
                         <Text style={styles.categoryLimit}>z {limit.toFixed(0)} {currency.symbol}</Text>
                       </View>
                     </View>
-                    <View style={styles.progressBar}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            width: `${Math.min(percentage, 100)}%`,
-                            backgroundColor: percentage > 100 ? '#EF4444' : percentage > 80 ? '#F59E0B' : '#10B981'
-                          }
-                        ]}
-                      />
+
+                    <View style={styles.multiProgressBar}>
+                      {myPercentage > 0 && (
+                        <View
+                          style={[
+                            styles.multiProgressSegment,
+                            {
+                              width: `${Math.min(myPercentage, 100)}%`,
+                              backgroundColor: '#3B82F6',
+                            }
+                          ]}
+                        />
+                      )}
+                      {partnerPercentage > 0 && (
+                        <View
+                          style={[
+                            styles.multiProgressSegment,
+                            {
+                              width: `${Math.min(partnerPercentage, 100)}%`,
+                              backgroundColor: '#10B981',
+                            }
+                          ]}
+                        />
+                      )}
+                      {unpaidPercentage > 0 && totalPaid < limit && (
+                        <View
+                          style={[
+                            styles.multiProgressSegment,
+                            {
+                              width: `${unpaidPercentage}%`,
+                              backgroundColor: '#E5E7EB',
+                            }
+                          ]}
+                        />
+                      )}
                     </View>
-                    <Text style={[styles.categoryPercentage, { color: percentage > 100 ? '#EF4444' : '#6B7280' }]}>
-                      {percentage.toFixed(0)}% využito
-                    </Text>
+
+                    <View style={styles.paymentLegend}>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
+                        <Text style={styles.legendText}>Já: {myPaid.toFixed(0)} {currency.symbol} ({myPercentage.toFixed(0)}%)</Text>
+                      </View>
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
+                        <Text style={styles.legendText}>Partner: {partnerPaid.toFixed(0)} {currency.symbol} ({partnerPercentage.toFixed(0)}%)</Text>
+                      </View>
+                      {unpaidPercentage > 0 && totalPaid < limit && (
+                        <View style={styles.legendItem}>
+                          <View style={[styles.legendDot, { backgroundColor: '#E5E7EB' }]} />
+                          <Text style={styles.legendText}>Zbývá: {(limit - totalPaid).toFixed(0)} {currency.symbol}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 );
               })}
@@ -456,6 +504,35 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 4,
+  },
+  multiProgressBar: {
+    height: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+    overflow: 'hidden' as const,
+    marginBottom: 12,
+    flexDirection: 'row' as const,
+  },
+  multiProgressSegment: {
+    height: '100%',
+  },
+  paymentLegend: {
+    gap: 6,
+  },
+  legendItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500' as const,
   },
   categoryPercentage: {
     fontSize: 13,
