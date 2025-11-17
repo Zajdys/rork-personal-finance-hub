@@ -87,6 +87,54 @@ export default function HouseholdOverviewScreen() {
           </View>
         </View>
 
+        {/* Tabulka s výdaji */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Přehled výdajů</Text>
+          <View style={styles.expenseTable}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderText}>Statistika</Text>
+              <Text style={styles.tableHeaderText}>Částka</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={styles.tableLabel}>Celkové výdaje</Text>
+              <Text style={styles.tableValue}>
+                {dashboard.totalSharedExpenses.toFixed(0)} {currency.symbol}
+              </Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={styles.tableLabel}>Celkové příjmy</Text>
+              <Text style={[styles.tableValue, styles.incomeValue]}>
+                {dashboard.totalSharedIncome.toFixed(0)} {currency.symbol}
+              </Text>
+            </View>
+            <View style={[styles.tableRow, styles.tableTotalRow]}>
+              <Text style={styles.tableTotalLabel}>Bilance</Text>
+              <Text style={[styles.tableTotalValue, dashboard.sharedBalance < 0 && styles.negativeBalance]}>
+                {dashboard.sharedBalance.toFixed(0)} {currency.symbol}
+              </Text>
+            </View>
+          </View>
+
+          {/* Tabulka - kdo kolik zaplatil */}
+          <View style={styles.membersTable}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderText}>Člen</Text>
+              <Text style={styles.tableHeaderText}>Zaplatil</Text>
+            </View>
+            {dashboard.balances.map(balance => (
+              <View key={balance.userId} style={styles.tableRow}>
+                <View style={styles.memberNameContainer}>
+                  <View style={[styles.memberDot, { backgroundColor: balance.userId === 'mock_user_1' ? '#3B82F6' : '#10B981' }]} />
+                  <Text style={styles.tableLabel}>{balance.userName}</Text>
+                </View>
+                <Text style={styles.tableValue}>
+                  {balance.totalPaid.toFixed(0)} {currency.symbol}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Limity kategorií */}
         {currentHousehold.categoryBudgets && Object.keys(currentHousehold.categoryBudgets).length > 0 && (
           <View style={styles.section}>
@@ -498,5 +546,91 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#8B5CF6',
+  },
+  expenseTable: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  membersTable: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tableHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tableHeaderText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  tableLabel: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  tableValue: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '600' as const,
+  },
+  incomeValue: {
+    color: '#10B981',
+  },
+  tableTotalRow: {
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 0,
+  },
+  tableTotalLabel: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '700' as const,
+  },
+  tableTotalValue: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: '#10B981',
+  },
+  negativeBalance: {
+    color: '#EF4444',
+  },
+  memberNameContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  memberDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 });
