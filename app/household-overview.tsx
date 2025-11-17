@@ -139,23 +139,23 @@ export default function HouseholdOverviewScreen() {
         {currentHousehold.categoryBudgets && Object.keys(currentHousehold.categoryBudgets).length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Limity kategorií</Text>
-            <View style={styles.categoriesContainer}>
+            <View style={styles.categoriesGrid}>
               {Object.entries(currentHousehold.categoryBudgets).map(([categoryId, budget]) => {
                 const categoryBalance = dashboard.categoryBalances.find(cb => cb.category === categoryId);
                 const limit = budget.monthlyLimit || 0;
 
-                const getCategoryName = (id: string): string => {
-                  const categoryNames: Record<string, string> = {
-                    'housing': 'Bydlení',
-                    'food': 'Jídlo',
-                    'transport': 'Doprava',
-                    'entertainment': 'Zábava',
-                    'utilities': 'Energie',
-                    'shopping': 'Nákupy',
-                    'health': 'Zdraví',
-                    'education': 'Vzdělání',
+                const getCategoryInfo = (id: string): { name: string; emoji: string } => {
+                  const categoryInfo: Record<string, { name: string; emoji: string }> = {
+                    'housing': { name: 'Bydlení', emoji: '🏠' },
+                    'food': { name: 'Jídlo', emoji: '🍕' },
+                    'transport': { name: 'Doprava', emoji: '🚗' },
+                    'entertainment': { name: 'Zábava', emoji: '🎮' },
+                    'utilities': { name: 'Energie', emoji: '💡' },
+                    'shopping': { name: 'Nákupy', emoji: '🛒' },
+                    'health': { name: 'Zdraví', emoji: '⚕️' },
+                    'education': { name: 'Vzdělání', emoji: '📚' },
                   };
-                  return categoryNames[id] || id;
+                  return categoryInfo[id] || { name: id, emoji: '📁' };
                 };
 
                 const myUserId = 'mock_user_1';
@@ -166,31 +166,26 @@ export default function HouseholdOverviewScreen() {
                 const totalPaid = myPaid + partnerPaid;
 
                 const totalUsagePercent = limit > 0 ? (totalPaid / limit) * 100 : 0;
+                const categoryInfo = getCategoryInfo(categoryId);
 
                 return (
-                  <View key={categoryId} style={styles.categoryCard}>
-                    <View style={styles.categoryHeader}>
-                      <Text style={styles.categoryName}>{getCategoryName(categoryId)}</Text>
-                      <Text style={styles.categoryLimit}>
-                        {totalPaid.toFixed(0)} / {limit.toFixed(0)} {currency.symbol}
-                      </Text>
-                    </View>
-
-                    <View style={styles.progressBar}>
+                  <View key={categoryId} style={styles.compactCategoryCard}>
+                    <Text style={styles.categoryEmoji}>{categoryInfo.emoji}</Text>
+                    <Text style={styles.compactCategoryName}>{categoryInfo.name}</Text>
+                    <Text style={styles.compactCategoryAmount}>
+                      {totalPaid.toFixed(0)} / {limit.toFixed(0)}
+                    </Text>
+                    <View style={styles.compactProgressBar}>
                       <View
                         style={[
-                          styles.progressFill,
+                          styles.compactProgressFill,
                           {
                             width: `${Math.min(totalUsagePercent, 100)}%`,
-                            backgroundColor: totalUsagePercent > 80 ? '#EF4444' : '#8B5CF6',
+                            backgroundColor: totalUsagePercent > 80 ? '#EF4444' : totalUsagePercent > 50 ? '#F59E0B' : '#10B981',
                           }
                         ]}
                       />
                     </View>
-
-                    <Text style={styles.categoryPercentage}>
-                      {totalUsagePercent.toFixed(0)}% využito
-                    </Text>
                   </View>
                 );
               })}
@@ -413,6 +408,51 @@ const styles = StyleSheet.create({
   },
   categoriesContainer: {
     gap: 12,
+  },
+  categoriesGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 12,
+  },
+  compactCategoryCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 12,
+    width: '47%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    alignItems: 'center' as const,
+  },
+  categoryEmoji: {
+    fontSize: 28,
+    marginBottom: 6,
+  },
+  compactCategoryName: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+    textAlign: 'center' as const,
+  },
+  compactCategoryAmount: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+    marginBottom: 8,
+  },
+  compactProgressBar: {
+    height: 4,
+    width: '100%',
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    overflow: 'hidden' as const,
+  },
+  compactProgressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   categoryCard: {
     backgroundColor: '#FFF',
