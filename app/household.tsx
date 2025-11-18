@@ -308,64 +308,74 @@ export default function HouseholdScreen() {
                 <Info size={18} color="#8B5CF6" strokeWidth={2} />
               </TouchableOpacity>
             </View>
-            <View style={styles.categoriesContainer}>
+            <View style={styles.categoriesGrid}>
               {dashboard.categoryBalances.map((catBalance, idx) => {
                 const members = currentHousehold?.members.filter(m => m.joinStatus === 'ACTIVE') || [];
-                const hasImbalance = Object.values(catBalance.memberBalances).some(mb => Math.abs(mb.balance) > 1);
+                
+                const getCategoryInfo = (id: string): { name: string; emoji: string } => {
+                  const categoryInfo: Record<string, { name: string; emoji: string }> = {
+                    'Bydlení': { name: 'Bydlení', emoji: '🏠' },
+                    'Jídlo a nápoje': { name: 'Jídlo', emoji: '🍕' },
+                    'Jídlo': { name: 'Jídlo', emoji: '🍕' },
+                    'Doprava': { name: 'Doprava', emoji: '🚗' },
+                    'Zábava': { name: 'Zábava', emoji: '🎮' },
+                    'Energie': { name: 'Energie', emoji: '💡' },
+                    'Nákupy': { name: 'Nákupy', emoji: '🛒' },
+                    'Zdraví': { name: 'Zdraví', emoji: '⚕️' },
+                    'Vzdělání': { name: 'Vzdělání', emoji: '📚' },
+                    'Nájem a bydlení': { name: 'Bydlení', emoji: '🏠' },
+                    'housing': { name: 'Bydlení', emoji: '🏠' },
+                    'food': { name: 'Jídlo', emoji: '🍕' },
+                    'transport': { name: 'Doprava', emoji: '🚗' },
+                    'entertainment': { name: 'Zábava', emoji: '🎮' },
+                    'utilities': { name: 'Energie', emoji: '💡' },
+                    'shopping': { name: 'Nákupy', emoji: '🛒' },
+                    'health': { name: 'Zdraví', emoji: '⚕️' },
+                    'education': { name: 'Vzdělání', emoji: '📚' },
+                  };
+                  return categoryInfo[id] || { name: id, emoji: '📁' };
+                };
+
+                const myUserId = 'mock_user_1';
+                const partnerUserId = 'mock_user_2';
+
+                const myPaid = catBalance.memberBalances[myUserId]?.paid || 0;
+                const partnerPaid = catBalance.memberBalances[partnerUserId]?.paid || 0;
+                const totalPaid = myPaid + partnerPaid;
+                const categoryInfo = getCategoryInfo(catBalance.category);
                 
                 return (
-                  <View key={idx} style={styles.categoryBalanceCard}>
-                    <View style={styles.categoryBalanceHeader}>
-                      <Text style={styles.categoryBalanceTitle}>
-                        {catBalance.category}
-                      </Text>
-                      <Text style={styles.categoryBalanceTotal}>
-                        {catBalance.totalAmount.toFixed(0)} {currency.symbol}
-                      </Text>
-                    </View>
+                  <View key={idx} style={styles.compactCategoryCard}>
+                    <Text style={styles.categoryEmoji}>{categoryInfo.emoji}</Text>
+                    <Text style={styles.compactCategoryName}>{categoryInfo.name}</Text>
+                    <Text style={styles.compactCategoryAmount}>
+                      {totalPaid.toFixed(0)} {currency.symbol}
+                    </Text>
                     
-                    <View style={styles.memberBalancesContainer}>
+                    <View style={styles.membersBreakdown}>
                       {members.map(member => {
                         const mb = catBalance.memberBalances[member.userId];
                         if (!mb) return null;
                         
                         return (
-                          <View key={member.userId} style={styles.memberBalanceRow}>
-                            <View style={styles.memberBalanceLeft}>
-                              <Text style={styles.memberBalanceName}>{member.userName}</Text>
-                              <Text style={styles.memberBalanceDetail}>
-                                Zaplatil {mb.paid.toFixed(0)} / Měl {mb.shouldPay.toFixed(0)}
-                              </Text>
-                            </View>
-                            <View style={styles.memberBalanceRight}>
-                              <Text
-                                style={[
-                                  styles.memberBalanceAmount,
-                                  mb.balance > 1 && styles.memberBalancePositive,
-                                  mb.balance < -1 && styles.memberBalanceNegative,
-                                ]}
-                              >
-                                {mb.balance > 0 ? '+' : ''}{mb.balance.toFixed(0)}
-                              </Text>
-                            </View>
+                          <View key={member.userId} style={styles.memberBreakdownRow}>
+                            <View style={[styles.memberDot, { backgroundColor: member.userId === 'mock_user_1' ? '#3B82F6' : '#10B981' }]} />
+                            <Text style={styles.memberBreakdownText}>
+                              {mb.paid.toFixed(0)} {currency.symbol}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.memberBreakdownBalance,
+                                mb.balance > 1 && styles.memberBreakdownPositive,
+                                mb.balance < -1 && styles.memberBreakdownNegative,
+                              ]}
+                            >
+                              {mb.balance > 1 ? '+' : ''}{mb.balance < -1 ? mb.balance.toFixed(0) : ''}
+                            </Text>
                           </View>
                         );
                       })}
                     </View>
-                    
-                    {hasImbalance && (
-                      <View style={styles.splitRuleInfo}>
-                        <Text style={styles.splitRuleText}>
-                          {catBalance.splitRule.type === 'EQUAL' 
-                            ? 'Rovnoměrně' 
-                            : `Vlastní poměry: ${Object.entries(catBalance.splitRule.weights || {}).map(([uid, w]) => {
-                              const m = members.find(mem => mem.userId === uid);
-                              return `${m?.userName || '?'} ${Math.round(w * 100)}%`;
-                            }).join(', ')}`
-                          }
-                        </Text>
-                      </View>
-                    )}
                   </View>
                 );
               })}
@@ -644,6 +654,38 @@ const styles = StyleSheet.create({
   limitPercentage: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  compactCategoryCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 12,
+    width: '47%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  categoryEmoji: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  compactCategoryName: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  compactCategoryAmount: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+    marginBottom: 6,
+  },
+  memberDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   section: {
     marginBottom: 24,
@@ -1037,6 +1079,11 @@ const styles = StyleSheet.create({
   categoriesContainer: {
     gap: 12,
   },
+  categoriesGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 10,
+  },
   categoryBalanceCard: {
     backgroundColor: '#FFF',
     borderRadius: 16,
@@ -1114,6 +1161,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontStyle: 'italic' as const,
+  },
+  membersBreakdown: {
+    marginTop: 8,
+    gap: 4,
+  },
+  memberBreakdownRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
+  memberBreakdownText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+    flex: 1,
+  },
+  memberBreakdownBalance: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  memberBreakdownPositive: {
+    color: '#10B981',
+  },
+  memberBreakdownNegative: {
+    color: '#EF4444',
   },
   settlementContent: {
     marginBottom: 12,
