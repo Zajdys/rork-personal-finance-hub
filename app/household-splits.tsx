@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -403,23 +403,23 @@ const styles = StyleSheet.create({
   categoryLeft: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: 10,
     flex: 1,
   },
   categoryIcon: {
-    fontSize: 24,
+    fontSize: 20,
   },
   categoryInfo: {
     flex: 1,
   },
   categoryName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600' as const,
     color: '#1F2937',
     marginBottom: 2,
   },
   categorySplit: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
   },
   modalOverlay: {
