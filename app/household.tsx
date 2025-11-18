@@ -263,33 +263,53 @@ export default function HouseholdScreen() {
         {currentHousehold?.categoryBudgets && Object.keys(currentHousehold.categoryBudgets).length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Limity kategorií</Text>
-            <View style={styles.limitsContainer}>
+            <View style={styles.categoriesGrid}>
               {Object.entries(currentHousehold.categoryBudgets).map(([categoryId, budget]) => {
                 const categoryBalance = dashboard?.categoryBalances.find(cb => cb.category === categoryId);
-                const spent = categoryBalance?.totalAmount || 0;
                 const limit = budget.monthlyLimit || 0;
-                const percentage = limit > 0 ? (spent / limit) * 100 : 0;
-                
+
+                const getCategoryInfo = (id: string): { name: string; emoji: string } => {
+                  const categoryInfo: Record<string, { name: string; emoji: string }> = {
+                    'housing': { name: 'Bydlení', emoji: '🏠' },
+                    'food': { name: 'Jídlo', emoji: '🍕' },
+                    'transport': { name: 'Doprava', emoji: '🚗' },
+                    'entertainment': { name: 'Zábava', emoji: '🎮' },
+                    'utilities': { name: 'Energie', emoji: '💡' },
+                    'shopping': { name: 'Nákupy', emoji: '🛒' },
+                    'health': { name: 'Zdraví', emoji: '⚕️' },
+                    'education': { name: 'Vzdělání', emoji: '📚' },
+                  };
+                  return categoryInfo[id] || { name: id, emoji: '📁' };
+                };
+
+                const myUserId = 'mock_user_1';
+                const partnerUserId = 'mock_user_2';
+
+                const myPaid = categoryBalance?.memberBalances[myUserId]?.paid || 0;
+                const partnerPaid = categoryBalance?.memberBalances[partnerUserId]?.paid || 0;
+                const totalPaid = myPaid + partnerPaid;
+
+                const totalUsagePercent = limit > 0 ? (totalPaid / limit) * 100 : 0;
+                const categoryInfo = getCategoryInfo(categoryId);
+
                 return (
-                  <View key={categoryId} style={styles.limitCard}>
-                    <View style={styles.limitHeader}>
-                      <Text style={styles.limitCategory}>{categoryId}</Text>
-                      <Text style={styles.limitAmount}>
-                        {spent.toFixed(0)} / {limit.toFixed(0)} {currency.symbol}
-                      </Text>
-                    </View>
-                    <View style={styles.progressBar}>
-                      <View 
+                  <View key={categoryId} style={styles.compactCategoryCard}>
+                    <Text style={styles.categoryEmoji}>{categoryInfo.emoji}</Text>
+                    <Text style={styles.compactCategoryName}>{categoryInfo.name}</Text>
+                    <Text style={styles.compactCategoryAmount}>
+                      {totalPaid.toFixed(0)} / {limit.toFixed(0)}
+                    </Text>
+                    <View style={styles.compactProgressBar}>
+                      <View
                         style={[
-                          styles.progressFill, 
-                          { 
-                            width: `${Math.min(percentage, 100)}%`,
-                            backgroundColor: percentage > 100 ? '#EF4444' : percentage > 80 ? '#F59E0B' : '#10B981'
+                          styles.compactProgressFill,
+                          {
+                            width: `${Math.min(totalUsagePercent, 100)}%`,
+                            backgroundColor: totalUsagePercent > 80 ? '#EF4444' : totalUsagePercent > 50 ? '#F59E0B' : '#10B981',
                           }
-                        ]} 
+                        ]}
                       />
                     </View>
-                    <Text style={styles.limitPercentage}>{percentage.toFixed(0)}% využito</Text>
                   </View>
                 );
               })}
@@ -667,22 +687,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    alignItems: 'center' as const,
   },
   categoryEmoji: {
-    fontSize: 24,
+    fontSize: 28,
     marginBottom: 6,
   },
   compactCategoryName: {
     fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 4,
+    textAlign: 'center' as const,
   },
   compactCategoryAmount: {
     fontSize: 12,
     color: '#6B7280',
     fontWeight: '500' as const,
-    marginBottom: 6,
+    marginBottom: 8,
+  },
+  compactProgressBar: {
+    height: 4,
+    width: '100%',
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    overflow: 'hidden' as const,
+  },
+  compactProgressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   memberDot: {
     width: 8,
