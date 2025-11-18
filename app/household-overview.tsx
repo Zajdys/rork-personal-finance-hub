@@ -87,10 +87,10 @@ export default function HouseholdOverviewScreen() {
           </View>
         </View>
 
-        {/* Přehled výdajů - Card design jako finanční cíle */}
+        {/* Přehled domácnosti - Card design jako finanční cíle */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Přehled výdajů</Text>
+            <Text style={styles.sectionTitle}>Přehled domácnosti</Text>
             <View style={styles.tabsContainer}>
               <Text style={styles.activeTab}>STATISTIKA</Text>
               <Text style={styles.inactiveTab}>ČÁSTKA</Text>
