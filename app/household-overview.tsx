@@ -9,7 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Settings, PiggyBank } from 'lucide-react-native';
+import { Users, Settings, PiggyBank, Info } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -185,6 +185,97 @@ export default function HouseholdOverviewScreen() {
               })}
             </View>
           </View>
+        </View>
+
+        {/* Rozpad po kategoriích */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Rozpad po kategoriích</Text>
+            <TouchableOpacity
+              style={styles.infoButton}
+              onPress={() => {}}
+            >
+              <Text style={styles.infoButtonText}>ⓘ</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
+            {dashboard.categoryBalances.map((catBalance, idx) => {
+              const getCategoryInfo = (id: string): { name: string; emoji: string } => {
+                const categoryInfo: Record<string, { name: string; emoji: string }> = {
+                  'Bydlení': { name: 'Bydlení', emoji: '🏠' },
+                  'Jídlo a nápoje': { name: 'Jídlo', emoji: '🍕' },
+                  'Jídlo': { name: 'Jídlo', emoji: '🍕' },
+                  'Doprava': { name: 'Doprava', emoji: '🚗' },
+                  'Zábava': { name: 'Zábava', emoji: '🎮' },
+                  'Energie': { name: 'Energie', emoji: '💡' },
+                  'Nákupy': { name: 'Nákupy', emoji: '🛒' },
+                  'Zdraví': { name: 'Zdraví', emoji: '⚕️' },
+                  'Vzdělání': { name: 'Vzdělání', emoji: '📚' },
+                  'Nájem a bydlení': { name: 'Bydlení', emoji: '🏠' },
+                  'housing': { name: 'Bydlení', emoji: '🏠' },
+                  'food': { name: 'Jídlo', emoji: '🍕' },
+                  'transport': { name: 'Doprava', emoji: '🚗' },
+                  'entertainment': { name: 'Zábava', emoji: '🎮' },
+                  'utilities': { name: 'Energie', emoji: '💡' },
+                  'shopping': { name: 'Nákupy', emoji: '🛒' },
+                  'health': { name: 'Zdraví', emoji: '⚕️' },
+                  'education': { name: 'Vzdělání', emoji: '📚' },
+                };
+                return categoryInfo[id] || { name: id, emoji: '📁' };
+              };
+
+              const myUserId = 'mock_user_1';
+              const partnerUserId = 'mock_user_2';
+
+              const myPaid = catBalance.memberBalances[myUserId]?.paid || 0;
+              const partnerPaid = catBalance.memberBalances[partnerUserId]?.paid || 0;
+              const totalPaid = myPaid + partnerPaid;
+              const categoryInfo = getCategoryInfo(catBalance.category);
+              
+              const myBalance = catBalance.memberBalances[myUserId]?.balance || 0;
+              const partnerBalance = catBalance.memberBalances[partnerUserId]?.balance || 0;
+              
+              return (
+                <View key={idx} style={styles.miniCategoryCard}>
+                  <Text style={styles.miniCategoryEmoji}>{categoryInfo.emoji}</Text>
+                  <Text style={styles.miniCategoryName}>{categoryInfo.name}</Text>
+                  <Text style={styles.miniCategoryTotal}>
+                    {totalPaid.toFixed(0)} {currency.symbol}
+                  </Text>
+                  
+                  <View style={styles.miniMembersRow}>
+                    <View style={styles.miniMemberItem}>
+                      <View style={[styles.miniMemberDot, { backgroundColor: '#3B82F6' }]} />
+                      <Text style={styles.miniMemberAmount}>{myPaid.toFixed(0)}</Text>
+                      {Math.abs(myBalance) > 1 && (
+                        <Text style={[
+                          styles.miniMemberBalance,
+                          myBalance > 0 && styles.miniBalancePositive,
+                          myBalance < 0 && styles.miniBalanceNegative,
+                        ]}>
+                          {myBalance > 0 ? '+' : ''}{myBalance.toFixed(0)}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <View style={styles.miniMemberItem}>
+                      <View style={[styles.miniMemberDot, { backgroundColor: '#10B981' }]} />
+                      <Text style={styles.miniMemberAmount}>{partnerPaid.toFixed(0)}</Text>
+                      {Math.abs(partnerBalance) > 1 && (
+                        <Text style={[
+                          styles.miniMemberBalance,
+                          partnerBalance > 0 && styles.miniBalancePositive,
+                          partnerBalance < 0 && styles.miniBalanceNegative,
+                        ]}>
+                          {partnerBalance > 0 ? '+' : ''}{partnerBalance.toFixed(0)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Limity kategorií */}
@@ -734,5 +825,78 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#8B5CF6',
+  },
+  infoButton: {
+    padding: 6,
+  },
+  infoButtonText: {
+    fontSize: 16,
+    color: '#8B5CF6',
+    fontWeight: '600' as const,
+  },
+  categoriesScroll: {
+    paddingRight: 20,
+    gap: 10,
+  },
+  miniCategoryCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 12,
+    width: 130,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    alignItems: 'center' as const,
+  },
+  miniCategoryEmoji: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  miniCategoryName: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+    textAlign: 'center' as const,
+  },
+  miniCategoryTotal: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#8B5CF6',
+    marginBottom: 10,
+  },
+  miniMembersRow: {
+    width: '100%',
+    gap: 6,
+  },
+  miniMemberItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingVertical: 4,
+  },
+  miniMemberDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  miniMemberAmount: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    flex: 1,
+  },
+  miniMemberBalance: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#9CA3AF',
+  },
+  miniBalancePositive: {
+    color: '#10B981',
+  },
+  miniBalanceNegative: {
+    color: '#EF4444',
   },
 });
