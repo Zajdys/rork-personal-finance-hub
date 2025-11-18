@@ -87,51 +87,127 @@ export default function HouseholdOverviewScreen() {
           </View>
         </View>
 
-        {/* Tabulka s výdaji */}
+        {/* Přehled výdajů - Card design jako finanční cíle */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Přehled výdajů</Text>
-          <View style={styles.expenseTable}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.tableHeaderText}>Statistika</Text>
-              <Text style={styles.tableHeaderText}>Částka</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Celkové výdaje</Text>
-              <Text style={styles.tableValue}>
-                {dashboard.totalSharedExpenses.toFixed(0)} {currency.symbol}
-              </Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Celkové příjmy</Text>
-              <Text style={[styles.tableValue, styles.incomeValue]}>
-                {dashboard.totalSharedIncome.toFixed(0)} {currency.symbol}
-              </Text>
-            </View>
-            <View style={[styles.tableRow, styles.tableTotalRow]}>
-              <Text style={styles.tableTotalLabel}>Bilance</Text>
-              <Text style={[styles.tableTotalValue, dashboard.sharedBalance < 0 && styles.negativeBalance]}>
-                {dashboard.sharedBalance.toFixed(0)} {currency.symbol}
-              </Text>
-            </View>
-          </View>
-
-          {/* Tabulka - kdo kolik zaplatil */}
-          <View style={styles.membersTable}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.tableHeaderText}>Člen</Text>
-              <Text style={styles.tableHeaderText}>Zaplatil</Text>
-            </View>
-            {dashboard.balances.map(balance => (
-              <View key={balance.userId} style={styles.tableRow}>
-                <View style={styles.memberNameContainer}>
-                  <View style={[styles.memberDot, { backgroundColor: balance.userId === 'mock_user_1' ? '#3B82F6' : '#10B981' }]} />
-                  <Text style={styles.tableLabel}>{balance.userName}</Text>
+          
+          {/* Celkové výdaje */}
+          <View style={styles.expenseGoalCard}>
+            <View style={styles.expenseGoalHeader}>
+              <View style={styles.expenseGoalInfo}>
+                <View style={styles.expenseGoalTitleRow}>
+                  <Text style={styles.expenseGoalEmoji}>💸</Text>
+                  <Text style={styles.expenseGoalTitle}>Celkové výdaje</Text>
                 </View>
-                <Text style={styles.tableValue}>
-                  {balance.totalPaid.toFixed(0)} {currency.symbol}
+                <Text style={styles.expenseGoalCategory}>Společné výdaje domácnosti</Text>
+              </View>
+              <View style={styles.expenseGoalAmounts}>
+                <Text style={styles.expenseGoalCurrentAmount}>
+                  {dashboard.totalSharedExpenses.toFixed(0)} {currency.symbol}
                 </Text>
               </View>
-            ))}
+            </View>
+            
+            {/* Progress bar - kdo kolik zaplatil */}
+            <View style={styles.splitProgressContainer}>
+              {dashboard.balances.map((balance, index) => {
+                const totalPaid = dashboard.balances.reduce((sum, b) => sum + b.totalPaid, 0);
+                const percentage = totalPaid > 0 ? (balance.totalPaid / totalPaid) * 100 : 0;
+                const memberColor = balance.userId === 'mock_user_1' ? '#3B82F6' : '#10B981';
+                
+                return (
+                  <View key={balance.userId} style={styles.memberSplitRow}>
+                    <View style={styles.memberSplitInfo}>
+                      <View style={[styles.memberSplitDot, { backgroundColor: memberColor }]} />
+                      <Text style={styles.memberSplitName}>{balance.userName}</Text>
+                    </View>
+                    <Text style={styles.memberSplitAmount}>
+                      {balance.totalPaid.toFixed(0)} {currency.symbol}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            
+            <View style={styles.expenseGoalProgressBarContainer}>
+              <View style={styles.expenseGoalProgressBarBackground}>
+                {dashboard.balances.map((balance, index) => {
+                  const totalPaid = dashboard.balances.reduce((sum, b) => sum + b.totalPaid, 0);
+                  const percentage = totalPaid > 0 ? (balance.totalPaid / totalPaid) * 100 : 0;
+                  const memberColor = balance.userId === 'mock_user_1' ? '#3B82F6' : '#10B981';
+                  const previousPercentages = dashboard.balances.slice(0, index).reduce((sum, b) => {
+                    return sum + (totalPaid > 0 ? (b.totalPaid / totalPaid) * 100 : 0);
+                  }, 0);
+                  
+                  return (
+                    <View
+                      key={balance.userId}
+                      style={[
+                        styles.expenseGoalProgressBar,
+                        {
+                          width: `${percentage}%`,
+                          backgroundColor: memberColor,
+                          position: index === 0 ? 'relative' : 'absolute',
+                          left: index === 0 ? undefined : `${previousPercentages}%`,
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+            </View>
+            
+            <View style={styles.splitPercentageRow}>
+              {dashboard.balances.map(balance => {
+                const totalPaid = dashboard.balances.reduce((sum, b) => sum + b.totalPaid, 0);
+                const percentage = totalPaid > 0 ? (balance.totalPaid / totalPaid) * 100 : 0;
+                const memberColor = balance.userId === 'mock_user_1' ? '#3B82F6' : '#10B981';
+                
+                return (
+                  <Text key={balance.userId} style={[styles.splitPercentageText, { color: memberColor }]}>
+                    {Math.round(percentage)}%
+                  </Text>
+                );
+              })}
+            </View>
+          </View>
+          
+          {/* Bilance */}
+          <View style={styles.expenseGoalCard}>
+            <View style={styles.expenseGoalHeader}>
+              <View style={styles.expenseGoalInfo}>
+                <View style={styles.expenseGoalTitleRow}>
+                  <Text style={styles.expenseGoalEmoji}>
+                    {dashboard.sharedBalance >= 0 ? '💰' : '⚠️'}
+                  </Text>
+                  <Text style={styles.expenseGoalTitle}>Bilance</Text>
+                </View>
+                <Text style={styles.expenseGoalCategory}>Rozdíl mezi příjmy a výdaji</Text>
+              </View>
+              <View style={styles.expenseGoalAmounts}>
+                <Text style={[
+                  styles.expenseGoalCurrentAmount,
+                  { color: dashboard.sharedBalance >= 0 ? '#10B981' : '#EF4444' }
+                ]}>
+                  {dashboard.sharedBalance >= 0 ? '+' : ''}{dashboard.sharedBalance.toFixed(0)} {currency.symbol}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.balanceDetails}>
+              <View style={styles.balanceDetailRow}>
+                <Text style={styles.balanceDetailLabel}>Celkové příjmy</Text>
+                <Text style={[styles.balanceDetailValue, { color: '#10B981' }]}>
+                  {dashboard.totalSharedIncome.toFixed(0)} {currency.symbol}
+                </Text>
+              </View>
+              <View style={styles.balanceDetailRow}>
+                <Text style={styles.balanceDetailLabel}>Celkové výdaje</Text>
+                <Text style={[styles.balanceDetailValue, { color: '#EF4444' }]}>
+                  {dashboard.totalSharedExpenses.toFixed(0)} {currency.symbol}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -587,90 +663,130 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#8B5CF6',
   },
-  expenseTable: {
+  expenseGoalCard: {
     backgroundColor: '#FFF',
     borderRadius: 16,
-    overflow: 'hidden' as const,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 16,
-  },
-  membersTable: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    overflow: 'hidden' as const,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  tableHeader: {
+  expenseGoalHeader: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
-    backgroundColor: '#F9FAFB',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    alignItems: 'flex-start' as const,
+    marginBottom: 12,
   },
-  tableHeaderText: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: '#6B7280',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
+  expenseGoalInfo: {
+    flex: 1,
+    marginRight: 12,
   },
-  tableRow: {
+  expenseGoalTitleRow: {
     flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    gap: 6,
+    marginBottom: 4,
   },
-  tableLabel: {
-    fontSize: 15,
-    color: '#1F2937',
-    fontWeight: '500' as const,
-  },
-  tableValue: {
-    fontSize: 15,
-    color: '#1F2937',
-    fontWeight: '600' as const,
-  },
-  incomeValue: {
-    color: '#10B981',
-  },
-  tableTotalRow: {
-    backgroundColor: '#F9FAFB',
-    borderBottomWidth: 0,
-  },
-  tableTotalLabel: {
+  expenseGoalEmoji: {
     fontSize: 16,
+  },
+  expenseGoalTitle: {
+    fontSize: 15,
+    fontWeight: '600' as const,
     color: '#1F2937',
+    flex: 1,
+  },
+  expenseGoalCategory: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  expenseGoalAmounts: {
+    alignItems: 'flex-end' as const,
+  },
+  expenseGoalCurrentAmount: {
+    fontSize: 16,
     fontWeight: '700' as const,
-  },
-  tableTotalValue: {
-    fontSize: 18,
-    fontWeight: '800' as const,
-    color: '#10B981',
-  },
-  negativeBalance: {
     color: '#EF4444',
+    marginBottom: 2,
   },
-  memberNameContainer: {
+  splitProgressContainer: {
+    marginBottom: 8,
+    gap: 6,
+  },
+  memberSplitRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  memberSplitInfo: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 10,
+    gap: 8,
   },
-  memberDot: {
+  memberSplitDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  memberSplitName: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  memberSplitAmount: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '600' as const,
+  },
+  expenseGoalProgressBarContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 6,
+  },
+  expenseGoalProgressBarBackground: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 4,
+    overflow: 'hidden' as const,
+    position: 'relative' as const,
+  },
+  expenseGoalProgressBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  splitPercentageRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  splitPercentageText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  balanceDetails: {
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  balanceDetailRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  balanceDetailLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  balanceDetailValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
   },
 });
