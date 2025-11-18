@@ -136,13 +136,7 @@ export default function ProfileScreen() {
           onPress={() => router.push('/account')}
         />
         
-        <MenuButton
-          icon={Users}
-          title={language === 'cs' ? 'Přátelé' : 'Friends'}
-          subtitle={language === 'cs' ? 'Přidej přátele a porovnej se' : 'Add friends and compare'}
-          onPress={() => router.push('/friends')}
-        />
-        
+
         <MenuButton
           icon={Users}
           title={language === 'cs' ? 'Nastavení domácnosti' : 'Household Settings'}
