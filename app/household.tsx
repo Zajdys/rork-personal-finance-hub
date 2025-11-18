@@ -303,12 +303,12 @@ export default function HouseholdScreen() {
               <Text style={styles.sectionTitle}>Rozpad po kategoriích</Text>
               <TouchableOpacity
                 style={styles.infoButton}
-                onPress={() => Alert.alert('Rozpad výdajů', 'Zdě vidíte, kdo kolik utratil v jednotlivých kategoriích a kdo by měl doplatit podle nastavených poměrů.')}
+                onPress={() => Alert.alert('Rozpad výdajů', 'Zde vidíte, kdo kolik utratil v jednotlivých kategoriích a kdo by měl doplatit podle nastavených poměrů.')}
               >
                 <Info size={18} color="#8B5CF6" strokeWidth={2} />
               </TouchableOpacity>
             </View>
-            <View style={styles.categoriesGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
               {dashboard.categoryBalances.map((catBalance, idx) => {
                 const members = currentHousehold?.members.filter(m => m.joinStatus === 'ACTIVE') || [];
                 
@@ -344,42 +344,50 @@ export default function HouseholdScreen() {
                 const totalPaid = myPaid + partnerPaid;
                 const categoryInfo = getCategoryInfo(catBalance.category);
                 
+                const myBalance = catBalance.memberBalances[myUserId]?.balance || 0;
+                const partnerBalance = catBalance.memberBalances[partnerUserId]?.balance || 0;
+                
                 return (
-                  <View key={idx} style={styles.compactCategoryCard}>
-                    <Text style={styles.categoryEmoji}>{categoryInfo.emoji}</Text>
-                    <Text style={styles.compactCategoryName}>{categoryInfo.name}</Text>
-                    <Text style={styles.compactCategoryAmount}>
+                  <View key={idx} style={styles.miniCategoryCard}>
+                    <Text style={styles.miniCategoryEmoji}>{categoryInfo.emoji}</Text>
+                    <Text style={styles.miniCategoryName}>{categoryInfo.name}</Text>
+                    <Text style={styles.miniCategoryTotal}>
                       {totalPaid.toFixed(0)} {currency.symbol}
                     </Text>
                     
-                    <View style={styles.membersBreakdown}>
-                      {members.map(member => {
-                        const mb = catBalance.memberBalances[member.userId];
-                        if (!mb) return null;
-                        
-                        return (
-                          <View key={member.userId} style={styles.memberBreakdownRow}>
-                            <View style={[styles.memberDot, { backgroundColor: member.userId === 'mock_user_1' ? '#3B82F6' : '#10B981' }]} />
-                            <Text style={styles.memberBreakdownText}>
-                              {mb.paid.toFixed(0)} {currency.symbol}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.memberBreakdownBalance,
-                                mb.balance > 1 && styles.memberBreakdownPositive,
-                                mb.balance < -1 && styles.memberBreakdownNegative,
-                              ]}
-                            >
-                              {mb.balance > 1 ? '+' : ''}{mb.balance < -1 ? mb.balance.toFixed(0) : ''}
-                            </Text>
-                          </View>
-                        );
-                      })}
+                    <View style={styles.miniMembersRow}>
+                      <View style={styles.miniMemberItem}>
+                        <View style={[styles.miniMemberDot, { backgroundColor: '#3B82F6' }]} />
+                        <Text style={styles.miniMemberAmount}>{myPaid.toFixed(0)}</Text>
+                        {Math.abs(myBalance) > 1 && (
+                          <Text style={[
+                            styles.miniMemberBalance,
+                            myBalance > 0 && styles.miniBalancePositive,
+                            myBalance < 0 && styles.miniBalanceNegative,
+                          ]}>
+                            {myBalance > 0 ? '+' : ''}{myBalance.toFixed(0)}
+                          </Text>
+                        )}
+                      </View>
+                      
+                      <View style={styles.miniMemberItem}>
+                        <View style={[styles.miniMemberDot, { backgroundColor: '#10B981' }]} />
+                        <Text style={styles.miniMemberAmount}>{partnerPaid.toFixed(0)}</Text>
+                        {Math.abs(partnerBalance) > 1 && (
+                          <Text style={[
+                            styles.miniMemberBalance,
+                            partnerBalance > 0 && styles.miniBalancePositive,
+                            partnerBalance < 0 && styles.miniBalanceNegative,
+                          ]}>
+                            {partnerBalance > 0 ? '+' : ''}{partnerBalance.toFixed(0)}
+                          </Text>
+                        )}
+                      </View>
                     </View>
                   </View>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         )}
 
@@ -686,6 +694,71 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  categoriesScroll: {
+    paddingRight: 20,
+    gap: 10,
+  },
+  miniCategoryCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 14,
+    width: 140,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    alignItems: 'center' as const,
+  },
+  miniCategoryEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  miniCategoryName: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 6,
+    textAlign: 'center' as const,
+  },
+  miniCategoryTotal: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#8B5CF6',
+    marginBottom: 12,
+  },
+  miniMembersRow: {
+    width: '100%',
+    gap: 6,
+  },
+  miniMemberItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingVertical: 4,
+  },
+  miniMemberDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  miniMemberAmount: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    flex: 1,
+  },
+  miniMemberBalance: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#9CA3AF',
+  },
+  miniBalancePositive: {
+    color: '#10B981',
+  },
+  miniBalanceNegative: {
+    color: '#EF4444',
   },
   section: {
     marginBottom: 24,
