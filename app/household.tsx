@@ -300,7 +300,7 @@ export default function HouseholdScreen() {
         {dashboard && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Rozpad po kategoriích</Text>
+              <Text style={styles.sectionTitle}>Přehled domácnosti</Text>
               <TouchableOpacity
                 style={styles.infoButton}
                 onPress={() => {}}
