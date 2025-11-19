@@ -817,6 +817,34 @@ export default function PortfolioDetailScreen() {
     EWJ: 'Japonsko',
   };
 
+  const ASSET_TYPE_COLORS: Record<string, string> = {
+    'ETF': '#3B82F6',
+    'Akcie': '#10B981',
+    'Krypto': '#F59E0B',
+    'Dluhopisy': '#8B5CF6',
+    'Komodity': '#EF4444',
+    'Ostatní': '#9CA3AF',
+  };
+
+  const SYMBOL_TO_ASSET_TYPE: Record<string, string> = {
+    SPY: 'ETF',
+    QQQ: 'ETF',
+    VOO: 'ETF',
+    VEA: 'ETF',
+    EWU: 'ETF',
+    EWJ: 'ETF',
+    GLD: 'ETF',
+    AAPL: 'Akcie',
+    MSFT: 'Akcie',
+    GOOGL: 'Akcie',
+    AMZN: 'Akcie',
+    TSLA: 'Akcie',
+    BABA: 'Akcie',
+    TSM: 'Akcie',
+    BTC: 'Krypto',
+    ETH: 'Krypto',
+  };
+
   const SYMBOL_TO_CURRENCY: Record<string, string> = {
     AAPL: 'USD',
     MSFT: 'USD',
@@ -873,6 +901,28 @@ export default function PortfolioDetailScreen() {
     return Array.from(countryMap.entries())
       .map(([country, data]) => ({
         country,
+        value: data.value,
+        percentage: total > 0 ? (data.value / total) * 100 : 0,
+        color: data.color,
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+  };
+
+  const getAssetTypeAllocation = (data: any[]) => {
+    const assetTypeMap = new Map<string, { value: number; color: string }>();
+    
+    data.forEach((item) => {
+      const assetType = SYMBOL_TO_ASSET_TYPE[item.symbol] || 'Akcie';
+      const existing = assetTypeMap.get(assetType) || { value: 0, color: ASSET_TYPE_COLORS[assetType] || ASSET_TYPE_COLORS['Ostatní'] };
+      existing.value += item.amount || 0;
+      assetTypeMap.set(assetType, existing);
+    });
+
+    const total = Array.from(assetTypeMap.values()).reduce((sum, item) => sum + item.value, 0);
+    
+    return Array.from(assetTypeMap.entries())
+      .map(([assetType, data]) => ({
+        assetType,
         value: data.value,
         percentage: total > 0 ? (data.value / total) * 100 : 0,
         color: data.color,
@@ -1026,6 +1076,68 @@ export default function PortfolioDetailScreen() {
 
     let currentAngle = -90;
     const slices = countryAllocation.map((item) => {
+      const percentage = item.percentage;
+      const angle = (percentage / 100) * 360;
+      const slice = {
+        color: item.color,
+        percentage,
+        startAngle: currentAngle,
+        angle,
+      };
+      currentAngle += angle;
+      return slice;
+    });
+
+    return (
+      <View style={styles.donutChartContainer}>
+        <Svg width={size} height={size}>
+          <G>
+            {slices.map((slice, index) => {
+              const strokeDashoffset =
+                circumference - (slice.angle / 360) * circumference;
+              const rotation = slice.startAngle + 90;
+
+              return (
+                <G
+                  key={index}
+                  transform={`rotate(${rotation} ${centerX} ${centerY})`}
+                >
+                  <Circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radius}
+                    stroke={slice.color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </G>
+              );
+            })}
+          </G>
+        </Svg>
+        <View style={styles.donutChartCenter}>
+          <Text style={styles.donutChartValue}>{formatCurrency(totalValue, 'EUR')}</Text>
+          <Text style={styles.donutChartLabel}>Celkem</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const AssetTypeDonutChart = ({ data, totalValue }: { data: any[]; totalValue: number }) => {
+    const size = 200;
+    const strokeWidth = 40;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const centerX = size / 2;
+    const centerY = size / 2;
+
+    const assetTypeAllocation = getAssetTypeAllocation(data);
+
+    let currentAngle = -90;
+    const slices = assetTypeAllocation.map((item) => {
       const percentage = item.percentage;
       const angle = (percentage / 100) * 360;
       const slice = {
@@ -1318,6 +1430,25 @@ export default function PortfolioDetailScreen() {
 
         {selectedTab === 'performance' ? (
           <View style={styles.performanceContainer}>
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceHeader}>
+                <PieChart color="#3B82F6" size={24} />
+                <Text style={styles.performanceTitle}>Typ aktiv</Text>
+              </View>
+              <View style={styles.chartContainer}>
+                <AssetTypeDonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
+                <View style={styles.chartLegend}>
+                  {getAssetTypeAllocation(portfolioDataWithPercentages).map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendLabel}>{item.assetType}</Text>
+                      <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
             <View style={styles.performanceCard}>
               <View style={styles.performanceHeader}>
                 <Globe color="#10B981" size={24} />
