@@ -31,6 +31,7 @@ import {
   ZoomIn,
   Globe,
   Coins,
+  Building2,
 } from 'lucide-react-native';
 import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -864,6 +865,39 @@ export default function PortfolioDetailScreen() {
     GLD: 'USD',
   };
 
+  const SECTOR_COLORS: Record<string, string> = {
+    'Technologie': '#3B82F6',
+    'Finance': '#10B981',
+    'Zdravotnictví': '#EF4444',
+    'Spotřební zboží': '#F59E0B',
+    'Průmysl': '#8B5CF6',
+    'Energie': '#EC4899',
+    'Telekomunikace': '#06B6D4',
+    'Nemovitosti': '#F97316',
+    'Materiály': '#14B8A6',
+    'Komodity': '#FBBF24',
+    'Ostatní': '#9CA3AF',
+  };
+
+  const SYMBOL_TO_SECTOR: Record<string, string> = {
+    AAPL: 'Technologie',
+    MSFT: 'Technologie',
+    GOOGL: 'Technologie',
+    AMZN: 'Spotřební zboží',
+    TSLA: 'Průmysl',
+    SPY: 'Ostatní',
+    QQQ: 'Technologie',
+    VOO: 'Ostatní',
+    BTC: 'Ostatní',
+    ETH: 'Ostatní',
+    BABA: 'Spotřební zboží',
+    TSM: 'Technologie',
+    VEA: 'Ostatní',
+    EWU: 'Ostatní',
+    EWJ: 'Ostatní',
+    GLD: 'Komodity',
+  };
+
   const getCurrencyAllocation = (data: any[]) => {
     const currencyMap = new Map<string, { value: number; color: string }>();
     
@@ -923,6 +957,28 @@ export default function PortfolioDetailScreen() {
     return Array.from(assetTypeMap.entries())
       .map(([assetType, data]) => ({
         assetType,
+        value: data.value,
+        percentage: total > 0 ? (data.value / total) * 100 : 0,
+        color: data.color,
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+  };
+
+  const getSectorAllocation = (data: any[]) => {
+    const sectorMap = new Map<string, { value: number; color: string }>();
+    
+    data.forEach((item) => {
+      const sector = SYMBOL_TO_SECTOR[item.symbol] || 'Ostatní';
+      const existing = sectorMap.get(sector) || { value: 0, color: SECTOR_COLORS[sector] || SECTOR_COLORS['Ostatní'] };
+      existing.value += item.amount || 0;
+      sectorMap.set(sector, existing);
+    });
+
+    const total = Array.from(sectorMap.values()).reduce((sum, item) => sum + item.value, 0);
+    
+    return Array.from(sectorMap.entries())
+      .map(([sector, data]) => ({
+        sector,
         value: data.value,
         percentage: total > 0 ? (data.value / total) * 100 : 0,
         color: data.color,
@@ -1138,6 +1194,68 @@ export default function PortfolioDetailScreen() {
 
     let currentAngle = -90;
     const slices = assetTypeAllocation.map((item) => {
+      const percentage = item.percentage;
+      const angle = (percentage / 100) * 360;
+      const slice = {
+        color: item.color,
+        percentage,
+        startAngle: currentAngle,
+        angle,
+      };
+      currentAngle += angle;
+      return slice;
+    });
+
+    return (
+      <View style={styles.donutChartContainer}>
+        <Svg width={size} height={size}>
+          <G>
+            {slices.map((slice, index) => {
+              const strokeDashoffset =
+                circumference - (slice.angle / 360) * circumference;
+              const rotation = slice.startAngle + 90;
+
+              return (
+                <G
+                  key={index}
+                  transform={`rotate(${rotation} ${centerX} ${centerY})`}
+                >
+                  <Circle
+                    cx={centerX}
+                    cy={centerY}
+                    r={radius}
+                    stroke={slice.color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                  />
+                </G>
+              );
+            })}
+          </G>
+        </Svg>
+        <View style={styles.donutChartCenter}>
+          <Text style={styles.donutChartValue}>{formatCurrency(totalValue, 'EUR')}</Text>
+          <Text style={styles.donutChartLabel}>Celkem</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const SectorDonutChart = ({ data, totalValue }: { data: any[]; totalValue: number }) => {
+    const size = 200;
+    const strokeWidth = 40;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const centerX = size / 2;
+    const centerY = size / 2;
+
+    const sectorAllocation = getSectorAllocation(data);
+
+    let currentAngle = -90;
+    const slices = sectorAllocation.map((item) => {
       const percentage = item.percentage;
       const angle = (percentage / 100) * 360;
       const slice = {
@@ -1480,6 +1598,25 @@ export default function PortfolioDetailScreen() {
                     <View key={index} style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                       <Text style={styles.legendLabel}>{item.currency}</Text>
+                      <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceHeader}>
+                <Building2 color="#F59E0B" size={24} />
+                <Text style={styles.performanceTitle}>Sektory</Text>
+              </View>
+              <View style={styles.chartContainer}>
+                <SectorDonutChart data={portfolioDataWithPercentages} totalValue={totalValue} />
+                <View style={styles.chartLegend}>
+                  {getSectorAllocation(portfolioDataWithPercentages).map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendLabel}>{item.sector}</Text>
                       <Text style={styles.legendValue}>{item.percentage.toFixed(1)}%</Text>
                     </View>
                   ))}
