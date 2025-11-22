@@ -55,6 +55,7 @@ export const getHouseholdDashboardProcedure = protectedProcedure
       sharedBalance: 0,
       balances,
       categoryBreakdown: [],
+      categoryBalances: [],
       settlementSummary,
       recentActivity: [],
     };

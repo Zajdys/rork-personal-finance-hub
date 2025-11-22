@@ -328,6 +328,7 @@ export async function getHouseholdById(householdId: string): Promise<Household> 
       invitedAt: new Date(m.invited_at),
     })),
     defaultSplits: deserializeJson(row.default_splits, db),
+    categoryBudgets: {},
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };

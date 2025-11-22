@@ -14,6 +14,7 @@ import {
   Target,
   BarChart3,
   ArrowLeft,
+  Plus,
 } from 'lucide-react-native';
 import { useFinanceStore, EXPENSE_CATEGORIES } from '@/store/finance-store';
 import { useRouter, Stack } from 'expo-router';
@@ -187,6 +188,17 @@ export default function ExpenseDetailScreen() {
         </View>
       </LinearGradient>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+
+        {/* Add Expense Button */}
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addExpenseButton}
+            onPress={() => router.push('/(tabs)/add')}
+          >
+            <Plus color="white" size={20} />
+            <Text style={styles.addExpenseButtonText}>Přidat výdaj</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Period Selection */}
         <View style={styles.periodContainer}>
@@ -543,5 +555,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
+  },
+  addButtonContainer: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  addExpenseButton: {
+    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  addExpenseButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
   },
 });

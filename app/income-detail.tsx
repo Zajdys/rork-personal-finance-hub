@@ -210,6 +210,17 @@ export default function IncomeDetailScreen() {
       </LinearGradient>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
+        {/* Add Income Button */}
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addIncomeButton}
+            onPress={() => router.push('/(tabs)/add')}
+          >
+            <Plus color="white" size={20} />
+            <Text style={styles.addIncomeButtonText}>Přidat příjem</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Period Selection */}
         <View style={styles.periodContainer}>
           <Text style={styles.sectionTitle}>Období</Text>
@@ -619,5 +630,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
+  },
+  addButtonContainer: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  addIncomeButton: {
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  addIncomeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
   },
 });

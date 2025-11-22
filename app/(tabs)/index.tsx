@@ -20,7 +20,7 @@ import {
   X,
   Lightbulb,
 } from 'lucide-react-native';
-import { useFinanceStore, CategoryExpense, SubscriptionItem } from '@/store/finance-store';
+import { useFinanceStore, CategoryExpense, SubscriptionItem, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
@@ -627,6 +627,21 @@ export default function DashboardScreen() {
           {(showAllCategories ? categoryExpenses : categoryExpenses.slice(0, 3)).map((category, index) => (
             <CategoryExpenseCard key={index} category={category} />
           ))}
+          
+          <TouchableOpacity
+            style={styles.addExpenseButtonContainer}
+            onPress={() => router.push({ pathname: '/add', params: { type: 'expense' } })}
+          >
+            <LinearGradient
+              colors={['#EF4444', '#DC2626']}
+              style={styles.addExpenseButton}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <PlusCircle color="white" size={20} />
+              <Text style={styles.addExpenseButtonText}>Přidat výdaj</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1435,5 +1450,27 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
   },
-
+  addExpenseButtonContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  addExpenseButton: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  addExpenseButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+    marginLeft: 8,
+  },
 });

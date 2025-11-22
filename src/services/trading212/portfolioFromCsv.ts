@@ -43,17 +43,21 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
   
   const byTicker: Record<string, T212Row[]> = {};
   for (const r of rows) {
-    const action = r['Action'];
+    const row: T212Row = {};
+    for (const [k, v] of Object.entries(r)) {
+      row[k] = typeof v === 'string' ? v : v !== null && v !== undefined ? String(v) : undefined;
+    }
+    const action = row['Action'];
     if (!(isBuy(action) || isSell(action))) {
       console.log('[T212] Skipping non-trade action:', action);
       continue;
     }
-    const ticker = (r['Ticker'] ?? '').trim();
+    const ticker = (row['Ticker'] ?? '').trim();
     if (!ticker) {
       console.log('[T212] Skipping row without ticker');
       continue;
     }
-    (byTicker[ticker] ||= []).push(r);
+    (byTicker[ticker] ||= []).push(row);
   }
 
   console.log('[T212] Found tickers:', Object.keys(byTicker));
@@ -74,8 +78,10 @@ export function buildFifoFromT212Rows(rows: ParsedTable): T212PortfolioItem[] {
     const fifo: Lot[] = [];
 
     for (const row of sorted) {
-      const sharesRaw = toNumber(row['No. of shares']);
-      const totalRaw = toNumber(row['Total']);
+      const sharesStr = row['No. of shares'];
+      const totalStr = row['Total'];
+      const sharesRaw = toNumber(typeof sharesStr === 'string' ? sharesStr : String(sharesStr ?? ''));
+      const totalRaw = toNumber(typeof totalStr === 'string' ? totalStr : String(totalStr ?? ''));
       const shares = Math.abs(sharesRaw);
       const total = Math.abs(totalRaw);
       

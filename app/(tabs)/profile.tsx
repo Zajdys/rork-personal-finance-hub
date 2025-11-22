@@ -97,7 +97,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.profileText}>
             <Text style={styles.profileName}>MoneyBuddy {t('user')}</Text>
-            <Text style={styles.profileLevel}>{t('personalFinance')}</Text>
+            <Text style={styles.profileLevel}>Personal Finance</Text>
           </View>
         </View>
       </LinearGradient>

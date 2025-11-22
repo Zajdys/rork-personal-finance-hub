@@ -41,7 +41,7 @@ export default function T212PortfolioScreen() {
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [sectors, setSectors] = useState<Record<string, StockSector>>({});
   const previousPrices = useRef<Record<string, number>>({});
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const computeRows = useCallback(async (fifoItems: T212PortfolioItem[], silent: boolean = false, skipSectors: boolean = false) => {
     if (!silent) setLoading(true);

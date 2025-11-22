@@ -285,20 +285,7 @@ export default function BankAccountsScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen
         options={{
-          title: 'Celkový zůstatek',
-          headerStyle: {
-            backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
-          },
-          headerTintColor: isDarkMode ? '#FFFFFF' : '#000000',
-          headerShadowVisible: false,
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ marginLeft: 16 }}
-            >
-              <ArrowLeft color={isDarkMode ? '#FFFFFF' : '#000000'} size={24} />
-            </TouchableOpacity>
-          ),
+          headerShown: false,
         }}
       />
 
@@ -309,6 +296,14 @@ export default function BankAccountsScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
+          <View style={styles.backButtonContainer}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft color="white" size={24} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.headerContent}>
             <Text style={styles.headerLabel}>Celkový zůstatek</Text>
             <Text style={styles.headerAmount}>
@@ -474,9 +469,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   headerGradient: {
-    paddingTop: 24,
+    paddingTop: 60,
     paddingBottom: 32,
     paddingHorizontal: 20,
+  },
+  backButtonContainer: {
+    marginBottom: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerContent: {
     alignItems: 'center',

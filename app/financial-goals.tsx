@@ -232,7 +232,7 @@ export default function FinancialGoalsScreen() {
     const isDragging = draggingIndex === index;
     const dragStartIndex = useRef<number>(index);
     const lastReorderTime = useRef<number>(0);
-    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isDragEnabled = useRef<boolean>(false);
     
     const panResponder = useMemo(

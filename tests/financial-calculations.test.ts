@@ -145,6 +145,7 @@ export function testPortfolioMetrics(): boolean {
     {
       date: new Date('2024-01-15'),
       type: 'buy' as const,
+      symbol: 'AAPL',
       amount: 10,
       price: 1000,
       total: 10000
@@ -152,6 +153,7 @@ export function testPortfolioMetrics(): boolean {
     {
       date: new Date('2024-03-15'),
       type: 'buy' as const,
+      symbol: 'AAPL',
       amount: 5,
       price: 1200,
       total: 6000
@@ -159,6 +161,7 @@ export function testPortfolioMetrics(): boolean {
     {
       date: new Date('2024-06-15'),
       type: 'sell' as const,
+      symbol: 'AAPL',
       amount: 3,
       price: 1300,
       total: 3900

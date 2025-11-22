@@ -310,7 +310,7 @@ export async function readUriText(uri: string): Promise<string> {
       return txt;
     } else {
       const FS = await import('expo-file-system');
-      const txt = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.UTF8 });
+      const txt = await FS.readAsStringAsync(uri, { encoding: 'utf8' as any });
       return txt;
     }
   } catch (e) {
@@ -448,7 +448,7 @@ async function readPdfImageAsBase64(uri: string): Promise<string | null> {
       });
     } else {
       const FS = await import('expo-file-system');
-      const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+      const b64 = await FS.readAsStringAsync(uri, { encoding: 'base64' as any });
       return b64;
     }
   } catch (e) {
@@ -478,7 +478,7 @@ export async function readPdfText(uri: string): Promise<string> {
       }
     } else {
       const FS = await import('expo-file-system');
-      const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+      const b64 = await FS.readAsStringAsync(uri, { encoding: 'base64' as any });
       console.log('PDF base64 length:', b64.length);
       
       try {
@@ -514,7 +514,7 @@ export async function readUriArrayBuffer(uri: string): Promise<ArrayBuffer> {
       return await res.arrayBuffer();
     } else {
       const FS = await import('expo-file-system');
-      const b64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+      const b64 = await FS.readAsStringAsync(uri, { encoding: 'base64' as any });
       const binary = decodeBase64Latin1(b64);
       const buf = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i) & 0xff;
