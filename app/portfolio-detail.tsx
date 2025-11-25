@@ -1706,30 +1706,7 @@ export default function PortfolioDetailScreen() {
                 style={styles.addOptionCard}
                 onPress={() => {
                   setShowAddModal(false);
-                  setShowSuggestedModal(true);
-                }}
-              >
-                <LinearGradient
-                  colors={['#8B5CF6', '#7C3AED']}
-                  style={styles.addOptionGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <TrendingUp color="white" size={32} />
-                  <Text style={styles.addOptionTitle}>Doporučené investice</Text>
-                  <Text style={styles.addOptionDescription}>
-                    Vyberte z S&P 500, BTC a dalších
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.addOptionCard}
-                onPress={() => {
-                  setShowAddModal(false);
-                  setTimeout(() => {
-                    handleFileImport();
-                  }, 300);
+                  handleFileImport();
                 }}
               >
                 <LinearGradient
@@ -1740,7 +1717,9 @@ export default function PortfolioDetailScreen() {
                 >
                   <Upload color="white" size={32} />
                   <Text style={styles.addOptionTitle}>Import portfolia</Text>
-                  <Text style={styles.addOptionDescription}>Nahraj výpis z brokera</Text>
+                  <Text style={styles.addOptionDescription}>
+                    Nahraj CSV/Excel soubor z brokera
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>

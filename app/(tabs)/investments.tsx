@@ -18,6 +18,8 @@ import {
   Trash2,
   ChevronRight,
   PieChart,
+  Upload,
+  Plus,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePortfolioStore, Portfolio } from '@/store/portfolio-store';
@@ -309,6 +311,8 @@ export default function InvestmentsScreen() {
             <Text style={styles.headerSubtitle}>Správa investic</Text>
           </View>
         </View>
+        
+
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -489,7 +493,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 24,
+    paddingBottom: 20,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -507,6 +511,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
     opacity: 0.9,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  headerActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  headerActionText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: 'white',
   },
   content: {
     flex: 1,

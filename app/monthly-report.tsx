@@ -10,7 +10,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFinanceStore, MonthlyReport, Transaction } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank, ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 type CategoryBarProps = { category: string; amount: number; percentage: number; color: string };
 
@@ -86,6 +87,7 @@ export default function MonthlyReportScreen() {
   const { generateMonthlyReport, getCurrentMonthReport, transactions } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const currency = getCurrentCurrency();
+  const router = useRouter();
   
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [report, setReport] = useState<MonthlyReport>(getCurrentMonthReport());
@@ -176,6 +178,18 @@ export default function MonthlyReportScreen() {
     <SafeAreaView style={styles.container}>
       <ErrorBoundary>
         <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              testID="back-button"
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <ArrowLeft size={24} color={isDarkMode ? '#FFFFFF' : '#000000'} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Měsíční report</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+          
           <View style={styles.monthNavigation}>
             <TouchableOpacity 
               testID="prev-month"
@@ -347,13 +361,34 @@ const getStyles = (isDarkMode: boolean) => StyleSheet.create({
     flex: 1,
     backgroundColor: isDarkMode ? '#000000' : '#F8F9FA',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#2A2A2A' : '#E5E7EB',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: isDarkMode ? '#FFFFFF' : '#1F2937',
+  },
+  headerSpacer: {
+    width: 32,
+  },
   monthNavigation: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: isDarkMode ? '#1A1A1A' : '#FFFFFF',
+    backgroundColor: isDarkMode ? '#000000' : '#F8F9FA',
     marginBottom: 16,
   },
   navButton: {

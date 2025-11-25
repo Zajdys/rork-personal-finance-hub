@@ -618,12 +618,19 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       let transactions: Transaction[] = [];
       if (transactionsData) {
         try {
-          transactions = JSON.parse(transactionsData).map((t: any) => ({
-            ...t,
-            date: new Date(t.date)
-          }));
+          const parsed = JSON.parse(transactionsData);
+          if (Array.isArray(parsed)) {
+            transactions = parsed.map((t: any) => ({
+              ...t,
+              date: new Date(t.date)
+            }));
+          } else {
+            console.warn('Transactions data is not an array, clearing...');
+            await AsyncStorage.removeItem('finance_transactions');
+          }
         } catch (error) {
-          console.error('Failed to parse transactions data:', error, 'Data:', transactionsData);
+          console.error('Failed to parse transactions data:', error);
+          console.error('Corrupted data preview:', transactionsData?.substring(0, 100));
           await AsyncStorage.removeItem('finance_transactions');
         }
       }
@@ -631,17 +638,24 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       let financialGoals: FinancialGoal[] = [];
       if (goalsData) {
         try {
-          financialGoals = JSON.parse(goalsData).map((g: any) => ({
-            ...g,
-            deadline: g.deadline ? new Date(g.deadline) : undefined,
-            recurring: g.recurring ? {
-              isRecurring: Boolean(g.recurring.isRecurring),
-              frequency: (g.recurring.frequency ?? 'monthly') as RecurrenceFrequency,
-              dayOfMonth: typeof g.recurring.dayOfMonth === 'number' ? g.recurring.dayOfMonth : undefined,
-            } : undefined,
-          }));
+          const parsed = JSON.parse(goalsData);
+          if (Array.isArray(parsed)) {
+            financialGoals = parsed.map((g: any) => ({
+              ...g,
+              deadline: g.deadline ? new Date(g.deadline) : undefined,
+              recurring: g.recurring ? {
+                isRecurring: Boolean(g.recurring.isRecurring),
+                frequency: (g.recurring.frequency ?? 'monthly') as RecurrenceFrequency,
+                dayOfMonth: typeof g.recurring.dayOfMonth === 'number' ? g.recurring.dayOfMonth : undefined,
+              } : undefined,
+            }));
+          } else {
+            console.warn('Financial goals data is not an array, clearing...');
+            await AsyncStorage.removeItem('finance_goals');
+          }
         } catch (error) {
-          console.error('Failed to parse financial goals data:', error, 'Data:', goalsData);
+          console.error('Failed to parse financial goals data:', error);
+          console.error('Corrupted data preview:', goalsData?.substring(0, 100));
           await AsyncStorage.removeItem('finance_goals');
         }
       }
@@ -649,9 +663,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       let monthlyReports: MonthlyReport[] = [];
       if (reportsData) {
         try {
-          monthlyReports = JSON.parse(reportsData);
+          const parsed = JSON.parse(reportsData);
+          if (Array.isArray(parsed)) {
+            monthlyReports = parsed;
+          } else {
+            console.warn('Monthly reports data is not an array, clearing...');
+            await AsyncStorage.removeItem('finance_reports');
+          }
         } catch (error) {
-          console.error('Failed to parse monthly reports data:', error, 'Data:', reportsData);
+          console.error('Failed to parse monthly reports data:', error);
+          console.error('Corrupted data preview:', reportsData?.substring(0, 100));
           await AsyncStorage.removeItem('finance_reports');
         }
       }
@@ -659,9 +680,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       let subscriptions: SubscriptionItem[] = [];
       if (subsData) {
         try {
-          subscriptions = JSON.parse(subsData);
+          const parsed = JSON.parse(subsData);
+          if (Array.isArray(parsed)) {
+            subscriptions = parsed;
+          } else {
+            console.warn('Subscriptions data is not an array, clearing...');
+            await AsyncStorage.removeItem('finance_subscriptions');
+          }
         } catch (error) {
-          console.error('Failed to parse subscriptions data:', error, 'Data:', subsData);
+          console.error('Failed to parse subscriptions data:', error);
+          console.error('Corrupted data preview:', subsData?.substring(0, 100));
           await AsyncStorage.removeItem('finance_subscriptions');
         }
       } else {
@@ -690,9 +718,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       let customCategories: CustomCategory[] = [];
       if (customCategoriesData) {
         try {
-          customCategories = JSON.parse(customCategoriesData);
+          const parsed = JSON.parse(customCategoriesData);
+          if (Array.isArray(parsed)) {
+            customCategories = parsed;
+          } else {
+            console.warn('Custom categories data is not an array, clearing...');
+            await AsyncStorage.removeItem('finance_custom_categories');
+          }
         } catch (error) {
-          console.error('Failed to parse custom categories data:', error, 'Data:', customCategoriesData);
+          console.error('Failed to parse custom categories data:', error);
+          console.error('Corrupted data preview:', customCategoriesData?.substring(0, 100));
           await AsyncStorage.removeItem('finance_custom_categories');
         }
       }
@@ -700,14 +735,21 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       let loans: LoanItem[] = [];
       if (loansData) {
         try {
-          loans = JSON.parse(loansData).map((l: any) => ({
-            ...l,
-            startDate: new Date(l.startDate),
-            fixedEndDate: l.fixedEndDate ? new Date(l.fixedEndDate) : undefined,
-            fixationStartDate: l.fixationStartDate ? new Date(l.fixationStartDate) : undefined,
-          }));
+          const parsed = JSON.parse(loansData);
+          if (Array.isArray(parsed)) {
+            loans = parsed.map((l: any) => ({
+              ...l,
+              startDate: new Date(l.startDate),
+              fixedEndDate: l.fixedEndDate ? new Date(l.fixedEndDate) : undefined,
+              fixationStartDate: l.fixationStartDate ? new Date(l.fixationStartDate) : undefined,
+            }));
+          } else {
+            console.warn('Loans data is not an array, clearing...');
+            await AsyncStorage.removeItem('finance_loans');
+          }
         } catch (error) {
-          console.error('Failed to parse loans data:', error, 'Data:', loansData);
+          console.error('Failed to parse loans data:', error);
+          console.error('Corrupted data preview:', loansData?.substring(0, 100));
           await AsyncStorage.removeItem('finance_loans');
         }
       }

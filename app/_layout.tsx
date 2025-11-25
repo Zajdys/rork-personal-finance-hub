@@ -149,7 +149,7 @@ function RootLayoutNav() {
       <Stack.Screen name="notifications-settings" options={{ title: t('notifications'), headerShown: true }} />
       <Stack.Screen name="privacy-settings" options={{ title: t('privacy'), headerShown: true }} />
       <Stack.Screen name="help-support" options={{ title: t('help'), headerShown: true }} />
-      <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport'), headerShown: true }} />
+      <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport'), headerShown: false }} />
       <Stack.Screen name="backend-test" options={{ title: 'Backend Test', headerShown: true }} />
       <Stack.Screen name="t212-portfolio" options={{ title: 'T212 Portfolio', headerShown: true }} />
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail', headerShown: true }} />

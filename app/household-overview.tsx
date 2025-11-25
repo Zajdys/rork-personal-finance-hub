@@ -9,7 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Settings, PiggyBank } from 'lucide-react-native';
+import { Users, Settings, PiggyBank, ArrowLeft } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -49,16 +49,7 @@ export default function HouseholdOverviewScreen() {
       <Stack.Screen
         options={{
           title: '',
-          headerShown: true,
-          headerTransparent: true,
-          headerRight: () => (
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => router.push('/household')}
-            >
-              <Settings size={22} color="#FFF" strokeWidth={2} />
-            </TouchableOpacity>
-          ),
+          headerShown: false,
         }}
       />
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -68,11 +59,26 @@ export default function HouseholdOverviewScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Text style={styles.headerEmoji}>🏠</Text>
-          <Text style={styles.headerTitle}>{currentHousehold.name}</Text>
-          <Text style={styles.headerSubtitle}>
-            {currentHousehold.members.filter(m => m.joinStatus === 'ACTIVE').length} členů
-          </Text>
+          <View style={styles.headerContent}>
+            <TouchableOpacity
+              style={styles.headerBackButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft color="#FFF" size={24} />
+            </TouchableOpacity>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>Domácnost</Text>
+              <Text style={styles.headerAmount}>{currentHousehold.name}</Text>
+            </View>
+            <View style={styles.headerIcon}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push('/household')}
+              >
+                <Settings size={24} color="#FFF" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </LinearGradient>
 
         {/* Celkový rozpočet */}
@@ -271,28 +277,48 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   header: {
-    paddingTop: 100,
-    paddingBottom: 32,
+    paddingTop: 60,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  headerEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-    textAlign: 'center' as const,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '800' as const,
-    color: '#FFF',
-    marginBottom: 6,
-    textAlign: 'center' as const,
+    fontSize: 16,
+    color: 'white',
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+  headerAmount: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: 'white',
   },
   headerSubtitle: {
-    fontSize: 15,
-    color: '#FFF',
+    fontSize: 14,
+    color: 'white',
     opacity: 0.9,
-    textAlign: 'center' as const,
+  },
+  headerContent: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  headerBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   headerButton: {
     padding: 8,
