@@ -380,6 +380,9 @@ export default function PortfolioDetailScreen() {
 
     try {
       setIsPickingFile(true);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'text/csv',
@@ -389,16 +392,21 @@ export default function PortfolioDetailScreen() {
           'application/vnd.ms-excel',
         ],
         copyToCacheDirectory: true,
+        multiple: false,
       });
+
+      console.log('Document picker result:', result);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
+        console.log('Selected file:', file.name, file.mimeType, file.size);
         setSelectedFile(file);
         setShowFileImportModal(true);
       }
     } catch (error) {
       console.error('Error picking file:', error);
-      Alert.alert('Chyba', 'Nepodařilo se vybrat soubor.');
+      const errorMessage = error instanceof Error ? error.message : 'Neznámá chyba';
+      Alert.alert('Chyba při výběru souboru', errorMessage);
     } finally {
       setIsPickingFile(false);
     }
@@ -437,7 +445,7 @@ export default function PortfolioDetailScreen() {
     result.push(current.trim());
     return result.map((field) => {
       let cleaned = field.replace(/^"|"$/g, '').trim();
-      cleaned = cleaned.replace(/^\uFEFF/, '');
+      cleaned = cleaned.replace(/^\uFEFF/g, '').replace(/\uFEFF/g, '');
       return cleaned;
     });
   };
@@ -465,8 +473,17 @@ export default function PortfolioDetailScreen() {
 
       if (isCsvFile) {
         try {
+          console.log('Fetching CSV from:', selectedFile.uri);
           const response = await fetch(selectedFile.uri);
+          if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+          }
           const text = await response.text();
+          console.log('CSV text length:', text.length, 'Preview:', text.substring(0, 200));
+          
+          if (!text || text.trim().length === 0) {
+            throw new Error('Soubor je prázdný');
+          }
           
           const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
           if (!lines.length) {
