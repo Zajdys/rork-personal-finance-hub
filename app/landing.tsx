@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -21,6 +22,8 @@ import {
   BarChart3,
   Brain,
   Target,
+  X,
+  Sparkles,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -95,6 +98,7 @@ export default function LandingScreen() {
   const { isDarkMode } = useSettingsStore();
   const { t } = useLanguageStore();
   const router = useRouter();
+  const [showPricingModal, setShowPricingModal] = useState(false);
 
   const FeatureCard = ({ feature }: { feature: Feature }) => {
     const Icon = feature.icon;
@@ -183,7 +187,7 @@ export default function LandingScreen() {
             
             <TouchableOpacity 
               style={styles.secondaryButton}
-              onPress={() => router.push('/subscription')}
+              onPress={() => setShowPricingModal(true)}
             >
               <Text style={styles.secondaryButtonText}>Zobrazit ceny</Text>
             </TouchableOpacity>
@@ -350,13 +354,171 @@ export default function LandingScreen() {
             
             <TouchableOpacity 
               style={styles.ctaSecondaryButton}
-              onPress={() => router.push('/subscription')}
+              onPress={() => setShowPricingModal(true)}
             >
               <Text style={styles.ctaSecondaryButtonText}>Zobrazit plány</Text>
             </TouchableOpacity>
           </View>
         </LinearGradient>
       </View>
+
+      {/* Pricing Modal */}
+      <Modal
+        visible={showPricingModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPricingModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+              {/* Close Button */}
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowPricingModal(false)}
+              >
+                <X color={isDarkMode ? 'white' : '#1F2937'} size={24} />
+              </TouchableOpacity>
+
+              {/* Header */}
+              <View style={styles.pricingHeader}>
+                <Text style={[styles.pricingTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Vyberte si předplatné</Text>
+                <Text style={[styles.pricingSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>30denní záruka vrácení peněz</Text>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.pricingScroll}>
+                {/* Monthly Plan */}
+                <View style={[styles.pricingCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
+                  <View style={styles.pricingCardHeader}>
+                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>Měsíční</Text>
+                  </View>
+                  <View style={styles.priceContainer}>
+                    <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>199 Kč</Text>
+                    <Text style={[styles.pricePeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>/měsíc</Text>
+                  </View>
+                  <View style={styles.pricingFeatures}>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Všechny funkce</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>AI asistent</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Prioritní podpora</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.pricingButton}
+                    onPress={() => {
+                      setShowPricingModal(false);
+                      router.push('/subscription');
+                    }}
+                  >
+                    <Text style={styles.pricingButtonText}>Vybrat plán</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* 3 Months Plan - Popular */}
+                <View style={[styles.pricingCard, styles.popularCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
+                  <View style={styles.popularBadge}>
+                    <Sparkles color="white" size={14} />
+                    <Text style={styles.popularBadgeText}>Nejoblíbenější</Text>
+                  </View>
+                  <View style={styles.pricingCardHeader}>
+                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>3 měsíce</Text>
+                  </View>
+                  <View style={styles.priceContainer}>
+                    <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>399 Kč</Text>
+                    <Text style={[styles.pricePeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>/3 měsíce</Text>
+                  </View>
+                  <View style={styles.savingsBadge}>
+                    <Text style={[styles.savingsText, { color: isDarkMode ? '#34D399' : '#10B981' }]}>Ušetříte 198 Kč</Text>
+                  </View>
+                  <View style={styles.pricingFeatures}>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Všechny funkce</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>AI asistent</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Prioritní podpora</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>133 Kč/měsíc</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={[styles.pricingButton, styles.popularButton]}
+                    onPress={() => {
+                      setShowPricingModal(false);
+                      router.push('/subscription');
+                    }}
+                  >
+                    <Text style={styles.pricingButtonText}>Vybrat plán</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Yearly Plan - Best Value */}
+                <View style={[styles.pricingCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
+                  <View style={[styles.popularBadge, { backgroundColor: '#F59E0B' }]}>
+                    <Star color="white" size={14} fill="white" />
+                    <Text style={styles.popularBadgeText}>Nejlepší hodnota</Text>
+                  </View>
+                  <View style={styles.pricingCardHeader}>
+                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>Roční</Text>
+                  </View>
+                  <View style={styles.priceContainer}>
+                    <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>1 299 Kč</Text>
+                    <Text style={[styles.pricePeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>/rok</Text>
+                  </View>
+                  <View style={styles.savingsBadge}>
+                    <Text style={[styles.savingsText, { color: isDarkMode ? '#34D399' : '#10B981' }]}>Ušetříte 1 089 Kč</Text>
+                  </View>
+                  <View style={styles.pricingFeatures}>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Všechny funkce</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>AI asistent</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Prioritní podpora</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>108 Kč/měsíc</Text>
+                    </View>
+                    <View style={styles.pricingFeature}>
+                      <CheckCircle color="#10B981" size={16} />
+                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>45% sleva</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.pricingButton}
+                    onPress={() => {
+                      setShowPricingModal(false);
+                      router.push('/subscription');
+                    }}
+                  >
+                    <Text style={styles.pricingButtonText}>Vybrat plán</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -717,5 +879,166 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  pricingHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingTop: 8,
+  },
+  pricingTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  pricingSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  pricingScroll: {
+    flex: 1,
+  },
+  pricingCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  popularCard: {
+    borderColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOpacity: 0.2,
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -12,
+    alignSelf: 'center',
+    backgroundColor: '#667eea',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  popularBadgeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  pricingCardHeader: {
+    marginBottom: 12,
+  },
+  planName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  price: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  pricePeriod: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  savingsBadge: {
+    backgroundColor: '#D1FAE5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+  },
+  savingsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  pricingFeatures: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  pricingFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pricingFeatureText: {
+    fontSize: 15,
+    color: '#6B7280',
+  },
+  pricingButton: {
+    backgroundColor: '#667eea',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  popularButton: {
+    backgroundColor: '#667eea',
+  },
+  pricingButtonText: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: 'white',
   },
 });
