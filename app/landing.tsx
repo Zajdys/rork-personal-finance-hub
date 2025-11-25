@@ -420,7 +420,7 @@ export default function LandingScreen() {
                     style={styles.pricingButton}
                     onPress={() => {
                       setShowPricingModal(false);
-                      router.push('/subscription');
+                      router.push('/choose-subscription');
                     }}
                   >
                     <Text style={styles.pricingButtonText}>Vybrat plán</Text>
@@ -465,7 +465,7 @@ export default function LandingScreen() {
                     style={[styles.pricingButton, styles.popularButton]}
                     onPress={() => {
                       setShowPricingModal(false);
-                      router.push('/subscription');
+                      router.push('/choose-subscription');
                     }}
                   >
                     <Text style={styles.pricingButtonText}>Vybrat plán</Text>
@@ -514,7 +514,7 @@ export default function LandingScreen() {
                     style={styles.pricingButton}
                     onPress={() => {
                       setShowPricingModal(false);
-                      router.push('/subscription');
+                      router.push('/choose-subscription');
                     }}
                   >
                     <Text style={styles.pricingButtonText}>Vybrat plán</Text>
