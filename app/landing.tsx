@@ -896,7 +896,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingHorizontal: 20,
     paddingBottom: 40,
-    maxHeight: '90%',
+    height: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.25,
