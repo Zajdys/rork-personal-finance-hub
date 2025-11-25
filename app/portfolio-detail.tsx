@@ -1975,9 +1975,28 @@ export default function PortfolioDetailScreen() {
                 <View style={styles.supportedFormatsContainer}>
                   <Text style={styles.supportedFormatsTitle}>Podporované brokery:</Text>
                   <Text style={styles.supportedFormatsText}>
-                    • Trading212 - historie transakcí
+                    • Trading212 - export historie transakcí
+                  </Text>
+                  <Text style={styles.supportedFormatsText}>
+                    • XTB - export historie obchodů
+                  </Text>
+                  <Text style={styles.supportedFormatsText}>
+                    • Degiro - export Account.csv
+                  </Text>
+                  <Text style={styles.supportedFormatsText}>
+                    • eToro - account statement
+                  </Text>
+                  <Text style={styles.supportedFormatsText}>
+                    • Interactive Brokers - Activity Statement
+                  </Text>
+                  <Text style={styles.supportedFormatsText}>
+                    • Ostatní - obecný formát s Action, Ticker, Price, Shares
                   </Text>
                   <Text style={styles.supportedFormatsNote}>📄 Formáty: CSV, XLSX (Excel)</Text>
+                  <Text style={styles.infoText}>
+                    💡 Tip: Soubor by měl obsahovat sloupce jako Action/Type (Buy/Sell), 
+                    Ticker/Symbol, Price/Price per share, No. of shares/Quantity
+                  </Text>
                 </View>
               </View>
             </View>
@@ -2821,5 +2840,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold' as const,
     color: '#1F2937',
+  },
+  infoText: {
+    fontSize: 11,
+    color: '#6B7280',
+    lineHeight: 16,
+    marginTop: 8,
   },
 });
