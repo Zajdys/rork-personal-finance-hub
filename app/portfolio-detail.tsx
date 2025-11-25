@@ -103,6 +103,7 @@ export default function PortfolioDetailScreen() {
   const [showFileImportModal, setShowFileImportModal] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
+  const [isPickingFile, setIsPickingFile] = useState<boolean>(false);
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
 
   const trades = useMemo(() => portfolio?.trades || [], [portfolio]);
@@ -372,7 +373,13 @@ export default function PortfolioDetailScreen() {
   };
 
   const handleFileImport = async () => {
+    if (isPickingFile) {
+      console.log('Document picker already in progress');
+      return;
+    }
+
     try {
+      setIsPickingFile(true);
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'text/csv',
@@ -392,6 +399,8 @@ export default function PortfolioDetailScreen() {
     } catch (error) {
       console.error('Error picking file:', error);
       Alert.alert('Chyba', 'Nepodařilo se vybrat soubor.');
+    } finally {
+      setIsPickingFile(false);
     }
   };
 
@@ -1993,14 +2002,20 @@ export default function PortfolioDetailScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.submitButton} onPress={handleFileImport}>
+              <TouchableOpacity 
+                style={styles.submitButton} 
+                onPress={handleFileImport}
+                disabled={isPickingFile}
+              >
                 <LinearGradient
                   colors={['#6B7280', '#4B5563']}
                   style={styles.submitButtonGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
-                  <Text style={styles.submitButtonText}>Vybrat soubor</Text>
+                  <Text style={styles.submitButtonText}>
+                    {isPickingFile ? 'Vybírám...' : 'Vybrat soubor'}
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
