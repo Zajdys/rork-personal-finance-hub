@@ -187,7 +187,10 @@ export default function LandingScreen() {
             
             <TouchableOpacity 
               style={styles.secondaryButton}
-              onPress={() => setShowPricingModal(true)}
+              onPress={() => {
+                console.log('Opening pricing modal');
+                setShowPricingModal(true);
+              }}
             >
               <Text style={styles.secondaryButtonText}>Zobrazit ceny</Text>
             </TouchableOpacity>
@@ -367,7 +370,10 @@ export default function LandingScreen() {
         visible={showPricingModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowPricingModal(false)}
+        onRequestClose={() => {
+          console.log('Closing pricing modal');
+          setShowPricingModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -882,7 +888,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
