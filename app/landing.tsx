@@ -74,6 +74,8 @@ export default function LandingScreen() {
   const router = useRouter();
   const [showPricingModal, setShowPricingModal] = useState(false);
 
+  console.log('Landing screen render, showPricingModal:', showPricingModal);
+
   const FeatureCard = ({ feature }: { feature: Feature }) => {
     const Icon = feature.icon;
     
@@ -134,8 +136,9 @@ export default function LandingScreen() {
             <TouchableOpacity 
               style={styles.secondaryButton}
               onPress={() => {
-                console.log('Opening pricing modal');
+                console.log('Button clicked - opening pricing modal');
                 setShowPricingModal(true);
+                console.log('State set to true');
               }}
             >
               <Text style={styles.secondaryButtonText}>Zobrazit ceny</Text>
@@ -281,7 +284,11 @@ export default function LandingScreen() {
             
             <TouchableOpacity 
               style={styles.ctaSecondaryButton}
-              onPress={() => setShowPricingModal(true)}
+              onPress={() => {
+                console.log('CTA button clicked - opening pricing modal');
+                setShowPricingModal(true);
+                console.log('State set to true');
+              }}
             >
               <Text style={styles.ctaSecondaryButtonText}>Zobrazit plány</Text>
             </TouchableOpacity>
