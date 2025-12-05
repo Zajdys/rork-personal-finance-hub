@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Modal,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -342,8 +343,32 @@ export default function LandingScreen() {
                   <TouchableOpacity 
                     style={styles.pricingButton}
                     onPress={() => {
-                      setShowPricingModal(false);
-                      router.push('/choose-subscription');
+                      Alert.alert(
+                        'Potvrdit předplatné',
+                        'Chcete aktivovat měsíční předplatné za 199 Kč/měsíc?',
+                        [
+                          {
+                            text: 'Zrušit',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Potvrdit',
+                            onPress: () => {
+                              setShowPricingModal(false);
+                              Alert.alert(
+                                'Úspěch!',
+                                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+                                [
+                                  {
+                                    text: 'OK',
+                                    onPress: () => router.push('/(tabs)'),
+                                  },
+                                ]
+                              );
+                            },
+                          },
+                        ]
+                      );
                     }}
                   >
                     <Text style={styles.pricingButtonText}>Vybrat plán</Text>
@@ -387,8 +412,32 @@ export default function LandingScreen() {
                   <TouchableOpacity 
                     style={[styles.pricingButton, styles.popularButton]}
                     onPress={() => {
-                      setShowPricingModal(false);
-                      router.push('/choose-subscription');
+                      Alert.alert(
+                        'Potvrdit předplatné',
+                        'Chcete aktivovat předplatné na 3 měsíce za 399 Kč?',
+                        [
+                          {
+                            text: 'Zrušit',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Potvrdit',
+                            onPress: () => {
+                              setShowPricingModal(false);
+                              Alert.alert(
+                                'Úspěch!',
+                                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+                                [
+                                  {
+                                    text: 'OK',
+                                    onPress: () => router.push('/(tabs)'),
+                                  },
+                                ]
+                              );
+                            },
+                          },
+                        ]
+                      );
                     }}
                   >
                     <Text style={styles.pricingButtonText}>Vybrat plán</Text>
@@ -436,8 +485,32 @@ export default function LandingScreen() {
                   <TouchableOpacity 
                     style={styles.pricingButton}
                     onPress={() => {
-                      setShowPricingModal(false);
-                      router.push('/choose-subscription');
+                      Alert.alert(
+                        'Potvrdit předplatné',
+                        'Chcete aktivovat roční předplatné za 1 299 Kč?',
+                        [
+                          {
+                            text: 'Zrušit',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Potvrdit',
+                            onPress: () => {
+                              setShowPricingModal(false);
+                              Alert.alert(
+                                'Úspěch!',
+                                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+                                [
+                                  {
+                                    text: 'OK',
+                                    onPress: () => router.push('/(tabs)'),
+                                  },
+                                ]
+                              );
+                            },
+                          },
+                        ]
+                      );
                     }}
                   >
                     <Text style={styles.pricingButtonText}>Vybrat plán</Text>
