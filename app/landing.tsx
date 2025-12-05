@@ -12,10 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   TrendingUp,
   Shield,
-  Zap,
   Star,
-  Users,
-  Award,
   ArrowRight,
   CheckCircle,
   Smartphone,
@@ -26,7 +23,6 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
-import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -70,33 +66,10 @@ const FEATURES: Feature[] = [
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    id: '1',
-    name: 'Jana Nováková',
-    role: 'Freelancer',
-    text: 'MoneyBuddy mi pomohl získat kontrolu nad financemi. AI asistent je neuvěřitelně užitečný!',
-    rating: 5,
-  },
-  {
-    id: '2',
-    name: 'Petr Svoboda',
-    role: 'IT Manager',
-    text: 'Konečně aplikace, která rozumí českému trhu. Investiční tracking je skvělý.',
-    rating: 5,
-  },
-  {
-    id: '3',
-    name: 'Marie Dvořáková',
-    role: 'Podnikatelka',
-    text: 'Díky MoneyBuddy jsem za rok ušetřila 50 000 Kč. Doporučuji všem!',
-    rating: 5,
-  },
-];
+
 
 export default function LandingScreen() {
   const { isDarkMode } = useSettingsStore();
-  const { t } = useLanguageStore();
   const router = useRouter();
   const [showPricingModal, setShowPricingModal] = useState(false);
 
@@ -118,35 +91,7 @@ export default function LandingScreen() {
     );
   };
 
-  const TestimonialCard = ({ testimonial }: { testimonial: any }) => (
-    <View style={[styles.testimonialCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-      <View style={styles.testimonialHeader}>
-        <View style={styles.testimonialInfo}>
-          <Text style={[styles.testimonialName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {testimonial.name}
-          </Text>
-          <Text style={[styles.testimonialRole, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {testimonial.role}
-          </Text>
-        </View>
-        <View style={styles.testimonialRating}>
-          {Array.from({ length: testimonial.rating }).map((_, index) => (
-            <Star key={index} color="#F59E0B" size={16} fill="#F59E0B" />
-          ))}
-        </View>
-      </View>
-      <Text style={[styles.testimonialText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-        "{testimonial.text}"
-      </Text>
-    </View>
-  );
 
-  const StatCard = ({ number, label }: { number: string; label: string }) => (
-    <View style={styles.statCard}>
-      <Text style={styles.statNumber}>{number}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
 
   return (
     <ScrollView 
@@ -195,8 +140,6 @@ export default function LandingScreen() {
               <Text style={styles.secondaryButtonText}>Zobrazit ceny</Text>
             </TouchableOpacity>
           </View>
-
-
         </View>
       </LinearGradient>
 
@@ -598,27 +541,7 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
   },
-  heroStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    maxWidth: 320,
-  },
-  statCard: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: 'white',
-    opacity: 0.8,
-    textAlign: 'center',
-  },
+
   featuresSection: {
     paddingHorizontal: 20,
     paddingVertical: 40,
@@ -704,53 +627,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     flex: 1,
   },
-  testimonialsSection: {
-    paddingVertical: 40,
-  },
-  testimonialsContainer: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  testimonialCard: {
-    width: 280,
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  testimonialHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  testimonialInfo: {
-    flex: 1,
-  },
-  testimonialName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  testimonialRole: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  testimonialRating: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  testimonialText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    fontStyle: 'italic',
-  },
+
   securitySection: {
     paddingHorizontal: 20,
     paddingVertical: 40,
