@@ -105,9 +105,10 @@ function RootLayoutNav() {
   
   if (isAuthenticated && !hasActiveSubscription) {
     return (
-      <Stack initialRouteName="subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="subscription" options={{ title: 'Předplatné' }} />
+      <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
         <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
+        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
       </Stack>
     );
   }
@@ -166,7 +167,8 @@ function RootLayoutNav() {
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
-      <Stack.Screen name="subscription" options={{ title: 'Předplatné' }} />
+      <Stack.Screen name="subscription" options={{ title: 'Úprava předplatného' }} />
+      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
     </>
