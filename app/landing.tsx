@@ -196,12 +196,7 @@ export default function LandingScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Stats */}
-          <View style={styles.heroStats}>
-            <StatCard number="10K+" label="Aktivních uživatelů" />
-            <StatCard number="50M+" label="Korun spravováno" />
-            <StatCard number="4.9★" label="Hodnocení" />
-          </View>
+
         </View>
       </LinearGradient>
 
@@ -251,14 +246,14 @@ export default function LandingScreen() {
             <View style={styles.benefitItem}>
               <CheckCircle color="#10B981" size={20} />
               <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Pokročilé investiční analýzy
+                Režim domácnost - propojte 2 lidi a spravujte finance dohromady
               </Text>
             </View>
             
             <View style={styles.benefitItem}>
               <CheckCircle color="#10B981" size={20} />
               <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Export dat a daňové reporty
+                Export dat pro daňové účely
               </Text>
             </View>
             
@@ -279,22 +274,7 @@ export default function LandingScreen() {
         </LinearGradient>
       </View>
 
-      {/* Testimonials Section */}
-      <View style={styles.testimonialsSection}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-          Co říkají naši uživatelé
-        </Text>
-        
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.testimonialsContainer}
-        >
-          {TESTIMONIALS.map((testimonial) => (
-            <TestimonialCard key={testimonial.id} testimonial={testimonial} />
-          ))}
-        </ScrollView>
-      </View>
+
 
       {/* Security Section */}
       <View style={styles.securitySection}>
