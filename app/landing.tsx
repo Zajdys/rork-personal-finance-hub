@@ -324,6 +324,16 @@ export default function LandingScreen() {
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} style={styles.pricingScroll}>
+                {/* Redeem Code Button */}
+                <TouchableOpacity 
+                  style={[styles.redeemCodeButton, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC', borderColor: '#667eea' }]}
+                  onPress={() => {
+                    setShowPricingModal(false);
+                    router.push('/redeem-code');
+                  }}
+                >
+                  <Text style={[styles.redeemCodeText, { color: '#667eea' }]}>Mám slevový kód</Text>
+                </TouchableOpacity>
                 {/* Monthly Plan */}
                 <View style={[styles.pricingCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
                   <View style={styles.pricingCardHeader}>
@@ -983,5 +993,18 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: 'bold',
     color: 'white',
+  },
+  redeemCodeButton: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#667eea',
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  redeemCodeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#667eea',
   },
 });

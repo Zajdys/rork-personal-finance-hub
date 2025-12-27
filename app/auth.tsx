@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -18,15 +17,12 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  UserPlus,
-  LogIn,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
-import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
 
-// InputField component moved outside to prevent re-renders
+// ---------- INPUT FIELD ----------
 interface InputFieldProps {
   icon: React.ComponentType<any>;
   placeholder: string;
@@ -39,20 +35,20 @@ interface InputFieldProps {
   onTogglePassword?: () => void;
 }
 
-const InputField = React.memo<InputFieldProps>(({ 
-  icon: Icon, 
-  placeholder, 
-  value, 
-  onChangeText, 
+const InputField = React.memo<InputFieldProps>(({
+  icon: Icon,
+  placeholder,
+  value,
+  onChangeText,
   secureTextEntry = false,
   keyboardType = 'default',
   isDarkMode,
   showPassword,
-  onTogglePassword
+  onTogglePassword,
 }) => {
-  const isPasswordField = placeholder.toLowerCase().includes('heslo');
-  const isEmailField = placeholder.toLowerCase().includes('email');
-  
+  const isPassword = placeholder.toLowerCase().includes('heslo');
+  const isEmail = placeholder.toLowerCase().includes('email');
+
   return (
     <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
       <Icon color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
@@ -64,14 +60,10 @@ const InputField = React.memo<InputFieldProps>(({
         onChangeText={onChangeText}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
-        autoCapitalize={isEmailField ? 'none' : 'words'}
+        autoCapitalize={isEmail ? 'none' : 'words'}
         autoCorrect={false}
-        autoComplete={isPasswordField ? 'password' : isEmailField ? 'email' : 'off'}
-        textContentType={isPasswordField ? 'password' : isEmailField ? 'emailAddress' : 'none'}
-        returnKeyType="next"
-        blurOnSubmit={false}
       />
-      {isPasswordField && onTogglePassword && (
+      {isPassword && onTogglePassword && (
         <TouchableOpacity onPress={onTogglePassword}>
           {showPassword ? (
             <EyeOff color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
@@ -86,44 +78,28 @@ const InputField = React.memo<InputFieldProps>(({
 
 InputField.displayName = 'InputField';
 
+// ---------- AUTH SCREEN ----------
 export default function AuthScreen() {
-  const [isLogin, setIsLogin] = useState<boolean>(true);
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [name, setName] = useState<string>('');
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
-  
-  // Stable callbacks to prevent re-renders
-  const handleEmailChange = useCallback((text: string) => {
-    setEmail(text);
-  }, []);
-  
-  const handlePasswordChange = useCallback((text: string) => {
-    setPassword(text);
-  }, []);
-  
-  const handleNameChange = useCallback((text: string) => {
-    setName(text);
-  }, []);
-  
-  const togglePasswordVisibility = useCallback(() => {
-    setShowPassword(prev => !prev);
-  }, []);
-  
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const { isDarkMode } = useSettingsStore();
   const { login, register } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async () => {
     if (!email || !password || (!isLogin && !name)) {
-      setError('Vyplňte všechna povinná pole');
+      setError('Vyplňte všechna pole');
       return;
     }
 
     if (!email.includes('@')) {
-      setError('Zadejte platnou emailovou adresu');
+      setError('Neplatný email');
       return;
     }
 
@@ -136,441 +112,147 @@ export default function AuthScreen() {
     setError('');
 
     try {
-      let success = false;
-      
       if (isLogin) {
-        success = await login(email, password);
+        const success = await login(email, password);
         if (success) {
           router.replace('/');
         } else {
           setError('Nesprávné přihlašovací údaje');
         }
       } else {
-        success = await register(email, password, name);
+        const success = await register(email, password, name);
         if (success) {
           router.replace('/onboarding');
         } else {
-          setError('Registrace se nezdařila. Zkuste to prosím znovu.');
+          setError('Registrace selhala');
         }
       }
-    } catch (err) {
-      setError('Nastala chyba. Zkuste to prosím znovu.');
+    } catch {
+      setError('Nastala chyba');
     } finally {
       setLoading(false);
     }
   };
 
-
-
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <User color="white" size={32} />
-            </View>
-            <Text style={styles.headerTitle}>MoneyBuddy</Text>
-            <Text style={styles.headerSubtitle}>
-              {isLogin ? 'Vítejte zpět!' : 'Začněte svou finanční cestu'}
-            </Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+
+        <LinearGradient colors={['#667eea', '#764ba2']} style={styles.header}>
+          <Text style={styles.headerTitle}>MoneyBuddy</Text>
+          <Text style={styles.headerSubtitle}>
+            {isLogin ? 'Přihlášení' : 'Registrace'}
+          </Text>
         </LinearGradient>
 
         <View style={styles.content}>
-          {/* Toggle Buttons */}
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                isLogin && styles.toggleButtonActive,
-                { backgroundColor: isDarkMode ? '#374151' : 'white' }
-              ]}
-              onPress={() => {
-                setIsLogin(true);
-                setError('');
-              }}
-            >
-              {isLogin && (
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  style={styles.toggleGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <LogIn color="white" size={20} />
-                  <Text style={[styles.toggleText, { color: 'white' }]}>Přihlášení</Text>
-                </LinearGradient>
-              )}
-              {!isLogin && (
-                <View style={styles.toggleContent}>
-                  <LogIn color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                  <Text style={[styles.toggleText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Přihlášení</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                !isLogin && styles.toggleButtonActive,
-                { backgroundColor: isDarkMode ? '#374151' : 'white' }
-              ]}
-              onPress={() => {
-                setIsLogin(false);
-                setError('');
-              }}
-            >
-              {!isLogin && (
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  style={styles.toggleGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <UserPlus color="white" size={20} />
-                  <Text style={[styles.toggleText, { color: 'white' }]}>Registrace</Text>
-                </LinearGradient>
-              )}
-              {isLogin && (
-                <View style={styles.toggleContent}>
-                  <UserPlus color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                  <Text style={[styles.toggleText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Registrace</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
 
-          {/* Form */}
-          <View style={styles.form}>
-            {!isLogin && (
-              <InputField
-                icon={User}
-                placeholder="Celé jméno"
-                value={name}
-                onChangeText={handleNameChange}
-                isDarkMode={isDarkMode}
-              />
-            )}
-            
+          {!isLogin && (
             <InputField
-              icon={Mail}
-              placeholder="Email"
-              value={email}
-              onChangeText={handleEmailChange}
-              keyboardType="email-address"
+              icon={User}
+              placeholder="Celé jméno"
+              value={name}
+              onChangeText={setName}
               isDarkMode={isDarkMode}
             />
-            
-            <InputField
-              icon={Lock}
-              placeholder="Heslo"
-              value={password}
-              onChangeText={handlePasswordChange}
-              secureTextEntry={!showPassword}
-              isDarkMode={isDarkMode}
-              showPassword={showPassword}
-              onTogglePassword={togglePasswordVisibility}
-            />
-
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity 
-              style={styles.submitButton} 
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                style={styles.submitGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                {loading ? (
-                  <Text style={styles.submitText}>Načítání...</Text>
-                ) : (
-                  <>
-                    <Text style={styles.submitText}>
-                      {isLogin ? 'Přihlásit se' : 'Registrovat se'}
-                    </Text>
-                    <ArrowRight color="white" size={20} />
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-
-          {/* Demo Credentials */}
-          {isLogin && (
-            <View style={[styles.demoContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <Text style={[styles.demoTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Demo přístup:</Text>
-              <Text style={[styles.demoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Email: test@test.cz</Text>
-              <Text style={[styles.demoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Heslo: test123</Text>
-            </View>
           )}
-          
-          {/* Back to Landing */}
-          <TouchableOpacity 
-            style={[styles.backToLandingButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-            onPress={() => router.push('/landing')}
+
+          <InputField
+            icon={Mail}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            isDarkMode={isDarkMode}
+          />
+
+          <InputField
+            icon={Lock}
+            placeholder="Heslo"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            showPassword={showPassword}
+            onTogglePassword={() => setShowPassword(p => !p)}
+            isDarkMode={isDarkMode}
+          />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <TouchableOpacity onPress={handleSubmit} disabled={loading}>
+            <LinearGradient colors={['#667eea', '#764ba2']} style={styles.submit}>
+              <Text style={styles.submitText}>
+                {loading ? 'Načítání…' : isLogin ? 'Přihlásit se' : 'Registrovat se'}
+              </Text>
+              <ArrowRight color="white" size={20} />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              setIsLogin(!isLogin);
+              setError('');
+            }}
           >
-            <Text style={[styles.backToLandingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              ← Zpět na hlavní stránku
+            <Text style={styles.switch}>
+              {isLogin ? 'Nemáš účet? Registrace' : 'Máš účet? Přihlášení'}
             </Text>
           </TouchableOpacity>
 
-          {/* Features */}
-          <View style={styles.featuresContainer}>
-            <Text style={[styles.featuresTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              {isLogin ? 'Proč MoneyBuddy?' : 'Co získáte?'}
+          <TouchableOpacity
+            style={[styles.codeButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+            onPress={() => router.push('/redeem-code')}
+          >
+            <Text style={[styles.codeButtonText, { color: isDarkMode ? 'white' : '#667eea' }]}>
+              Mám kód
             </Text>
-            
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <View style={styles.featureBullet} />
-                <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Sledování příjmů a výdajů
-                </Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <View style={styles.featureBullet} />
-                <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  AI asistent pro finanční poradenství
-                </Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <View style={styles.featureBullet} />
-                <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Investiční portfolio tracking
-                </Text>
-              </View>
-              
-              <View style={styles.featureItem}>
-                <View style={styles.featureBullet} />
-                <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Finanční vzdělávání a tipy
-                </Text>
-              </View>
-            </View>
-          </View>
+          </TouchableOpacity>
+
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+// ---------- STYLES ----------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    alignItems: 'center',
-  },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'white',
-    opacity: 0.9,
-    textAlign: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    marginBottom: 32,
-    gap: 12,
-    marginTop: -20,
-  },
-  toggleButton: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  toggleButtonActive: {
-    transform: [{ scale: 1.02 }],
-  },
-  toggleGradient: {
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  toggleContent: {
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  toggleText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  form: {
-    gap: 16,
-    marginBottom: 32,
-  },
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  header: { padding: 60, alignItems: 'center' },
+  headerTitle: { color: 'white', fontSize: 28, fontWeight: 'bold' },
+  headerSubtitle: { color: 'white', opacity: 0.9 },
+  content: { padding: 20, gap: 16 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 16,
+    borderRadius: 14,
     gap: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  submitButton: {
+  input: { flex: 1, fontSize: 16 },
+  submit: {
+    padding: 18,
     borderRadius: 16,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-  submitGradient: {
-    paddingVertical: 18,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  submitText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
+  submitText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  error: { color: '#DC2626', textAlign: 'center' },
+  switch: { textAlign: 'center', marginTop: 16, color: '#667eea' },
+  codeButton: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#667eea',
+    marginTop: 8,
   },
-  demoContainer: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  demoTitle: {
+  codeButtonText: {
+    textAlign: 'center',
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  demoText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  featuresContainer: {
-    marginBottom: 32,
-  },
-  featuresTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  featuresList: {
-    gap: 12,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  featureBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#667eea',
-  },
-  featureText: {
-    fontSize: 16,
-    color: '#6B7280',
-    flex: 1,
-  },
-  backToLandingButton: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  backToLandingText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
 });
