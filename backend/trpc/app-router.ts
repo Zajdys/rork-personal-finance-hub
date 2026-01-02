@@ -1,4 +1,8 @@
-import { createTRPCRouter } from "./create-context";
+import { createTRPCRouter, publicProcedure } from "./create-context";
+import { z } from "zod";
+import crypto from "crypto";
+
+// ================= EXISTUJÍCÍ ROUTES =================
 import hiRoute from "./routes/example/hi/route";
 import portfolioImport from "./routes/portfolio/import/route";
 import portfolioPositions from "./routes/portfolio/positions/route";
@@ -30,7 +34,40 @@ import { createSettlementProcedure } from "./routes/household/settlements/create
 import { listSettlementsProcedure } from "./routes/household/settlements/list/route";
 import { getHouseholdDashboardProcedure } from "./routes/household/dashboard/route";
 
+// ================= APP ROUTER =================
 export const appRouter = createTRPCRouter({
+  // ================= AUTH =================
+  auth: createTRPCRouter({
+    register: publicProcedure
+      .input(
+        z.object({
+          email: z.string().email(),
+          password: z.string().min(6),
+          name: z.string().optional(),
+        })
+      )
+      .mutation(({ input }) => {
+        const { email, password, name } = input;
+
+        const passwordHash = crypto
+          .createHash("sha256")
+          .update(password)
+          .digest("hex");
+
+        // ✅ zatím in-memory (jen aby to fungovalo)
+        return {
+          user: {
+            id: crypto.randomUUID(),
+            email,
+            name: name ?? null,
+          },
+          token: crypto.randomUUID(),
+          passwordHash, // debug – klidně pak smažeme
+        };
+      }),
+  }),
+
+  // ================= EXISTING =================
   example: createTRPCRouter({
     hi: hiRoute,
   }),
