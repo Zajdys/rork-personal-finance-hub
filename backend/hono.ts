@@ -116,7 +116,13 @@ app.post("/register", async (c) => {
       hasName: Boolean(name),
       emailPreview: email ? `${email.slice(0, 2)}***${email.slice(-2)}` : null,
       hasAirtableKey: Boolean(process.env.AIRTABLE_API_KEY),
+      airtableKeyLength: (process.env.AIRTABLE_API_KEY ?? "").length,
       airtableBaseIdPrefix: (process.env.AIRTABLE_BASE_ID ?? "").slice(0, 5) || null,
+      airtableBaseIdLength: (process.env.AIRTABLE_BASE_ID ?? "").length,
+    });
+    
+    console.log("[/register] ENV check", {
+      allEnvKeys: Object.keys(process.env).filter(k => k.includes('AIRTABLE')),
     });
 
     if (!email || !password || !name) {

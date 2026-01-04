@@ -25,10 +25,21 @@ function getAirtableConfig(): { apiKey: string; baseId: string } {
   const apiKey = process.env.AIRTABLE_API_KEY ?? "";
   const baseId = process.env.AIRTABLE_BASE_ID ?? "";
 
+  console.log("[getAirtableConfig] check", {
+    hasApiKey: Boolean(apiKey),
+    apiKeyLength: apiKey.length,
+    apiKeyPreview: apiKey ? `${apiKey.slice(0, 3)}...${apiKey.slice(-3)}` : null,
+    hasBaseId: Boolean(baseId),
+    baseIdLength: baseId.length,
+    baseIdValue: baseId,
+  });
+
   if (!apiKey) {
+    console.error("[getAirtableConfig] Missing AIRTABLE_API_KEY");
     throw new Error("Missing AIRTABLE_API_KEY");
   }
   if (!baseId) {
+    console.error("[getAirtableConfig] Missing AIRTABLE_BASE_ID");
     throw new Error("Missing AIRTABLE_BASE_ID");
   }
 
@@ -83,6 +94,8 @@ async function getUserByEmail(email: string): Promise<AirtableUserRecord | null>
   const formula = `{email} = "${email.replace(/"/g, "\\\"")}"`;
   const url = `https://api.airtable.com/v0/${baseId}/Users?maxRecords=1&filterByFormula=${encodeURIComponent(formula)}`;
 
+  console.log("[getUserByEmail] fetching", { email, url: url.replace(apiKey, "***") });
+
   const res = await airtableFetch<AirtableListResponse<AirtableUserFields>>(url, {
     method: "GET",
     headers: {
@@ -129,6 +142,13 @@ export async function registerUser(email: string, password: string, name: string
   };
 
   const url = `https://api.airtable.com/v0/${baseId}/Users`;
+  
+  console.log("[registerUser] creating record", {
+    email: normalizedEmail,
+    name: cleanName,
+    url,
+  });
+  
   const res = await airtableFetch<{ records: { id: string }[] }>(url, {
     method: "POST",
     headers: {
