@@ -45,7 +45,7 @@ const STORAGE_KEY = 'auth_state';
 const TOKEN_KEY = 'authToken';
 
 function getApiBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
     return envUrl.replace(/\/$/, '');
   }

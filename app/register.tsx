@@ -18,7 +18,7 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const apiBaseUrl = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '') || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+      const apiBaseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL ?? '';
       const url = `${apiBaseUrl}/api/register`;
       
       console.log('[Register] Calling:', url);
