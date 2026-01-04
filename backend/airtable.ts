@@ -3,6 +3,7 @@ import * as crypto from "node:crypto";
 type AirtableUserFields = {
   email: string;
   password_hash: string;
+  name: string;
   created_at: string;
 };
 
@@ -97,12 +98,13 @@ async function getUserByEmail(email: string): Promise<AirtableUserRecord | null>
   return first ?? null;
 }
 
-export async function registerUser(email: string, password: string): Promise<{ success: true }> {
+export async function registerUser(email: string, password: string, name: string): Promise<{ success: true }> {
   const normalizedEmail = String(email).trim().toLowerCase();
   const cleanPassword = String(password).trim();
+  const cleanName = String(name).trim();
 
-  if (!normalizedEmail || !cleanPassword) {
-    throw new Error("Missing email or password");
+  if (!normalizedEmail || !cleanPassword || !cleanName) {
+    throw new Error("Missing email, password or name");
   }
 
   const existing = await getUserByEmail(normalizedEmail);
@@ -119,6 +121,7 @@ export async function registerUser(email: string, password: string): Promise<{ s
         fields: {
           email: normalizedEmail,
           password_hash,
+          name: cleanName,
           created_at: new Date().toISOString(),
         },
       },

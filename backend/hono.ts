@@ -105,24 +105,26 @@ app.get("/", (c) => {
 // Auth: /register (Airtable)
 app.post("/register", async (c) => {
   try {
-    const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string }>;
+    const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string; name: string }>;
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "").trim();
+    const name = String(body?.name ?? "").trim();
 
     console.log("[/register] incoming", {
       hasEmail: Boolean(email),
       hasPassword: Boolean(password),
+      hasName: Boolean(name),
       emailPreview: email ? `${email.slice(0, 2)}***${email.slice(-2)}` : null,
       hasAirtableKey: Boolean(process.env.AIRTABLE_API_KEY),
       airtableBaseIdPrefix: (process.env.AIRTABLE_BASE_ID ?? "").slice(0, 5) || null,
     });
 
-    if (!email || !password) {
-      return c.json({ error: "Missing email or password" }, 400);
+    if (!email || !password || !name) {
+      return c.json({ error: "Missing email, password or name" }, 400);
     }
 
     const { registerUser } = await import("./airtable");
-    const result = await registerUser(email, password);
+    const result = await registerUser(email, password, name);
 
     console.log("[airtable register] success", { email });
 

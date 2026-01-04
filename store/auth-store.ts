@@ -146,14 +146,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (safeEmail.length > 100 || safePassword.length > 100 || safeName.length > 100) return false;
 
       const url = `${getApiBaseUrl()}/api/register`;
-      console.log('[auth] register request', { url, email: safeEmail });
+      console.log('[auth] register request', { url, email: safeEmail, name: safeName });
 
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: safeEmail, password: safePassword }),
+        body: JSON.stringify({ email: safeEmail, password: safePassword, name: safeName }),
       });
 
       const data = (await resp.json().catch(() => null)) as any;
