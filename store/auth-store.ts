@@ -136,14 +136,18 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name: string): Promise<boolean> => {
+  const register = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const safeEmail = String(email ?? '').trim().toLowerCase();
       const safePassword = String(password ?? '').trim();
       const safeName = String(name ?? '').trim();
 
-      if (!safeEmail || !safePassword || !safeName) return false;
-      if (safeEmail.length > 100 || safePassword.length > 100 || safeName.length > 100) return false;
+      if (!safeEmail || !safePassword || !safeName) {
+        return { success: false, error: 'Vyplňte všechna pole' };
+      }
+      if (safeEmail.length > 100 || safePassword.length > 100 || safeName.length > 100) {
+        return { success: false, error: 'Údaje jsou příliš dlouhé' };
+      }
 
       const url = `${getApiBaseUrl()}/api/register`;
       console.log('[auth] register request', { url, email: safeEmail, name: safeName });
@@ -160,7 +164,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[auth] register response', { status: resp.status, data });
 
       if (!resp.ok) {
-        return false;
+        const errorMsg = data?.error || `Chyba serveru: ${resp.status}`;
+        console.error('[auth] register failed', { status: resp.status, error: errorMsg });
+        return { success: false, error: errorMsg };
       }
 
       const newUser: User = {
@@ -192,10 +198,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         storage.removeItem(TOKEN_KEY),
       ]);
 
-      return true;
+      return { success: true };
     } catch (error) {
       console.error('Registration error:', error);
-      return false;
+      const errorMsg = error instanceof Error ? error.message : 'Nelze spojit se serverem';
+      return { success: false, error: errorMsg };
     }
   }, []);
 

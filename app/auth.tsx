@@ -120,11 +120,11 @@ export default function AuthScreen() {
           setError('Nesprávné přihlašovací údaje');
         }
       } else {
-        const success = await register(email, password, name);
-        if (success) {
+        const result = await register(email, password, name);
+        if (result.success) {
           router.replace('/onboarding');
         } else {
-          setError('Registrace selhala');
+          setError(result.error || 'Registrace selhala');
         }
       }
     } catch {
