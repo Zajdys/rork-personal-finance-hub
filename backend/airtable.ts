@@ -4,7 +4,7 @@ type AirtableUserFields = {
   email: string;
   password_hash: string;
   name: string;
-  created_at: string;
+  created_at?: string;
 };
 
 type AirtableUserRecord = {
@@ -128,14 +128,20 @@ export async function registerUser(email: string, password: string, name: string
   const { apiKey, baseId } = getAirtableConfig();
   const password_hash = sha256Hex(cleanPassword);
 
-  const body: AirtableCreateRecordBody<Pick<AirtableUserFields, 'email' | 'password_hash' | 'name'>> = {
+  const fields: Pick<AirtableUserFields, "email" | "password_hash" | "name"> & Record<string, unknown> = {
+    email: normalizedEmail,
+    password_hash,
+    name: cleanName,
+  };
+
+  if ("created_at" in fields) {
+    delete fields.created_at;
+  }
+
+  const body: AirtableCreateRecordBody<Record<string, unknown>> = {
     records: [
       {
-        fields: {
-          email: normalizedEmail,
-          password_hash,
-          name: cleanName,
-        },
+        fields,
       },
     ],
   };
@@ -146,6 +152,7 @@ export async function registerUser(email: string, password: string, name: string
     email: normalizedEmail,
     name: cleanName,
     url,
+    fieldsKeys: Object.keys(fields),
   });
   
   const res = await airtableFetch<{ records: { id: string }[] }>(url, {
