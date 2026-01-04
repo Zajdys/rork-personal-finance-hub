@@ -6,6 +6,11 @@ type AirtableUserFields = {
   created_at: string;
 };
 
+type AirtableUserRecord = {
+  id: string;
+  fields: Partial<AirtableUserFields>;
+};
+
 type AirtableCreateRecordBody<TFields extends Record<string, unknown>> = {
   records: { fields: TFields }[];
 };
@@ -58,7 +63,7 @@ async function airtableFetch<T>(
   }
 }
 
-async function userExistsByEmail(email: string): Promise<boolean> {
+async function getUserByEmail(email: string): Promise<AirtableUserRecord | null> {
   const { apiKey, baseId } = getAirtableConfig();
 
   const formula = `{email} = "${email.replace(/"/g, "\\\"")}"`;
@@ -75,7 +80,8 @@ async function userExistsByEmail(email: string): Promise<boolean> {
     throw new Error("Airtable lookup failed");
   }
 
-  return (res.data.records?.length ?? 0) > 0;
+  const first = (res.data.records?.[0] ?? null) as AirtableUserRecord | null;
+  return first ?? null;
 }
 
 export async function registerUser(email: string, password: string): Promise<{ success: true }> {
@@ -86,7 +92,8 @@ export async function registerUser(email: string, password: string): Promise<{ s
     throw new Error("Missing email or password");
   }
 
-  if (await userExistsByEmail(normalizedEmail)) {
+  const existing = await getUserByEmail(normalizedEmail);
+  if (existing) {
     throw new Error("User already exists");
   }
 
@@ -122,4 +129,36 @@ export async function registerUser(email: string, password: string): Promise<{ s
   console.log("[airtable] user created", { email: normalizedEmail, recordId: res.data.records?.[0]?.id ?? null });
 
   return { success: true };
+}
+
+export async function loginUser(email: string, password: string): Promise<
+  | { success: true; user: { id: string; email: string; created_at: string | null } }
+  | { success: false; error: string }
+> {
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const cleanPassword = String(password).trim();
+
+  if (!normalizedEmail || !cleanPassword) {
+    return { success: false, error: "Missing email or password" };
+  }
+
+  const record = await getUserByEmail(normalizedEmail);
+  if (!record) {
+    return { success: false, error: "Invalid credentials" };
+  }
+
+  const storedHash = String(record.fields?.password_hash ?? "");
+  const incomingHash = sha256Hex(cleanPassword);
+  if (!storedHash || storedHash !== incomingHash) {
+    return { success: false, error: "Invalid credentials" };
+  }
+
+  return {
+    success: true,
+    user: {
+      id: record.id,
+      email: normalizedEmail,
+      created_at: typeof record.fields?.created_at === "string" ? record.fields.created_at : null,
+    },
+  };
 }

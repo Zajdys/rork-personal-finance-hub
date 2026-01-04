@@ -7,11 +7,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
-  const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const backendUrl = process.env.EXPO_PUBLIC_API_URL;
   if (backendUrl) {
     return backendUrl;
   }
-  
+
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -19,7 +19,7 @@ const getBaseUrl = () => {
     }
     return window.location.origin;
   }
-  
+
   return 'http://localhost:3000';
 };
 

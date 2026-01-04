@@ -9,12 +9,13 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     try {
-      const res = await fetch('https://baceknd-for-moneybuudy.onrender.com/register', {
+      const apiBaseUrl = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '') || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+      const res = await fetch(`${apiBaseUrl}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, name, phone }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();

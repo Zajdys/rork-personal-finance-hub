@@ -5,11 +5,11 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  registrationDate: Date;
+  registrationDate: string;
   subscription: {
     active: boolean;
     plan: 'monthly' | 'quarterly' | 'yearly' | null;
-    expiresAt: Date | null;
+    expiresAt: string | null;
   };
 }
 
@@ -42,6 +42,20 @@ const storage = {
 };
 
 const STORAGE_KEY = 'auth_state';
+const TOKEN_KEY = 'authToken';
+
+function getApiBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return 'http://localhost:3000';
+}
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
   const [user, setUser] = useState<User | null>(null);
@@ -51,43 +65,71 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      if (!email?.trim() || !password?.trim()) return false;
-      if (email.length > 100 || password.length > 100) return false;
-      
-      // Simulate API call
-      await new Promise(resolve => {
-        if (resolve) setTimeout(resolve, 1000);
+      const safeEmail = String(email ?? '').trim().toLowerCase();
+      const safePassword = String(password ?? '').trim();
+
+      if (!safeEmail || !safePassword) return false;
+      if (safeEmail.length > 100 || safePassword.length > 100) return false;
+
+      const url = `${getApiBaseUrl()}/api/login`;
+      console.log('[auth] login request', { url, email: safeEmail });
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: safeEmail, password: safePassword }),
       });
-      
-      // Demo credentials
-      if ((email === 'test@test.cz' || email === 'test@test.com') && password === 'test123') {
-        const newUser: User = {
-          id: '1',
-          email: email.trim(),
-          name: 'Demo User',
-          registrationDate: new Date(),
-          subscription: {
-            active: true,
-            plan: 'monthly',
-            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          },
-        };
-        
-        setUser(newUser);
-        setIsAuthenticated(true);
-        setHasActiveSubscription(true);
-        setIsLoading(false);
-        
-        await storage.setItem(STORAGE_KEY, JSON.stringify({
-          user: newUser,
-          isAuthenticated: true,
-          hasActiveSubscription: true,
-        }));
-        
-        return true;
+
+      const data = (await resp.json().catch(() => null)) as any;
+      console.log('[auth] login response', { status: resp.status, data });
+
+      if (!resp.ok) {
+        return false;
       }
-      
-      return false;
+
+      const token = typeof data?.token === 'string' ? data.token : '';
+      const apiUser = data?.user as any;
+      const userId = String(apiUser?.id ?? '');
+      if (!userId) {
+        console.error('[auth] login missing user id');
+        return false;
+      }
+
+      const createdAt = typeof apiUser?.created_at === 'string' ? apiUser.created_at : new Date().toISOString();
+      const derivedName = safeEmail.split('@')[0] ?? 'User';
+
+      const newUser: User = {
+        id: userId,
+        email: safeEmail,
+        name: derivedName,
+        registrationDate: createdAt,
+        subscription: {
+          active: false,
+          plan: null,
+          expiresAt: null,
+        },
+      };
+
+      setUser(newUser);
+      setIsAuthenticated(true);
+      setHasActiveSubscription(false);
+      setIsLoading(false);
+
+      await Promise.all([
+        storage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: newUser,
+            isAuthenticated: true,
+            hasActiveSubscription: false,
+          })
+        ),
+        token ? storage.setItem(TOKEN_KEY, token) : storage.removeItem(TOKEN_KEY),
+      ]);
+
+      return true;
     } catch (error) {
       console.error('Login error:', error);
       return false;
@@ -96,37 +138,60 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const register = useCallback(async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      if (!email?.trim() || !password?.trim() || !name?.trim()) return false;
-      if (email.length > 100 || password.length > 100 || name.length > 100) return false;
-      
-      // Simulate API call
-      await new Promise(resolve => {
-        if (resolve) setTimeout(resolve, 1000);
+      const safeEmail = String(email ?? '').trim().toLowerCase();
+      const safePassword = String(password ?? '').trim();
+      const safeName = String(name ?? '').trim();
+
+      if (!safeEmail || !safePassword || !safeName) return false;
+      if (safeEmail.length > 100 || safePassword.length > 100 || safeName.length > 100) return false;
+
+      const url = `${getApiBaseUrl()}/api/register`;
+      console.log('[auth] register request', { url, email: safeEmail });
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: safeEmail, password: safePassword }),
       });
-      
+
+      const data = (await resp.json().catch(() => null)) as any;
+      console.log('[auth] register response', { status: resp.status, data });
+
+      if (!resp.ok) {
+        return false;
+      }
+
       const newUser: User = {
-        id: Date.now().toString(),
-        email: email.trim(),
-        name: name.trim(),
-        registrationDate: new Date(),
+        id: safeEmail,
+        email: safeEmail,
+        name: safeName,
+        registrationDate: new Date().toISOString(),
         subscription: {
           active: false,
           plan: null,
           expiresAt: null,
         },
       };
-      
+
       setUser(newUser);
       setIsAuthenticated(true);
       setHasActiveSubscription(false);
       setIsLoading(false);
-      
-      await storage.setItem(STORAGE_KEY, JSON.stringify({
-        user: newUser,
-        isAuthenticated: true,
-        hasActiveSubscription: false,
-      }));
-      
+
+      await Promise.all([
+        storage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: newUser,
+            isAuthenticated: true,
+            hasActiveSubscription: false,
+          })
+        ),
+        storage.removeItem(TOKEN_KEY),
+      ]);
+
       return true;
     } catch (error) {
       console.error('Registration error:', error);
@@ -136,7 +201,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      await storage.removeItem(STORAGE_KEY);
+      await Promise.all([storage.removeItem(STORAGE_KEY), storage.removeItem(TOKEN_KEY)]);
       setUser(null);
       setIsAuthenticated(false);
       setHasActiveSubscription(false);
@@ -148,13 +213,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const activateSubscription = useCallback(async (plan: 'monthly' | 'quarterly' | 'yearly'): Promise<void> => {
     if (!user) return;
-    
+
     const updatedUser: User = {
       ...user,
       subscription: {
         active: true,
         plan,
-        expiresAt: new Date(Date.now() + (plan === 'yearly' ? 365 : plan === 'quarterly' ? 90 : 30) * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + (plan === 'yearly' ? 365 : plan === 'quarterly' ? 90 : 30) * 24 * 60 * 60 * 1000).toISOString(),
       },
     };
     
@@ -181,18 +246,22 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         if (storedUser?.subscription?.expiresAt) {
           const expiresAt = new Date(storedUser.subscription.expiresAt);
           validSubscription = expiresAt > new Date();
-          
+
           if (!validSubscription && storedUser.subscription.active) {
             // Subscription expired, update user
             storedUser.subscription.active = false;
-            await storage.setItem(STORAGE_KEY, JSON.stringify({
-              user: storedUser,
-              isAuthenticated: storedAuth,
-              hasActiveSubscription: false,
-            }));
+            storedUser.subscription.expiresAt = null;
+            await storage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({
+                user: storedUser,
+                isAuthenticated: storedAuth,
+                hasActiveSubscription: false,
+              })
+            );
           }
         }
-        
+
         setUser(storedUser);
         setIsAuthenticated(storedAuth);
         setHasActiveSubscription(validSubscription);
@@ -207,11 +276,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const checkSubscriptionStatus = useCallback((): boolean => {
     if (!user?.subscription?.active) return false;
-    
+
     if (user.subscription.expiresAt) {
       return new Date(user.subscription.expiresAt) > new Date();
     }
-    
+
     return false;
   }, [user]);
 

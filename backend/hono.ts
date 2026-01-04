@@ -83,11 +83,6 @@ function verifyToken(token: string): TokenPayload | null {
   }
 }
 
-function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
-  const usedSalt = salt ?? crypto.randomBytes(16).toString("hex");
-  const hash = crypto.pbkdf2Sync(password, usedSalt, 100_000, 32, "sha256").toString("hex");
-  return { hash, salt: usedSalt };
-}
 
 // Enable CORS for all routes
 app.use("*", cors());
@@ -127,11 +122,12 @@ app.post("/register", async (c) => {
   } catch (e) {
     console.error("/register airtable error", e);
     const msg = e instanceof Error ? e.message : "Registration failed";
-    return c.json({ error: msg }, 500);
+    const status = msg.toLowerCase().includes("exists") ? 409 : 500;
+    return c.json({ error: msg }, status);
   }
 });
 
-// Auth: /login
+// Auth: /login (Airtable)
 app.post("/login", async (c) => {
   try {
     const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string }>;
@@ -142,27 +138,25 @@ app.post("/login", async (c) => {
       return c.json({ error: "Missing email or password" }, 400);
     }
 
-    const existing = users.get(email);
-    if (!existing) {
-      return c.json({ error: "Invalid credentials" }, 401);
+    const { loginUser } = await import("./airtable");
+    const res = await loginUser(email, password);
+    if (!res.success) {
+      return c.json({ error: res.error }, 401);
     }
 
-    const { hash } = hashPassword(password, existing.passwordSalt);
-    if (hash !== existing.passwordHash) {
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
+    const token = signToken({ sub: res.user.id, email: res.user.email, iat: Math.floor(Date.now() / 1000) });
 
-    const token = signToken({ sub: existing.id, email: existing.email, iat: Math.floor(Date.now() / 1000) });
-
-    console.log("[login]", email);
+    console.log("[airtable login]", email);
 
     return c.json({
-      user: { id: existing.id, email: existing.email, name: existing.name, level: existing.level, points: existing.points },
+      success: true,
+      user: res.user,
       token,
     });
   } catch (e) {
-    console.error("/login error", e);
-    return c.json({ error: "Login failed" }, 500);
+    console.error("/login airtable error", e);
+    const msg = e instanceof Error ? e.message : "Login failed";
+    return c.json({ error: msg }, 500);
   }
 });
 
