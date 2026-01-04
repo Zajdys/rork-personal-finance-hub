@@ -8,6 +8,7 @@ import * as crypto from "node:crypto";
 import Papa from "papaparse";
 import yahooFinance from "yahoo-finance2";
 
+
 interface TradeRow {
   Action: string;
   Ticker: string;
@@ -16,7 +17,7 @@ interface TradeRow {
 }
 
 interface FIFOPosition {
-  fifo: Array<{ shares: number; cost: number }>;
+  fifo: { shares: number; cost: number }[];
   shares: number;
   invested: number;
 }
@@ -106,48 +107,27 @@ app.get("/", (c) => {
   return c.json({ status: "ok", message: "API is running" });
 });
 
-// Auth: /register
+// Auth: /register (Airtable)
 app.post("/register", async (c) => {
   try {
-    const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string; name?: string }>;
+    const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string }>;
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "").trim();
-    const name = (body?.name ?? null) as string | null;
 
     if (!email || !password) {
       return c.json({ error: "Missing email or password" }, 400);
     }
 
-    if (users.has(email)) {
-      return c.json({ error: "User already exists" }, 409);
-    }
+    const { registerUser } = await import("./airtable");
+    const result = await registerUser(email, password);
 
-    const { hash, salt } = hashPassword(password);
-    const user: User = {
-      id: crypto.randomUUID(),
-      email,
-      name,
-      passwordHash: hash,
-      passwordSalt: salt,
-      level: 1,
-      points: 0,
-      profile: {},
-      createdAt: new Date().toISOString(),
-    };
+    console.log("[airtable register]", email);
 
-    users.set(email, user);
-
-    const token = signToken({ sub: user.id, email: user.email, iat: Math.floor(Date.now() / 1000) });
-
-    console.log("[register]", email);
-
-    return c.json({
-      user: { id: user.id, email: user.email, name: user.name, level: user.level, points: user.points },
-      token,
-    });
+    return c.json(result);
   } catch (e) {
-    console.error("/register error", e);
-    return c.json({ error: "Registration failed" }, 500);
+    console.error("/register airtable error", e);
+    const msg = e instanceof Error ? e.message : "Registration failed";
+    return c.json({ error: msg }, 500);
   }
 });
 
