@@ -128,14 +128,13 @@ export async function registerUser(email: string, password: string, name: string
   const { apiKey, baseId } = getAirtableConfig();
   const password_hash = sha256Hex(cleanPassword);
 
-  const body: AirtableCreateRecordBody<AirtableUserFields> = {
+  const body: AirtableCreateRecordBody<Pick<AirtableUserFields, 'email' | 'password_hash' | 'name'>> = {
     records: [
       {
         fields: {
           email: normalizedEmail,
           password_hash,
           name: cleanName,
-          created_at: new Date().toISOString(),
         },
       },
     ],
