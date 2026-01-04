@@ -38,6 +38,18 @@ function sha256Hex(input: string): string {
   return crypto.createHash("sha256").update(input, "utf8").digest("hex");
 }
 
+function formatAirtableErrorText(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { error?: { type?: string; message?: string } };
+    const type = parsed?.error?.type ? String(parsed.error.type) : "";
+    const message = parsed?.error?.message ? String(parsed.error.message) : "";
+    const combined = [type, message].filter(Boolean).join(": ");
+    return combined || raw;
+  } catch {
+    return raw;
+  }
+}
+
 async function airtableFetch<T>(
   url: string,
   init: RequestInit
@@ -46,12 +58,13 @@ async function airtableFetch<T>(
   const text = await resp.text();
 
   if (!resp.ok) {
+    const errorText = formatAirtableErrorText(text);
     console.error("[airtable] request failed", {
       url,
       status: resp.status,
-      body: text.slice(0, 2000),
+      errorText: errorText.slice(0, 2000),
     });
-    return { ok: false, status: resp.status, errorText: text };
+    return { ok: false, status: resp.status, errorText };
   }
 
   try {
@@ -77,7 +90,7 @@ async function getUserByEmail(email: string): Promise<AirtableUserRecord | null>
   });
 
   if (!res.ok) {
-    throw new Error("Airtable lookup failed");
+    throw new Error(`Airtable lookup failed (${res.status}): ${res.errorText}`);
   }
 
   const first = (res.data.records?.[0] ?? null) as AirtableUserRecord | null;
@@ -123,7 +136,7 @@ export async function registerUser(email: string, password: string): Promise<{ s
   });
 
   if (!res.ok) {
-    throw new Error("Airtable insert failed");
+    throw new Error(`Airtable insert failed (${res.status}): ${res.errorText}`);
   }
 
   console.log("[airtable] user created", { email: normalizedEmail, recordId: res.data.records?.[0]?.id ?? null });

@@ -109,6 +109,14 @@ app.post("/register", async (c) => {
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "").trim();
 
+    console.log("[/register] incoming", {
+      hasEmail: Boolean(email),
+      hasPassword: Boolean(password),
+      emailPreview: email ? `${email.slice(0, 2)}***${email.slice(-2)}` : null,
+      hasAirtableKey: Boolean(process.env.AIRTABLE_API_KEY),
+      airtableBaseIdPrefix: (process.env.AIRTABLE_BASE_ID ?? "").slice(0, 5) || null,
+    });
+
     if (!email || !password) {
       return c.json({ error: "Missing email or password" }, 400);
     }
@@ -116,13 +124,17 @@ app.post("/register", async (c) => {
     const { registerUser } = await import("./airtable");
     const result = await registerUser(email, password);
 
-    console.log("[airtable register]", email);
+    console.log("[airtable register] success", { email });
 
     return c.json(result);
   } catch (e) {
-    console.error("/register airtable error", e);
+    console.error("/register airtable error", {
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
     const msg = e instanceof Error ? e.message : "Registration failed";
-    const status = msg.toLowerCase().includes("exists") ? 409 : 500;
+    const lower = msg.toLowerCase();
+    const status = lower.includes("exists") ? 409 : lower.includes("missing airtable") ? 500 : 500;
     return c.json({ error: msg }, status);
   }
 });
