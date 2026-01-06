@@ -5,11 +5,25 @@ type AirtableUserFields = {
   password_hash: string;
   name: string;
   created_at?: string;
+  work_status?: string;
+  monthly_income_range?: string;
+  finance_experience?: string;
+  financial_goals?: string[];
+  onboarding_completed?: boolean;
 };
 
 type AirtableUserRecord = {
   id: string;
   fields: Partial<AirtableUserFields>;
+};
+
+type AirtableLoanFields = {
+  User: string[];
+  loan_type: string;
+  loan_amount: number;
+  interest_rate: number;
+  monthly_payment: number;
+  remaining_months: number;
 };
 
 type AirtableCreateRecordBody<TFields extends Record<string, unknown>> = {
@@ -88,7 +102,7 @@ async function airtableFetch<T>(
   }
 }
 
-async function getUserByEmail(email: string): Promise<AirtableUserRecord | null> {
+export async function getUserByEmail(email: string): Promise<AirtableUserRecord | null> {
   const { apiKey, baseId } = getAirtableConfig();
 
   const formula = `{email} = "${email.replace(/"/g, "\\\"")}"`;
@@ -203,4 +217,129 @@ export async function loginUser(email: string, password: string): Promise<
       created_at: typeof record.fields?.created_at === "string" ? record.fields.created_at : null,
     },
   };
+}
+
+export type OnboardingSubmitInput = {
+  workStatus: string;
+  monthlyIncomeRange: string;
+  financeExperience: string;
+  financialGoals: string[];
+  hasLoan: boolean;
+  loans: {
+    loanType: string;
+    loanAmount: number;
+    interestRate: number;
+    monthlyPayment: number;
+    remainingMonths: number;
+  }[];
+};
+
+export async function submitOnboardingByEmail(email: string, input: OnboardingSubmitInput): Promise<{ success: true }> {
+  const normalizedEmail = String(email ?? "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Missing email");
+  }
+
+  const record = await getUserByEmail(normalizedEmail);
+  if (!record) {
+    throw new Error("User not found");
+  }
+
+  const { apiKey, baseId } = getAirtableConfig();
+
+  const userPatchFields: Partial<AirtableUserFields> & Record<string, unknown> = {
+    work_status: String(input.workStatus ?? "").trim(),
+    monthly_income_range: String(input.monthlyIncomeRange ?? "").trim(),
+    finance_experience: String(input.financeExperience ?? "").trim(),
+    financial_goals: Array.isArray(input.financialGoals)
+      ? input.financialGoals.map((g) => String(g).trim()).filter(Boolean)
+      : [],
+    onboarding_completed: true,
+  };
+
+  const userPatchUrl = `https://api.airtable.com/v0/${baseId}/Users/${record.id}`;
+  console.log("[submitOnboarding] patch user", {
+    email: normalizedEmail,
+    userRecordId: record.id,
+    url: userPatchUrl,
+    fields: {
+      work_status: userPatchFields.work_status,
+      monthly_income_range: userPatchFields.monthly_income_range,
+      finance_experience: userPatchFields.finance_experience,
+      financial_goals_count: Array.isArray(userPatchFields.financial_goals) ? userPatchFields.financial_goals.length : 0,
+      onboarding_completed: userPatchFields.onboarding_completed,
+    },
+  });
+
+  const patchRes = await airtableFetch<{ id: string }>(userPatchUrl, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ fields: userPatchFields }),
+  });
+
+  if (!patchRes.ok) {
+    throw new Error(`Airtable user update failed (${patchRes.status}): ${patchRes.errorText}`);
+  }
+
+  const hasLoan = Boolean(input.hasLoan);
+  const loans = Array.isArray(input.loans) ? input.loans : [];
+
+  if (hasLoan) {
+    const validLoans = loans
+      .map((l) => ({
+        loanType: String(l?.loanType ?? "").trim(),
+        loanAmount: Number(l?.loanAmount ?? 0),
+        interestRate: Number(l?.interestRate ?? 0),
+        monthlyPayment: Number(l?.monthlyPayment ?? 0),
+        remainingMonths: Number(l?.remainingMonths ?? 0),
+      }))
+      .filter((l) => Boolean(l.loanType) && Number.isFinite(l.loanAmount));
+
+    if (validLoans.length > 0) {
+      const loanCreateUrl = `https://api.airtable.com/v0/${baseId}/Loans`;
+
+      const body: AirtableCreateRecordBody<AirtableLoanFields> = {
+        records: validLoans.map((l) => ({
+          fields: {
+            User: [record.id],
+            loan_type: l.loanType,
+            loan_amount: l.loanAmount,
+            interest_rate: l.interestRate,
+            monthly_payment: l.monthlyPayment,
+            remaining_months: l.remainingMonths,
+          },
+        })),
+      };
+
+      console.log("[submitOnboarding] create loans", {
+        email: normalizedEmail,
+        userRecordId: record.id,
+        count: validLoans.length,
+        url: loanCreateUrl,
+      });
+
+      const createRes = await airtableFetch<{ records: { id: string }[] }>(loanCreateUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!createRes.ok) {
+        throw new Error(`Airtable loans insert failed (${createRes.status}): ${createRes.errorText}`);
+      }
+    } else {
+      console.log("[submitOnboarding] hasLoan=true but no valid loans provided", {
+        email: normalizedEmail,
+        loansCount: loans.length,
+      });
+    }
+  }
+
+  return { success: true };
 }

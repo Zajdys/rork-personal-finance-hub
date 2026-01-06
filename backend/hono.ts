@@ -180,6 +180,90 @@ app.post("/login", async (c) => {
   }
 });
 
+// Onboarding: /onboarding/submit (Airtable)
+app.post("/onboarding/submit", async (c) => {
+  try {
+    const authHeader = c.req.header("authorization") ?? c.req.header("Authorization") ?? "";
+    const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+
+    console.log("[/onboarding/submit] incoming", {
+      hasAuthHeader: Boolean(authHeader),
+      tokenPreview: token ? `${token.slice(0, 8)}...${token.slice(-6)}` : null,
+    });
+
+    if (!token) {
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    const payload = verifyToken(token);
+    if (!payload?.email) {
+      console.error("[/onboarding/submit] invalid token payload", { payload });
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    const body = (await c.req.json().catch(() => ({}))) as any;
+
+    const workStatus = String(body?.workStatus ?? "").trim();
+    const monthlyIncomeRange = String(body?.monthlyIncomeRange ?? "").trim();
+    const financeExperience = String(body?.financeExperience ?? "").trim();
+    const financialGoals = Array.isArray(body?.financialGoals)
+      ? (body.financialGoals as unknown[]).map((g) => String(g).trim()).filter(Boolean)
+      : [];
+    const hasLoan = Boolean(body?.hasLoan);
+    const loansRaw = Array.isArray(body?.loans) ? (body.loans as unknown[]) : [];
+
+    console.log("[/onboarding/submit] parsed", {
+      email: payload.email,
+      workStatus,
+      monthlyIncomeRange,
+      financeExperience,
+      financialGoalsCount: financialGoals.length,
+      hasLoan,
+      loansCount: loansRaw.length,
+    });
+
+    if (!workStatus || !monthlyIncomeRange || !financeExperience) {
+      return c.json({ error: "Missing required onboarding fields" }, 400);
+    }
+
+    const loans = loansRaw
+      .map((l) => {
+        const obj = l as any;
+        return {
+          loanType: String(obj?.loanType ?? "").trim(),
+          loanAmount: Number(obj?.loanAmount ?? 0),
+          interestRate: Number(obj?.interestRate ?? 0),
+          monthlyPayment: Number(obj?.monthlyPayment ?? 0),
+          remainingMonths: Number(obj?.remainingMonths ?? 0),
+        };
+      })
+      .filter((l) => Boolean(l.loanType));
+
+    const { submitOnboardingByEmail } = await import("./airtable");
+
+    await submitOnboardingByEmail(payload.email, {
+      workStatus,
+      monthlyIncomeRange,
+      financeExperience,
+      financialGoals,
+      hasLoan,
+      loans,
+    });
+
+    return c.json({ success: true });
+  } catch (e) {
+    console.error("/onboarding/submit error", {
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+
+    const msg = e instanceof Error ? e.message : "Onboarding submit failed";
+    const lower = msg.toLowerCase();
+    const status = lower.includes("unauthorized") ? 401 : lower.includes("not found") ? 404 : 500;
+    return c.json({ error: msg }, status);
+  }
+});
+
 function calculateFIFO(trades: TradeRow[]) {
   const portfolio: Record<string, FIFOPosition> = {};
 
