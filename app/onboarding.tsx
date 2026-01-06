@@ -149,7 +149,7 @@ export default function OnboardingScreen() {
   const handleComplete = async () => {
     try {
       console.log('Starting onboarding completion...');
-      
+
       const onboardingProfile = {
         ...data,
         completedAt: new Date().toISOString(),
@@ -161,21 +161,123 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
       console.log('Onboarding profile saved');
 
-      const suggestedCurrency = data.monthlyIncome?.includes('k') ? 'CZK' : 'EUR';
+      const suggestedCurrency = 'CZK' as const;
       console.log('Setting currency to:', suggestedCurrency);
       setCurrency(suggestedCurrency);
 
+      const employmentStatusLabels: Record<EmploymentStatus, string> = {
+        employed: 'Zaměstnanec',
+        selfEmployed: 'OSVČ / Podnikatel',
+        student: 'Student',
+        unemployed: 'Nezaměstnaný',
+        retired: 'Důchodce',
+      };
+
+      const incomeLabels: Record<IncomeRange, string> = {
+        under20k: '<20k',
+        '20k-40k': '20–40k',
+        '40k-60k': '40–60k',
+        '60k-100k': '60–100k',
+        over100k: '100k+',
+      };
+
+      const experienceLabels: Record<ExperienceLevel, string> = {
+        beginner: 'Začátečník',
+        intermediate: 'Pokročilý',
+        advanced: 'Expert',
+      };
+
+      const goalLabels: Record<FinancialGoal, string> = {
+        savings: 'Spořit peníze',
+        investment: 'Investovat',
+        debt: 'Splatit dluhy',
+        house: 'Koupit nemovitost',
+        car: 'Koupit auto',
+        education: 'Koupit auto',
+        retirement: 'Spořit peníze',
+      };
+
+      const loanTypeLabels: Record<Loan['loanType'], string> = {
+        mortgage: 'Hypotéka',
+        car: 'Auto',
+        personal: 'Osobní',
+        student: 'Studium',
+        other: 'Osobní',
+      };
+
+      const apiBaseUrlRaw =
+        (process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL) ||
+        (typeof window !== 'undefined' ? window.location.origin : '');
+      const apiBaseUrl = String(apiBaseUrlRaw).replace(/\/$/, '');
+      const onboardingUrl = `${apiBaseUrl}/api/onboarding/submit`;
+
+      const token = (await AsyncStorage.getItem('authToken')) ?? '';
+
+      console.log('[onboarding] submit prepare', {
+        hasUser: Boolean(user?.email),
+        hasToken: Boolean(token),
+        apiBaseUrl,
+        onboardingUrl,
+      });
+
+      if (!token) {
+        Alert.alert('Chyba', 'Nejste přihlášený. Přihlaste se prosím znovu a zkuste to.');
+        return;
+      }
+
+      if (!data.employmentStatus || !data.monthlyIncome || !data.experienceLevel) {
+        Alert.alert('Chyba', 'Chybí povinné údaje pro onboarding.');
+        return;
+      }
+
+      const payload = {
+        workStatus: employmentStatusLabels[data.employmentStatus],
+        monthlyIncomeRange: incomeLabels[data.monthlyIncome],
+        financeExperience: experienceLabels[data.experienceLevel],
+        financialGoals: data.financialGoals.map((g) => goalLabels[g]).filter(Boolean),
+        hasLoan: Boolean(data.loanData.hasLoan),
+        loans: (data.loanData.loans ?? []).map((l) => ({
+          loanType: loanTypeLabels[l.loanType] ?? String(l.loanType),
+          loanAmount: Number.parseFloat(String(l.loanAmount ?? '0')) || 0,
+          interestRate: Number.parseFloat(String(l.interestRate ?? '0')) || 0,
+          monthlyPayment: Number.parseFloat(String(l.monthlyPayment ?? '0')) || 0,
+          remainingMonths: Number.parseInt(String(l.remainingMonths ?? '0'), 10) || 0,
+        })),
+      };
+
+      console.log('[onboarding] submitting to backend', {
+        onboardingUrl,
+        payloadPreview: {
+          workStatus: payload.workStatus,
+          monthlyIncomeRange: payload.monthlyIncomeRange,
+          financeExperience: payload.financeExperience,
+          financialGoalsCount: payload.financialGoals.length,
+          hasLoan: payload.hasLoan,
+          loansCount: payload.loans.length,
+        },
+      });
+
+      const resp = await fetch(onboardingUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const respJson = (await resp.json().catch(() => null)) as any;
+      console.log('[onboarding] backend response', { status: resp.status, respJson });
+
+      if (!resp.ok) {
+        const msg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
+        Alert.alert('Chyba', msg);
+        return;
+      }
+
       if (data.employmentStatus) {
-        const employmentStatusLabels = {
-          'employed': 'Zaměstnanec',
-          'selfEmployed': 'OSVČ / Podnikatel',
-          'student': 'Student',
-          'unemployed': 'Nezaměstnaný',
-          'retired': 'Důchodce',
-        };
-        
-        console.log('Updating user with employment status:', data.employmentStatus);
-        
+        console.log('Updating user with onboarding data:', data.employmentStatus);
+
         if (user && setUser) {
           const updatedUser = {
             ...user,
@@ -212,17 +314,12 @@ export default function OnboardingScreen() {
 
       console.log('Onboarding completed successfully!');
       console.log('Navigating to home screen...');
-      
+
       router.replace('/');
-      
+
       setTimeout(() => {
-        Alert.alert(
-          'Hotovo! 🎉',
-          'Vaše aplikace je nyní nastavena podle vašich potřeb.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Hotovo! 🎉', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);
       }, 500);
-      
     } catch (error) {
       console.error('Failed to save onboarding data:', error);
       Alert.alert('Chyba', 'Nepodařilo se uložit data. Zkuste to prosím znovu.');
