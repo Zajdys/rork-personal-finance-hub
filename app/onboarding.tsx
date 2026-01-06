@@ -103,16 +103,25 @@ export default function OnboardingScreen() {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
-        const key = getOnboardingCompletedKey(user?.id ?? user?.email);
+        const identifier = (user?.id ?? user?.email ?? '').trim().toLowerCase();
+        if (!identifier) {
+          console.log('[onboarding] bootstrap skipped (missing user identifier)');
+          return;
+        }
+
+        const key = getOnboardingCompletedKey(identifier);
         const [completedPerUser, legacyCompleted] = await Promise.all([
           AsyncStorage.getItem(key),
           AsyncStorage.getItem('onboarding_completed'),
         ]);
+
         const completed = completedPerUser === 'true' || legacyCompleted === 'true';
 
         console.log('[onboarding] bootstrap', {
+          identifier,
           key,
           completedPerUser,
           legacyCompleted,
@@ -123,13 +132,16 @@ export default function OnboardingScreen() {
           await AsyncStorage.setItem(key, 'true');
         }
 
-        if (mounted && completed) {
+        // Redirect only when we are sure it's completed for the current user.
+        // Root layout is the source of truth; this is just a safety net for deep links.
+        if (mounted && completedPerUser === 'true') {
           router.replace('/');
         }
       } catch (e) {
         console.log('[onboarding] bootstrap read error', e);
       }
     })();
+
     return () => {
       mounted = false;
     };

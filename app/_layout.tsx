@@ -123,6 +123,12 @@ function RootLayoutNav() {
     );
   }
   
+  // Wait for onboarding check to complete BEFORE any gating.
+  // Otherwise new users can be routed to subscription/app briefly and it looks like onboarding is skipped.
+  if (isAuthenticated && onboardingCompleted === null) {
+    return null;
+  }
+
   // Show onboarding right after auth (independent of subscription), but only once per account
   if (isAuthenticated && onboardingCompleted === false) {
     return (
@@ -142,11 +148,6 @@ function RootLayoutNav() {
         <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
       </Stack>
     );
-  }
-  
-  // Wait for onboarding check to complete
-  if (onboardingCompleted === null) {
-    return null;
   }
   
   // Full app access for authenticated users with active subscription
