@@ -187,11 +187,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         },
       };
 
-      setUser(newUser);
-      setIsAuthenticated(true);
-      setHasActiveSubscription(false);
-      setIsLoading(false);
-
       const onboardingKeyEmail = `onboarding_completed:${safeEmail}`;
       const onboardingKeyUserId = `onboarding_completed:${userId}`;
 
@@ -210,6 +205,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         storage.removeItem(onboardingKeyUserId),
         storage.removeItem('onboarding_profile'),
       ]);
+
+      setUser(newUser);
+      setIsAuthenticated(true);
+      setHasActiveSubscription(false);
+      setIsLoading(false);
 
       return { success: true };
     } catch (error) {
