@@ -93,7 +93,7 @@ export default function ChooseSubscriptionScreen() {
               [
                 {
                   text: 'OK',
-                  onPress: () => router.back(),
+                  onPress: () => router.replace('/'),
                 },
               ]
             );
