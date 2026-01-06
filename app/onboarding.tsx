@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -95,6 +95,24 @@ export default function OnboardingScreen() {
 
   const totalSteps = 7;
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const completed = await AsyncStorage.getItem('onboarding_completed');
+        console.log('[onboarding] bootstrap', { completed });
+        if (mounted && completed === 'true') {
+          router.replace('/');
+        }
+      } catch (e) {
+        console.log('[onboarding] bootstrap read error', e);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
   const handleNext = () => {
     if (step === 1 && !data.employmentStatus) {
       Alert.alert('Chyba', 'Prosím vyberte váš pracovní status');
@@ -156,10 +174,7 @@ export default function OnboardingScreen() {
         userId: user?.id,
       };
 
-      console.log('Saving onboarding profile to AsyncStorage...');
-      await AsyncStorage.setItem('onboarding_completed', 'true');
-      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
-      console.log('Onboarding profile saved');
+      console.log('Preparing onboarding profile (will persist after successful backend submit)...');
 
       const suggestedCurrency = 'CZK' as const;
       console.log('Setting currency to:', suggestedCurrency);
@@ -274,6 +289,11 @@ export default function OnboardingScreen() {
         Alert.alert('Chyba', msg);
         return;
       }
+
+      console.log('Saving onboarding profile to AsyncStorage...');
+      await AsyncStorage.setItem('onboarding_completed', 'true');
+      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
+      console.log('Onboarding profile saved');
 
       if (data.employmentStatus) {
         console.log('Updating user with onboarding data:', data.employmentStatus);

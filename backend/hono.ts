@@ -103,6 +103,7 @@ app.get("/", (c) => {
 });
 
 // Auth: /register (Airtable)
+// Returns token so the client can immediately call authenticated endpoints (like onboarding submit)
 app.post("/register", async (c) => {
   try {
     const body = (await c.req.json().catch(() => ({}))) as Partial<{ email: string; password: string; name: string }>;
@@ -120,21 +121,37 @@ app.post("/register", async (c) => {
       airtableBaseIdPrefix: (process.env.AIRTABLE_BASE_ID ?? "").slice(0, 5) || null,
       airtableBaseIdLength: (process.env.AIRTABLE_BASE_ID ?? "").length,
     });
-    
+
     console.log("[/register] ENV check", {
-      allEnvKeys: Object.keys(process.env).filter(k => k.includes('AIRTABLE')),
+      allEnvKeys: Object.keys(process.env).filter((k) => k.includes("AIRTABLE")),
     });
 
     if (!email || !password || !name) {
       return c.json({ error: "Missing email, password or name" }, 400);
     }
 
-    const { registerUser } = await import("./airtable");
+    const { registerUser, getUserByEmail } = await import("./airtable");
     const result = await registerUser(email, password, name);
 
-    console.log("[airtable register] success", { email });
+    const created = await getUserByEmail(email);
+    if (!created?.id) {
+      console.error("[/register] created user lookup failed", { email });
+      return c.json({ error: "Registration succeeded but user lookup failed" }, 500);
+    }
 
-    return c.json(result);
+    const token = signToken({ sub: created.id, email, iat: Math.floor(Date.now() / 1000) });
+
+    console.log("[airtable register] success", { email, userRecordId: created.id });
+
+    return c.json({
+      ...result,
+      user: {
+        id: created.id,
+        email,
+        created_at: typeof created.fields?.created_at === "string" ? created.fields.created_at : null,
+      },
+      token,
+    });
   } catch (e) {
     console.error("/register airtable error", {
       message: e instanceof Error ? e.message : String(e),

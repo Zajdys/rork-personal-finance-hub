@@ -169,11 +169,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return { success: false, error: errorMsg };
       }
 
+      const token = typeof data?.token === 'string' ? data.token : '';
+      const apiUser = data?.user as any;
+      const userId = String(apiUser?.id ?? safeEmail);
+      const createdAt = typeof apiUser?.created_at === 'string' ? apiUser.created_at : new Date().toISOString();
+
       const newUser: User = {
-        id: safeEmail,
+        id: userId,
         email: safeEmail,
         name: safeName,
-        registrationDate: new Date().toISOString(),
+        registrationDate: createdAt,
         subscription: {
           active: false,
           plan: null,
@@ -195,7 +200,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             hasActiveSubscription: false,
           })
         ),
-        storage.removeItem(TOKEN_KEY),
+        token ? storage.setItem(TOKEN_KEY, token) : storage.removeItem(TOKEN_KEY),
+        storage.removeItem('onboarding_completed'),
+        storage.removeItem('onboarding_profile'),
       ]);
 
       return { success: true };
