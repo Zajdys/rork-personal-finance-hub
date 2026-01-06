@@ -223,7 +223,8 @@ export default function OnboardingScreen() {
       const apiBaseUrlRaw =
         (process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL) ||
         (typeof window !== 'undefined' ? window.location.origin : '');
-      const apiBaseUrl = String(apiBaseUrlRaw).replace(/\/$/, '');
+      const apiBaseUrlTrimmed = String(apiBaseUrlRaw).trim().replace(/\/+$/, '');
+      const apiBaseUrl = apiBaseUrlTrimmed.endsWith('/api') ? apiBaseUrlTrimmed.slice(0, -4) : apiBaseUrlTrimmed;
       const onboardingUrl = `${apiBaseUrl}/api/onboarding/submit`;
 
       const token = (await AsyncStorage.getItem('authToken')) ?? '';

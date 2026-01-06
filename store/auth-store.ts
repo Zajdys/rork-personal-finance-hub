@@ -46,15 +46,16 @@ const TOKEN_KEY = 'authToken';
 
 function getApiBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
-    return envUrl.replace(/\/$/, '');
-  }
+  const raw = envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0
+    ? envUrl
+    : typeof window !== 'undefined'
+      ? window.location.origin
+      : 'http://localhost:3000';
 
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
+  const trimmed = String(raw).trim().replace(/\/+$/, '');
+  const withoutApi = trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
 
-  return 'http://localhost:3000';
+  return withoutApi;
 }
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
