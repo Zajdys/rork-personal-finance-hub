@@ -230,9 +230,17 @@ export default function OnboardingScreen() {
         debt: 'Splatit dluhy',
         house: 'Koupit nemovitost',
         car: 'Koupit auto',
-        education: 'Koupit auto',
-        retirement: 'Spořit peníze',
+        education: 'Vzdělání',
+        retirement: 'Důchod',
       };
+
+      const allowedAirtableGoals = new Set<string>([
+        'Spořit peníze',
+        'Investovat',
+        'Splatit dluhy',
+        'Koupit nemovitost',
+        'Koupit auto',
+      ]);
 
       const loanTypeLabels: Record<Loan['loanType'], string> = {
         mortgage: 'Hypotéka',
@@ -268,11 +276,22 @@ export default function OnboardingScreen() {
         return;
       }
 
+      const rawGoals = data.financialGoals
+        .map((g) => goalLabels[g])
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+
+      const filteredGoals = rawGoals.filter((g) => allowedAirtableGoals.has(g));
+      const droppedGoals = rawGoals.filter((g) => !allowedAirtableGoals.has(g));
+
+      if (droppedGoals.length > 0) {
+        console.log('[onboarding] dropping unsupported Airtable goals', { droppedGoals });
+      }
+
       const payload = {
         workStatus: employmentStatusLabels[data.employmentStatus],
         monthlyIncomeRange: incomeLabels[data.monthlyIncome],
         financeExperience: experienceLabels[data.experienceLevel],
-        financialGoals: data.financialGoals.map((g) => goalLabels[g]).filter(Boolean),
+        financialGoals: filteredGoals,
         hasLoan: Boolean(data.loanData.hasLoan),
         loans: (data.loanData.loans ?? []).map((l) => ({
           loanType: loanTypeLabels[l.loanType] ?? String(l.loanType),
@@ -316,8 +335,8 @@ export default function OnboardingScreen() {
       console.log('Saving onboarding profile to AsyncStorage...');
       const key = getOnboardingCompletedKey(user?.id ?? user?.email);
       await AsyncStorage.setItem(key, 'true');
-      await AsyncStorage.setItem('onboarding_completed', 'true');
       await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
+      await AsyncStorage.removeItem('onboarding_completed');
       console.log('Onboarding profile saved', { key });
 
       if (data.employmentStatus) {

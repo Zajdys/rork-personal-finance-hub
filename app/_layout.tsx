@@ -102,7 +102,7 @@ function RootLayoutNav() {
       }
     };
     
-    if (isAuthenticated && hasActiveSubscription) {
+    if (isAuthenticated) {
       checkOnboarding();
     } else {
       setOnboardingCompleted(null);
@@ -123,21 +123,23 @@ function RootLayoutNav() {
     );
   }
   
+  // Show onboarding right after auth (independent of subscription), but only once per account
+  if (isAuthenticated && onboardingCompleted === false) {
+    return (
+      <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
+        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
+        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
+      </Stack>
+    );
+  }
+
   if (isAuthenticated && !hasActiveSubscription) {
     return (
       <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
         <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
         <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
-      </Stack>
-    );
-  }
-  
-  // Show onboarding if user has subscription but hasn't completed onboarding
-  if (isAuthenticated && hasActiveSubscription && onboardingCompleted === false) {
-    return (
-      <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
       </Stack>
     );
   }

@@ -192,6 +192,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       setHasActiveSubscription(false);
       setIsLoading(false);
 
+      const onboardingKeyEmail = `onboarding_completed:${safeEmail}`;
+      const onboardingKeyUserId = `onboarding_completed:${userId}`;
+
       await Promise.all([
         storage.setItem(
           STORAGE_KEY,
@@ -203,6 +206,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         ),
         token ? storage.setItem(TOKEN_KEY, token) : storage.removeItem(TOKEN_KEY),
         storage.removeItem('onboarding_completed'),
+        storage.removeItem(onboardingKeyEmail),
+        storage.removeItem(onboardingKeyUserId),
         storage.removeItem('onboarding_profile'),
       ]);
 
