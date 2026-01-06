@@ -72,6 +72,12 @@ function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): st
   return `onboarding_completed:${raw}`;
 }
 
+function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  if (!raw) return 'onboarding_pending';
+  return `onboarding_pending:${raw}`;
+}
+
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<number>(1);
@@ -346,10 +352,12 @@ export default function OnboardingScreen() {
 
       console.log('Saving onboarding profile to AsyncStorage...');
       const key = getOnboardingCompletedKey(user?.id ?? user?.email);
+      const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
       await AsyncStorage.setItem(key, 'true');
+      await AsyncStorage.removeItem(pendingKey);
       await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
       await AsyncStorage.removeItem('onboarding_completed');
-      console.log('Onboarding profile saved', { key });
+      console.log('Onboarding profile saved', { key, pendingKey });
 
       if (data.employmentStatus) {
         console.log('Updating user with onboarding data:', data.employmentStatus);
@@ -389,12 +397,12 @@ export default function OnboardingScreen() {
       }
 
       console.log('Onboarding completed successfully!');
-      console.log('Navigating to home screen...');
+      console.log('Navigating to subscription screen...');
 
-      router.replace('/');
+      router.replace('/choose-subscription');
 
       setTimeout(() => {
-        Alert.alert('Hotovo! 🎉', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);
+        Alert.alert('Hotovo!', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);
       }, 500);
     } catch (error) {
       console.error('Failed to save onboarding data:', error);

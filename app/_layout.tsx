@@ -74,6 +74,12 @@ function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): st
   return `onboarding_completed:${raw}`;
 }
 
+function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  if (!raw) return 'onboarding_pending';
+  return `onboarding_pending:${raw}`;
+}
+
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
@@ -82,20 +88,34 @@ function RootLayoutNav() {
   React.useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const key = getOnboardingCompletedKey(user?.id ?? user?.email);
-        const [completedPerUser, legacyCompleted] = await Promise.all([
-          AsyncStorage.getItem(key),
+        const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
+        const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
+
+        const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
+          AsyncStorage.getItem(completedKey),
           AsyncStorage.getItem('onboarding_completed'),
+          AsyncStorage.getItem(pendingKey),
         ]);
 
-        const resolved = completedPerUser === 'true' || legacyCompleted === 'true';
-        console.log('[root] onboarding check', { key, completedPerUser, legacyCompleted, resolved });
+        const resolvedCompleted = completedPerUser === 'true' || legacyCompleted === 'true';
+        const resolvedPending = pendingPerUser === 'true';
+
+        console.log('[root] onboarding check', {
+          completedKey,
+          pendingKey,
+          completedPerUser,
+          legacyCompleted,
+          pendingPerUser,
+          resolvedCompleted,
+          resolvedPending,
+        });
 
         if (legacyCompleted === 'true' && completedPerUser !== 'true') {
-          await AsyncStorage.setItem(key, 'true');
+          await AsyncStorage.setItem(completedKey, 'true');
         }
 
-        setOnboardingCompleted(resolved);
+        // If onboarding is pending for this user, always show it (even if subscription gating would run)
+        setOnboardingCompleted(resolvedCompleted && !resolvedPending);
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setOnboardingCompleted(false);

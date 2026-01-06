@@ -44,6 +44,11 @@ const storage = {
 const STORAGE_KEY = 'auth_state';
 const TOKEN_KEY = 'authToken';
 
+function getOnboardingPendingKey(userIdOrEmail: string): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  return `onboarding_pending:${raw}`;
+}
+
 function getApiBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL;
   const raw = envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0
@@ -189,6 +194,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       const onboardingKeyEmail = `onboarding_completed:${safeEmail}`;
       const onboardingKeyUserId = `onboarding_completed:${userId}`;
+      const onboardingPendingKey = getOnboardingPendingKey(userId || safeEmail);
 
       await Promise.all([
         storage.setItem(
@@ -204,6 +210,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         storage.removeItem(onboardingKeyEmail),
         storage.removeItem(onboardingKeyUserId),
         storage.removeItem('onboarding_profile'),
+        storage.setItem(onboardingPendingKey, 'true'),
       ]);
 
       setUser(newUser);
