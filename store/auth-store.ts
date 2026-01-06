@@ -196,6 +196,20 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       const onboardingKeyUserId = `onboarding_completed:${userId}`;
       const onboardingPendingKey = getOnboardingPendingKey(userId || safeEmail);
 
+      console.log('[auth] register - clearing onboarding flags and setting pending', {
+        userId,
+        safeEmail,
+        onboardingPendingKey,
+      });
+
+      await storage.removeItem('onboarding_completed');
+      await storage.removeItem(onboardingKeyEmail);
+      await storage.removeItem(onboardingKeyUserId);
+      await storage.removeItem('onboarding_profile');
+      await storage.setItem(onboardingPendingKey, 'true');
+
+      console.log('[auth] register - pending flag set, now saving user data');
+
       await Promise.all([
         storage.setItem(
           STORAGE_KEY,
@@ -206,17 +220,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           })
         ),
         token ? storage.setItem(TOKEN_KEY, token) : storage.removeItem(TOKEN_KEY),
-        storage.removeItem('onboarding_completed'),
-        storage.removeItem(onboardingKeyEmail),
-        storage.removeItem(onboardingKeyUserId),
-        storage.removeItem('onboarding_profile'),
-        storage.setItem(onboardingPendingKey, 'true'),
       ]);
+
+      console.log('[auth] register - storage complete, updating state');
 
       setUser(newUser);
       setIsAuthenticated(true);
       setHasActiveSubscription(false);
       setIsLoading(false);
+
+      console.log('[auth] register - success, user should now see onboarding');
 
       return { success: true };
     } catch (error) {

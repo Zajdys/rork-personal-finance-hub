@@ -88,6 +88,8 @@ function RootLayoutNav() {
   React.useEffect(() => {
     const checkOnboarding = async () => {
       try {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
         const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
 
@@ -101,6 +103,8 @@ function RootLayoutNav() {
         const resolvedPending = pendingPerUser === 'true';
 
         console.log('[root] onboarding check', {
+          userId: user?.id,
+          userEmail: user?.email,
           completedKey,
           pendingKey,
           completedPerUser,
@@ -108,6 +112,7 @@ function RootLayoutNav() {
           pendingPerUser,
           resolvedCompleted,
           resolvedPending,
+          finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
         });
 
         if (legacyCompleted === 'true' && completedPerUser !== 'true') {
