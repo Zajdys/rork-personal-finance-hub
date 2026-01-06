@@ -66,6 +66,12 @@ interface OnboardingData {
   budgetBreakdown: BudgetBreakdown;
 }
 
+function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  if (!raw) return 'onboarding_completed';
+  return `onboarding_completed:${raw}`;
+}
+
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<number>(1);
@@ -99,9 +105,25 @@ export default function OnboardingScreen() {
     let mounted = true;
     (async () => {
       try {
-        const completed = await AsyncStorage.getItem('onboarding_completed');
-        console.log('[onboarding] bootstrap', { completed });
-        if (mounted && completed === 'true') {
+        const key = getOnboardingCompletedKey(user?.id ?? user?.email);
+        const [completedPerUser, legacyCompleted] = await Promise.all([
+          AsyncStorage.getItem(key),
+          AsyncStorage.getItem('onboarding_completed'),
+        ]);
+        const completed = completedPerUser === 'true' || legacyCompleted === 'true';
+
+        console.log('[onboarding] bootstrap', {
+          key,
+          completedPerUser,
+          legacyCompleted,
+          completed,
+        });
+
+        if (legacyCompleted === 'true' && completedPerUser !== 'true') {
+          await AsyncStorage.setItem(key, 'true');
+        }
+
+        if (mounted && completed) {
           router.replace('/');
         }
       } catch (e) {
@@ -111,7 +133,7 @@ export default function OnboardingScreen() {
     return () => {
       mounted = false;
     };
-  }, [router]);
+  }, [router, user?.id, user?.email]);
 
   const handleNext = () => {
     if (step === 1 && !data.employmentStatus) {
@@ -287,14 +309,16 @@ export default function OnboardingScreen() {
 
       if (!resp.ok) {
         const msg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
-        Alert.alert('Chyba', msg);
+        Alert.alert('Onboarding se neuložil', `${msg}\n\nPokud to dělá problém opakovaně, otevřete Prosím konzoli (logs) a pošlete mi řádky začínající [onboarding].`);
         return;
       }
 
       console.log('Saving onboarding profile to AsyncStorage...');
+      const key = getOnboardingCompletedKey(user?.id ?? user?.email);
+      await AsyncStorage.setItem(key, 'true');
       await AsyncStorage.setItem('onboarding_completed', 'true');
       await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
-      console.log('Onboarding profile saved');
+      console.log('Onboarding profile saved', { key });
 
       if (data.employmentStatus) {
         console.log('Updating user with onboarding data:', data.employmentStatus);
@@ -343,7 +367,8 @@ export default function OnboardingScreen() {
       }, 500);
     } catch (error) {
       console.error('Failed to save onboarding data:', error);
-      Alert.alert('Chyba', 'Nepodařilo se uložit data. Zkuste to prosím znovu.');
+      const msg = error instanceof Error ? error.message : String(error);
+      Alert.alert('Onboarding se neuložil', `Nepodařilo se uložit data. Zkuste to prosím znovu.\n\nDetail: ${msg}`);
     }
   };
 
@@ -987,7 +1012,7 @@ export default function OnboardingScreen() {
       <View style={[styles.footer, { backgroundColor: isDarkMode ? '#1F2937' : 'white', paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.buttonContainer}>
           {step > 1 && (
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <TouchableOpacity style={styles.backButton} onPress={handleBack} testID="onboarding-back">
               <View style={[styles.backButtonContent, { backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }]}>
                 <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={20} />
                 <Text style={[styles.backButtonText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
@@ -1000,6 +1025,7 @@ export default function OnboardingScreen() {
           <TouchableOpacity
             style={[styles.nextButton, step === 1 && styles.nextButtonFull]}
             onPress={handleNext}
+            testID="onboarding-next"
           >
             <LinearGradient
               colors={['#667eea', '#764ba2']}

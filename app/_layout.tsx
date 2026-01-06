@@ -68,16 +68,34 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  if (!raw) return 'onboarding_completed';
+  return `onboarding_completed:${raw}`;
+}
+
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
-  const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
+  const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
   const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
   
   React.useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const completed = await AsyncStorage.getItem('onboarding_completed');
-        setOnboardingCompleted(completed === 'true');
+        const key = getOnboardingCompletedKey(user?.id ?? user?.email);
+        const [completedPerUser, legacyCompleted] = await Promise.all([
+          AsyncStorage.getItem(key),
+          AsyncStorage.getItem('onboarding_completed'),
+        ]);
+
+        const resolved = completedPerUser === 'true' || legacyCompleted === 'true';
+        console.log('[root] onboarding check', { key, completedPerUser, legacyCompleted, resolved });
+
+        if (legacyCompleted === 'true' && completedPerUser !== 'true') {
+          await AsyncStorage.setItem(key, 'true');
+        }
+
+        setOnboardingCompleted(resolved);
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setOnboardingCompleted(false);
@@ -86,8 +104,10 @@ function RootLayoutNav() {
     
     if (isAuthenticated && hasActiveSubscription) {
       checkOnboarding();
+    } else {
+      setOnboardingCompleted(null);
     }
-  }, [isAuthenticated, hasActiveSubscription]);
+  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
   
   if (!isLoaded || isLoading) {
     return null;
