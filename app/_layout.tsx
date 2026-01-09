@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack, usePathname, useRouter, useRootNavigationState } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -83,14 +83,13 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
 function InitialRouteGate({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
   const { isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const rootNavState = useRootNavigationState();
-  const router = useRouter();
-  const pathname = usePathname();
 
   const [targetPath, setTargetPath] = React.useState<string>('/loading');
   const [decisionReady, setDecisionReady] = React.useState<boolean>(false);
 
   React.useEffect(() => {
+    let cancelled = false;
+
     if (!appReady || !languageLoaded || !isLoaded || isLoading) {
       setDecisionReady(false);
       setTargetPath('/loading');
@@ -100,12 +99,14 @@ function InitialRouteGate({ appReady, languageLoaded }: { appReady: boolean; lan
     const decide = async () => {
       try {
         if (!isAuthenticated) {
-          setTargetPath('/landing');
-          setDecisionReady(true);
+          if (!cancelled) {
+            setTargetPath('/landing');
+            setDecisionReady(true);
+          }
           return;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
         const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
@@ -138,47 +139,37 @@ function InitialRouteGate({ appReady, languageLoaded }: { appReady: boolean; lan
 
         const isOnboardingDone = resolvedCompleted && !resolvedPending;
 
-        if (!isOnboardingDone) {
-          setTargetPath('/onboarding');
-        } else if (!hasActiveSubscription) {
-          setTargetPath('/choose-subscription');
-        } else {
-          setTargetPath('/');
-        }
+        const nextPath = !isOnboardingDone
+          ? '/onboarding'
+          : !hasActiveSubscription
+            ? '/choose-subscription'
+            : '/';
 
-        setDecisionReady(true);
+        if (!cancelled) {
+          setTargetPath(nextPath);
+          setDecisionReady(true);
+        }
       } catch (error) {
         console.error('[root] failed to decide initial route:', error);
-        setTargetPath('/onboarding');
-        setDecisionReady(true);
+        if (!cancelled) {
+          setTargetPath('/onboarding');
+          setDecisionReady(true);
+        }
       }
     };
 
     decide();
+
+    return () => {
+      cancelled = true;
+    };
   }, [appReady, languageLoaded, isLoaded, isLoading, isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
 
-  React.useEffect(() => {
-    if (!rootNavState?.key) return;
-    if (!decisionReady) return;
-
-    const allowedToRedirect = pathname === '/' || pathname === '/loading' || pathname === '/landing' || pathname === '/onboarding' || pathname === '/choose-subscription';
-    if (!allowedToRedirect) return;
-
-    if (pathname !== targetPath) {
-      console.log('[root] redirecting', { from: pathname, to: targetPath });
-      router.replace(targetPath as any);
-    }
-  }, [rootNavState?.key, decisionReady, pathname, targetPath, router]);
-
-  if (!rootNavState?.key) {
-    return null;
-  }
-
-  if (!decisionReady && pathname !== '/loading') {
+  if (!decisionReady) {
     return <Redirect href="/loading" />;
   }
 
-  return null;
+  return <Redirect href={targetPath as any} />;
 }
 
 function RootLayoutNav() {
@@ -320,8 +311,8 @@ export default function RootLayout() {
               <LifeEventProvider>
                 <HouseholdProvider>
                   <GestureHandlerRootView style={styles.container}>
-                    <InitialRouteGate appReady={appReady} languageLoaded={isLoaded} />
                     <RootLayoutNav />
+                    <InitialRouteGate appReady={appReady} languageLoaded={isLoaded} />
                   </GestureHandlerRootView>
                 </HouseholdProvider>
               </LifeEventProvider>
