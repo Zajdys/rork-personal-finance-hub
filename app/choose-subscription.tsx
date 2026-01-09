@@ -14,7 +14,7 @@ import {
   Sparkles,
   Star,
 } from 'lucide-react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSettingsStore } from '@/store/settings-store';
 import { useAuth } from '@/store/auth-store';
@@ -113,7 +113,6 @@ export default function ChooseSubscriptionScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
-      <Stack.Screen options={{ headerShown: false }} />
       
       <LinearGradient
         colors={['#667eea', '#764ba2']}
@@ -141,10 +140,10 @@ export default function ChooseSubscriptionScreen() {
                   return;
                 }
 
-                router.replace('/account');
+                router.replace('/');
               } catch (e) {
                 console.error('[choose-subscription] back fallback failed', e);
-                router.replace('/account');
+                router.replace('/');
               }
             }}
           >
