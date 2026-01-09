@@ -194,19 +194,24 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       const onboardingKeyEmail = `onboarding_completed:${safeEmail}`;
       const onboardingKeyUserId = `onboarding_completed:${userId}`;
-      const onboardingPendingKey = getOnboardingPendingKey(userId || safeEmail);
+      const onboardingPendingKeyByUserId = getOnboardingPendingKey(userId);
+      const onboardingPendingKeyByEmail = getOnboardingPendingKey(safeEmail);
 
       console.log('[auth] register - clearing onboarding flags and setting pending', {
         userId,
         safeEmail,
-        onboardingPendingKey,
+        onboardingPendingKeyByUserId,
+        onboardingPendingKeyByEmail,
       });
 
       await storage.removeItem('onboarding_completed');
       await storage.removeItem(onboardingKeyEmail);
       await storage.removeItem(onboardingKeyUserId);
       await storage.removeItem('onboarding_profile');
-      await storage.setItem(onboardingPendingKey, 'true');
+      await Promise.all([
+        storage.setItem(onboardingPendingKeyByUserId, 'true'),
+        storage.setItem(onboardingPendingKeyByEmail, 'true'),
+      ]);
 
       console.log('[auth] register - pending flag set, now saving user data');
 

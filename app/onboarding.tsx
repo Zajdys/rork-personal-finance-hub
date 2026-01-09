@@ -352,13 +352,26 @@ export default function OnboardingScreen() {
       }
 
       console.log('Saving onboarding profile to AsyncStorage...');
-      const key = getOnboardingCompletedKey(user?.id ?? user?.email);
-      const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
-      await AsyncStorage.setItem(key, 'true');
-      await AsyncStorage.removeItem(pendingKey);
-      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
-      await AsyncStorage.removeItem('onboarding_completed');
-      console.log('Onboarding profile saved', { key, pendingKey });
+      const keyByUserId = getOnboardingCompletedKey(user?.id);
+      const keyByEmail = getOnboardingCompletedKey(user?.email);
+      const pendingKeyByUserId = getOnboardingPendingKey(user?.id);
+      const pendingKeyByEmail = getOnboardingPendingKey(user?.email);
+
+      await Promise.all([
+        AsyncStorage.setItem(keyByUserId, 'true'),
+        AsyncStorage.setItem(keyByEmail, 'true'),
+        AsyncStorage.removeItem(pendingKeyByUserId),
+        AsyncStorage.removeItem(pendingKeyByEmail),
+        AsyncStorage.removeItem('onboarding_completed'),
+        AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile)),
+      ]);
+
+      console.log('Onboarding profile saved', {
+        keyByUserId,
+        keyByEmail,
+        pendingKeyByUserId,
+        pendingKeyByEmail,
+      });
 
       if (data.employmentStatus) {
         console.log('Updating user with onboarding data:', data.employmentStatus);
