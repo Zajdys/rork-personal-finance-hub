@@ -14,7 +14,7 @@ import { LifeEventProvider } from '@/store/life-event-store';
 import { HouseholdProvider } from '@/store/household-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -83,7 +83,8 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
 function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
+  const [initialRoute, setInitialRoute] = React.useState<string>('loading');
+  const [routeReady, setRouteReady] = React.useState<boolean>(false);
   
   React.useEffect(() => {
     if (!appReady || !languageLoaded || !isLoaded || isLoading) {
@@ -132,9 +133,11 @@ function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; langua
         } else {
           setInitialRoute('(tabs)');
         }
+        setRouteReady(true);
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setInitialRoute('onboarding');
+        setRouteReady(true);
       }
     };
     
@@ -142,21 +145,15 @@ function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; langua
       checkOnboarding();
     } else {
       setInitialRoute('landing');
+      setRouteReady(true);
     }
   }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email, isLoaded, isLoading, appReady, languageLoaded]);
   
-  const showLoading = !appReady || !languageLoaded || !isLoaded || isLoading || initialRoute === null;
-  
-  if (showLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#667eea" />
-      </View>
-    );
-  }
+  const showLoading = !appReady || !languageLoaded || !isLoaded || isLoading || !routeReady;
+  const effectiveInitialRoute = showLoading ? 'loading' : initialRoute;
   
   return (
-    <Stack initialRouteName={initialRoute} screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
+    <Stack initialRouteName={effectiveInitialRoute} screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
       <Stack.Screen name="loading" options={{ headerShown: false }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
       <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
