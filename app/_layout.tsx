@@ -83,7 +83,7 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
+  const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
   
   React.useEffect(() => {
     const checkOnboarding = async () => {
@@ -119,68 +119,40 @@ function RootLayoutNav() {
           await AsyncStorage.setItem(completedKey, 'true');
         }
 
-        // If onboarding is pending for this user, always show it (even if subscription gating would run)
-        setOnboardingCompleted(resolvedCompleted && !resolvedPending);
+        const isOnboardingDone = resolvedCompleted && !resolvedPending;
+
+        // Determine initial route based on state
+        if (!isOnboardingDone) {
+          setInitialRoute('onboarding');
+        } else if (!hasActiveSubscription) {
+          setInitialRoute('choose-subscription');
+        } else {
+          setInitialRoute('(tabs)');
+        }
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
-        setOnboardingCompleted(false);
+        setInitialRoute('onboarding');
       }
     };
     
     if (isAuthenticated) {
       checkOnboarding();
     } else {
-      setOnboardingCompleted(null);
+      setInitialRoute('landing');
     }
   }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
   
-  if (!isLoaded || isLoading) {
+  if (!isLoaded || isLoading || initialRoute === null) {
     return null;
   }
   
-  // Gated access logic
-  if (!isAuthenticated) {
-    return (
-      <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
-        <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
-      </Stack>
-    );
-  }
-  
-  // Wait for onboarding check to complete BEFORE any gating.
-  // Otherwise new users can be routed to subscription/app briefly and it looks like onboarding is skipped.
-  if (isAuthenticated && onboardingCompleted === null) {
-    return null;
-  }
-
-  // Show onboarding right after auth (independent of subscription), but only once per account
-  if (isAuthenticated && onboardingCompleted === false) {
-    return (
-      <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
-        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
-        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
-      </Stack>
-    );
-  }
-
-  if (isAuthenticated && !hasActiveSubscription) {
-    return (
-      <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
-        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
-        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
-      </Stack>
-    );
-  }
-  
-  // Full app access for authenticated users with active subscription
   return (
-    <>
-      <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
-      <Stack.Screen name="(tabs)" />
-
+    <Stack initialRouteName={initialRoute} screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
+      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
+      <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: false }} />
+      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné', headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen 
         name="modal" 
         options={{ 
@@ -204,7 +176,6 @@ function RootLayoutNav() {
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail', headerShown: true }} />
       <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: true }} />
       <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview', headerShown: true }} />
-      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: true }} />
       <Stack.Screen name="friends" options={{ title: 'Přátelé', headerShown: true }} />
       <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání', headerShown: true }} />
       <Stack.Screen name="life-event" options={{ title: 'Life-Event Mode', headerShown: false }} />
@@ -212,14 +183,8 @@ function RootLayoutNav() {
       <Stack.Screen name="household-policies" options={{ title: 'Pravidla sdílení', headerShown: true }} />
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
-      
-      {/* These screens should not be accessible when user has active subscription */}
-      <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
       <Stack.Screen name="subscription" options={{ title: 'Úprava předplatného' }} />
-      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
-      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
-    </>
   );
 }
 
