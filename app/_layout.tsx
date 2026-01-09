@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Redirect, Stack, usePathname, useRouter, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -80,21 +80,33 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
   return `onboarding_pending:${raw}`;
 }
 
-function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
-  const { t, isLoaded } = useLanguageStore();
+function InitialRouteGate({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
+  const { isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [initialRoute, setInitialRoute] = React.useState<string>('loading');
-  const [routeReady, setRouteReady] = React.useState<boolean>(false);
-  
+  const rootNavState = useRootNavigationState();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const [targetPath, setTargetPath] = React.useState<string>('/loading');
+  const [decisionReady, setDecisionReady] = React.useState<boolean>(false);
+
   React.useEffect(() => {
     if (!appReady || !languageLoaded || !isLoaded || isLoading) {
+      setDecisionReady(false);
+      setTargetPath('/loading');
       return;
     }
-    
-    const checkOnboarding = async () => {
+
+    const decide = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        if (!isAuthenticated) {
+          setTargetPath('/landing');
+          setDecisionReady(true);
+          return;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
         const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
 
@@ -127,33 +139,53 @@ function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; langua
         const isOnboardingDone = resolvedCompleted && !resolvedPending;
 
         if (!isOnboardingDone) {
-          setInitialRoute('onboarding');
+          setTargetPath('/onboarding');
         } else if (!hasActiveSubscription) {
-          setInitialRoute('choose-subscription');
+          setTargetPath('/choose-subscription');
         } else {
-          setInitialRoute('(tabs)');
+          setTargetPath('/');
         }
-        setRouteReady(true);
+
+        setDecisionReady(true);
       } catch (error) {
-        console.error('Failed to check onboarding status:', error);
-        setInitialRoute('onboarding');
-        setRouteReady(true);
+        console.error('[root] failed to decide initial route:', error);
+        setTargetPath('/onboarding');
+        setDecisionReady(true);
       }
     };
-    
-    if (isAuthenticated) {
-      checkOnboarding();
-    } else {
-      setInitialRoute('landing');
-      setRouteReady(true);
+
+    decide();
+  }, [appReady, languageLoaded, isLoaded, isLoading, isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
+
+  React.useEffect(() => {
+    if (!rootNavState?.key) return;
+    if (!decisionReady) return;
+
+    const allowedToRedirect = pathname === '/' || pathname === '/loading' || pathname === '/landing' || pathname === '/onboarding' || pathname === '/choose-subscription';
+    if (!allowedToRedirect) return;
+
+    if (pathname !== targetPath) {
+      console.log('[root] redirecting', { from: pathname, to: targetPath });
+      router.replace(targetPath as any);
     }
-  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email, isLoaded, isLoading, appReady, languageLoaded]);
-  
-  const showLoading = !appReady || !languageLoaded || !isLoaded || isLoading || !routeReady;
-  const effectiveInitialRoute = showLoading ? 'loading' : initialRoute;
-  
+  }, [rootNavState?.key, decisionReady, pathname, targetPath, router]);
+
+  if (!rootNavState?.key) {
+    return null;
+  }
+
+  if (!decisionReady && pathname !== '/loading') {
+    return <Redirect href="/loading" />;
+  }
+
+  return null;
+}
+
+function RootLayoutNav() {
+  const { t } = useLanguageStore();
+
   return (
-    <Stack initialRouteName={effectiveInitialRoute} screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
+    <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
       <Stack.Screen name="loading" options={{ headerShown: false }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
       <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
@@ -288,7 +320,8 @@ export default function RootLayout() {
               <LifeEventProvider>
                 <HouseholdProvider>
                   <GestureHandlerRootView style={styles.container}>
-                    <RootLayoutNav appReady={appReady} languageLoaded={isLoaded} />
+                    <InitialRouteGate appReady={appReady} languageLoaded={isLoaded} />
+                    <RootLayoutNav />
                   </GestureHandlerRootView>
                 </HouseholdProvider>
               </LifeEventProvider>
