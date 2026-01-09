@@ -80,13 +80,17 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
   return `onboarding_pending:${raw}`;
 }
 
-function RootLayoutNav() {
+function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [initialRoute, setInitialRoute] = React.useState<string>('landing');
+  const [initialRoute, setInitialRoute] = React.useState<string>('loading');
   const [isReady, setIsReady] = React.useState(false);
   
   React.useEffect(() => {
+    if (!appReady || !languageLoaded) {
+      return;
+    }
+    
     const checkOnboarding = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -122,7 +126,6 @@ function RootLayoutNav() {
 
         const isOnboardingDone = resolvedCompleted && !resolvedPending;
 
-        // Determine initial route based on state
         if (!isOnboardingDone) {
           setInitialRoute('onboarding');
         } else if (!hasActiveSubscription) {
@@ -148,11 +151,11 @@ function RootLayoutNav() {
       setInitialRoute('landing');
       setIsReady(true);
     }
-  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email, isLoaded, isLoading]);
+  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email, isLoaded, isLoading, appReady, languageLoaded]);
   
-  // Always render Stack to maintain navigation context
-  // Show loading screen inside Stack if not ready
-  if (!isLoaded || isLoading || !isReady) {
+  const showLoading = !appReady || !languageLoaded || !isLoaded || isLoading || !isReady;
+  
+  if (showLoading) {
     return (
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="loading" options={{ headerShown: false }} />
@@ -268,12 +271,7 @@ export default function RootLayout() {
     };
   }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadBankData]);
 
-  if (!appReady || !isLoaded) {
-    console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
-    return null;
-  }
-  
-  console.log('App is ready, rendering RootLayoutNav');
+  console.log('RootLayout render - appReady:', appReady, 'isLoaded:', isLoaded);
 
   return (
     <ErrorBoundary>
@@ -284,7 +282,7 @@ export default function RootLayout() {
               <LifeEventProvider>
                 <HouseholdProvider>
                   <GestureHandlerRootView style={styles.container}>
-                    <RootLayoutNav />
+                    <RootLayoutNav appReady={appReady} languageLoaded={isLoaded} />
                   </GestureHandlerRootView>
                 </HouseholdProvider>
               </LifeEventProvider>
