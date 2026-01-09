@@ -154,23 +154,20 @@ function RootLayoutNav() {
     return null;
   }
 
-  // Show onboarding right after auth (independent of subscription), but only once per account
+  // 2) Onboarding otázky (vždy se zobrazí po registraci / dokud nejsou dokončené)
   if (isAuthenticated && onboardingCompleted === false) {
     return (
       <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
-        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
-        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
       </Stack>
     );
   }
 
-  if (isAuthenticated && !hasActiveSubscription) {
+  // 3) Výběr předplatného (až po dokončení otázek)
+  if (isAuthenticated && onboardingCompleted === true && !hasActiveSubscription) {
     return (
       <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
-        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
-        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
       </Stack>
     );
   }

@@ -141,6 +141,7 @@ export default function OnboardingScreen() {
         // Redirect only when we are sure it's completed for the current user.
         // Root layout is the source of truth; this is just a safety net for deep links.
         if (mounted && completedPerUser === 'true') {
+          console.log('[onboarding] already completed -> route to / (root gating decides next)');
           router.replace('/');
         }
       } catch (e) {
@@ -399,6 +400,7 @@ export default function OnboardingScreen() {
       console.log('Onboarding completed successfully!');
       console.log('Navigating to subscription screen...');
 
+      console.log('[onboarding] completion -> route to /choose-subscription');
       router.replace('/choose-subscription');
 
       setTimeout(() => {

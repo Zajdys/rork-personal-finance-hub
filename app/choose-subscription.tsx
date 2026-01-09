@@ -16,6 +16,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
+import { useAuth } from '@/store/auth-store';
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -73,6 +74,7 @@ const SUBSCRIPTION_PLANS = [
 
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
+  const { activateSubscription } = useAuth();
   const router = useRouter();
 
   const handleSelectPlan = (planId: string) => {
@@ -86,17 +88,35 @@ export default function ChooseSubscriptionScreen() {
         },
         {
           text: 'Potvrdit',
-          onPress: () => {
-            Alert.alert(
-              'Úspěch!',
-              'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => router.replace('/'),
-                },
-              ]
-            );
+          onPress: async () => {
+            try {
+              const plan = (planId === 'monthly' || planId === 'quarterly' || planId === 'yearly')
+                ? (planId as 'monthly' | 'quarterly' | 'yearly')
+                : null;
+
+              console.log('[subscription] activating plan', { planId, plan });
+
+              if (!plan) {
+                Alert.alert('Chyba', 'Neplatný typ předplatného. Zkuste to prosím znovu.');
+                return;
+              }
+
+              await activateSubscription(plan);
+
+              Alert.alert(
+                'Úspěch!',
+                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+                [
+                  {
+                    text: 'Pokračovat',
+                    onPress: () => router.replace('/'),
+                  },
+                ]
+              );
+            } catch (e) {
+              console.error('[subscription] activate failed', e);
+              Alert.alert('Chyba', 'Nepodařilo se aktivovat předplatné. Zkuste to prosím znovu.');
+            }
           },
         },
       ]
@@ -116,7 +136,11 @@ export default function ChooseSubscriptionScreen() {
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              console.log('[subscription] back -> onboarding');
+              router.replace('/onboarding');
+            }}
+            testID="subscription-back"
           >
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
@@ -190,6 +214,7 @@ export default function ChooseSubscriptionScreen() {
                   plan.popular && styles.popularButton,
                 ]}
                 onPress={() => handleSelectPlan(plan.id)}
+                testID={`subscription-select-${plan.id}`}
               >
                 <LinearGradient
                   colors={plan.popular ? ['#667eea', '#764ba2'] : ['#10B981', '#059669']}

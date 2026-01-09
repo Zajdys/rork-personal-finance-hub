@@ -115,6 +115,7 @@ export default function AuthScreen() {
       if (isLogin) {
         const success = await login(email, password);
         if (success) {
+          console.log('[auth-screen] login success -> route to / (root gating decides next)');
           router.replace('/');
         } else {
           setError('Nesprávné přihlašovací údaje');
@@ -122,7 +123,8 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          router.replace('/onboarding');
+          console.log('[auth-screen] register success -> route to / (root gating will open onboarding)');
+          router.replace('/');
         } else {
           setError(result.error || 'Registrace selhala');
         }
