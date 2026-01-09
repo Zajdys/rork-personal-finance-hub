@@ -160,13 +160,7 @@ function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; langua
       <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: false }} />
       <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné', headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen 
-        name="modal" 
-        options={{ 
-          presentation: "modal",
-          title: "Modal"
-        }} 
-      />
+
       <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown'), headerShown: true }} />
       <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis'), headerShown: true }} />
       <Stack.Screen name="financial-goals" options={{ title: t('financialGoals'), headerShown: true }} />
@@ -191,6 +185,28 @@ function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; langua
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
       <Stack.Screen name="subscription" options={{ title: 'Úprava předplatného' }} />
+      <Stack.Screen name="edit-bank-transaction" options={{ title: 'Upravit transakci', headerShown: true }} />
+      <Stack.Screen name="add-subscription" options={{ title: 'Přidat předplatné', headerShown: true }} />
+      <Stack.Screen name="household-overview" options={{ title: 'Přehled domácnosti', headerShown: true }} />
+      <Stack.Screen name="redeem-code" options={{ title: 'Uplatnit kód', headerShown: true }} />
+      <Stack.Screen name="register" options={{ title: 'Registrace', headerShown: false }} />
+      <Stack.Screen name="portfolio-detail" options={{ title: 'Detail portfolia', headerShown: true }} />
+      <Stack.Screen name="chat" options={{ title: 'Chat', headerShown: true }} />
+      <Stack.Screen name="loan-detail" options={{ title: 'Detail půjčky', headerShown: true }} />
+      <Stack.Screen name="add-loan" options={{ title: 'Přidat půjčku', headerShown: true }} />
+      <Stack.Screen name="loans" options={{ title: 'Půjčky', headerShown: true }} />
+      <Stack.Screen name="edit-loan" options={{ title: 'Upravit půjčku', headerShown: true }} />
+      <Stack.Screen name="loan-finder" options={{ title: 'Vyhledávač půjček', headerShown: true }} />
+      <Stack.Screen name="badges" options={{ title: 'Odznaky', headerShown: true }} />
+      <Stack.Screen name="quests" options={{ title: 'Úkoly', headerShown: true }} />
+      <Stack.Screen name="hall-of-fame" options={{ title: 'Síň slávy', headerShown: true }} />
+      <Stack.Screen name="gaming-stats" options={{ title: 'Herní statistiky', headerShown: true }} />
+      <Stack.Screen name="support-chat" options={{ title: 'Podpora', headerShown: true }} />
+      <Stack.Screen name="category-detail" options={{ title: 'Detail kategorie', headerShown: true }} />
+      <Stack.Screen name="bank-connect" options={{ title: 'Připojit banku', headerShown: true }} />
+      <Stack.Screen name="bank-accounts" options={{ title: 'Bankovní účty', headerShown: true }} />
+      <Stack.Screen name="leaderboard" options={{ title: 'Žebříček', headerShown: true }} />
+      <Stack.Screen name="+not-found" />
     </Stack>
   );
 }
