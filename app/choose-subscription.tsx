@@ -109,7 +109,9 @@ export default function ChooseSubscriptionScreen() {
                 [
                   {
                     text: 'Pokračovat',
-                    onPress: () => router.replace('/'),
+                    onPress: () => {
+                      console.log('[subscription] activation complete, letting root layout handle navigation');
+                    },
                   },
                 ]
               );
