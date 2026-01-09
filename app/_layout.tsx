@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NavigationContainer } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
@@ -272,7 +273,9 @@ export default function RootLayout() {
               <LifeEventProvider>
                 <HouseholdProvider>
                   <GestureHandlerRootView style={styles.container}>
-                    <RootLayoutNav appReady={appReady} languageLoaded={isLoaded} />
+                    <NavigationContainer>
+                      <RootLayoutNav appReady={appReady} languageLoaded={isLoaded} />
+                    </NavigationContainer>
                   </GestureHandlerRootView>
                 </HouseholdProvider>
               </LifeEventProvider>
