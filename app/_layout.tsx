@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, type ErrorBoundaryProps } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -21,51 +21,47 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-// Error Boundary Component
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error?: Error }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  React.useEffect(() => {
+    console.error('[ErrorBoundary] caught:', error);
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error('Error Boundary caught an error:', error, errorInfo);
-    
-    // If it's a JSON parse error, clear AsyncStorage
-    if (error.message.includes('JSON') || error.message.includes('Unexpected character')) {
-      console.log('JSON parse error detected in Error Boundary, clearing AsyncStorage...');
-      AsyncStorage.clear().then(() => {
-        console.log('AsyncStorage cleared due to JSON parse error');
-        // Force reload the app
-        this.setState({ hasError: false, error: undefined });
-      }).catch((clearError) => {
-        console.error('Failed to clear AsyncStorage:', clearError);
-      });
+    const message = error?.message ?? '';
+    if (message.includes('JSON') || message.includes('Unexpected character')) {
+      console.log('[ErrorBoundary] JSON parse error detected, clearing AsyncStorage...');
+      AsyncStorage.clear()
+        .then(() => {
+          console.log('[ErrorBoundary] AsyncStorage cleared');
+          retry();
+        })
+        .catch((clearError) => {
+          console.error('[ErrorBoundary] Failed to clear AsyncStorage:', clearError);
+        });
     }
-  }
+  }, [error, retry]);
 
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Něco se pokazilo</Text>
-          <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
-          <Text style={styles.errorDetails}>
-            {this.state.error?.message || 'Neznámá chyba'}
-          </Text>
-        </View>
-      );
-    }
-
-    return this.props.children;
-  }
+  return (
+    <View style={styles.errorContainer}>
+      <Text style={styles.errorTitle}>Něco se pokazilo</Text>
+      <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
+      <Text style={styles.errorDetails}>{error?.message || 'Neznámá chyba'}</Text>
+      <View style={{ height: 16 }} />
+      <Text
+        testID="errorBoundaryRetry"
+        onPress={() => retry()}
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          borderRadius: 999,
+          backgroundColor: '#111827',
+          color: 'white',
+          fontWeight: '700',
+          overflow: 'hidden',
+        }}
+      >
+        Zkusit znovu
+      </Text>
+    </View>
+  );
 }
 
 function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
@@ -306,24 +302,22 @@ export default function RootLayout() {
   console.log('RootLayout render - appReady:', appReady, 'isLoaded:', isLoaded);
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <trpc.Provider client={trpcClient} queryClient={queryClient}>
-          <AuthProvider>
-            <FriendsProvider>
-              <LifeEventProvider>
-                <HouseholdProvider>
-                  <GestureHandlerRootView style={styles.container}>
-                    <RootLayoutNav />
-                    <NavigationGate appReady={appReady} languageLoaded={isLoaded} />
-                  </GestureHandlerRootView>
-                </HouseholdProvider>
-              </LifeEventProvider>
-            </FriendsProvider>
-          </AuthProvider>
-        </trpc.Provider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <AuthProvider>
+          <FriendsProvider>
+            <LifeEventProvider>
+              <HouseholdProvider>
+                <GestureHandlerRootView style={styles.container}>
+                  <RootLayoutNav />
+                  <NavigationGate appReady={appReady} languageLoaded={isLoaded} />
+                </GestureHandlerRootView>
+              </HouseholdProvider>
+            </LifeEventProvider>
+          </FriendsProvider>
+        </AuthProvider>
+      </trpc.Provider>
+    </QueryClientProvider>
   );
 }
 
