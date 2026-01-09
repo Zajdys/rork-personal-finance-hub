@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { NavigationContainer } from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -265,9 +264,8 @@ export default function RootLayout() {
   console.log('RootLayout render - appReady:', appReady, 'isLoaded:', isLoaded);
 
   return (
-    <NavigationContainer>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
         <trpc.Provider client={trpcClient} queryClient={queryClient}>
           <AuthProvider>
             <FriendsProvider>
@@ -281,9 +279,8 @@ export default function RootLayout() {
             </FriendsProvider>
           </AuthProvider>
         </trpc.Provider>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </NavigationContainer>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
