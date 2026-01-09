@@ -19,6 +19,7 @@ import {
 } from 'lucide-react-native';
 import { useFinanceStore, EXPENSE_CATEGORIES } from '@/store/finance-store';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useSettingsStore } from '@/store/settings-store';
 
 export default function EditSubscriptionScreen() {
@@ -26,7 +27,21 @@ export default function EditSubscriptionScreen() {
   const { subscriptions, updateSubscription, deleteSubscription } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const router = useRouter();
+  const navigation = useNavigation();
   const currentCurrency = getCurrentCurrency();
+
+  const goBackSafe = () => {
+    const nav: any = navigation as any;
+    const canGoBack = typeof nav?.canGoBack === 'function' ? Boolean(nav.canGoBack()) : false;
+    console.log('[subscription] goBackSafe', { canGoBack });
+
+    if (canGoBack && typeof nav?.goBack === 'function') {
+      nav.goBack();
+      return;
+    }
+
+    router.replace('/account');
+  };
 
   const subscription = subscriptions.find((s) => s.id === id);
 
@@ -52,7 +67,7 @@ export default function EditSubscriptionScreen() {
           <Text style={[styles.errorText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
             Předplatné nenalezeno
           </Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButtonError}>
+          <TouchableOpacity onPress={goBackSafe} style={styles.backButtonError}>
             <Text style={styles.backButtonErrorText}>Zpět</Text>
           </TouchableOpacity>
         </View>
@@ -88,7 +103,7 @@ export default function EditSubscriptionScreen() {
     Alert.alert('Hotovo', 'Předplatné bylo aktualizováno', [
       {
         text: 'OK',
-        onPress: () => router.back(),
+        onPress: goBackSafe,
       },
     ]);
   };
@@ -107,7 +122,7 @@ export default function EditSubscriptionScreen() {
           style: 'destructive',
           onPress: () => {
             deleteSubscription(id!);
-            router.back();
+            goBackSafe();
           },
         },
       ]
@@ -129,7 +144,7 @@ export default function EditSubscriptionScreen() {
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={goBackSafe}
           >
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
