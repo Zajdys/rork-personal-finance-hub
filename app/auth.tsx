@@ -123,8 +123,8 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          console.log('[auth-screen] register success -> route to /onboarding (force show questions)');
-          router.replace('/onboarding');
+          console.log('[auth-screen] register success -> route to / (root gating will open onboarding)');
+          router.replace('/');
         } else {
           setError(result.error || 'Registrace selhala');
         }

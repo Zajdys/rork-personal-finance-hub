@@ -68,6 +68,18 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  if (!raw) return 'onboarding_completed';
+  return `onboarding_completed:${raw}`;
+}
+
+function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): string {
+  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
+  if (!raw) return 'onboarding_pending';
+  return `onboarding_pending:${raw}`;
+}
+
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
@@ -76,80 +88,51 @@ function RootLayoutNav() {
   React.useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        // Wait for user to be available - critical for correct key lookup
-        if (!user?.id && !user?.email) {
-          console.log('[root] waiting for user data...');
-          setOnboardingCompleted(null);
-          return;
-        }
-
-        // Small delay to ensure AsyncStorage writes from register() are complete
-        await new Promise(resolve => setTimeout(resolve, 150));
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        const userId = user?.id ?? '';
-        const userEmail = user?.email ?? '';
-        
-        // Check all possible keys to handle race conditions
-        const completedKeyById = userId ? `onboarding_completed:${userId.toLowerCase()}` : '';
-        const completedKeyByEmail = userEmail ? `onboarding_completed:${userEmail.toLowerCase()}` : '';
-        const pendingKeyById = userId ? `onboarding_pending:${userId.toLowerCase()}` : '';
-        const pendingKeyByEmail = userEmail ? `onboarding_pending:${userEmail.toLowerCase()}` : '';
+        const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
+        const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
 
-        const keysToCheck = [
-          'onboarding_completed',
-          completedKeyById,
-          completedKeyByEmail,
-          'onboarding_pending',
-          pendingKeyById,
-          pendingKeyByEmail,
-        ].filter(Boolean);
+        const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
+          AsyncStorage.getItem(completedKey),
+          AsyncStorage.getItem('onboarding_completed'),
+          AsyncStorage.getItem(pendingKey),
+        ]);
 
-        const results = await AsyncStorage.multiGet(keysToCheck);
-        const keyValues: Record<string, string | null> = {};
-        results.forEach(([key, value]) => {
-          keyValues[key] = value;
-        });
-
-        const legacyCompleted = keyValues['onboarding_completed'] === 'true';
-        const completedById = completedKeyById ? keyValues[completedKeyById] === 'true' : false;
-        const completedByEmail = completedKeyByEmail ? keyValues[completedKeyByEmail] === 'true' : false;
-        const resolvedCompleted = legacyCompleted || completedById || completedByEmail;
-
-        const legacyPending = keyValues['onboarding_pending'] === 'true';
-        const pendingById = pendingKeyById ? keyValues[pendingKeyById] === 'true' : false;
-        const pendingByEmail = pendingKeyByEmail ? keyValues[pendingKeyByEmail] === 'true' : false;
-        const resolvedPending = legacyPending || pendingById || pendingByEmail;
+        const resolvedCompleted = completedPerUser === 'true' || legacyCompleted === 'true';
+        const resolvedPending = pendingPerUser === 'true';
 
         console.log('[root] onboarding check', {
-          userId,
-          userEmail,
-          keyValues,
+          userId: user?.id,
+          userEmail: user?.email,
+          completedKey,
+          pendingKey,
+          completedPerUser,
+          legacyCompleted,
+          pendingPerUser,
           resolvedCompleted,
           resolvedPending,
           finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
         });
 
-        // Migrate legacy flag if needed
-        if (legacyCompleted && !completedById && completedKeyById) {
-          await AsyncStorage.setItem(completedKeyById, 'true');
+        if (legacyCompleted === 'true' && completedPerUser !== 'true') {
+          await AsyncStorage.setItem(completedKey, 'true');
         }
 
-        // If pending flag is set, onboarding is NOT complete
-        // If completed flag is set AND no pending flag, onboarding IS complete
+        // If onboarding is pending for this user, always show it (even if subscription gating would run)
         setOnboardingCompleted(resolvedCompleted && !resolvedPending);
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
-        // On error, show onboarding to be safe
         setOnboardingCompleted(false);
       }
     };
     
-    if (isAuthenticated && !isLoading) {
+    if (isAuthenticated) {
       checkOnboarding();
-    } else if (!isAuthenticated) {
+    } else {
       setOnboardingCompleted(null);
     }
-  }, [isAuthenticated, isLoading, user?.id, user?.email]);
+  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
   
   if (!isLoaded || isLoading) {
     return null;
