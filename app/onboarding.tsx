@@ -81,7 +81,6 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<number>(1);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [data, setData] = useState<OnboardingData>({
     employmentStatus: null,
     monthlyIncome: null,
@@ -155,7 +154,6 @@ export default function OnboardingScreen() {
   }, [router, user?.id, user?.email]);
 
   const handleNext = () => {
-    if (isSubmitting) return;
     if (step === 1 && !data.employmentStatus) {
       Alert.alert('Chyba', 'Prosím vyberte váš pracovní status');
       return;
@@ -207,9 +205,6 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
     try {
       console.log('Starting onboarding completion...');
 
@@ -337,44 +332,21 @@ export default function OnboardingScreen() {
         },
       });
 
-      let lastStatus = 0;
-      let lastRespJson: any = null;
+      const resp = await fetch(onboardingUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-      const maxAttempts = 3;
+      const respJson = (await resp.json().catch(() => null)) as any;
+      console.log('[onboarding] backend response', { status: resp.status, respJson });
 
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        console.log('[onboarding] submit attempt', { attempt, maxAttempts, onboardingUrl });
-
-        const resp = await fetch(onboardingUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        lastStatus = resp.status;
-        lastRespJson = (await resp.json().catch(() => null)) as any;
-        console.log('[onboarding] backend response', { attempt, status: resp.status, respJson: lastRespJson });
-
-        if (resp.ok) {
-          break;
-        }
-
-        if (attempt < maxAttempts) {
-          const delayMs = 600 * attempt;
-          console.log('[onboarding] retrying after delay', { delayMs });
-          await new Promise((r) => setTimeout(r, delayMs));
-        }
-      }
-
-      if (lastStatus < 200 || lastStatus >= 300) {
-        const msg = typeof lastRespJson?.error === 'string' ? lastRespJson.error : `Chyba serveru: ${lastStatus}`;
-        Alert.alert(
-          'Onboarding se neuložil',
-          `${msg}\n\nZkuste to prosím znovu. Pokud to dělá problém opakovaně, otevřete prosím konzoli (logs) a pošlete mi řádky začínající [onboarding].`
-        );
+      if (!resp.ok) {
+        const msg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
+        Alert.alert('Onboarding se neuložil', `${msg}\n\nPokud to dělá problém opakovaně, otevřete Prosím konzoli (logs) a pošlete mi řádky začínající [onboarding].`);
         return;
       }
 
@@ -436,8 +408,6 @@ export default function OnboardingScreen() {
       console.error('Failed to save onboarding data:', error);
       const msg = error instanceof Error ? error.message : String(error);
       Alert.alert('Onboarding se neuložil', `Nepodařilo se uložit data. Zkuste to prosím znovu.\n\nDetail: ${msg}`);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -1092,9 +1062,8 @@ export default function OnboardingScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.nextButton, step === 1 && styles.nextButtonFull, isSubmitting && { opacity: 0.7 }]}
+            style={[styles.nextButton, step === 1 && styles.nextButtonFull]}
             onPress={handleNext}
-            disabled={isSubmitting}
             testID="onboarding-next"
           >
             <LinearGradient
@@ -1104,7 +1073,7 @@ export default function OnboardingScreen() {
               end={{ x: 1, y: 1 }}
             >
               <Text style={styles.nextButtonText}>
-                {isSubmitting ? 'Ukládám…' : step === totalSteps ? 'Dokončit' : 'Další'}
+                {step === totalSteps ? 'Dokončit' : 'Další'}
               </Text>
               <ArrowRight color="white" size={20} />
             </LinearGradient>

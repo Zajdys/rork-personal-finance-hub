@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments, type ErrorBoundaryProps } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -21,47 +21,51 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
-  React.useEffect(() => {
-    console.error('[ErrorBoundary] caught:', error);
+// Error Boundary Component
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
-    const message = error?.message ?? '';
-    if (message.includes('JSON') || message.includes('Unexpected character')) {
-      console.log('[ErrorBoundary] JSON parse error detected, clearing AsyncStorage...');
-      AsyncStorage.clear()
-        .then(() => {
-          console.log('[ErrorBoundary] AsyncStorage cleared');
-          retry();
-        })
-        .catch((clearError) => {
-          console.error('[ErrorBoundary] Failed to clear AsyncStorage:', clearError);
-        });
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error Boundary caught an error:', error, errorInfo);
+    
+    // If it's a JSON parse error, clear AsyncStorage
+    if (error.message.includes('JSON') || error.message.includes('Unexpected character')) {
+      console.log('JSON parse error detected in Error Boundary, clearing AsyncStorage...');
+      AsyncStorage.clear().then(() => {
+        console.log('AsyncStorage cleared due to JSON parse error');
+        // Force reload the app
+        this.setState({ hasError: false, error: undefined });
+      }).catch((clearError) => {
+        console.error('Failed to clear AsyncStorage:', clearError);
+      });
     }
-  }, [error, retry]);
+  }
 
-  return (
-    <View style={styles.errorContainer}>
-      <Text style={styles.errorTitle}>Něco se pokazilo</Text>
-      <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
-      <Text style={styles.errorDetails}>{error?.message || 'Neznámá chyba'}</Text>
-      <View style={{ height: 16 }} />
-      <Text
-        testID="errorBoundaryRetry"
-        onPress={() => retry()}
-        style={{
-          paddingHorizontal: 16,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: '#111827',
-          color: 'white',
-          fontWeight: '700',
-          overflow: 'hidden',
-        }}
-      >
-        Zkusit znovu
-      </Text>
-    </View>
-  );
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Něco se pokazilo</Text>
+          <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
+          <Text style={styles.errorDetails}>
+            {this.state.error?.message || 'Neznámá chyba'}
+          </Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
@@ -76,113 +80,114 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
   return `onboarding_pending:${raw}`;
 }
 
-function NavigationGate({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
-  const router = useRouter();
-  const segments = useSegments();
-
-  const { isLoaded } = useLanguageStore();
+function RootLayoutNav() {
+  const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-
-  const [hasNavigated, setHasNavigated] = React.useState<boolean>(false);
-
+  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
+  
   React.useEffect(() => {
-    let cancelled = false;
-
-    if (hasNavigated) return;
-
-    if (!appReady || !languageLoaded || !isLoaded || isLoading) {
-      console.log('[root] gate waiting', { appReady, languageLoaded, isLoaded, isLoading, segments });
-      return;
-    }
-
-    const decideAndNavigate = async () => {
+    const checkOnboarding = async () => {
       try {
-        let nextPath: string;
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
+        const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
 
-        if (!isAuthenticated) {
-          nextPath = '/landing';
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 50));
+        const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
+          AsyncStorage.getItem(completedKey),
+          AsyncStorage.getItem('onboarding_completed'),
+          AsyncStorage.getItem(pendingKey),
+        ]);
 
-          const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
-          const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
+        const resolvedCompleted = completedPerUser === 'true' || legacyCompleted === 'true';
+        const resolvedPending = pendingPerUser === 'true';
 
-          const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
-            AsyncStorage.getItem(completedKey),
-            AsyncStorage.getItem('onboarding_completed'),
-            AsyncStorage.getItem(pendingKey),
-          ]);
+        console.log('[root] onboarding check', {
+          userId: user?.id,
+          userEmail: user?.email,
+          completedKey,
+          pendingKey,
+          completedPerUser,
+          legacyCompleted,
+          pendingPerUser,
+          resolvedCompleted,
+          resolvedPending,
+          finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
+        });
 
-          const resolvedCompleted = completedPerUser === 'true' || legacyCompleted === 'true';
-          const resolvedPending = pendingPerUser === 'true';
-
-          console.log('[root] onboarding check', {
-            userId: user?.id,
-            userEmail: user?.email,
-            completedKey,
-            pendingKey,
-            completedPerUser,
-            legacyCompleted,
-            pendingPerUser,
-            resolvedCompleted,
-            resolvedPending,
-            finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
-          });
-
-          if (legacyCompleted === 'true' && completedPerUser !== 'true') {
-            await AsyncStorage.setItem(completedKey, 'true');
-          }
-
-          const isOnboardingDone = resolvedCompleted && !resolvedPending;
-
-          nextPath = !isOnboardingDone
-            ? '/onboarding'
-            : !hasActiveSubscription
-              ? '/choose-subscription'
-              : '/';
+        if (legacyCompleted === 'true' && completedPerUser !== 'true') {
+          await AsyncStorage.setItem(completedKey, 'true');
         }
 
-        if (cancelled) return;
-
-        const currentPath = `/${segments.join('/')}`.replace(/\/+/g, '/');
-        console.log('[root] gate navigate', { currentPath, nextPath, segments });
-
-        if (currentPath !== nextPath) {
-          router.replace(nextPath as any);
-        }
-
-        setHasNavigated(true);
+        // If onboarding is pending for this user, always show it (even if subscription gating would run)
+        setOnboardingCompleted(resolvedCompleted && !resolvedPending);
       } catch (error) {
-        console.error('[root] failed to decide initial route:', error);
-        if (!cancelled) {
-          router.replace('/onboarding' as any);
-          setHasNavigated(true);
-        }
+        console.error('Failed to check onboarding status:', error);
+        setOnboardingCompleted(false);
       }
     };
+    
+    if (isAuthenticated) {
+      checkOnboarding();
+    } else {
+      setOnboardingCompleted(null);
+    }
+  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
+  
+  if (!isLoaded || isLoading) {
+    return null;
+  }
+  
+  // Gated access logic
+  if (!isAuthenticated) {
+    return (
+      <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
+        <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
+      </Stack>
+    );
+  }
+  
+  // Wait for onboarding check to complete BEFORE any gating.
+  // Otherwise new users can be routed to subscription/app briefly and it looks like onboarding is skipped.
+  if (isAuthenticated && onboardingCompleted === null) {
+    return null;
+  }
 
-    decideAndNavigate();
+  // Show onboarding right after auth (independent of subscription), but only once per account
+  if (isAuthenticated && onboardingCompleted === false) {
+    return (
+      <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
+        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
+        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
+      </Stack>
+    );
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [appReady, languageLoaded, isLoaded, isLoading, isAuthenticated, hasActiveSubscription, user?.id, user?.email, router, segments, hasNavigated]);
-
-  return null;
-}
-
-function RootLayoutNav() {
-  const { t } = useLanguageStore();
-
+  if (isAuthenticated && !hasActiveSubscription) {
+    return (
+      <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
+        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
+        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
+      </Stack>
+    );
+  }
+  
+  // Full app access for authenticated users with active subscription
   return (
-    <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
-      <Stack.Screen name="loading" options={{ headerShown: false }} />
-      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
-      <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
-      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: false }} />
-      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné', headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <>
+      <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
+      <Stack.Screen name="(tabs)" />
 
+      <Stack.Screen 
+        name="modal" 
+        options={{ 
+          presentation: "modal",
+          title: "Modal"
+        }} 
+      />
       <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown'), headerShown: true }} />
       <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis'), headerShown: true }} />
       <Stack.Screen name="financial-goals" options={{ title: t('financialGoals'), headerShown: true }} />
@@ -199,6 +204,7 @@ function RootLayoutNav() {
       <Stack.Screen name="asset/[symbol]" options={{ title: 'Asset Detail', headerShown: true }} />
       <Stack.Screen name="account" options={{ title: 'Můj účet', headerShown: true }} />
       <Stack.Screen name="landing-preview" options={{ title: 'Landing Preview', headerShown: true }} />
+      <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: true }} />
       <Stack.Screen name="friends" options={{ title: 'Přátelé', headerShown: true }} />
       <Stack.Screen name="friend-comparison" options={{ title: 'Porovnání', headerShown: true }} />
       <Stack.Screen name="life-event" options={{ title: 'Life-Event Mode', headerShown: false }} />
@@ -206,30 +212,14 @@ function RootLayoutNav() {
       <Stack.Screen name="household-policies" options={{ title: 'Pravidla sdílení', headerShown: true }} />
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
+      
+      {/* These screens should not be accessible when user has active subscription */}
+      <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
       <Stack.Screen name="subscription" options={{ title: 'Úprava předplatného' }} />
-      <Stack.Screen name="edit-bank-transaction" options={{ title: 'Upravit transakci', headerShown: true }} />
-      <Stack.Screen name="add-subscription" options={{ title: 'Přidat předplatné', headerShown: true }} />
-      <Stack.Screen name="household-overview" options={{ title: 'Přehled domácnosti', headerShown: true }} />
-      <Stack.Screen name="redeem-code" options={{ title: 'Uplatnit kód', headerShown: true }} />
-      <Stack.Screen name="register" options={{ title: 'Registrace', headerShown: false }} />
-      <Stack.Screen name="portfolio-detail" options={{ title: 'Detail portfolia', headerShown: true }} />
-      <Stack.Screen name="chat" options={{ title: 'Chat', headerShown: true }} />
-      <Stack.Screen name="loan-detail" options={{ title: 'Detail půjčky', headerShown: true }} />
-      <Stack.Screen name="add-loan" options={{ title: 'Přidat půjčku', headerShown: true }} />
-      <Stack.Screen name="loans" options={{ title: 'Půjčky', headerShown: true }} />
-      <Stack.Screen name="edit-loan" options={{ title: 'Upravit půjčku', headerShown: true }} />
-      <Stack.Screen name="loan-finder" options={{ title: 'Vyhledávač půjček', headerShown: true }} />
-      <Stack.Screen name="badges" options={{ title: 'Odznaky', headerShown: true }} />
-      <Stack.Screen name="quests" options={{ title: 'Úkoly', headerShown: true }} />
-      <Stack.Screen name="hall-of-fame" options={{ title: 'Síň slávy', headerShown: true }} />
-      <Stack.Screen name="gaming-stats" options={{ title: 'Herní statistiky', headerShown: true }} />
-      <Stack.Screen name="support-chat" options={{ title: 'Podpora', headerShown: true }} />
-      <Stack.Screen name="category-detail" options={{ title: 'Detail kategorie', headerShown: true }} />
-      <Stack.Screen name="bank-connect" options={{ title: 'Připojit banku', headerShown: true }} />
-      <Stack.Screen name="bank-accounts" options={{ title: 'Bankovní účty', headerShown: true }} />
-      <Stack.Screen name="leaderboard" options={{ title: 'Žebříček', headerShown: true }} />
-      <Stack.Screen name="+not-found" />
+      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
+      <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
+    </>
   );
 }
 
@@ -299,36 +289,36 @@ export default function RootLayout() {
     };
   }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadBankData]);
 
-  console.log('RootLayout render - appReady:', appReady, 'isLoaded:', isLoaded);
+  if (!appReady || !isLoaded) {
+    console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
+    return null;
+  }
+  
+  console.log('App is ready, rendering RootLayoutNav');
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <ErrorBoundary>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <AuthProvider>
-          <FriendsProvider>
-            <LifeEventProvider>
-              <HouseholdProvider>
-                <GestureHandlerRootView style={styles.container}>
-                  <RootLayoutNav />
-                  <NavigationGate appReady={appReady} languageLoaded={isLoaded} />
-                </GestureHandlerRootView>
-              </HouseholdProvider>
-            </LifeEventProvider>
-          </FriendsProvider>
-        </AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <FriendsProvider>
+              <LifeEventProvider>
+                <HouseholdProvider>
+                  <GestureHandlerRootView style={styles.container}>
+                    <RootLayoutNav />
+                  </GestureHandlerRootView>
+                </HouseholdProvider>
+              </LifeEventProvider>
+            </FriendsProvider>
+          </AuthProvider>
+        </QueryClientProvider>
       </trpc.Provider>
-    </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',

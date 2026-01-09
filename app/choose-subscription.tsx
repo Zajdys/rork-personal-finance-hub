@@ -14,10 +14,8 @@ import {
   Sparkles,
   Star,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, Stack } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
-import { useAuth } from '@/store/auth-store';
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -73,46 +71,41 @@ const SUBSCRIPTION_PLANS = [
   },
 ];
 
-function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): string {
-  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
-  if (!raw) return 'onboarding_pending';
-  return `onboarding_pending:${raw}`;
-}
-
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
-  const { user, activateSubscription } = useAuth();
   const router = useRouter();
 
   const handleSelectPlan = (planId: string) => {
-    Alert.alert('Potvrdit předplatné', `Chcete aktivovat předplatné?`, [
-      {
-        text: 'Zrušit',
-        style: 'cancel',
-      },
-      {
-        text: 'Potvrdit',
-        onPress: async () => {
-          try {
-            console.log('[choose-subscription] activating plan', { planId, userId: user?.id, userEmail: user?.email });
-            await activateSubscription(planId as 'monthly' | 'quarterly' | 'yearly');
-            Alert.alert('Úspěch!', 'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!', [
-              {
-                text: 'OK',
-                onPress: () => router.replace('/'),
-              },
-            ]);
-          } catch (e) {
-            console.error('[choose-subscription] activate failed', e);
-            Alert.alert('Chyba', 'Nepodařilo se aktivovat předplatné. Zkuste to prosím znovu.');
-          }
+    Alert.alert(
+      'Potvrdit předplatné',
+      `Chcete aktivovat předplatné?`,
+      [
+        {
+          text: 'Zrušit',
+          style: 'cancel',
         },
-      },
-    ]);
+        {
+          text: 'Potvrdit',
+          onPress: () => {
+            Alert.alert(
+              'Úspěch!',
+              'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace('/'),
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
       
       <LinearGradient
         colors={['#667eea', '#764ba2']}
@@ -123,29 +116,7 @@ export default function ChooseSubscriptionScreen() {
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={async () => {
-              try {
-                const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
-                const pending = (await AsyncStorage.getItem(pendingKey)) === 'true';
-
-                console.log('[choose-subscription] back pressed', {
-                  pendingKey,
-                  pending,
-                  userId: user?.id,
-                  userEmail: user?.email,
-                });
-
-                if (pending) {
-                  router.replace('/onboarding');
-                  return;
-                }
-
-                router.replace('/');
-              } catch (e) {
-                console.error('[choose-subscription] back fallback failed', e);
-                router.replace('/');
-              }
-            }}
+            onPress={() => router.back()}
           >
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>

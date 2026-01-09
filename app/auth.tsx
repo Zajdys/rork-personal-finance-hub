@@ -122,8 +122,7 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          // Root layout will route user to onboarding if needed; avoid racing navigators.
-          router.replace('/');
+          router.replace('/onboarding');
         } else {
           setError(result.error || 'Registrace selhala');
         }
