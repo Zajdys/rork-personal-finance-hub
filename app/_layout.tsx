@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -80,96 +80,99 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
   return `onboarding_pending:${raw}`;
 }
 
-function InitialRouteGate({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
+function NavigationGate({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
+  const router = useRouter();
+  const segments = useSegments();
+
   const { isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
 
-  const [targetPath, setTargetPath] = React.useState<string>('/loading');
-  const [decisionReady, setDecisionReady] = React.useState<boolean>(false);
+  const [hasNavigated, setHasNavigated] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let cancelled = false;
 
+    if (hasNavigated) return;
+
     if (!appReady || !languageLoaded || !isLoaded || isLoading) {
-      setDecisionReady(false);
-      setTargetPath('/loading');
+      console.log('[root] gate waiting', { appReady, languageLoaded, isLoaded, isLoading, segments });
       return;
     }
 
-    const decide = async () => {
+    const decideAndNavigate = async () => {
       try {
+        let nextPath: string;
+
         if (!isAuthenticated) {
-          if (!cancelled) {
-            setTargetPath('/landing');
-            setDecisionReady(true);
+          nextPath = '/landing';
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+
+          const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
+          const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
+
+          const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
+            AsyncStorage.getItem(completedKey),
+            AsyncStorage.getItem('onboarding_completed'),
+            AsyncStorage.getItem(pendingKey),
+          ]);
+
+          const resolvedCompleted = completedPerUser === 'true' || legacyCompleted === 'true';
+          const resolvedPending = pendingPerUser === 'true';
+
+          console.log('[root] onboarding check', {
+            userId: user?.id,
+            userEmail: user?.email,
+            completedKey,
+            pendingKey,
+            completedPerUser,
+            legacyCompleted,
+            pendingPerUser,
+            resolvedCompleted,
+            resolvedPending,
+            finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
+          });
+
+          if (legacyCompleted === 'true' && completedPerUser !== 'true') {
+            await AsyncStorage.setItem(completedKey, 'true');
           }
-          return;
+
+          const isOnboardingDone = resolvedCompleted && !resolvedPending;
+
+          nextPath = !isOnboardingDone
+            ? '/onboarding'
+            : !hasActiveSubscription
+              ? '/choose-subscription'
+              : '/';
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        if (cancelled) return;
 
-        const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
-        const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
+        const currentPath = `/${segments.join('/')}`.replace(/\/+/g, '/');
+        console.log('[root] gate navigate', { currentPath, nextPath, segments });
 
-        const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
-          AsyncStorage.getItem(completedKey),
-          AsyncStorage.getItem('onboarding_completed'),
-          AsyncStorage.getItem(pendingKey),
-        ]);
-
-        const resolvedCompleted = completedPerUser === 'true' || legacyCompleted === 'true';
-        const resolvedPending = pendingPerUser === 'true';
-
-        console.log('[root] onboarding check', {
-          userId: user?.id,
-          userEmail: user?.email,
-          completedKey,
-          pendingKey,
-          completedPerUser,
-          legacyCompleted,
-          pendingPerUser,
-          resolvedCompleted,
-          resolvedPending,
-          finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
-        });
-
-        if (legacyCompleted === 'true' && completedPerUser !== 'true') {
-          await AsyncStorage.setItem(completedKey, 'true');
+        if (currentPath !== nextPath) {
+          router.replace(nextPath as any);
         }
 
-        const isOnboardingDone = resolvedCompleted && !resolvedPending;
-
-        const nextPath = !isOnboardingDone
-          ? '/onboarding'
-          : !hasActiveSubscription
-            ? '/choose-subscription'
-            : '/';
-
-        if (!cancelled) {
-          setTargetPath(nextPath);
-          setDecisionReady(true);
-        }
+        setHasNavigated(true);
       } catch (error) {
         console.error('[root] failed to decide initial route:', error);
         if (!cancelled) {
-          setTargetPath('/onboarding');
-          setDecisionReady(true);
+          router.replace('/onboarding' as any);
+          setHasNavigated(true);
         }
       }
     };
 
-    decide();
+    decideAndNavigate();
 
     return () => {
       cancelled = true;
     };
-  }, [appReady, languageLoaded, isLoaded, isLoading, isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
+  }, [appReady, languageLoaded, isLoaded, isLoading, isAuthenticated, hasActiveSubscription, user?.id, user?.email, router, segments, hasNavigated]);
 
-  if (!decisionReady) {
-    return <Redirect href="/loading" />;
-  }
-
-  return <Redirect href={targetPath as any} />;
+  return null;
 }
 
 function RootLayoutNav() {
@@ -312,7 +315,7 @@ export default function RootLayout() {
                 <HouseholdProvider>
                   <GestureHandlerRootView style={styles.container}>
                     <RootLayoutNav />
-                    <InitialRouteGate appReady={appReady} languageLoaded={isLoaded} />
+                    <NavigationGate appReady={appReady} languageLoaded={isLoaded} />
                   </GestureHandlerRootView>
                 </HouseholdProvider>
               </LifeEventProvider>
