@@ -83,7 +83,8 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
+  const [initialRoute, setInitialRoute] = React.useState<string>('landing');
+  const [isReady, setIsReady] = React.useState(false);
   
   React.useEffect(() => {
     const checkOnboarding = async () => {
@@ -129,21 +130,34 @@ function RootLayoutNav() {
         } else {
           setInitialRoute('(tabs)');
         }
+        setIsReady(true);
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setInitialRoute('onboarding');
+        setIsReady(true);
       }
     };
+    
+    if (!isLoaded || isLoading) {
+      return;
+    }
     
     if (isAuthenticated) {
       checkOnboarding();
     } else {
       setInitialRoute('landing');
+      setIsReady(true);
     }
-  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
+  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email, isLoaded, isLoading]);
   
-  if (!isLoaded || isLoading || initialRoute === null) {
-    return null;
+  // Always render Stack to maintain navigation context
+  // Show loading screen inside Stack if not ready
+  if (!isLoaded || isLoading || !isReady) {
+    return (
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="loading" options={{ headerShown: false }} />
+      </Stack>
+    );
   }
   
   return (
