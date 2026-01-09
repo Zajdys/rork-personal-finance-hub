@@ -14,7 +14,7 @@ import { LifeEventProvider } from '@/store/life-event-store';
 import { HouseholdProvider } from '@/store/household-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -83,11 +83,10 @@ function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): stri
 function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; languageLoaded: boolean }) {
   const { t, isLoaded } = useLanguageStore();
   const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [initialRoute, setInitialRoute] = React.useState<string>('loading');
-  const [isReady, setIsReady] = React.useState(false);
+  const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
   
   React.useEffect(() => {
-    if (!appReady || !languageLoaded) {
+    if (!appReady || !languageLoaded || !isLoaded || isLoading) {
       return;
     }
     
@@ -133,38 +132,32 @@ function RootLayoutNav({ appReady, languageLoaded }: { appReady: boolean; langua
         } else {
           setInitialRoute('(tabs)');
         }
-        setIsReady(true);
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setInitialRoute('onboarding');
-        setIsReady(true);
       }
     };
-    
-    if (!isLoaded || isLoading) {
-      return;
-    }
     
     if (isAuthenticated) {
       checkOnboarding();
     } else {
       setInitialRoute('landing');
-      setIsReady(true);
     }
   }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email, isLoaded, isLoading, appReady, languageLoaded]);
   
-  const showLoading = !appReady || !languageLoaded || !isLoaded || isLoading || !isReady;
+  const showLoading = !appReady || !languageLoaded || !isLoaded || isLoading || initialRoute === null;
   
   if (showLoading) {
     return (
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="loading" options={{ headerShown: false }} />
-      </Stack>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
     );
   }
   
   return (
     <Stack initialRouteName={initialRoute} screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
+      <Stack.Screen name="loading" options={{ headerShown: false }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy', headerShown: false }} />
       <Stack.Screen name="auth" options={{ title: 'Přihlášení', headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu', headerShown: false }} />
@@ -296,6 +289,12 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
