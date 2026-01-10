@@ -174,11 +174,11 @@ export default function OnboardingScreen() {
       };
 
       const incomeLabels: Record<IncomeRange, string> = {
-        under20k: '<20k',
-        '20k-40k': '20–40k',
-        '40k-60k': '40–60k',
-        '60k-100k': '60–100k',
-        over100k: '100k+',
+        under20k: 'Méně než 20 000 Kč',
+        '20k-40k': '20 000 - 40 000 Kč',
+        '40k-60k': '40 000 - 60 000 Kč',
+        '60k-100k': '60 000 - 100 000 Kč',
+        over100k: 'Více než 100 000 Kč',
       };
 
       const experienceLabels: Record<ExperienceLevel, string> = {
