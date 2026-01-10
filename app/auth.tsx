@@ -115,16 +115,15 @@ export default function AuthScreen() {
       if (isLogin) {
         const success = await login(email, password);
         if (success) {
-          console.log('[auth-screen] login success -> route to / (root gating decides next)');
-          router.replace('/');
+          console.log('[auth-screen] login success (navigation handled by RootLayoutNav gating)');
         } else {
           setError('Nesprávné přihlašovací údaje');
         }
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          console.log('[auth-screen] register success -> route to / (root gating will open onboarding)');
-          router.replace('/');
+          console.log('[auth-screen] register success -> force onboarding route (avoid race/REPLACE warnings)');
+          router.replace('/onboarding');
         } else {
           setError(result.error || 'Registrace selhala');
         }

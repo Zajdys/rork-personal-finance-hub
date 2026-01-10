@@ -119,29 +119,35 @@ export default function OnboardingScreen() {
         }
 
         const key = getOnboardingCompletedKey(identifier);
-        const [completedPerUser, legacyCompleted] = await Promise.all([
+        const pendingKey = getOnboardingPendingKey(identifier);
+        const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
           AsyncStorage.getItem(key),
           AsyncStorage.getItem('onboarding_completed'),
+          AsyncStorage.getItem(pendingKey),
         ]);
 
         const completed = completedPerUser === 'true' || legacyCompleted === 'true';
+        const pending = pendingPerUser === 'true';
 
         console.log('[onboarding] bootstrap', {
           identifier,
           key,
+          pendingKey,
           completedPerUser,
           legacyCompleted,
+          pendingPerUser,
           completed,
+          pending,
         });
 
         if (legacyCompleted === 'true' && completedPerUser !== 'true') {
           await AsyncStorage.setItem(key, 'true');
         }
 
-        // Redirect only when we are sure it's completed for the current user.
-        // Root layout is the source of truth; this is just a safety net for deep links.
-        if (mounted && completedPerUser === 'true') {
-          console.log('[onboarding] already completed -> route to / (root gating decides next)');
+        // Redirect only when we are sure it's completed for the current user AND not pending.
+        // Otherwise onboarding can "flash" then disappear for fresh registrations.
+        if (mounted && completedPerUser === 'true' && !pending) {
+          console.log('[onboarding] already completed (not pending) -> route to / (root gating decides next)');
           router.replace('/');
         }
       } catch (e) {
