@@ -194,12 +194,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       const onboardingKeyEmail = `onboarding_completed:${safeEmail}`;
       const onboardingKeyUserId = `onboarding_completed:${userId}`;
-      const onboardingPendingKey = getOnboardingPendingKey(userId || safeEmail);
+      const onboardingPendingKeyEmail = getOnboardingPendingKey(safeEmail);
+      const onboardingPendingKeyUserId = getOnboardingPendingKey(userId || safeEmail);
 
       console.log('[auth] register - clearing onboarding flags and setting pending', {
         userId,
         safeEmail,
-        onboardingPendingKey,
+        onboardingPendingKeyEmail,
+        onboardingPendingKeyUserId,
       });
 
       // Update UI state ASAP to prevent a race where RootLayout reads onboarding keys
@@ -213,7 +215,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       await storage.removeItem(onboardingKeyEmail);
       await storage.removeItem(onboardingKeyUserId);
       await storage.removeItem('onboarding_profile');
-      await storage.setItem(onboardingPendingKey, 'true');
+      await storage.setItem(onboardingPendingKeyEmail, 'true');
+      await storage.setItem(onboardingPendingKeyUserId, 'true');
 
       console.log('[auth] register - pending flag set, now saving user data');
 

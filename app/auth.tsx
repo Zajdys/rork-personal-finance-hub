@@ -122,8 +122,7 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          console.log('[auth-screen] register success -> force onboarding route (avoid race/REPLACE warnings)');
-          router.replace('/onboarding');
+          console.log('[auth-screen] register success (navigation handled by RootLayoutNav gating)');
         } else {
           setError(result.error || 'Registrace selhala');
         }

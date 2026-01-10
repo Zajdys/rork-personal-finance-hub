@@ -358,13 +358,25 @@ export default function OnboardingScreen() {
       }
 
       console.log('Saving onboarding profile to AsyncStorage...');
-      const key = getOnboardingCompletedKey(user?.id ?? user?.email);
-      const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
-      await AsyncStorage.setItem(key, 'true');
-      await AsyncStorage.removeItem(pendingKey);
-      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
-      await AsyncStorage.removeItem('onboarding_completed');
-      console.log('Onboarding profile saved', { key, pendingKey });
+      const identifierId = String(user?.id ?? '').trim().toLowerCase();
+      const identifierEmail = String(user?.email ?? '').trim().toLowerCase();
+      const completedKeys = Array.from(new Set<string>([
+        getOnboardingCompletedKey(identifierId || null),
+        getOnboardingCompletedKey(identifierEmail || null),
+      ])).filter((k) => k !== 'onboarding_completed');
+      const pendingKeys = Array.from(new Set<string>([
+        getOnboardingPendingKey(identifierId || null),
+        getOnboardingPendingKey(identifierEmail || null),
+      ]));
+
+      await Promise.all([
+        ...completedKeys.map((k) => AsyncStorage.setItem(k, 'true')),
+        ...pendingKeys.map((k) => AsyncStorage.removeItem(k)),
+        AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile)),
+        AsyncStorage.removeItem('onboarding_completed'),
+      ]);
+
+      console.log('Onboarding profile saved', { completedKeys, pendingKeys });
 
       if (data.employmentStatus) {
         console.log('Updating user with onboarding data:', data.employmentStatus);
