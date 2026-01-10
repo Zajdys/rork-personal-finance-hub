@@ -202,6 +202,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         onboardingPendingKey,
       });
 
+      // Update UI state ASAP to prevent a race where RootLayout reads onboarding keys
+      // with a missing identifier and accidentally skips onboarding.
+      setUser(newUser);
+      setIsAuthenticated(true);
+      setHasActiveSubscription(false);
+      setIsLoading(false);
+
       await storage.removeItem('onboarding_completed');
       await storage.removeItem(onboardingKeyEmail);
       await storage.removeItem(onboardingKeyUserId);
@@ -221,13 +228,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         ),
         token ? storage.setItem(TOKEN_KEY, token) : storage.removeItem(TOKEN_KEY),
       ]);
-
-      console.log('[auth] register - storage complete, updating state');
-
-      setUser(newUser);
-      setIsAuthenticated(true);
-      setHasActiveSubscription(false);
-      setIsLoading(false);
 
       console.log('[auth] register - success, user should now see onboarding');
 

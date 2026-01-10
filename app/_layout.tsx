@@ -89,9 +89,16 @@ function RootLayoutNav() {
     const checkOnboarding = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const completedKey = getOnboardingCompletedKey(user?.id ?? user?.email);
-        const pendingKey = getOnboardingPendingKey(user?.id ?? user?.email);
+
+        const identifier = String(user?.id ?? user?.email ?? '').trim().toLowerCase();
+        if (!identifier) {
+          console.log('[root] onboarding check skipped (missing user identifier)');
+          setOnboardingCompleted(null);
+          return;
+        }
+
+        const completedKey = getOnboardingCompletedKey(identifier);
+        const pendingKey = getOnboardingPendingKey(identifier);
 
         const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
           AsyncStorage.getItem(completedKey),
@@ -128,6 +135,10 @@ function RootLayoutNav() {
     };
     
     if (isAuthenticated) {
+      if (!user?.id && !user?.email) {
+        setOnboardingCompleted(null);
+        return;
+      }
       checkOnboarding();
     } else {
       setOnboardingCompleted(null);
