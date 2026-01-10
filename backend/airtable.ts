@@ -264,7 +264,7 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
   const budgetFun = Number(input.budgetFun ?? NaN);
   const budgetSavings = Number(input.budgetSavings ?? NaN);
 
-  const userPatchFields: Partial<AirtableUserFields> & Record<string, unknown> = {
+  const userPatchFields: Record<string, unknown> = {
     work_status: String(input.workStatus ?? "").trim(),
     monthly_income_range: String(input.monthlyIncomeRange ?? "").trim(),
     finance_experience: String(input.financeExperience ?? "").trim(),
@@ -272,26 +272,34 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
       ? input.financialGoals.map((g) => String(g).trim()).filter(Boolean)
       : [],
     has_loan: Boolean(input.hasLoan),
-    budget_housing: Number.isFinite(budgetHousing) ? budgetHousing : undefined,
-    budget_food: Number.isFinite(budgetFood) ? budgetFood : undefined,
-    budget_transport: Number.isFinite(budgetTransport) ? budgetTransport : undefined,
-    budget_fun: Number.isFinite(budgetFun) ? budgetFun : undefined,
-    budget_savings: Number.isFinite(budgetSavings) ? budgetSavings : undefined,
     onboarding_completed: true,
   };
+
+  if (Number.isFinite(budgetHousing) && budgetHousing > 0) {
+    userPatchFields.budget_housing = budgetHousing;
+  }
+  if (Number.isFinite(budgetFood) && budgetFood > 0) {
+    userPatchFields.budget_food = budgetFood;
+  }
+  if (Number.isFinite(budgetTransport) && budgetTransport > 0) {
+    userPatchFields.budget_transport = budgetTransport;
+  }
+  if (Number.isFinite(budgetFun) && budgetFun > 0) {
+    userPatchFields.budget_fun = budgetFun;
+  }
+  if (Number.isFinite(budgetSavings) && budgetSavings > 0) {
+    userPatchFields.budget_savings = budgetSavings;
+  }
+
+  console.log("[submitOnboarding] userPatchFields to send:", JSON.stringify(userPatchFields, null, 2));
 
   const userPatchUrl = `https://api.airtable.com/v0/${baseId}/Users/${record.id}`;
   console.log("[submitOnboarding] patch user", {
     email: normalizedEmail,
     userRecordId: record.id,
     url: userPatchUrl,
-    fields: {
-      work_status: userPatchFields.work_status,
-      monthly_income_range: userPatchFields.monthly_income_range,
-      finance_experience: userPatchFields.finance_experience,
-      financial_goals_count: Array.isArray(userPatchFields.financial_goals) ? userPatchFields.financial_goals.length : 0,
-      onboarding_completed: userPatchFields.onboarding_completed,
-    },
+    fieldsKeys: Object.keys(userPatchFields),
+    fieldsPreview: JSON.stringify(userPatchFields).slice(0, 500),
   });
 
   const patchRes = await airtableFetch<{ id: string }>(userPatchUrl, {
@@ -304,8 +312,16 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
   });
 
   if (!patchRes.ok) {
+    console.error("[submitOnboarding] PATCH failed", {
+      status: patchRes.status,
+      errorText: patchRes.errorText,
+      userRecordId: record.id,
+      fieldsKeys: Object.keys(userPatchFields),
+    });
     throw new Error(`Airtable user update failed (${patchRes.status}): ${patchRes.errorText}`);
   }
+
+  console.log("[submitOnboarding] PATCH success", { userRecordId: record.id });
 
   const hasLoan = Boolean(input.hasLoan);
   const loans = Array.isArray(input.loans) ? input.loans : [];
