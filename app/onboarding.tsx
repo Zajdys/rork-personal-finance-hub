@@ -236,6 +236,11 @@ export default function OnboardingScreen() {
         financeExperience: experienceLabels[data.experienceLevel],
         financialGoals: data.financialGoals.map((g) => goalLabels[g]).filter(Boolean),
         hasLoan: Boolean(data.loanData.hasLoan),
+        budgetHousing: Number.parseFloat(String(data.budgetBreakdown?.housing ?? '')) || 0,
+        budgetFood: Number.parseFloat(String(data.budgetBreakdown?.food ?? '')) || 0,
+        budgetTransport: Number.parseFloat(String(data.budgetBreakdown?.transportation ?? '')) || 0,
+        budgetFun: Number.parseFloat(String(data.budgetBreakdown?.entertainment ?? '')) || 0,
+        budgetSavings: Number.parseFloat(String(data.budgetBreakdown?.savings ?? '')) || 0,
         loans: (data.loanData.loans ?? []).map((l) => ({
           loanType: loanTypeLabels[l.loanType] ?? String(l.loanType),
           loanAmount: Number.parseFloat(String(l.loanAmount ?? '0')) || 0,
@@ -243,7 +248,7 @@ export default function OnboardingScreen() {
           monthlyPayment: Number.parseFloat(String(l.monthlyPayment ?? '0')) || 0,
           remainingMonths: Number.parseInt(String(l.remainingMonths ?? '0'), 10) || 0,
         })),
-      };
+      } as const;
 
       console.log('[onboarding] submitting to backend', {
         onboardingUrl,
@@ -254,6 +259,13 @@ export default function OnboardingScreen() {
           financialGoalsCount: payload.financialGoals.length,
           hasLoan: payload.hasLoan,
           loansCount: payload.loans.length,
+          budgets: {
+            budgetHousing: payload.budgetHousing,
+            budgetFood: payload.budgetFood,
+            budgetTransport: payload.budgetTransport,
+            budgetFun: payload.budgetFun,
+            budgetSavings: payload.budgetSavings,
+          },
         },
       });
 

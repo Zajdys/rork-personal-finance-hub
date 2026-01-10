@@ -241,12 +241,23 @@ app.post("/onboarding/submit", async (c) => {
 
     const { submitOnboardingByEmail } = await import("./airtable");
 
+    const budgetHousing = Number(body?.budgetHousing ?? body?.budget_housing ?? NaN);
+    const budgetFood = Number(body?.budgetFood ?? body?.budget_food ?? NaN);
+    const budgetTransport = Number(body?.budgetTransport ?? body?.budget_transport ?? NaN);
+    const budgetFun = Number(body?.budgetFun ?? body?.budget_fun ?? NaN);
+    const budgetSavings = Number(body?.budgetSavings ?? body?.budget_savings ?? NaN);
+
     await submitOnboardingByEmail(payload.email, {
       workStatus,
       monthlyIncomeRange,
       financeExperience,
       financialGoals,
       hasLoan,
+      budgetHousing: Number.isFinite(budgetHousing) ? budgetHousing : undefined,
+      budgetFood: Number.isFinite(budgetFood) ? budgetFood : undefined,
+      budgetTransport: Number.isFinite(budgetTransport) ? budgetTransport : undefined,
+      budgetFun: Number.isFinite(budgetFun) ? budgetFun : undefined,
+      budgetSavings: Number.isFinite(budgetSavings) ? budgetSavings : undefined,
       loans,
     });
 

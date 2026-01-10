@@ -9,6 +9,12 @@ type AirtableUserFields = {
   monthly_income_range?: string;
   finance_experience?: string;
   financial_goals?: string[];
+  has_loan?: boolean;
+  budget_housing?: number;
+  budget_food?: number;
+  budget_transport?: number;
+  budget_fun?: number;
+  budget_savings?: number;
   onboarding_completed?: boolean;
 };
 
@@ -18,7 +24,7 @@ type AirtableUserRecord = {
 };
 
 type AirtableLoanFields = {
-  User: string[];
+  user: string[];
   loan_type: string;
   loan_amount: number;
   interest_rate: number;
@@ -225,6 +231,11 @@ export type OnboardingSubmitInput = {
   financeExperience: string;
   financialGoals: string[];
   hasLoan: boolean;
+  budgetHousing?: number;
+  budgetFood?: number;
+  budgetTransport?: number;
+  budgetFun?: number;
+  budgetSavings?: number;
   loans: {
     loanType: string;
     loanAmount: number;
@@ -247,6 +258,12 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
 
   const { apiKey, baseId } = getAirtableConfig();
 
+  const budgetHousing = Number(input.budgetHousing ?? NaN);
+  const budgetFood = Number(input.budgetFood ?? NaN);
+  const budgetTransport = Number(input.budgetTransport ?? NaN);
+  const budgetFun = Number(input.budgetFun ?? NaN);
+  const budgetSavings = Number(input.budgetSavings ?? NaN);
+
   const userPatchFields: Partial<AirtableUserFields> & Record<string, unknown> = {
     work_status: String(input.workStatus ?? "").trim(),
     monthly_income_range: String(input.monthlyIncomeRange ?? "").trim(),
@@ -254,6 +271,12 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
     financial_goals: Array.isArray(input.financialGoals)
       ? input.financialGoals.map((g) => String(g).trim()).filter(Boolean)
       : [],
+    has_loan: Boolean(input.hasLoan),
+    budget_housing: Number.isFinite(budgetHousing) ? budgetHousing : undefined,
+    budget_food: Number.isFinite(budgetFood) ? budgetFood : undefined,
+    budget_transport: Number.isFinite(budgetTransport) ? budgetTransport : undefined,
+    budget_fun: Number.isFinite(budgetFun) ? budgetFun : undefined,
+    budget_savings: Number.isFinite(budgetSavings) ? budgetSavings : undefined,
     onboarding_completed: true,
   };
 
@@ -304,7 +327,7 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
       const body: AirtableCreateRecordBody<AirtableLoanFields> = {
         records: validLoans.map((l) => ({
           fields: {
-            User: [record.id],
+            user: [record.id],
             loan_type: l.loanType,
             loan_amount: l.loanAmount,
             interest_rate: l.interestRate,
