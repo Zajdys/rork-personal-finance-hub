@@ -170,8 +170,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[auth] register response', { status: resp.status, data });
 
       if (!resp.ok) {
-        const errorMsg = data?.error || `Chyba serveru: ${resp.status}`;
-        console.error('[auth] register failed', { status: resp.status, error: errorMsg });
+        let errorMsg = 'Chyba serveru';
+        if (data?.error) {
+          errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+        } else if (resp.status === 409) {
+          errorMsg = 'Tento email je již registrován';
+        } else {
+          errorMsg = `Chyba serveru: ${resp.status}`;
+        }
+        console.error('[auth] register failed', { status: resp.status, error: errorMsg, rawData: data });
         return { success: false, error: errorMsg };
       }
 
