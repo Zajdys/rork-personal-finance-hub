@@ -129,12 +129,27 @@ app.post("/register", async (c) => {
       return c.json({ error: "Missing email, password or name" }, 400);
     }
 
-    const { registerUser } = await import("./airtable");
-    const result = await registerUser(email, password, name);
+    const { registerUser, getUserByEmail } = await import("./airtable");
+    await registerUser(email, password, name);
 
-    console.log("[airtable register] success", { email });
+    const userRecord = await getUserByEmail(email);
+    const userId = userRecord?.id ?? email;
+    const createdAt = typeof userRecord?.fields?.created_at === "string" ? userRecord.fields.created_at : new Date().toISOString();
 
-    return c.json(result);
+    const token = signToken({ sub: userId, email, iat: Math.floor(Date.now() / 1000) });
+
+    console.log("[airtable register] success", { email, userId });
+
+    return c.json({
+      success: true,
+      user: {
+        id: userId,
+        email,
+        name,
+        created_at: createdAt,
+      },
+      token,
+    });
   } catch (e) {
     console.error("/register airtable error", {
       message: e instanceof Error ? e.message : String(e),
