@@ -210,13 +210,24 @@ app.post("/onboarding/submit", async (c) => {
       return c.json({ error: "UNAUTHORIZED" }, 401);
     }
 
-    const payload = verifyToken(token);
-    if (!payload?.email) {
-      console.error("[/onboarding/submit] invalid token payload", { payload });
-      return c.json({ error: "UNAUTHORIZED" }, 401);
+    let userEmail = '';
+
+    const payload = token ? verifyToken(token) : null;
+    if (payload?.email) {
+      userEmail = payload.email;
     }
 
     const body = (await c.req.json().catch(() => ({}))) as any;
+
+    if (!userEmail && body?.email) {
+      userEmail = String(body.email).trim().toLowerCase();
+      console.log("[/onboarding/submit] using email from body", { userEmail });
+    }
+
+    if (!userEmail) {
+      console.error("[/onboarding/submit] no valid email found", { hasToken: Boolean(token), hasPayload: Boolean(payload) });
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
 
     const workStatus = String(body?.workStatus ?? "").trim();
     const monthlyIncomeRange = String(body?.monthlyIncomeRange ?? "").trim();
@@ -228,7 +239,7 @@ app.post("/onboarding/submit", async (c) => {
     const loansRaw = Array.isArray(body?.loans) ? (body.loans as unknown[]) : [];
 
     console.log("[/onboarding/submit] parsed", {
-      email: payload.email,
+      email: userEmail,
       workStatus,
       monthlyIncomeRange,
       financeExperience,
@@ -262,7 +273,7 @@ app.post("/onboarding/submit", async (c) => {
     const budgetFun = Number(body?.budgetFun ?? body?.budget_fun ?? NaN);
     const budgetSavings = Number(body?.budgetSavings ?? body?.budget_savings ?? NaN);
 
-    await submitOnboardingByEmail(payload.email, {
+    await submitOnboardingByEmail(userEmail, {
       workStatus,
       monthlyIncomeRange,
       financeExperience,

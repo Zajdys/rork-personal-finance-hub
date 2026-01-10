@@ -220,7 +220,9 @@ export default function OnboardingScreen() {
         onboardingUrl,
       });
 
-      if (!token) {
+      const userEmail = user?.email ?? '';
+
+      if (!token && !userEmail) {
         Alert.alert('Chyba', 'Nejste přihlášený. Přihlaste se prosím znovu a zkuste to.');
         return;
       }
@@ -231,6 +233,7 @@ export default function OnboardingScreen() {
       }
 
       const payload = {
+        email: userEmail,
         workStatus: employmentStatusLabels[data.employmentStatus],
         monthlyIncomeRange: incomeLabels[data.monthlyIncome],
         financeExperience: experienceLabels[data.experienceLevel],
