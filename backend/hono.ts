@@ -201,23 +201,21 @@ app.post("/onboarding/submit", async (c) => {
     const authHeader = c.req.header("authorization") ?? c.req.header("Authorization") ?? "";
     const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
 
+    const body = (await c.req.json().catch(() => ({}))) as any;
+
     console.log("[/onboarding/submit] incoming", {
       hasAuthHeader: Boolean(authHeader),
       tokenPreview: token ? `${token.slice(0, 8)}...${token.slice(-6)}` : null,
+      hasEmailInBody: Boolean(body?.email),
     });
-
-    if (!token) {
-      return c.json({ error: "UNAUTHORIZED" }, 401);
-    }
 
     let userEmail = '';
 
     const payload = token ? verifyToken(token) : null;
     if (payload?.email) {
       userEmail = payload.email;
+      console.log("[/onboarding/submit] using email from token", { userEmail });
     }
-
-    const body = (await c.req.json().catch(() => ({}))) as any;
 
     if (!userEmail && body?.email) {
       userEmail = String(body.email).trim().toLowerCase();
@@ -225,7 +223,7 @@ app.post("/onboarding/submit", async (c) => {
     }
 
     if (!userEmail) {
-      console.error("[/onboarding/submit] no valid email found", { hasToken: Boolean(token), hasPayload: Boolean(payload) });
+      console.error("[/onboarding/submit] no valid email found", { hasToken: Boolean(token), hasPayload: Boolean(payload), hasBodyEmail: Boolean(body?.email) });
       return c.json({ error: "UNAUTHORIZED" }, 401);
     }
 
