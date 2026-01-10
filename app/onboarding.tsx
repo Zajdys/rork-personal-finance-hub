@@ -146,9 +146,15 @@ export default function OnboardingScreen() {
 
         // Redirect only when we are sure it's completed for the current user AND not pending.
         // Otherwise onboarding can "flash" then disappear for fresh registrations.
-        if (mounted && completedPerUser === 'true' && !pending) {
+        // If onboarding is still pending for this user, never auto-redirect.
+        if (mounted && completed === true && !pending) {
           console.log('[onboarding] already completed (not pending) -> route to / (root gating decides next)');
           router.replace('/');
+          return;
+        }
+
+        if (mounted && pending) {
+          console.log('[onboarding] pending flag present -> staying on onboarding');
         }
       } catch (e) {
         console.log('[onboarding] bootstrap read error', e);

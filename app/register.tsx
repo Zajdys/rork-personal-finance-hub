@@ -28,8 +28,8 @@ export default function RegisterScreen() {
       console.log('[register-screen] register result', result);
 
       if (result.success) {
-        console.log('[register-screen] register success -> /onboarding');
-        router.replace('/onboarding');
+        console.log('[register-screen] register success -> / (root gating decides next)');
+        router.replace('/');
       } else {
         setError(result.error || 'Registrace selhala');
       }
