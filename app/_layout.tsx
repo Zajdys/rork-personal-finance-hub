@@ -68,92 +68,26 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
-  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
-  if (!raw) return 'onboarding_completed';
-  return `onboarding_completed:${raw}`;
-}
-
-function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): string {
-  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
-  if (!raw) return 'onboarding_pending';
-  return `onboarding_pending:${raw}`;
-}
-
-function uniqNonEmpty(items: (string | null | undefined)[]): string[] {
-  return Array.from(new Set(items.map((v) => (v ? String(v) : '')).filter((v) => v.length > 0)));
-}
-
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
-  const { user, isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
   const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
   
   React.useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const identifierId = String(user?.id ?? '').trim().toLowerCase();
-        const identifierEmail = String(user?.email ?? '').trim().toLowerCase();
-        const identifiers = uniqNonEmpty([identifierId, identifierEmail]);
-
-        if (identifiers.length === 0) {
-          console.log('[root] onboarding check skipped (missing user identifier)');
-          setOnboardingCompleted(null);
-          return;
-        }
-
-        const completedKeys = uniqNonEmpty(identifiers.map((id) => getOnboardingCompletedKey(id)));
-        const pendingKeys = uniqNonEmpty(identifiers.map((id) => getOnboardingPendingKey(id)));
-
-        const readKeys = async (keys: string[]) => {
-          const values = await Promise.all(keys.map((k) => AsyncStorage.getItem(k)));
-          return values.some((v) => v === 'true');
-        };
-
-        const [completedAny, legacyCompleted, pendingAny] = await Promise.all([
-          readKeys(completedKeys),
-          AsyncStorage.getItem('onboarding_completed'),
-          readKeys(pendingKeys),
-        ]);
-
-        const resolvedCompleted = completedAny || legacyCompleted === 'true';
-        const resolvedPending = pendingAny;
-
-        console.log('[root] onboarding check', {
-          userId: user?.id,
-          userEmail: user?.email,
-          completedKeys,
-          pendingKeys,
-          legacyCompleted,
-          resolvedCompleted,
-          resolvedPending,
-          finalOnboardingCompleted: resolvedCompleted && !resolvedPending,
-        });
-
-        if (legacyCompleted === 'true') {
-          await Promise.all(completedKeys.map((k) => AsyncStorage.setItem(k, 'true')));
-        }
-
-        // If onboarding is pending for this user, always show it (even if subscription gating would run)
-        setOnboardingCompleted(resolvedCompleted && !resolvedPending);
+        const completed = await AsyncStorage.getItem('onboarding_completed');
+        setOnboardingCompleted(completed === 'true');
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setOnboardingCompleted(false);
       }
     };
     
-    if (isAuthenticated) {
-      if (!user?.id && !user?.email) {
-        setOnboardingCompleted(null);
-        return;
-      }
+    if (isAuthenticated && hasActiveSubscription) {
       checkOnboarding();
-    } else {
-      setOnboardingCompleted(null);
     }
-  }, [isAuthenticated, hasActiveSubscription, user?.id, user?.email]);
+  }, [isAuthenticated, hasActiveSubscription]);
   
   if (!isLoaded || isLoading) {
     return null;
@@ -169,22 +103,31 @@ function RootLayoutNav() {
     );
   }
   
-  // Wait for onboarding check to complete BEFORE any gating.
-  // Otherwise new users can be routed to subscription/app briefly and it looks like onboarding is skipped.
-  if (isAuthenticated && onboardingCompleted === null) {
-    return null;
+  if (isAuthenticated && !hasActiveSubscription) {
+    return (
+      <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
+        <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
+        <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
+      </Stack>
+    );
   }
-
-  // 2) Onboarding otázky (vždy se zobrazí po registraci / dokud nejsou dokončené)
-  if (isAuthenticated && onboardingCompleted === false) {
+  
+  // Show onboarding if user has subscription but hasn't completed onboarding
+  if (isAuthenticated && hasActiveSubscription && onboardingCompleted === false) {
     return (
       <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
       </Stack>
     );
   }
-
-  // Po dokončení onboardingu jde uživatel rovnou do aplikace (bez předplatného)
+  
+  // Wait for onboarding check to complete
+  if (onboardingCompleted === null) {
+    return null;
+  }
+  
+  // Full app access for authenticated users with active subscription
   return (
     <>
       <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
@@ -222,7 +165,10 @@ function RootLayoutNav() {
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
       
+      {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
+      <Stack.Screen name="subscription" options={{ title: 'Úprava předplatného' }} />
+      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
     </>

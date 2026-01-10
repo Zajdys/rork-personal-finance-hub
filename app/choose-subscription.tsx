@@ -13,11 +13,9 @@ import {
   CheckCircle,
   Sparkles,
   Star,
-  Gift,
 } from 'lucide-react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
-import { useAuth } from '@/store/auth-store';
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -75,7 +73,6 @@ const SUBSCRIPTION_PLANS = [
 
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
-  const { activateSubscription } = useAuth();
   const router = useRouter();
 
   const handleSelectPlan = (planId: string) => {
@@ -89,37 +86,17 @@ export default function ChooseSubscriptionScreen() {
         },
         {
           text: 'Potvrdit',
-          onPress: async () => {
-            try {
-              const plan = (planId === 'monthly' || planId === 'quarterly' || planId === 'yearly')
-                ? (planId as 'monthly' | 'quarterly' | 'yearly')
-                : null;
-
-              console.log('[subscription] activating plan', { planId, plan });
-
-              if (!plan) {
-                Alert.alert('Chyba', 'Neplatný typ předplatného. Zkuste to prosím znovu.');
-                return;
-              }
-
-              await activateSubscription(plan);
-
-              Alert.alert(
-                'Úspěch!',
-                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
-                [
-                  {
-                    text: 'Pokračovat',
-                    onPress: () => {
-                      console.log('[subscription] activation complete, letting root layout handle navigation');
-                    },
-                  },
-                ]
-              );
-            } catch (e) {
-              console.error('[subscription] activate failed', e);
-              Alert.alert('Chyba', 'Nepodařilo se aktivovat předplatné. Zkuste to prosím znovu.');
-            }
+          onPress: () => {
+            Alert.alert(
+              'Úspěch!',
+              'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => router.back(),
+                },
+              ]
+            );
           },
         },
       ]
@@ -139,11 +116,7 @@ export default function ChooseSubscriptionScreen() {
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => {
-              console.log('[subscription] back -> onboarding');
-              router.replace('/onboarding');
-            }}
-            testID="subscription-back"
+            onPress={() => router.back()}
           >
             <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
@@ -217,7 +190,6 @@ export default function ChooseSubscriptionScreen() {
                   plan.popular && styles.popularButton,
                 ]}
                 onPress={() => handleSelectPlan(plan.id)}
-                testID={`subscription-select-${plan.id}`}
               >
                 <LinearGradient
                   colors={plan.popular ? ['#667eea', '#764ba2'] : ['#10B981', '#059669']}
@@ -230,26 +202,6 @@ export default function ChooseSubscriptionScreen() {
               </TouchableOpacity>
             </View>
           ))}
-
-          <TouchableOpacity
-            style={[styles.redeemInline, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}
-            onPress={() => {
-              console.log('[subscription] open redeem-code');
-              router.push('/redeem-code');
-            }}
-            testID="subscription-redeem-code"
-          >
-            <View style={styles.redeemInlineLeft}>
-              <View style={[styles.redeemInlineIcon, { backgroundColor: isDarkMode ? 'rgba(102,126,234,0.18)' : '#EEF2FF' }]}>
-                <Gift color="#667eea" size={18} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.redeemInlineTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Mám kód</Text>
-                <Text style={[styles.redeemInlineSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Uplatnit dárkový / slevový kód</Text>
-              </View>
-            </View>
-            <Text style={[styles.redeemInlineAction, { color: '#667eea' }]}>Otevřít</Text>
-          </TouchableOpacity>
 
           <View style={[styles.guaranteeCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
             <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
@@ -409,42 +361,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: 'bold',
     color: 'white',
-  },
-  redeemInline: {
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(102,126,234,0.35)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  redeemInlineLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  redeemInlineIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  redeemInlineTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  redeemInlineSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  redeemInlineAction: {
-    fontSize: 14,
-    fontWeight: '800',
   },
   guaranteeCard: {
     backgroundColor: 'white',

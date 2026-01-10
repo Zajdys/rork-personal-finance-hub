@@ -44,23 +44,17 @@ const storage = {
 const STORAGE_KEY = 'auth_state';
 const TOKEN_KEY = 'authToken';
 
-function getOnboardingPendingKey(userIdOrEmail: string): string {
-  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
-  return `onboarding_pending:${raw}`;
-}
-
 function getApiBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL;
-  const raw = envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0
-    ? envUrl
-    : typeof window !== 'undefined'
-      ? window.location.origin
-      : 'http://localhost:3000';
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.replace(/\/$/, '');
+  }
 
-  const trimmed = String(raw).trim().replace(/\/+$/, '');
-  const withoutApi = trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
 
-  return withoutApi;
+  return 'http://localhost:3000';
 }
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -170,28 +164,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[auth] register response', { status: resp.status, data });
 
       if (!resp.ok) {
-        let errorMsg = 'Chyba serveru';
-        if (data?.error) {
-          errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-        } else if (resp.status === 409) {
-          errorMsg = 'Tento email je již registrován';
-        } else {
-          errorMsg = `Chyba serveru: ${resp.status}`;
-        }
-        console.error('[auth] register failed', { status: resp.status, error: errorMsg, rawData: data });
+        const errorMsg = data?.error || `Chyba serveru: ${resp.status}`;
+        console.error('[auth] register failed', { status: resp.status, error: errorMsg });
         return { success: false, error: errorMsg };
       }
 
-      const token = typeof data?.token === 'string' ? data.token : '';
-      const apiUser = data?.user as any;
-      const userId = String(apiUser?.id ?? safeEmail);
-      const createdAt = typeof apiUser?.created_at === 'string' ? apiUser.created_at : new Date().toISOString();
-
       const newUser: User = {
-        id: userId,
+        id: safeEmail,
         email: safeEmail,
         name: safeName,
-        registrationDate: createdAt,
+        registrationDate: new Date().toISOString(),
         subscription: {
           active: false,
           plan: null,
@@ -199,33 +181,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         },
       };
 
-      const onboardingKeyEmail = `onboarding_completed:${safeEmail}`;
-      const onboardingKeyUserId = `onboarding_completed:${userId}`;
-      const onboardingPendingKeyEmail = getOnboardingPendingKey(safeEmail);
-      const onboardingPendingKeyUserId = getOnboardingPendingKey(userId || safeEmail);
-
-      console.log('[auth] register - clearing onboarding flags and setting pending', {
-        userId,
-        safeEmail,
-        onboardingPendingKeyEmail,
-        onboardingPendingKeyUserId,
-      });
-
-      // Update UI state ASAP to prevent a race where RootLayout reads onboarding keys
-      // with a missing identifier and accidentally skips onboarding.
       setUser(newUser);
       setIsAuthenticated(true);
       setHasActiveSubscription(false);
       setIsLoading(false);
-
-      await storage.removeItem('onboarding_completed');
-      await storage.removeItem(onboardingKeyEmail);
-      await storage.removeItem(onboardingKeyUserId);
-      await storage.removeItem('onboarding_profile');
-      await storage.setItem(onboardingPendingKeyEmail, 'true');
-      await storage.setItem(onboardingPendingKeyUserId, 'true');
-
-      console.log('[auth] register - pending flag set, now saving user data');
 
       await Promise.all([
         storage.setItem(
@@ -236,10 +195,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             hasActiveSubscription: false,
           })
         ),
-        token ? storage.setItem(TOKEN_KEY, token) : storage.removeItem(TOKEN_KEY),
+        storage.removeItem(TOKEN_KEY),
       ]);
-
-      console.log('[auth] register - success, user should now see onboarding');
 
       return { success: true };
     } catch (error) {

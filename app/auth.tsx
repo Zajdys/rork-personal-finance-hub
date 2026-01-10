@@ -115,7 +115,6 @@ export default function AuthScreen() {
       if (isLogin) {
         const success = await login(email, password);
         if (success) {
-          console.log('[auth-screen] login success -> routing to / (root gating decides next)');
           router.replace('/');
         } else {
           setError('Nesprávné přihlašovací údaje');
@@ -123,8 +122,7 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          console.log('[auth-screen] register success -> routing to / (root gating decides next)');
-          router.replace('/');
+          router.replace('/onboarding');
         } else {
           setError(result.error || 'Registrace selhala');
         }
@@ -204,6 +202,14 @@ export default function AuthScreen() {
             </Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[styles.codeButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+            onPress={() => router.push('/redeem-code')}
+          >
+            <Text style={[styles.codeButtonText, { color: isDarkMode ? 'white' : '#667eea' }]}>
+              Mám kód
+            </Text>
+          </TouchableOpacity>
 
         </View>
       </ScrollView>
@@ -237,4 +243,16 @@ const styles = StyleSheet.create({
   submitText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
   error: { color: '#DC2626', textAlign: 'center' },
   switch: { textAlign: 'center', marginTop: 16, color: '#667eea' },
+  codeButton: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#667eea',
+    marginTop: 8,
+  },
+  codeButtonText: {
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

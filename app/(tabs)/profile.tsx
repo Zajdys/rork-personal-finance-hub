@@ -34,12 +34,21 @@ import { useLifeEvent } from '@/store/life-event-store';
 
 
 export default function ProfileScreen() {
-  const { totalIncome } = useFinanceStore();
-  const { isDarkMode } = useSettingsStore();
+  const { totalTransactions, totalIncome } = useFinanceStore();
+  const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
   const { t, language } = useLanguageStore();
   const { getModeInfo, isActive } = useLifeEvent();
   const router = useRouter();
-
+  
+  const currentCurrency = getCurrentCurrency();
+  const getThemeDisplayName = () => {
+    switch (theme) {
+      case 'light': return 'Světlé';
+      case 'dark': return 'Tmavé';
+      case 'auto': return 'Automatické';
+      default: return 'Světlé';
+    }
+  };
 
 
 
@@ -123,7 +132,7 @@ export default function ProfileScreen() {
         <MenuButton
           icon={User}
           title="Můj účet"
-          subtitle={language === 'cs' ? 'Správa profilu' : 'Profile management'}
+          subtitle={language === 'cs' ? 'Správa profilu a předplatného' : 'Profile and subscription management'}
           onPress={() => router.push('/account')}
         />
         

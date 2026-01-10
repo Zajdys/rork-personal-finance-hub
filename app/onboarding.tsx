@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -66,18 +66,6 @@ interface OnboardingData {
   budgetBreakdown: BudgetBreakdown;
 }
 
-function getOnboardingCompletedKey(userIdOrEmail: string | undefined | null): string {
-  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
-  if (!raw) return 'onboarding_completed';
-  return `onboarding_completed:${raw}`;
-}
-
-function getOnboardingPendingKey(userIdOrEmail: string | undefined | null): string {
-  const raw = String(userIdOrEmail ?? '').trim().toLowerCase();
-  if (!raw) return 'onboarding_pending';
-  return `onboarding_pending:${raw}`;
-}
-
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<number>(1);
@@ -106,65 +94,6 @@ export default function OnboardingScreen() {
   const router = useRouter();
 
   const totalSteps = 7;
-
-  useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      try {
-        const identifier = (user?.id ?? user?.email ?? '').trim().toLowerCase();
-        if (!identifier) {
-          console.log('[onboarding] bootstrap skipped (missing user identifier)');
-          return;
-        }
-
-        const key = getOnboardingCompletedKey(identifier);
-        const pendingKey = getOnboardingPendingKey(identifier);
-        const [completedPerUser, legacyCompleted, pendingPerUser] = await Promise.all([
-          AsyncStorage.getItem(key),
-          AsyncStorage.getItem('onboarding_completed'),
-          AsyncStorage.getItem(pendingKey),
-        ]);
-
-        const completed = completedPerUser === 'true' || legacyCompleted === 'true';
-        const pending = pendingPerUser === 'true';
-
-        console.log('[onboarding] bootstrap', {
-          identifier,
-          key,
-          pendingKey,
-          completedPerUser,
-          legacyCompleted,
-          pendingPerUser,
-          completed,
-          pending,
-        });
-
-        if (legacyCompleted === 'true' && completedPerUser !== 'true') {
-          await AsyncStorage.setItem(key, 'true');
-        }
-
-        // Redirect only when we are sure it's completed for the current user AND not pending.
-        // Otherwise onboarding can "flash" then disappear for fresh registrations.
-        // If onboarding is still pending for this user, never auto-redirect.
-        if (mounted && completed === true && !pending) {
-          console.log('[onboarding] already completed (not pending) -> route to / (root gating decides next)');
-          router.replace('/');
-          return;
-        }
-
-        if (mounted && pending) {
-          console.log('[onboarding] pending flag present -> staying on onboarding');
-        }
-      } catch (e) {
-        console.log('[onboarding] bootstrap read error', e);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [router, user?.id, user?.email]);
 
   const handleNext = () => {
     if (step === 1 && !data.employmentStatus) {
@@ -227,7 +156,10 @@ export default function OnboardingScreen() {
         userId: user?.id,
       };
 
-      console.log('Preparing onboarding profile (will persist after successful backend submit)...');
+      console.log('Saving onboarding profile to AsyncStorage...');
+      await AsyncStorage.setItem('onboarding_completed', 'true');
+      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
+      console.log('Onboarding profile saved');
 
       const suggestedCurrency = 'CZK' as const;
       console.log('Setting currency to:', suggestedCurrency);
@@ -261,17 +193,9 @@ export default function OnboardingScreen() {
         debt: 'Splatit dluhy',
         house: 'Koupit nemovitost',
         car: 'Koupit auto',
-        education: 'Vzdělání',
-        retirement: 'Důchod',
+        education: 'Koupit auto',
+        retirement: 'Spořit peníze',
       };
-
-      const allowedAirtableGoals = new Set<string>([
-        'Spořit peníze',
-        'Investovat',
-        'Splatit dluhy',
-        'Koupit nemovitost',
-        'Koupit auto',
-      ]);
 
       const loanTypeLabels: Record<Loan['loanType'], string> = {
         mortgage: 'Hypotéka',
@@ -284,8 +208,7 @@ export default function OnboardingScreen() {
       const apiBaseUrlRaw =
         (process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL) ||
         (typeof window !== 'undefined' ? window.location.origin : '');
-      const apiBaseUrlTrimmed = String(apiBaseUrlRaw).trim().replace(/\/+$/, '');
-      const apiBaseUrl = apiBaseUrlTrimmed.endsWith('/api') ? apiBaseUrlTrimmed.slice(0, -4) : apiBaseUrlTrimmed;
+      const apiBaseUrl = String(apiBaseUrlRaw).replace(/\/$/, '');
       const onboardingUrl = `${apiBaseUrl}/api/onboarding/submit`;
 
       const token = (await AsyncStorage.getItem('authToken')) ?? '';
@@ -307,22 +230,11 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const rawGoals = data.financialGoals
-        .map((g) => goalLabels[g])
-        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
-
-      const filteredGoals = rawGoals.filter((g) => allowedAirtableGoals.has(g));
-      const droppedGoals = rawGoals.filter((g) => !allowedAirtableGoals.has(g));
-
-      if (droppedGoals.length > 0) {
-        console.log('[onboarding] dropping unsupported Airtable goals', { droppedGoals });
-      }
-
       const payload = {
         workStatus: employmentStatusLabels[data.employmentStatus],
         monthlyIncomeRange: incomeLabels[data.monthlyIncome],
         financeExperience: experienceLabels[data.experienceLevel],
-        financialGoals: filteredGoals,
+        financialGoals: data.financialGoals.map((g) => goalLabels[g]).filter(Boolean),
         hasLoan: Boolean(data.loanData.hasLoan),
         loans: (data.loanData.loans ?? []).map((l) => ({
           loanType: loanTypeLabels[l.loanType] ?? String(l.loanType),
@@ -359,30 +271,9 @@ export default function OnboardingScreen() {
 
       if (!resp.ok) {
         const msg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
-        Alert.alert('Onboarding se neuložil', `${msg}\n\nPokud to dělá problém opakovaně, otevřete Prosím konzoli (logs) a pošlete mi řádky začínající [onboarding].`);
+        Alert.alert('Chyba', msg);
         return;
       }
-
-      console.log('Saving onboarding profile to AsyncStorage...');
-      const identifierId = String(user?.id ?? '').trim().toLowerCase();
-      const identifierEmail = String(user?.email ?? '').trim().toLowerCase();
-      const completedKeys = Array.from(new Set<string>([
-        getOnboardingCompletedKey(identifierId || null),
-        getOnboardingCompletedKey(identifierEmail || null),
-      ])).filter((k) => k !== 'onboarding_completed');
-      const pendingKeys = Array.from(new Set<string>([
-        getOnboardingPendingKey(identifierId || null),
-        getOnboardingPendingKey(identifierEmail || null),
-      ]));
-
-      await Promise.all([
-        ...completedKeys.map((k) => AsyncStorage.setItem(k, 'true')),
-        ...pendingKeys.map((k) => AsyncStorage.removeItem(k)),
-        AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile)),
-        AsyncStorage.removeItem('onboarding_completed'),
-      ]);
-
-      console.log('Onboarding profile saved', { completedKeys, pendingKeys });
 
       if (data.employmentStatus) {
         console.log('Updating user with onboarding data:', data.employmentStatus);
@@ -422,16 +313,16 @@ export default function OnboardingScreen() {
       }
 
       console.log('Onboarding completed successfully!');
-      console.log('[onboarding] completion -> route to /');
+      console.log('Navigating to home screen...');
+
       router.replace('/');
 
       setTimeout(() => {
-        Alert.alert('Hotovo!', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);
+        Alert.alert('Hotovo! 🎉', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);
       }, 500);
     } catch (error) {
       console.error('Failed to save onboarding data:', error);
-      const msg = error instanceof Error ? error.message : String(error);
-      Alert.alert('Onboarding se neuložil', `Nepodařilo se uložit data. Zkuste to prosím znovu.\n\nDetail: ${msg}`);
+      Alert.alert('Chyba', 'Nepodařilo se uložit data. Zkuste to prosím znovu.');
     }
   };
 
@@ -1075,7 +966,7 @@ export default function OnboardingScreen() {
       <View style={[styles.footer, { backgroundColor: isDarkMode ? '#1F2937' : 'white', paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.buttonContainer}>
           {step > 1 && (
-            <TouchableOpacity style={styles.backButton} onPress={handleBack} testID="onboarding-back">
+            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
               <View style={[styles.backButtonContent, { backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }]}>
                 <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={20} />
                 <Text style={[styles.backButtonText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
@@ -1088,7 +979,6 @@ export default function OnboardingScreen() {
           <TouchableOpacity
             style={[styles.nextButton, step === 1 && styles.nextButtonFull]}
             onPress={handleNext}
-            testID="onboarding-next"
           >
             <LinearGradient
               colors={['#667eea', '#764ba2']}

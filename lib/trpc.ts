@@ -8,20 +8,19 @@ export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
   const backendUrl = process.env.EXPO_PUBLIC_API_URL;
-  const raw = backendUrl && typeof backendUrl === 'string' && backendUrl.trim().length > 0
-    ? backendUrl
-    : typeof window !== 'undefined'
-      ? (() => {
-          const hostname = window.location.hostname;
-          if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            return 'http://localhost:3000';
-          }
-          return window.location.origin;
-        })()
-      : 'http://localhost:3000';
+  if (backendUrl) {
+    return backendUrl;
+  }
 
-  const trimmed = String(raw).trim().replace(/\/+$/, '');
-  return trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3000';
+    }
+    return window.location.origin;
+  }
+
+  return 'http://localhost:3000';
 };
 
 export const trpcClient = trpc.createClient({

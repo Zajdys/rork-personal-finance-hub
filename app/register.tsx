@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/store/auth-store';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState<string>('');
@@ -10,12 +8,9 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
-  const { register } = useAuth();
-  const router = useRouter();
-
   const handleRegister = async () => {
     setError('');
-
+    
     if (!email.trim() || !password.trim() || !name.trim()) {
       setError('Vyplňte všechna pole');
       return;
@@ -23,20 +18,40 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      console.log('[register-screen] submitting register');
-      const result = await register(email, password, name);
-      console.log('[register-screen] register result', result);
+      const apiBaseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL ?? '';
+      const url = `${apiBaseUrl}/api/register`;
+      
+      console.log('[Register] Calling:', url);
+      console.log('[Register] Data:', { email: email.slice(0,3) + '***', hasPassword: !!password, name });
+      
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, name }),
+      });
 
-      if (result.success) {
-        console.log('[register-screen] register success -> / (root gating decides next)');
-        router.replace('/');
+      const data = await res.json();
+      console.log('[Register] Response status:', res.status);
+      console.log('[Register] Response data:', data);
+
+      if (res.ok && data.success) {
+        Alert.alert('✅ Registrace proběhla', `Úspěšně zaregistrováno: ${email}`);
+        setEmail('');
+        setPassword('');
+        setName('');
       } else {
-        setError(result.error || 'Registrace selhala');
+        const errorMsg = data?.error || `Chyba: ${res.status}`;
+        setError(errorMsg);
+        Alert.alert('❌ Registrace selhala', errorMsg);
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Nelze spojit se serverem';
-      console.error('[register-screen] register error', e);
-      setError(msg);
+      const err = e as Error;
+      console.error('[Register] error:', err);
+      const errorMsg = err.message || 'Nelze spojit se serverem';
+      setError(errorMsg);
+      Alert.alert('❌ Chyba', errorMsg);
     } finally {
       setLoading(false);
     }
