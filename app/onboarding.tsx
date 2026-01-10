@@ -416,10 +416,8 @@ export default function OnboardingScreen() {
       }
 
       console.log('Onboarding completed successfully!');
-      console.log('Navigating to subscription screen...');
-
-      console.log('[onboarding] completion -> route to /choose-subscription');
-      router.replace('/choose-subscription');
+      console.log('[onboarding] completion -> route to /');
+      router.replace('/');
 
       setTimeout(() => {
         Alert.alert('Hotovo!', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);

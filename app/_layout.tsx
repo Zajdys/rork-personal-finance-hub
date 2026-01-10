@@ -184,16 +184,7 @@ function RootLayoutNav() {
     );
   }
 
-  // 3) Výběr předplatného (až po dokončení otázek)
-  if (isAuthenticated && onboardingCompleted === true && !hasActiveSubscription) {
-    return (
-      <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
-      </Stack>
-    );
-  }
-  
-  // Full app access for authenticated users with active subscription
+  // Po dokončení onboardingu jde uživatel rovnou do aplikace (bez předplatného)
   return (
     <>
       <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
@@ -231,10 +222,7 @@ function RootLayoutNav() {
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
       
-      {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
-      <Stack.Screen name="subscription" options={{ title: 'Úprava předplatného' }} />
-      <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
       <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
     </Stack>
     </>
