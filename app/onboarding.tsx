@@ -285,8 +285,13 @@ export default function OnboardingScreen() {
       console.log('[onboarding] backend response', { status: resp.status, respJson });
 
       if (!resp.ok) {
-        const msg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
-        Alert.alert('Chyba', msg);
+        const errorMsg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
+        const details = typeof respJson?.details === 'string' ? respJson.details : '';
+        console.error('[onboarding] Backend error:', { status: resp.status, errorMsg, details, respJson });
+        Alert.alert(
+          'Chyba',
+          details ? `${errorMsg}\n\n${details}` : errorMsg
+        );
         return;
       }
 

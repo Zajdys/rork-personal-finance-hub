@@ -86,8 +86,20 @@ async function airtableFetch<T>(
   url: string,
   init: RequestInit
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; errorText: string }> {
+  console.log("[airtableFetch] request", {
+    url: url.replace(/Bearer [^"]+/, "Bearer ***"),
+    method: init.method,
+    bodyPreview: init.body ? String(init.body).slice(0, 500) : null,
+  });
+
   const resp = await fetch(url, init);
   const text = await resp.text();
+
+  console.log("[airtableFetch] response", {
+    status: resp.status,
+    ok: resp.ok,
+    textPreview: text.slice(0, 1000),
+  });
 
   if (!resp.ok) {
     const errorText = formatAirtableErrorText(text);
@@ -95,6 +107,7 @@ async function airtableFetch<T>(
       url,
       status: resp.status,
       errorText: errorText.slice(0, 2000),
+      rawText: text.slice(0, 2000),
     });
     return { ok: false, status: resp.status, errorText };
   }
@@ -251,10 +264,15 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
     throw new Error("Missing email");
   }
 
+  console.log("[submitOnboardingByEmail] start", { email: normalizedEmail, inputKeys: Object.keys(input) });
+
   const record = await getUserByEmail(normalizedEmail);
   if (!record) {
+    console.error("[submitOnboardingByEmail] user not found", { email: normalizedEmail });
     throw new Error("User not found");
   }
+
+  console.log("[submitOnboardingByEmail] found user", { recordId: record.id, email: normalizedEmail });
 
   const { apiKey, baseId } = getAirtableConfig();
 
@@ -264,16 +282,22 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
   const budgetFun = Number(input.budgetFun ?? NaN);
   const budgetSavings = Number(input.budgetSavings ?? NaN);
 
-  const userPatchFields: Record<string, unknown> = {
-    work_status: String(input.workStatus ?? "").trim(),
-    monthly_income_range: String(input.monthlyIncomeRange ?? "").trim(),
-    finance_experience: String(input.financeExperience ?? "").trim(),
-    financial_goals: Array.isArray(input.financialGoals)
-      ? input.financialGoals.map((g) => String(g).trim()).filter(Boolean)
-      : [],
-    has_loan: Boolean(input.hasLoan),
-    onboarding_completed: true,
-  };
+  const userPatchFields: Record<string, unknown> = {};
+
+  if (input.workStatus) {
+    userPatchFields.work_status = String(input.workStatus).trim();
+  }
+  if (input.monthlyIncomeRange) {
+    userPatchFields.monthly_income_range = String(input.monthlyIncomeRange).trim();
+  }
+  if (input.financeExperience) {
+    userPatchFields.finance_experience = String(input.financeExperience).trim();
+  }
+  if (Array.isArray(input.financialGoals) && input.financialGoals.length > 0) {
+    userPatchFields.financial_goals = input.financialGoals.map((g) => String(g).trim()).filter(Boolean);
+  }
+  userPatchFields.has_loan = Boolean(input.hasLoan);
+  userPatchFields.onboarding_completed = true;
 
   if (Number.isFinite(budgetHousing) && budgetHousing > 0) {
     userPatchFields.budget_housing = budgetHousing;

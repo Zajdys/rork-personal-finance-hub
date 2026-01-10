@@ -287,15 +287,28 @@ app.post("/onboarding/submit", async (c) => {
 
     return c.json({ success: true });
   } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
     console.error("/onboarding/submit error", {
-      message: e instanceof Error ? e.message : String(e),
+      message: errMsg,
       stack: e instanceof Error ? e.stack : undefined,
     });
 
-    const msg = e instanceof Error ? e.message : "Onboarding submit failed";
-    const lower = msg.toLowerCase();
-    const status = lower.includes("unauthorized") ? 401 : lower.includes("not found") ? 404 : 500;
-    return c.json({ error: msg }, status);
+    const lower = errMsg.toLowerCase();
+    
+    // Extract Airtable error status if present
+    const airtableStatusMatch = errMsg.match(/\((\d{3})\)/);
+    const airtableStatus = airtableStatusMatch ? parseInt(airtableStatusMatch[1], 10) : null;
+    
+    let status = 500;
+    if (airtableStatus === 403) {
+      status = 403;
+    } else if (lower.includes("unauthorized")) {
+      status = 401;
+    } else if (lower.includes("not found")) {
+      status = 404;
+    }
+    
+    return c.json({ error: errMsg, details: "Check Airtable field names and API key permissions" }, status as any);
   }
 });
 
