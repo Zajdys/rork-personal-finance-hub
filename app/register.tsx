@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/store/auth-store';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState<string>('');
@@ -8,9 +10,12 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
+  const { register } = useAuth();
+  const router = useRouter();
+
   const handleRegister = async () => {
     setError('');
-    
+
     if (!email.trim() || !password.trim() || !name.trim()) {
       setError('Vyplňte všechna pole');
       return;
@@ -18,40 +23,20 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const apiBaseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL ?? '';
-      const url = `${apiBaseUrl}/api/register`;
-      
-      console.log('[Register] Calling:', url);
-      console.log('[Register] Data:', { email: email.slice(0,3) + '***', hasPassword: !!password, name });
-      
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, name }),
-      });
+      console.log('[register-screen] submitting register');
+      const result = await register(email, password, name);
+      console.log('[register-screen] register result', result);
 
-      const data = await res.json();
-      console.log('[Register] Response status:', res.status);
-      console.log('[Register] Response data:', data);
-
-      if (res.ok && data.success) {
-        Alert.alert('✅ Registrace proběhla', `Úspěšně zaregistrováno: ${email}`);
-        setEmail('');
-        setPassword('');
-        setName('');
+      if (result.success) {
+        console.log('[register-screen] register success -> /onboarding');
+        router.replace('/onboarding');
       } else {
-        const errorMsg = data?.error || `Chyba: ${res.status}`;
-        setError(errorMsg);
-        Alert.alert('❌ Registrace selhala', errorMsg);
+        setError(result.error || 'Registrace selhala');
       }
     } catch (e: unknown) {
-      const err = e as Error;
-      console.error('[Register] error:', err);
-      const errorMsg = err.message || 'Nelze spojit se serverem';
-      setError(errorMsg);
-      Alert.alert('❌ Chyba', errorMsg);
+      const msg = e instanceof Error ? e.message : 'Nelze spojit se serverem';
+      console.error('[register-screen] register error', e);
+      setError(msg);
     } finally {
       setLoading(false);
     }
