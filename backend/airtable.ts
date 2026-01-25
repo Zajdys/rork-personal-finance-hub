@@ -24,7 +24,7 @@ type AirtableUserRecord = {
 };
 
 type AirtableLoanFields = {
-  user: string[];
+  User: string[];
   loan_type: string;
   loan_amount: number;
   interest_rate: number;
@@ -438,7 +438,7 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
       const body: AirtableCreateRecordBody<AirtableLoanFields> = {
         records: validLoans.map((l) => ({
           fields: {
-            user: [record.id],
+            User: [record.id],
             loan_type: l.loanType,
             loan_amount: l.loanAmount,
             interest_rate: l.interestRate,
