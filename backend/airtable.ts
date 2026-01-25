@@ -258,6 +258,77 @@ export type OnboardingSubmitInput = {
   }[];
 };
 
+const AIRTABLE_MONTHLY_INCOME_OPTIONS = [
+  'Méně než 20 000 Kč',
+  '20 000 - 40 000 Kč',
+  '40 000 - 60 000 Kč',
+  '60 000 - 100 000 Kč',
+  'Více než 100 000 Kč',
+] as const;
+
+type AirtableMonthlyIncomeRange = (typeof AIRTABLE_MONTHLY_INCOME_OPTIONS)[number];
+
+function normalizeMonthlyIncomeRange(raw: string): AirtableMonthlyIncomeRange {
+  const clean = String(raw ?? '').trim();
+
+  const exactMatch = AIRTABLE_MONTHLY_INCOME_OPTIONS.find((v) => v === clean);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const compact = clean
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, '')
+    .replace(/kc/g, '')
+    .replace(/kč/g, '')
+    .replace(/[^0-9a-z<>\-]/g, '');
+
+  const map: Record<string, AirtableMonthlyIncomeRange> = {
+    'menez20000': 'Méně než 20 000 Kč',
+    'under20k': 'Méně než 20 000 Kč',
+    '<20000': 'Méně než 20 000 Kč',
+    '<20k': 'Méně než 20 000 Kč',
+
+    '20000-40000': '20 000 - 40 000 Kč',
+    '20k-40k': '20 000 - 40 000 Kč',
+    '20-40k': '20 000 - 40 000 Kč',
+    '20-40': '20 000 - 40 000 Kč',
+
+    '40000-60000': '40 000 - 60 000 Kč',
+    '40k-60k': '40 000 - 60 000 Kč',
+    '40-60k': '40 000 - 60 000 Kč',
+    '40-60': '40 000 - 60 000 Kč',
+
+    '60000-100000': '60 000 - 100 000 Kč',
+    '60k-100k': '60 000 - 100 000 Kč',
+    '60-100k': '60 000 - 100 000 Kč',
+    '60-100': '60 000 - 100 000 Kč',
+
+    '>100000': 'Více než 100 000 Kč',
+    '>100k': 'Více než 100 000 Kč',
+    'over100k': 'Více než 100 000 Kč',
+    'vicenez100000': 'Více než 100 000 Kč',
+  };
+
+  const mapped = map[compact];
+  if (mapped) {
+    console.log('[normalizeMonthlyIncomeRange] mapped', { raw: clean, compact, mapped });
+    return mapped;
+  }
+
+  console.error('[normalizeMonthlyIncomeRange] unknown value', {
+    raw: clean,
+    compact,
+    allowed: AIRTABLE_MONTHLY_INCOME_OPTIONS,
+  });
+  throw new Error(
+    `Invalid monthlyIncomeRange. Must be one of: ${AIRTABLE_MONTHLY_INCOME_OPTIONS.join(' | ')}`
+  );
+}
+
 export async function submitOnboardingByEmail(email: string, input: OnboardingSubmitInput): Promise<{ success: true }> {
   const normalizedEmail = String(email ?? "").trim().toLowerCase();
   if (!normalizedEmail) {
@@ -288,7 +359,7 @@ export async function submitOnboardingByEmail(email: string, input: OnboardingSu
     userPatchFields.work_status = String(input.workStatus).trim();
   }
   if (input.monthlyIncomeRange) {
-    userPatchFields.monthly_income_range = String(input.monthlyIncomeRange).trim();
+    userPatchFields.monthly_income_range = normalizeMonthlyIncomeRange(input.monthlyIncomeRange);
   }
   if (input.financeExperience) {
     userPatchFields.finance_experience = String(input.financeExperience).trim();
