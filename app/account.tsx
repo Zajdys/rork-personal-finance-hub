@@ -10,7 +10,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   User,
-
   Calendar,
   Crown,
   CreditCard,
@@ -22,6 +21,7 @@ import {
   ExternalLink,
   CheckCircle,
   ArrowLeft,
+  TestTube2,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -264,6 +264,13 @@ export default function AccountScreen() {
             title="Obecná nastavení"
             subtitle="Jazyk, měna, téma"
             onPress={() => router.push('/general-settings')}
+          />
+
+          <MenuButton
+            icon={TestTube2}
+            title="Test předplatného"
+            subtitle="Otestovat RevenueCat nákupy"
+            onPress={() => router.push('/choose-subscription')}
           />
         </View>
 
