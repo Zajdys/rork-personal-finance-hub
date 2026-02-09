@@ -200,6 +200,7 @@ export default function RootLayout() {
   
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
+    let mounted = true;
     
     const initializeApp = async () => {
       try {
@@ -212,7 +213,9 @@ export default function RootLayout() {
           loadBankData(),
         ]);
         console.log('App initialized successfully');
-        setAppReady(true);
+        if (mounted) {
+          setAppReady(true);
+        }
         await SplashScreen.hideAsync();
       } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -236,25 +239,30 @@ export default function RootLayout() {
           }
         }
         
-        setAppReady(true);
+        if (mounted) {
+          setAppReady(true);
+        }
         await SplashScreen.hideAsync();
       }
-      
-      // Fallback timeout to ensure app shows even if something fails
-      timeoutId = setTimeout(() => {
-        console.log('Fallback timeout - forcing app ready');
-        setAppReady(true);
-      }, 3000);
     };
     
     initializeApp();
     
+    // Fallback timeout to ensure app shows even if something fails
+    timeoutId = setTimeout(() => {
+      console.log('Fallback timeout - forcing app ready');
+      if (mounted) {
+        setAppReady(true);
+      }
+    }, 3000);
+    
     return () => {
+      mounted = false;
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
     };
-  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadBankData]);
+  }, []);
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
