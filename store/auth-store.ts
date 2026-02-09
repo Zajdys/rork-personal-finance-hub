@@ -247,7 +247,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const loadAuthState = useCallback(async (): Promise<void> => {
     try {
-      setIsLoading(true);
       const stored = await storage.getItem(STORAGE_KEY);
       
       if (stored) {
@@ -297,8 +296,49 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, [user]);
 
   useEffect(() => {
-    loadAuthState();
-  }, [loadAuthState]);
+    let mounted = true;
+    const load = async () => {
+      try {
+        const stored = await storage.getItem(STORAGE_KEY);
+        if (!mounted) return;
+        
+        if (stored) {
+          const { user: storedUser, isAuthenticated: storedAuth, hasActiveSubscription: storedSub } = JSON.parse(stored);
+          
+          let validSubscription = storedSub;
+          if (storedUser?.subscription?.expiresAt) {
+            const expiresAt = new Date(storedUser.subscription.expiresAt);
+            validSubscription = expiresAt > new Date();
+
+            if (!validSubscription && storedUser.subscription.active) {
+              storedUser.subscription.active = false;
+              storedUser.subscription.expiresAt = null;
+              await storage.setItem(
+                STORAGE_KEY,
+                JSON.stringify({
+                  user: storedUser,
+                  isAuthenticated: storedAuth,
+                  hasActiveSubscription: false,
+                })
+              );
+            }
+          }
+
+          setUser(storedUser);
+          setIsAuthenticated(storedAuth);
+          setHasActiveSubscription(validSubscription);
+        }
+      } catch (error) {
+        console.error('Load auth state error:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   const updateUser = useCallback((updatedUser: User) => {
     setUser(updatedUser);

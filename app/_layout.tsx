@@ -79,37 +79,63 @@ function LoadingScreen() {
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean>(true);
   const [isCheckingOnboarding, setIsCheckingOnboarding] = React.useState(false);
+  const checkedRef = React.useRef(false);
+  const lastAuthState = React.useRef({ isAuthenticated: false, hasActiveSubscription: false });
   
   React.useEffect(() => {
+    if (isLoading) {
+      console.log('[RootLayoutNav] Auth still loading, skipping onboarding check');
+      return;
+    }
+    
+    const authChanged = 
+      lastAuthState.current.isAuthenticated !== isAuthenticated ||
+      lastAuthState.current.hasActiveSubscription !== hasActiveSubscription;
+    
+    lastAuthState.current = { isAuthenticated, hasActiveSubscription };
+    
+    if (!isAuthenticated || !hasActiveSubscription) {
+      console.log('[RootLayoutNav] User not authenticated or no subscription');
+      checkedRef.current = false;
+      return;
+    }
+    
+    if (checkedRef.current && !authChanged) {
+      console.log('[RootLayoutNav] Already checked onboarding, skipping');
+      return;
+    }
+    
+    checkedRef.current = true;
+    setIsCheckingOnboarding(true);
+    
     const checkOnboarding = async () => {
-      setIsCheckingOnboarding(true);
       try {
+        console.log('[RootLayoutNav] Checking onboarding status...');
         const completed = await AsyncStorage.getItem('onboarding_completed');
+        console.log('[RootLayoutNav] Onboarding completed:', completed);
         setOnboardingCompleted(completed === 'true');
       } catch (error) {
-        console.error('Failed to check onboarding status:', error);
-        setOnboardingCompleted(false);
+        console.error('[RootLayoutNav] Failed to check onboarding status:', error);
+        setOnboardingCompleted(true);
       } finally {
         setIsCheckingOnboarding(false);
       }
     };
     
-    if (isAuthenticated && hasActiveSubscription) {
-      checkOnboarding();
-    } else {
-      setOnboardingCompleted(null);
-      setIsCheckingOnboarding(false);
-    }
-  }, [isAuthenticated, hasActiveSubscription]);
+    checkOnboarding();
+  }, [isAuthenticated, hasActiveSubscription, isLoading]);
+  
+  console.log('[RootLayoutNav] Render - isLoaded:', isLoaded, 'isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'hasActiveSubscription:', hasActiveSubscription, 'onboardingCompleted:', onboardingCompleted, 'isCheckingOnboarding:', isCheckingOnboarding);
   
   if (!isLoaded || isLoading) {
+    console.log('[RootLayoutNav] Showing loading - language or auth loading');
     return <LoadingScreen />;
   }
   
-  // Gated access logic
   if (!isAuthenticated) {
+    console.log('[RootLayoutNav] Showing landing - not authenticated');
     return (
       <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
@@ -118,7 +144,8 @@ function RootLayoutNav() {
     );
   }
   
-  if (isAuthenticated && !hasActiveSubscription) {
+  if (!hasActiveSubscription) {
+    console.log('[RootLayoutNav] Showing subscription - no active subscription');
     return (
       <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
@@ -128,18 +155,18 @@ function RootLayoutNav() {
     );
   }
   
-  // Show onboarding if user has subscription but hasn't completed onboarding
-  if (isAuthenticated && hasActiveSubscription && onboardingCompleted === false) {
+  if (isCheckingOnboarding) {
+    console.log('[RootLayoutNav] Showing loading - checking onboarding');
+    return <LoadingScreen />;
+  }
+  
+  if (!onboardingCompleted) {
+    console.log('[RootLayoutNav] Showing onboarding - not completed');
     return (
       <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
       </Stack>
     );
-  }
-  
-  // Wait for onboarding check to complete
-  if (isCheckingOnboarding || onboardingCompleted === null) {
-    return <LoadingScreen />;
   }
   
   // Full app access for authenticated users with active subscription
