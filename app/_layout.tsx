@@ -14,7 +14,7 @@ import { LifeEventProvider } from '@/store/life-event-store';
 import { HouseholdProvider } from '@/store/household-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -68,29 +68,44 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+function LoadingScreen() {
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#667eea" />
+    </View>
+  );
+}
+
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
   const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
   const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = React.useState(false);
   
   React.useEffect(() => {
     const checkOnboarding = async () => {
+      setIsCheckingOnboarding(true);
       try {
         const completed = await AsyncStorage.getItem('onboarding_completed');
         setOnboardingCompleted(completed === 'true');
       } catch (error) {
         console.error('Failed to check onboarding status:', error);
         setOnboardingCompleted(false);
+      } finally {
+        setIsCheckingOnboarding(false);
       }
     };
     
     if (isAuthenticated && hasActiveSubscription) {
       checkOnboarding();
+    } else {
+      setOnboardingCompleted(null);
+      setIsCheckingOnboarding(false);
     }
   }, [isAuthenticated, hasActiveSubscription]);
   
   if (!isLoaded || isLoading) {
-    return null;
+    return <LoadingScreen />;
   }
   
   // Gated access logic
@@ -123,8 +138,8 @@ function RootLayoutNav() {
   }
   
   // Wait for onboarding check to complete
-  if (onboardingCompleted === null) {
-    return null;
+  if (isCheckingOnboarding || onboardingCompleted === null) {
+    return <LoadingScreen />;
   }
   
   // Full app access for authenticated users with active subscription
@@ -243,7 +258,11 @@ export default function RootLayout() {
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
+    );
   }
   
   console.log('App is ready, rendering RootLayoutNav');
@@ -271,6 +290,12 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
