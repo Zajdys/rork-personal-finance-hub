@@ -304,8 +304,8 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <trpc.Provider client={trpcClient} queryClient={queryClient}>
           <AuthProvider>
             <FriendsProvider>
               <LifeEventProvider>
@@ -317,8 +317,8 @@ export default function RootLayout() {
               </LifeEventProvider>
             </FriendsProvider>
           </AuthProvider>
-        </QueryClientProvider>
-      </trpc.Provider>
+        </trpc.Provider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
