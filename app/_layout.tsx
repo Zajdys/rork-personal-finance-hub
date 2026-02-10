@@ -54,7 +54,7 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.errorContainer}>
+        <View style={styles.errorContainer} testID="error-boundary">
           <Text style={styles.errorTitle}>Něco se pokazilo</Text>
           <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
           <Text style={styles.errorDetails}>
@@ -70,17 +70,17 @@ class ErrorBoundary extends React.Component<
 
 function LoadingScreen() {
   return (
-    <View style={styles.loadingContainer}>
+    <View style={styles.loadingContainer} testID="loading-screen">
       <ActivityIndicator size="large" color="#667eea" />
     </View>
   );
 }
 
 function RootLayoutNav() {
-  const { t, isLoaded } = useLanguageStore();
+  const { t } = useLanguageStore();
   const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
-  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean>(true);
-  const [isCheckingOnboarding, setIsCheckingOnboarding] = React.useState(false);
+  const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = React.useState<boolean>(false);
   const checkedRef = React.useRef(false);
   const lastAuthState = React.useRef({ isAuthenticated: false, hasActiveSubscription: false });
   
@@ -99,6 +99,7 @@ function RootLayoutNav() {
     if (!isAuthenticated || !hasActiveSubscription) {
       console.log('[RootLayoutNav] User not authenticated or no subscription');
       checkedRef.current = false;
+      setOnboardingCompleted(null);
       return;
     }
     
@@ -109,6 +110,7 @@ function RootLayoutNav() {
     
     checkedRef.current = true;
     setIsCheckingOnboarding(true);
+    setOnboardingCompleted(null);
     
     const checkOnboarding = async () => {
       try {
@@ -127,10 +129,10 @@ function RootLayoutNav() {
     checkOnboarding();
   }, [isAuthenticated, hasActiveSubscription, isLoading]);
   
-  console.log('[RootLayoutNav] Render - isLoaded:', isLoaded, 'isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'hasActiveSubscription:', hasActiveSubscription, 'onboardingCompleted:', onboardingCompleted, 'isCheckingOnboarding:', isCheckingOnboarding);
+  console.log('[RootLayoutNav] Render - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'hasActiveSubscription:', hasActiveSubscription, 'onboardingCompleted:', onboardingCompleted, 'isCheckingOnboarding:', isCheckingOnboarding);
   
-  if (!isLoaded || isLoading) {
-    console.log('[RootLayoutNav] Showing loading - language or auth loading');
+  if (isLoading) {
+    console.log('[RootLayoutNav] Showing loading - auth loading');
     return <LoadingScreen />;
   }
   
@@ -155,7 +157,7 @@ function RootLayoutNav() {
     );
   }
   
-  if (isCheckingOnboarding) {
+  if (isCheckingOnboarding || onboardingCompleted === null) {
     console.log('[RootLayoutNav] Showing loading - checking onboarding');
     return <LoadingScreen />;
   }
