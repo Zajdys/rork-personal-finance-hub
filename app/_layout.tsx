@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -226,10 +226,28 @@ export default function RootLayout() {
   const { loadData: loadBuddyData } = useBuddyStore();
   const { loadData: loadBankData } = useBankStore();
   const [appReady, setAppReady] = useState<boolean>(false);
+  const initRef = useRef<boolean>(false);
+  const splashHiddenRef = useRef<boolean>(false);
   
   useEffect(() => {
+    if (initRef.current) {
+      console.log('Initialization already completed, skipping');
+      return;
+    }
+
+    initRef.current = true;
     let timeoutId: ReturnType<typeof setTimeout>;
     let mounted = true;
+
+    const hideSplash = async () => {
+      if (splashHiddenRef.current) return;
+      splashHiddenRef.current = true;
+      try {
+        await SplashScreen.hideAsync();
+      } catch (error) {
+        console.error('Failed to hide splash screen:', error);
+      }
+    };
     
     const initializeApp = async () => {
       try {
@@ -245,17 +263,15 @@ export default function RootLayout() {
         if (mounted) {
           setAppReady(true);
         }
-        await SplashScreen.hideAsync();
+        await hideSplash();
       } catch (error) {
         console.error('Failed to initialize app:', error);
         
-        // If there's a JSON parse error, clear all AsyncStorage data
         if (error instanceof Error && error.message.includes('JSON')) {
           console.log('JSON parse error detected, clearing AsyncStorage...');
           try {
             await AsyncStorage.clear();
             console.log('AsyncStorage cleared successfully');
-            // Retry initialization after clearing
             await Promise.all([
               loadSettings(),
               loadLanguage(),
@@ -271,18 +287,18 @@ export default function RootLayout() {
         if (mounted) {
           setAppReady(true);
         }
-        await SplashScreen.hideAsync();
+        await hideSplash();
       }
     };
     
     initializeApp();
     
-    // Fallback timeout to ensure app shows even if something fails
     timeoutId = setTimeout(() => {
       console.log('Fallback timeout - forcing app ready');
       if (mounted) {
         setAppReady(true);
       }
+      hideSplash();
     }, 3000);
     
     return () => {
@@ -291,12 +307,12 @@ export default function RootLayout() {
         clearTimeout(timeoutId);
       }
     };
-  }, []);
+  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadBankData]);
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.loadingContainer} testID="app-loading">
         <ActivityIndicator size="large" color="#667eea" />
       </View>
     );
