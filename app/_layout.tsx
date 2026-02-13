@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -14,7 +14,7 @@ import { LifeEventProvider } from '@/store/life-event-store';
 import { HouseholdProvider } from '@/store/household-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -54,7 +54,7 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.errorContainer} testID="error-boundary">
+        <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Něco se pokazilo</Text>
           <Text style={styles.errorMessage}>Aplikace se restartuje...</Text>
           <Text style={styles.errorDetails}>
@@ -68,76 +68,33 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-function LoadingScreen() {
-  return (
-    <View style={styles.loadingContainer} testID="loading-screen">
-      <ActivityIndicator size="large" color="#667eea" />
-    </View>
-  );
-}
-
 function RootLayoutNav() {
-  const { t } = useLanguageStore();
+  const { t, isLoaded } = useLanguageStore();
   const { isAuthenticated, hasActiveSubscription, isLoading } = useAuth();
   const [onboardingCompleted, setOnboardingCompleted] = React.useState<boolean | null>(null);
-  const [isCheckingOnboarding, setIsCheckingOnboarding] = React.useState<boolean>(false);
-  const checkedRef = React.useRef(false);
-  const lastAuthState = React.useRef({ isAuthenticated: false, hasActiveSubscription: false });
   
   React.useEffect(() => {
-    if (isLoading) {
-      console.log('[RootLayoutNav] Auth still loading, skipping onboarding check');
-      return;
-    }
-    
-    const authChanged = 
-      lastAuthState.current.isAuthenticated !== isAuthenticated ||
-      lastAuthState.current.hasActiveSubscription !== hasActiveSubscription;
-    
-    lastAuthState.current = { isAuthenticated, hasActiveSubscription };
-    
-    if (!isAuthenticated || !hasActiveSubscription) {
-      console.log('[RootLayoutNav] User not authenticated or no subscription');
-      checkedRef.current = false;
-      setOnboardingCompleted(null);
-      return;
-    }
-    
-    if (checkedRef.current && !authChanged) {
-      console.log('[RootLayoutNav] Already checked onboarding, skipping');
-      return;
-    }
-    
-    checkedRef.current = true;
-    setIsCheckingOnboarding(true);
-    setOnboardingCompleted(null);
-    
     const checkOnboarding = async () => {
       try {
-        console.log('[RootLayoutNav] Checking onboarding status...');
         const completed = await AsyncStorage.getItem('onboarding_completed');
-        console.log('[RootLayoutNav] Onboarding completed:', completed);
         setOnboardingCompleted(completed === 'true');
       } catch (error) {
-        console.error('[RootLayoutNav] Failed to check onboarding status:', error);
-        setOnboardingCompleted(true);
-      } finally {
-        setIsCheckingOnboarding(false);
+        console.error('Failed to check onboarding status:', error);
+        setOnboardingCompleted(false);
       }
     };
     
-    checkOnboarding();
-  }, [isAuthenticated, hasActiveSubscription, isLoading]);
+    if (isAuthenticated && hasActiveSubscription) {
+      checkOnboarding();
+    }
+  }, [isAuthenticated, hasActiveSubscription]);
   
-  console.log('[RootLayoutNav] Render - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'hasActiveSubscription:', hasActiveSubscription, 'onboardingCompleted:', onboardingCompleted, 'isCheckingOnboarding:', isCheckingOnboarding);
-  
-  if (isLoading) {
-    console.log('[RootLayoutNav] Showing loading - auth loading');
-    return <LoadingScreen />;
+  if (!isLoaded || isLoading) {
+    return null;
   }
   
+  // Gated access logic
   if (!isAuthenticated) {
-    console.log('[RootLayoutNav] Showing landing - not authenticated');
     return (
       <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
@@ -146,8 +103,7 @@ function RootLayoutNav() {
     );
   }
   
-  if (!hasActiveSubscription) {
-    console.log('[RootLayoutNav] Showing subscription - no active subscription');
+  if (isAuthenticated && !hasActiveSubscription) {
     return (
       <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
@@ -157,18 +113,18 @@ function RootLayoutNav() {
     );
   }
   
-  if (isCheckingOnboarding || onboardingCompleted === null) {
-    console.log('[RootLayoutNav] Showing loading - checking onboarding');
-    return <LoadingScreen />;
-  }
-  
-  if (!onboardingCompleted) {
-    console.log('[RootLayoutNav] Showing onboarding - not completed');
+  // Show onboarding if user has subscription but hasn't completed onboarding
+  if (isAuthenticated && hasActiveSubscription && onboardingCompleted === false) {
     return (
       <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="onboarding" options={{ title: 'Nastavení profilu' }} />
       </Stack>
     );
+  }
+  
+  // Wait for onboarding check to complete
+  if (onboardingCompleted === null) {
+    return null;
   }
   
   // Full app access for authenticated users with active subscription
@@ -226,28 +182,9 @@ export default function RootLayout() {
   const { loadData: loadBuddyData } = useBuddyStore();
   const { loadData: loadBankData } = useBankStore();
   const [appReady, setAppReady] = useState<boolean>(false);
-  const initRef = useRef<boolean>(false);
-  const splashHiddenRef = useRef<boolean>(false);
   
   useEffect(() => {
-    if (initRef.current) {
-      console.log('Initialization already completed, skipping');
-      return;
-    }
-
-    initRef.current = true;
     let timeoutId: ReturnType<typeof setTimeout>;
-    let mounted = true;
-
-    const hideSplash = async () => {
-      if (splashHiddenRef.current) return;
-      splashHiddenRef.current = true;
-      try {
-        await SplashScreen.hideAsync();
-      } catch (error) {
-        console.error('Failed to hide splash screen:', error);
-      }
-    };
     
     const initializeApp = async () => {
       try {
@@ -260,18 +197,18 @@ export default function RootLayout() {
           loadBankData(),
         ]);
         console.log('App initialized successfully');
-        if (mounted) {
-          setAppReady(true);
-        }
-        await hideSplash();
+        setAppReady(true);
+        await SplashScreen.hideAsync();
       } catch (error) {
         console.error('Failed to initialize app:', error);
         
+        // If there's a JSON parse error, clear all AsyncStorage data
         if (error instanceof Error && error.message.includes('JSON')) {
           console.log('JSON parse error detected, clearing AsyncStorage...');
           try {
             await AsyncStorage.clear();
             console.log('AsyncStorage cleared successfully');
+            // Retry initialization after clearing
             await Promise.all([
               loadSettings(),
               loadLanguage(),
@@ -284,25 +221,20 @@ export default function RootLayout() {
           }
         }
         
-        if (mounted) {
-          setAppReady(true);
-        }
-        await hideSplash();
+        setAppReady(true);
+        await SplashScreen.hideAsync();
       }
+      
+      // Fallback timeout to ensure app shows even if something fails
+      timeoutId = setTimeout(() => {
+        console.log('Fallback timeout - forcing app ready');
+        setAppReady(true);
+      }, 3000);
     };
     
     initializeApp();
     
-    timeoutId = setTimeout(() => {
-      console.log('Fallback timeout - forcing app ready');
-      if (mounted) {
-        setAppReady(true);
-      }
-      hideSplash();
-    }, 3000);
-    
     return () => {
-      mounted = false;
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -311,19 +243,15 @@ export default function RootLayout() {
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);
-    return (
-      <View style={styles.loadingContainer} testID="app-loading">
-        <ActivityIndicator size="large" color="#667eea" />
-      </View>
-    );
+    return null;
   }
   
   console.log('App is ready, rendering RootLayoutNav');
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <FriendsProvider>
               <LifeEventProvider>
@@ -335,20 +263,14 @@ export default function RootLayout() {
               </LifeEventProvider>
             </FriendsProvider>
           </AuthProvider>
-        </trpc.Provider>
-      </QueryClientProvider>
+        </QueryClientProvider>
+      </trpc.Provider>
     </ErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
