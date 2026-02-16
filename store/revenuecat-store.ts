@@ -1,12 +1,40 @@
 import { Platform } from 'react-native';
-import Purchases, { 
-  PurchasesOfferings, 
-  PurchasesPackage,
-  CustomerInfo,
-  LOG_LEVEL,
-} from 'react-native-purchases';
 
-function getRCToken() {
+let Purchases: any = null;
+let LOG_LEVEL: any = null;
+let isConfigured = false;
+
+async function ensureConfigured(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    console.log('[RevenueCat] Web platform - skipping');
+    return false;
+  }
+
+  if (isConfigured) return true;
+
+  try {
+    const mod = await import('react-native-purchases');
+    Purchases = mod.default;
+    LOG_LEVEL = mod.LOG_LEVEL;
+
+    const apiKey = getRCToken();
+    if (!apiKey) {
+      console.warn('[RevenueCat] No API key found');
+      return false;
+    }
+
+    console.log('[RevenueCat] Configuring with API key...');
+    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    Purchases.configure({ apiKey });
+    isConfigured = true;
+    return true;
+  } catch (error) {
+    console.error('[RevenueCat] Failed to configure:', error);
+    return false;
+  }
+}
+
+function getRCToken(): string | undefined {
   if (__DEV__ || Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
   }
@@ -17,17 +45,15 @@ function getRCToken() {
   });
 }
 
-const apiKey = getRCToken();
-if (apiKey) {
-  console.log('[RevenueCat] Configuring with API key...');
-  Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-  Purchases.configure({ apiKey });
-} else {
-  console.warn('[RevenueCat] No API key found');
-}
+export type PurchasesPackage = any;
+export type CustomerInfo = any;
+export type PurchasesOfferings = any;
 
 export async function getOfferings(): Promise<PurchasesOfferings | null> {
   try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases) return null;
+
     console.log('[RevenueCat] Fetching offerings...');
     const offerings = await Purchases.getOfferings();
     console.log('[RevenueCat] Offerings fetched:', offerings);
@@ -40,12 +66,15 @@ export async function getOfferings(): Promise<PurchasesOfferings | null> {
 
 export async function purchasePackage(pkg: PurchasesPackage): Promise<CustomerInfo | null> {
   try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases) return null;
+
     console.log('[RevenueCat] Purchasing package:', pkg.identifier);
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     console.log('[RevenueCat] Purchase successful:', customerInfo);
     return customerInfo;
   } catch (error: any) {
-    if (error.userCancelled) {
+    if (error?.userCancelled) {
       console.log('[RevenueCat] User cancelled purchase');
       return null;
     }
@@ -56,6 +85,9 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<CustomerIn
 
 export async function getCustomerInfo(): Promise<CustomerInfo | null> {
   try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases) return null;
+
     const customerInfo = await Purchases.getCustomerInfo();
     console.log('[RevenueCat] Customer info:', customerInfo);
     return customerInfo;
@@ -67,6 +99,9 @@ export async function getCustomerInfo(): Promise<CustomerInfo | null> {
 
 export async function restorePurchases(): Promise<CustomerInfo | null> {
   try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases) return null;
+
     console.log('[RevenueCat] Restoring purchases...');
     const customerInfo = await Purchases.restorePurchases();
     console.log('[RevenueCat] Purchases restored:', customerInfo);
@@ -79,6 +114,9 @@ export async function restorePurchases(): Promise<CustomerInfo | null> {
 
 export async function loginUser(userId: string): Promise<CustomerInfo | null> {
   try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases) return null;
+
     console.log('[RevenueCat] Logging in user:', userId);
     const { customerInfo } = await Purchases.logIn(userId);
     console.log('[RevenueCat] User logged in:', customerInfo);
@@ -91,6 +129,9 @@ export async function loginUser(userId: string): Promise<CustomerInfo | null> {
 
 export async function logoutUser(): Promise<CustomerInfo | null> {
   try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases) return null;
+
     console.log('[RevenueCat] Logging out user...');
     const customerInfo = await Purchases.logOut();
     console.log('[RevenueCat] User logged out:', customerInfo);
@@ -103,5 +144,5 @@ export async function logoutUser(): Promise<CustomerInfo | null> {
 
 export function hasPremiumAccess(customerInfo: CustomerInfo | null): boolean {
   if (!customerInfo) return false;
-  return customerInfo.entitlements.active['premium'] !== undefined;
+  return customerInfo?.entitlements?.active?.['premium'] !== undefined;
 }

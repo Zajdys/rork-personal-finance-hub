@@ -26,8 +26,8 @@ import {
   getCustomerInfo,
   hasPremiumAccess,
   loginUser,
+  PurchasesPackage,
 } from '@/store/revenuecat-store';
-import { PurchasesPackage } from 'react-native-purchases';
 
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
@@ -162,7 +162,7 @@ export default function ChooseSubscriptionScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            packages.map((pkg) => {
+            packages.map((pkg: PurchasesPackage) => {
               const details = getPackageDetails(pkg);
               
               return (

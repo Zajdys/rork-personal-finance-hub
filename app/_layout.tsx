@@ -99,6 +99,8 @@ function RootLayoutNav() {
       <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
         <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
+        <Stack.Screen name="register" options={{ title: 'Registrace' }} />
+        <Stack.Screen name="redeem-code" options={{ title: 'Uplatnit kód' }} />
       </Stack>
     );
   }
@@ -109,6 +111,7 @@ function RootLayoutNav() {
         <Stack.Screen name="choose-subscription" options={{ title: 'Vyberte předplatné' }} />
         <Stack.Screen name="account" options={{ title: 'Můj účet' }} />
         <Stack.Screen name="landing" options={{ title: 'MoneyBuddy' }} />
+        <Stack.Screen name="redeem-code" options={{ title: 'Uplatnit kód' }} />
       </Stack>
     );
   }
@@ -133,13 +136,6 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerBackTitle: t('back'), headerShown: true }}>
       <Stack.Screen name="(tabs)" />
 
-      <Stack.Screen 
-        name="modal" 
-        options={{ 
-          presentation: "modal",
-          title: "Modal"
-        }} 
-      />
       <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown'), headerShown: true }} />
       <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis'), headerShown: true }} />
       <Stack.Screen name="financial-goals" options={{ title: t('financialGoals'), headerShown: true }} />
@@ -164,6 +160,27 @@ function RootLayoutNav() {
       <Stack.Screen name="household-policies" options={{ title: 'Pravidla sdílení', headerShown: true }} />
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
+      <Stack.Screen name="household-overview" options={{ title: 'Přehled domácnosti', headerShown: true }} />
+      <Stack.Screen name="bank-accounts" options={{ title: 'Bankovní účty', headerShown: true }} />
+      <Stack.Screen name="bank-connect" options={{ title: 'Připojit banku', headerShown: true }} />
+      <Stack.Screen name="edit-bank-transaction" options={{ title: 'Upravit transakci', headerShown: true }} />
+      <Stack.Screen name="chat" options={{ title: 'MoneyBuddy Chat', headerShown: true }} />
+      <Stack.Screen name="loans" options={{ title: 'Úvěry', headerShown: true }} />
+      <Stack.Screen name="loan-detail" options={{ title: 'Detail úvěru', headerShown: true }} />
+      <Stack.Screen name="loan-finder" options={{ title: 'Hledání úvěrů', headerShown: true }} />
+      <Stack.Screen name="add-loan" options={{ title: 'Přidat úvěr', headerShown: true }} />
+      <Stack.Screen name="edit-loan" options={{ title: 'Upravit úvěr', headerShown: true }} />
+      <Stack.Screen name="add-subscription" options={{ title: 'Přidat předplatné', headerShown: true }} />
+      <Stack.Screen name="category-detail" options={{ title: 'Detail kategorie', headerShown: true }} />
+      <Stack.Screen name="portfolio-detail" options={{ title: 'Detail portfolia', headerShown: true }} />
+      <Stack.Screen name="badges" options={{ title: 'Odznaky', headerShown: true }} />
+      <Stack.Screen name="quests" options={{ title: 'Úkoly', headerShown: true }} />
+      <Stack.Screen name="gaming-stats" options={{ title: 'Herní statistiky', headerShown: true }} />
+      <Stack.Screen name="hall-of-fame" options={{ title: 'Síň slávy', headerShown: true }} />
+      <Stack.Screen name="leaderboard" options={{ title: 'Žebříček', headerShown: true }} />
+      <Stack.Screen name="support-chat" options={{ title: 'Podpora', headerShown: true }} />
+      <Stack.Screen name="redeem-code" options={{ title: 'Uplatnit kód', headerShown: true }} />
+      <Stack.Screen name="register" options={{ title: 'Registrace', headerShown: true }} />
       
       {/* These screens should not be accessible when user has active subscription */}
       <Stack.Screen name="auth" options={{ title: 'Přihlášení' }} />
