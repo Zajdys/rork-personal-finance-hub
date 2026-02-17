@@ -24,7 +24,6 @@ import { useFinanceStore, CategoryExpense, SubscriptionItem, LoanType } from '@/
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter } from 'expo-router';
-import { useBankStore } from '@/store/bank-store';
 import { LifeEventModeIndicator } from '@/components/LifeEventModeIndicator';
 import { useHousehold } from '@/store/household-store';
 
@@ -35,12 +34,9 @@ export default function DashboardScreen() {
   const { totalIncome, totalExpenses, balance, recentTransactions, categoryExpenses, getCurrentMonthReport, financialGoals, loans } = finance;
   const { isDarkMode, getCurrentCurrency, notifications } = useSettingsStore();
   const { t, language, updateCounter } = useLanguageStore();
-  const { loadData } = useBankStore();
   const { dashboard: householdDashboard, isInHousehold } = useHousehold();
   
-  useEffect(() => {
-    loadData();
-  }, [language, updateCounter, loadData]);
+
   
   const currentMonthReport = getCurrentMonthReport();
   const router = useRouter();
@@ -340,7 +336,6 @@ export default function DashboardScreen() {
         <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialOverview')}</Text>
         <TouchableOpacity 
           style={styles.balanceCard}
-          onPress={() => router.push('/bank-accounts')}
           activeOpacity={0.8}
         >
           <LinearGradient

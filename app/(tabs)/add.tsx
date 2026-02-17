@@ -26,7 +26,6 @@ import {
   FileText,
   Scan,
   Plus,
-  Building2,
   ArrowLeft,
 } from 'lucide-react-native';
 import { useFinanceStore, CustomCategory } from '@/store/finance-store';
@@ -35,7 +34,14 @@ import { useLanguageStore } from '@/store/language-store';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { parseBankCsvToTransactions, readUriText, ParsedTxn, parseBankXlsxToTransactions, readUriArrayBuffer } from '../../src/services/bank/importBankCsv';
+
+type ParsedTxn = {
+  type: 'income' | 'expense';
+  amount: number;
+  title: string;
+  category: string;
+  date: Date;
+};
 import { generateObject } from '@rork-ai/toolkit-sdk';
 import { Platform } from 'react-native';
 import { z } from 'zod';
@@ -66,10 +72,8 @@ export default function AddTransactionScreen() {
   const [amount, setAmount] = useState<string>('');
   const [title, setTitle] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [importing, setImporting] = useState<boolean>(false);
   const [preview, setPreview] = useState<ParsedTxn[]>([]);
   const [previewOpen, setPreviewOpen] = useState<boolean>(false);
-  const [importError, setImportError] = useState<string | null>(null);
   const [invoiceScanOpen, setInvoiceScanOpen] = useState<boolean>(false);
   const [scanningInvoice, setScanningInvoice] = useState<boolean>(false);
   const [receiptScanOpen, setReceiptScanOpen] = useState<boolean>(false);
@@ -130,248 +134,6 @@ export default function AddTransactionScreen() {
     Alert.alert(t('successMessage'), t('transactionAdded'));
   };
 
-  const onImportBank = useCallback(async () => {
-    try {
-      setImportError(null);
-      setImporting(true);
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['text/*', 'application/pdf', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/comma-separated-values'],
-        multiple: false,
-        copyToCacheDirectory: true,
-      });
-      if (res.canceled) {
-        setImporting(false);
-        return;
-      }
-      const asset = res.assets?.[0];
-      if (!asset?.uri) {
-        setImportError('Soubor se nepodařilo načíst.');
-        setImporting(false);
-        return;
-      }
-
-      const mime = (asset as any).mimeType as string | undefined;
-      const name = asset.name ?? '';
-      const isPdf = (mime?.includes('pdf')) || /\.pdf$/i.test(name);
-      const isXlsx = (mime?.includes('spreadsheet') || mime?.includes('excel') || /\.(xlsx?)$/i.test(name));
-
-      if (isPdf) {
-        console.log('Selected PDF bank statement:', { name, mime, uri: asset.uri });
-        try {
-          console.log('Processing PDF with AI...');
-          
-          let base64Data: string;
-          try {
-            const response = await fetch(asset.uri);
-            if (!response.ok) {
-              throw new Error(`Nepodařilo se načíst soubor: ${response.status}`);
-            }
-            const blob = await response.blob();
-            
-            base64Data = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const result = reader.result as string;
-                if (!result) {
-                  reject(new Error('Soubor je prázdný'));
-                  return;
-                }
-                const base64 = result.split(',')[1];
-                if (!base64) {
-                  reject(new Error('Nepodařilo se převést soubor'));
-                  return;
-                }
-                resolve(base64);
-              };
-              reader.onerror = () => reject(new Error('Chyba při čtení souboru'));
-              reader.readAsDataURL(blob);
-            });
-          } catch (fetchError) {
-            console.error('File fetch error:', fetchError);
-            throw new Error('Nepodařilo se načíst PDF soubor. Zkuste prosím jiný soubor.');
-          }
-          
-          console.log('PDF converted to base64, length:', base64Data.length);
-          
-          if (base64Data.length < 100) {
-            throw new Error('PDF soubor je příliš malý nebo prázdný');
-          }
-          
-          const schema = z.object({
-            transactions: z.array(
-              z.object({
-                date: z.string().describe('Datum transakce ve formátu DD.MM.YYYY nebo YYYY-MM-DD'),
-                description: z.string().describe('Popis transakce - co bylo koupeno/zaplaceno'),
-                amount: z.number().describe('Částka v číselném formátu. Záporná pro výdaje, kladná pro příjmy'),
-                category: z.string().optional().describe('Kategorie transakce'),
-              })
-            ),
-          });
-
-          type BankStatementResult = z.infer<typeof schema>;
-          let result: BankStatementResult;
-          try {
-            console.log('Calling AI with image size:', base64Data.length);
-            
-            result = await Promise.race<BankStatementResult>([
-              generateObject({
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Analyzuj tento bankovní výpis a vrať VŠECHNY transakce. DŮLEŽITÉ PRAVIDLA:\n\n1. Přečti VŠECHNY transakce z výpisu, i když jich je hodně (20+, 50+, 100+)\n2. Pro každou transakci zjisti: datum, popis, částku\n3. Částka: Pokud je to výdaj/platba/debet, musí být ZÁPORNÉ číslo (-). Pokud je to příjem/kredit, musí být KLADNÉ číslo (+).\n4. Popis: Zahrň důležité informace (název obchodu, účel platby, název protiúčtu)\n5. Pokud vidíš měnu, převeď na CZK pokud je to možné, jinak použij původní částku\n6. Ignoruj mezisoučty typu "Celkem za měsíc" - zajímají nás jen jednotlivé transakce\n7. Kategorizuj transakce podle popisu do správné kategorie\n\nKategorie:\n- Jídlo a nápoje: supermarkety (Lidl, Albert, Tesco), restaurace, kavárny, fast food\n- Nájem a bydlení: nájem, hypotéka, energie (ČEZ, PRE), voda, plyn, internet, telefon\n- Oblečení: oděvy, boty, módní značky (Zara, H&M)\n- Doprava: benzín, čerpací stanice, MHD, PID, taxi, Uber, Bolt\n- Zábava: Netflix, Spotify, HBO, hry, kino, divadlo, koncerty\n- Zdraví: lékárna, lékaři, poliklinika, fitness, wellness\n- Vzdělání: škola, kurzy, knihy, studijní materiály\n- Nákupy: elektronika, nábytek, online nákupy (Alza, Mall.cz)\n- Služby: pojištění, předplatné, opravy, účetní, advokát\n- Ostatní: vše ostatní\n\nPŘÍKLAD:\nPokud vidíš: "Platba kartou LIDL 23.12.2024 -450,50 Kč"\nVrať: {date: "23.12.2024", description: "LIDL", amount: -450.50, category: "Jídlo a nápoje"}\n\nPokud vidíš: "Příchozí platba MZDA 30.12.2024 +35000 Kč"\nVrať: {date: "30.12.2024", description: "MZDA", amount: 35000, category: "Mzda"}',
-                      },
-                      {
-                        type: 'image',
-                        image: base64Data,
-                      },
-                    ],
-                  },
-                ],
-                schema,
-              }),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
-              )
-            ]);
-            
-            console.log('AI call successful');
-          } catch (aiError) {
-            console.error('AI API error:', aiError);
-            console.error('Error type:', typeof aiError);
-            console.error('Error name:', (aiError as any)?.name);
-            console.error('Error message:', (aiError as any)?.message);
-            console.error('Error stack:', (aiError as any)?.stack);
-            console.error('Error details:', JSON.stringify(aiError, Object.getOwnPropertyNames(aiError)));
-            
-            if (aiError instanceof Error) {
-              const errorMsg = aiError.message.toLowerCase();
-              
-              if (errorMsg.includes('network request failed') || 
-                  errorMsg.includes('failed to fetch') || 
-                  errorMsg.includes('network error') ||
-                  errorMsg.includes('fetch failed')) {
-                throw new Error('Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.\n\nPro zpracování bankovních výpisů zkuste:\n• CSV formát (.csv)\n• Excel formát (.xlsx)');
-              } else if (errorMsg.includes('timeout')) {
-                throw new Error('AI zpracování trvalo příliš dlouho. Zkuste prosím menší soubor nebo CSV/XLSX formát.');
-              } else if (errorMsg.includes('not configured') || errorMsg.includes('undefined')) {
-                throw new Error('AI služba není správně nakonfigurována. Použijte prosím CSV nebo XLSX formát pro import.');
-              } else {
-                throw new Error(`AI chyba: ${aiError.message}\n\nZkuste prosím CSV nebo XLSX formát.`);
-              }
-            }
-            throw new Error('Nepodařilo se zpracovat PDF pomocí AI. Zkuste prosím CSV nebo XLSX formát.');
-          }
-
-          console.log('AI parsed', result.transactions.length, 'transactions from bank statement');
-
-          if (!result.transactions || result.transactions.length === 0) {
-            setImportError('AI nenašlo žádné transakce v PDF výpisu. Zkuste prosím CSV nebo XLSX formát.');
-            setImporting(false);
-            return;
-          }
-
-          const parsedFromPdf: ParsedTxn[] = result.transactions.map((txn: { date: string; description: string; amount: number; category?: string }) => {
-            const dateStr = txn.date;
-            let date = new Date();
-            
-            const dateMatch = dateStr.match(/(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{2,4})/);
-            if (dateMatch) {
-              const d = parseInt(dateMatch[1], 10);
-              const m = parseInt(dateMatch[2], 10) - 1;
-              const y = parseInt(dateMatch[3].length === 2 ? (Number(dateMatch[3]) + 2000).toString() : dateMatch[3], 10);
-              date = new Date(y, m, d);
-            } else {
-              const isoDate = Date.parse(dateStr);
-              if (!isNaN(isoDate)) {
-                date = new Date(isoDate);
-              }
-            }
-            
-            const amount = Math.abs(txn.amount);
-            const type: 'income' | 'expense' = txn.amount < 0 ? 'expense' : 'income';
-            
-            let category = txn.category || 'Ostatní';
-            const categoryLower = category.toLowerCase();
-            
-            if (type === 'expense') {
-              if (categoryLower.includes('jídl') || categoryLower.includes('nápoj') || categoryLower.includes('food')) category = 'Jídlo a nápoje';
-              else if (categoryLower.includes('nájem') || categoryLower.includes('bydlen') || categoryLower.includes('rent')) category = 'Nájem a bydlení';
-              else if (categoryLower.includes('oblečen') || categoryLower.includes('clothing')) category = 'Oblečení';
-              else if (categoryLower.includes('doprav') || categoryLower.includes('transport')) category = 'Doprava';
-              else if (categoryLower.includes('zábav') || categoryLower.includes('entertainment')) category = 'Zábava';
-              else if (categoryLower.includes('zdrav') || categoryLower.includes('health')) category = 'Zdraví';
-              else if (categoryLower.includes('vzdělán') || categoryLower.includes('education')) category = 'Vzdělání';
-              else if (categoryLower.includes('nákup') || categoryLower.includes('shopping')) category = 'Nákupy';
-              else if (categoryLower.includes('služb') || categoryLower.includes('service')) category = 'Služby';
-              else category = 'Ostatní';
-            } else {
-              if (categoryLower.includes('mzd') || categoryLower.includes('salary') || categoryLower.includes('výplat')) category = 'Mzda';
-              else if (categoryLower.includes('freelance')) category = 'Freelance';
-              else if (categoryLower.includes('investic') || categoryLower.includes('dividend')) category = 'Investice';
-              else if (categoryLower.includes('dar') || categoryLower.includes('gift')) category = 'Dary';
-              else category = 'Ostatní';
-            }
-            
-            return {
-              type,
-              amount,
-              title: txn.description,
-              category,
-              date,
-            };
-          });
-
-          setPreview(parsedFromPdf);
-          setPreviewOpen(true);
-          setImportError(null);
-          
-        } catch (err) {
-          console.error('PDF AI parse error', err);
-          setImportError(`Nepodařilo se zpracovat PDF výpis pomocí AI: ${err instanceof Error ? err.message : 'Neznámá chyba'}. Zkuste prosím CSV nebo XLSX formát.`);
-        }
-        setImporting(false);
-        return;
-      }
-
-      if (isXlsx) {
-        console.log('Selected XLS/XLSX bank statement:', { name, mime });
-        try {
-          const buf = await readUriArrayBuffer(asset.uri);
-          const parsedFromXlsx = await parseBankXlsxToTransactions(buf);
-          console.log('XLSX parsed count:', parsedFromXlsx.length);
-          if (!parsedFromXlsx.length) {
-            setImportError('Excel soubor se načetl, ale nenašli jsme transakce. Zkuste CSV.');
-          } else {
-            setPreview(parsedFromXlsx);
-            setPreviewOpen(true);
-          }
-        } catch (err) {
-          console.error('XLSX parse error', err);
-          setImportError('Nepodařilo se přečíst Excel výpis. Zkuste prosím CSV.');
-        }
-        setImporting(false);
-        return;
-      }
-
-      const text = await readUriText(asset.uri);
-      const parsed = parseBankCsvToTransactions(text);
-      console.log('Bank statement parsed count:', parsed.length);
-      if (!parsed.length) {
-        setImportError('V souboru jsme nenašli žádné čitelné transakce. Zkuste jiný formát CSV.');
-      } else {
-        setPreview(parsed);
-        setPreviewOpen(true);
-      }
-    } catch (e) {
-      console.error('onImportBank error', e);
-      setImportError('Nastala chyba při zpracování výpisu.');
-    } finally {
-      setImporting(false);
-    }
-  }, []);
 
   const confirmImport = useCallback(() => {
     try {
@@ -1011,16 +773,6 @@ export default function AddTransactionScreen() {
         <TypeSelector />
 
         <View style={styles.importSection}>
-          <TouchableOpacity
-            style={styles.bankConnectButton}
-            onPress={() => router.push('/bank-connect')}
-          >
-            <LinearGradient colors={["#10b981", "#059669"]} style={styles.importGradient}>
-              <Building2 color="#fff" size={20} />
-              <Text style={styles.importText}>Propojit s bankou</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          
           <View style={styles.receiptButtons}>
             <TouchableOpacity
               style={[styles.receiptButton, styles.receiptButtonCamera]}
@@ -1057,9 +809,6 @@ export default function AddTransactionScreen() {
             </TouchableOpacity>
           </View>
           
-          {importError ? (
-            <Text style={styles.importError} testID="import-error">{importError}</Text>
-          ) : null}
         </View>
 
         <View style={styles.inputSection}>
@@ -1307,10 +1056,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
     gap: 12,
-  },
-  bankConnectButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
   },
   receiptButtons: {
     flexDirection: 'row',

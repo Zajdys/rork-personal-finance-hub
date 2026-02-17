@@ -7,7 +7,6 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
-import { useBankStore } from '@/store/bank-store';
 import { AuthProvider, useAuth } from '@/store/auth-store';
 import { FriendsProvider } from '@/store/friends-store';
 import { LifeEventProvider } from '@/store/life-event-store';
@@ -161,9 +160,6 @@ function RootLayoutNav() {
       <Stack.Screen name="household-splits" options={{ title: 'Rozdělení výdajů', headerShown: true }} />
       <Stack.Screen name="household-budgets" options={{ title: 'Rozpočty kategorií', headerShown: true }} />
       <Stack.Screen name="household-overview" options={{ title: 'Přehled domácnosti', headerShown: true }} />
-      <Stack.Screen name="bank-accounts" options={{ title: 'Bankovní účty', headerShown: true }} />
-      <Stack.Screen name="bank-connect" options={{ title: 'Připojit banku', headerShown: true }} />
-      <Stack.Screen name="edit-bank-transaction" options={{ title: 'Upravit transakci', headerShown: true }} />
       <Stack.Screen name="chat" options={{ title: 'MoneyBuddy Chat', headerShown: true }} />
       <Stack.Screen name="loans" options={{ title: 'Úvěry', headerShown: true }} />
       <Stack.Screen name="loan-detail" options={{ title: 'Detail úvěru', headerShown: true }} />
@@ -197,7 +193,7 @@ export default function RootLayout() {
   const { loadLanguage, isLoaded } = useLanguageStore();
   const { loadData: loadFinanceData } = useFinanceStore();
   const { loadData: loadBuddyData } = useBuddyStore();
-  const { loadData: loadBankData } = useBankStore();
+
   const [appReady, setAppReady] = useState<boolean>(false);
   
   useEffect(() => {
@@ -211,7 +207,6 @@ export default function RootLayout() {
           loadLanguage(),
           loadFinanceData(),
           loadBuddyData(),
-          loadBankData(),
         ]);
         console.log('App initialized successfully');
         setAppReady(true);
@@ -231,7 +226,6 @@ export default function RootLayout() {
               loadLanguage(),
               loadFinanceData(),
               loadBuddyData(),
-              loadBankData(),
             ]);
           } catch (clearError) {
             console.error('Failed to clear AsyncStorage or reinitialize:', clearError);
@@ -256,7 +250,7 @@ export default function RootLayout() {
         clearTimeout(timeoutId);
       }
     };
-  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData, loadBankData]);
+  }, [loadSettings, loadLanguage, loadFinanceData, loadBuddyData]);
 
   if (!appReady || !isLoaded) {
     console.log('App not ready - appReady:', appReady, 'isLoaded:', isLoaded);

@@ -2,7 +2,6 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useFinanceStore } from './finance-store';
-import { useBankStore } from './bank-store';
 import type {
   Household,
   SharedPolicy,
@@ -470,7 +469,6 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   }, [householdsQuery, selectedHouseholdId, householdQuery, dashboardQuery, policiesQuery, settlementsQuery]);
 
   const { transactions } = useFinanceStore();
-  const { transactions: bankTransactions } = useBankStore();
 
   const calculateDashboard = useCallback((household: Household): HouseholdDashboard | null => {
     if (!household) return null;
@@ -485,22 +483,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       return txMonth === currentMonth;
     });
 
-    const sharedBankTransactions = bankTransactions
-      .filter(t => {
-        const txMonth = new Date(t.date).toISOString().slice(0, 7);
-        const visibility = t.householdVisibility || 'PRIVATE';
-        return txMonth === currentMonth && (visibility === 'SHARED' || visibility === 'SUMMARY_ONLY');
-      })
-      .map(t => ({
-        id: t.id,
-        type: t.type,
-        amount: t.amount,
-        title: t.description,
-        category: t.category || 'Ostatní',
-        date: t.date,
-      }));
-
-    const allTransactions = [...manualTransactions, ...sharedBankTransactions];
+    const allTransactions = [...manualTransactions];
 
     const sharedExpenses = allTransactions.filter(t => t.type === 'expense');
     const sharedIncome = allTransactions.filter(t => t.type === 'income');
@@ -616,7 +599,7 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       settlementSummary,
       recentActivity: [],
     };
-  }, [transactions, bankTransactions]);
+  }, [transactions]);
 
   const mockDashboard: HouseholdDashboard | null = useMemo(() => {
     if (!USE_MOCK_MODE || !currentHousehold) return null;

@@ -12,9 +12,6 @@ import { listFriendsProcedure } from "./routes/friends/list/route";
 import { listPendingRequestsProcedure } from "./routes/friends/pending/route";
 import { sendSupportNotificationProcedure } from "./routes/support/send-notification/route";
 import { dailyLoginProcedure } from "./routes/gaming/daily-login/route";
-import { connectBankProcedure } from "./routes/banking/connect/route";
-import { syncBankAccountProcedure } from "./routes/banking/sync/route";
-import { disconnectBankProcedure } from "./routes/banking/disconnect/route";
 import { getLifeEventProcedure } from "./routes/life-event/get/route";
 import { updateLifeEventProcedure } from "./routes/life-event/update/route";
 import { createHouseholdProcedure } from "./routes/household/create/route";
@@ -53,11 +50,6 @@ export const appRouter = createTRPCRouter({
   }),
   gaming: createTRPCRouter({
     dailyLogin: dailyLoginProcedure,
-  }),
-  banking: createTRPCRouter({
-    connect: connectBankProcedure,
-    sync: syncBankAccountProcedure,
-    disconnect: disconnectBankProcedure,
   }),
   lifeEvent: createTRPCRouter({
     get: getLifeEventProcedure,
