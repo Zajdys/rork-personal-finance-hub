@@ -146,7 +146,7 @@ export default function AddLoanScreen() {
     addLoan(newLoan);
     console.log('Loan added successfully, navigating to detail');
 
-    router.replace(`/loan-detail?id=${newLoan.id}`);
+    router.replace(`/loan-detail?id=${newLoan.id}` as any);
   };
 
   return (

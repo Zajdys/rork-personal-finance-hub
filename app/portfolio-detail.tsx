@@ -754,7 +754,7 @@ export default function PortfolioDetailScreen() {
       activeOpacity={0.8}
       onPress={() => {
         router.push({
-          pathname: '/asset/[symbol]',
+          pathname: '/asset/[symbol]' as any,
           params: {
             symbol: String(item.symbol ?? '').toUpperCase(),
             name: String(item.name ?? item.symbol ?? ''),

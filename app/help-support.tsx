@@ -81,7 +81,7 @@ export default function HelpSupportScreen() {
             icon={MessageCircle}
             title="Live chat"
             subtitle="Okamžitá pomoc online"
-            onPress={() => router.push('/support-chat')}
+            onPress={() => router.push('/support-chat' as any)}
           />
 
           <HelpItem

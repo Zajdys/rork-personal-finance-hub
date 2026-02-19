@@ -324,7 +324,7 @@ export default function HouseholdScreen() {
           <View style={styles.menuContainer}>
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => router.push('/household-policies')}
+              onPress={() => router.push('/household-policies' as any)}
             >
               <View style={styles.menuItemLeft}>
                 <LinearGradient
@@ -343,7 +343,7 @@ export default function HouseholdScreen() {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => router.push('/household-splits')}
+              onPress={() => router.push('/household-splits' as any)}
             >
               <View style={styles.menuItemLeft}>
                 <LinearGradient
@@ -362,7 +362,7 @@ export default function HouseholdScreen() {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => router.push('/household-budgets')}
+              onPress={() => router.push('/household-budgets' as any)}
             >
               <View style={styles.menuItemLeft}>
                 <LinearGradient

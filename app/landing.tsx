@@ -125,7 +125,7 @@ export default function LandingScreen() {
           <View style={styles.heroActions}>
             <TouchableOpacity 
               style={styles.primaryButton}
-              onPress={() => router.push('/auth')}
+              onPress={() => router.push('/auth' as any)}
             >
               <View style={styles.primaryButtonContent}>
                 <Text style={styles.primaryButtonText}>Vyzkoušet zdarma</Text>
@@ -276,7 +276,7 @@ export default function LandingScreen() {
           <View style={styles.ctaActions}>
             <TouchableOpacity 
               style={styles.ctaPrimaryButton}
-              onPress={() => router.push('/auth')}
+              onPress={() => router.push('/auth' as any)}
             >
               <Text style={styles.ctaPrimaryButtonText}>Začít zdarma</Text>
               <ArrowRight color="#667eea" size={20} />
@@ -329,7 +329,7 @@ export default function LandingScreen() {
                   style={[styles.redeemCodeButton, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC', borderColor: '#667eea' }]}
                   onPress={() => {
                     setShowPricingModal(false);
-                    router.push('/redeem-code');
+                    router.push('/redeem-code' as any);
                   }}
                 >
                   <Text style={[styles.redeemCodeText, { color: '#667eea' }]}>Mám slevový kód</Text>

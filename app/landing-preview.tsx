@@ -189,7 +189,7 @@ export default function LandingPreviewScreen() {
             <View style={styles.heroActions}>
               <TouchableOpacity 
                 style={styles.primaryButton}
-                onPress={() => router.push('/auth')}
+                onPress={() => router.push('/auth' as any)}
               >
                 <View style={styles.primaryButtonContent}>
                   <Text style={styles.primaryButtonText}>Vyzkoušet zdarma</Text>
@@ -199,7 +199,7 @@ export default function LandingPreviewScreen() {
               
               <TouchableOpacity 
                 style={styles.secondaryButton}
-                onPress={() => router.push('/subscription')}
+                onPress={() => router.push('/subscription' as any)}
               >
                 <Text style={styles.secondaryButtonText}>Zobrazit ceny</Text>
               </TouchableOpacity>
@@ -365,7 +365,7 @@ export default function LandingPreviewScreen() {
             <View style={styles.ctaActions}>
               <TouchableOpacity 
                 style={styles.ctaPrimaryButton}
-                onPress={() => router.push('/auth')}
+                onPress={() => router.push('/auth' as any)}
               >
                 <Text style={styles.ctaPrimaryButtonText}>Začít zdarma</Text>
                 <ArrowRight color="#667eea" size={20} />
@@ -373,7 +373,7 @@ export default function LandingPreviewScreen() {
               
               <TouchableOpacity 
                 style={styles.ctaSecondaryButton}
-                onPress={() => router.push('/subscription')}
+                onPress={() => router.push('/subscription' as any)}
               >
                 <Text style={styles.ctaSecondaryButtonText}>Zobrazit plány</Text>
               </TouchableOpacity>

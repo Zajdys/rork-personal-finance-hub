@@ -28,7 +28,7 @@ export default function HouseholdOverviewScreen() {
           <Text style={styles.emptyTitle}>Nejste v žádné domácnosti</Text>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => router.push('/household')}
+            onPress={() => router.push('/household' as any)}
           >
             <Text style={styles.settingsButtonText}>Vytvořit domácnost</Text>
           </TouchableOpacity>
@@ -73,7 +73,7 @@ export default function HouseholdOverviewScreen() {
             <View style={styles.headerIcon}>
               <TouchableOpacity
                 style={styles.headerButton}
-                onPress={() => router.push('/household')}
+                onPress={() => router.push('/household' as any)}
               >
                 <Settings size={24} color="#FFF" strokeWidth={2} />
               </TouchableOpacity>
@@ -233,7 +233,7 @@ export default function HouseholdOverviewScreen() {
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.advancedButton}
-            onPress={() => router.push('/household')}
+            onPress={() => router.push('/household' as any)}
           >
             <Settings size={18} color="#8B5CF6" strokeWidth={2} />
             <Text style={styles.advancedButtonText}>Pokročilé nastavení</Text>
