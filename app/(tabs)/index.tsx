@@ -40,6 +40,9 @@ export default function DashboardScreen() {
   
   const currentMonthReport = getCurrentMonthReport();
   const router = useRouter();
+  const navigateTo = useCallback((pathname: string, params?: Record<string, string>) => {
+    router.push({ pathname: pathname as any, params } as any);
+  }, [router]);
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
   const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
   
@@ -155,10 +158,7 @@ export default function DashboardScreen() {
   const CategoryExpenseCard = ({ category }: { category: CategoryExpense }) => (
     <TouchableOpacity 
       style={[styles.categoryCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-      onPress={() => router.push({
-        pathname: '/category-detail' as any,
-        params: { category: category.category, type: 'expense' }
-      })}
+      onPress={() => navigateTo('/category-detail', { category: category.category, type: 'expense' })}
     >
       <View style={styles.categoryHeader}>
         <View style={[styles.categoryIconContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
@@ -271,7 +271,7 @@ export default function DashboardScreen() {
           </View>
           <TouchableOpacity
             style={styles.chatButton}
-            onPress={() => router.push('/chat' as any)}
+            onPress={() => navigateTo('/chat')}
           >
             <MessageCircle color="#F59E0B" size={20} />
           </TouchableOpacity>
@@ -353,7 +353,7 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.financeGrid}>
-        <TouchableOpacity onPress={() => router.push('/income-detail' as any)} style={styles.financeCardWrapper}>
+        <TouchableOpacity onPress={() => navigateTo('/income-detail')} style={styles.financeCardWrapper}>
           <FinanceCard
             title={t('income')}
             amount={totalIncome}
@@ -362,7 +362,7 @@ export default function DashboardScreen() {
             color="#10B981"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/expense-detail' as any)} style={styles.financeCardWrapper}>
+        <TouchableOpacity onPress={() => navigateTo('/expense-detail')} style={styles.financeCardWrapper}>
           <FinanceCard
             title={t('expense')}
             amount={totalExpenses}
@@ -371,7 +371,7 @@ export default function DashboardScreen() {
             color="#EF4444"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/loans' as any)} style={styles.financeCardWrapper}>
+        <TouchableOpacity onPress={() => navigateTo('/loans')} style={styles.financeCardWrapper}>
           <FinanceCard
             title="Závazky"
             amount={loans.length}
@@ -381,7 +381,7 @@ export default function DashboardScreen() {
           />
         </TouchableOpacity>
         {isInHousehold && householdDashboard && (
-          <TouchableOpacity onPress={() => router.push('/household-overview' as any)} style={styles.financeCardWrapper}>
+          <TouchableOpacity onPress={() => navigateTo('/household-overview')} style={styles.financeCardWrapper}>
             <FinanceCard
               title="Domácnost"
               amount={getHouseholdInfo(householdDashboard, currentCurrency).statusText}
@@ -404,25 +404,25 @@ export default function DashboardScreen() {
             icon={PlusCircle}
             title={t('addTransaction')}
             color={['#10B981', '#059669']}
-            onPress={() => router.push('/add' as any)}
+            onPress={() => navigateTo('/add')}
           />
           <QuickActionCard
             icon={PiggyBank}
             title={t('investments')}
             color={['#8B5CF6', '#7C3AED']}
-            onPress={() => router.push('/investments' as any)}
+            onPress={() => navigateTo('/investments')}
           />
           <QuickActionCard
             icon={MessageCircle}
             title={t('moneyBuddy')}
             color={['#667eea', '#764ba2']}
-            onPress={() => router.push('/chat' as any)}
+            onPress={() => navigateTo('/chat')}
           />
           <QuickActionCard
             icon={Calendar}
             title={t('monthlyReport')}
             color={['#F59E0B', '#D97706']}
-            onPress={() => router.push('/monthly-report' as any)}
+            onPress={() => navigateTo('/monthly-report')}
           />
         </View>
       </View>
@@ -433,7 +433,7 @@ export default function DashboardScreen() {
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]} testID="subs-title">Měsíční předplatné</Text>
           <TouchableOpacity
             style={styles.addSubscriptionButton}
-            onPress={() => router.push('/add-subscription' as any)}
+            onPress={() => navigateTo('/add-subscription')}
           >
             <PlusCircle color="white" size={20} />
           </TouchableOpacity>
@@ -451,10 +451,7 @@ export default function DashboardScreen() {
                   key={s.id} 
                   style={styles.subRow} 
                   testID={`sub-${s.id}`}
-                  onPress={() => router.push({
-                    pathname: '/subscription' as any,
-                    params: { id: s.id }
-                  })}
+                  onPress={() => navigateTo('/subscription', { id: s.id })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.subMain}>
@@ -506,7 +503,7 @@ export default function DashboardScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Finanční cíle</Text>
             <TouchableOpacity 
-              onPress={() => router.push('/financial-goals' as any)}
+              onPress={() => navigateTo('/financial-goals')}
               style={styles.showMoreButton}
             >
               <Text style={styles.showMoreText}>
@@ -541,7 +538,7 @@ export default function DashboardScreen() {
               <TouchableOpacity 
                 key={goal.id} 
                 style={[styles.goalCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-                onPress={() => router.push('/financial-goals' as any)}
+                onPress={() => navigateTo('/financial-goals')}
               >
                 <View style={styles.goalCardHeader}>
                   <View style={styles.goalCardInfo}>
@@ -590,7 +587,7 @@ export default function DashboardScreen() {
           {financialGoals.length === 0 && (
             <TouchableOpacity 
               style={[styles.emptyGoalsCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-              onPress={() => router.push('/financial-goals' as any)}
+              onPress={() => navigateTo('/financial-goals')}
             >
               <Target color="#9CA3AF" size={32} />
               <Text style={[styles.emptyGoalsText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
@@ -625,7 +622,7 @@ export default function DashboardScreen() {
           
           <TouchableOpacity
             style={styles.addExpenseButtonContainer}
-            onPress={() => router.push({ pathname: '/add' as any, params: { type: 'expense' } })}
+            onPress={() => navigateTo('/add', { type: 'expense' })}
           >
             <LinearGradient
               colors={['#EF4444', '#DC2626']}
