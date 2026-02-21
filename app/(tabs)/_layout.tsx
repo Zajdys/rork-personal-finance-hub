@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import { 
   Home, 
   PlusCircle, 
-  ShieldCheck, 
+  BookOpen, 
   TrendingUp, 
   User
 } from "lucide-react-native";
@@ -66,10 +66,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="save"
+        name="learn"
         options={{
-          title: t('save_tab'),
-          tabBarIcon: ({ color, size }) => <ShieldCheck color={color} size={size} />,
+          title: t('learn'),
+          tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
         }}
       />
       <Tabs.Screen
