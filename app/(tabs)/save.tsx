@@ -260,6 +260,33 @@ export default function SaveScreen() {
     </View>
   );
 
+  const renderPurpose = () => (
+    <View style={[styles.purposeCard, { backgroundColor: cardBg, borderColor }]} testID="purpose-card">
+      <View style={styles.purposeHeader}>
+        <View style={[styles.iconCircle, { backgroundColor: accentLight }]}>
+          <ShieldCheck size={20} color={accent} />
+        </View>
+        <View style={styles.purposeContent}>
+          <Text style={[styles.purposeTitle, { color: textPrimary }]}>Účel</Text>
+          <Text style={[styles.purposeSubtitle, { color: textSecondary }]}>
+            Behaviorální filtr mezi „chci to“ a „koupit“
+          </Text>
+        </View>
+      </View>
+      {[
+        'Převod ceny na čas, který musíš odpracovat',
+        'Simulace budoucí hodnoty investice',
+        'Rozhodovací pauza 24h',
+        'Gamifikovaná výzva 100 obálek',
+      ].map((item, index) => (
+        <View key={item} style={styles.purposeRow}>
+          <View style={[styles.purposeDot, { backgroundColor: accent }]} />
+          <Text style={[styles.purposeText, { color: textSecondary }]}> {index + 1}. {item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
   const renderCalculator = () => (
     <View>
       <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
@@ -685,6 +712,7 @@ export default function SaveScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {renderPurpose()}
         {activeSection === 'calculator' && renderCalculator()}
         {activeSection === 'pending' && renderPending()}
         {activeSection === 'envelopes' && renderEnvelopes()}
@@ -782,6 +810,43 @@ const styles = StyleSheet.create({
   sectionTabText: {
     fontSize: 12,
     fontWeight: '600' as const,
+  },
+  purposeCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+  purposeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  purposeContent: {
+    marginLeft: 10,
+    flex: 1,
+  },
+  purposeTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    marginBottom: 2,
+  },
+  purposeSubtitle: {
+    fontSize: 12,
+  },
+  purposeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  purposeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  purposeText: {
+    fontSize: 12,
   },
   scrollView: {
     flex: 1,
