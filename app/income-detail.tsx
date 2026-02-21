@@ -214,7 +214,7 @@ export default function IncomeDetailScreen() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addIncomeButton}
-            onPress={() => router.push('/(tabs)/add' as any)}
+            onPress={() => router.push('/(tabs)/add')}
           >
             <Plus color="white" size={20} />
             <Text style={styles.addIncomeButtonText}>Přidat příjem</Text>
@@ -267,7 +267,7 @@ export default function IncomeDetailScreen() {
               </Text>
               <TouchableOpacity 
                 style={styles.addButton}
-                onPress={() => router.push('/add' as any)}
+                onPress={() => router.push('/add')}
               >
                 <Plus color="white" size={20} />
                 <Text style={styles.addButtonText}>Přidat příjem</Text>
@@ -325,7 +325,7 @@ export default function IncomeDetailScreen() {
             </Text>
             <TouchableOpacity 
               style={styles.chatButton}
-              onPress={() => router.push('/chat' as any)}
+              onPress={() => router.push('/chat')}
             >
               <Text style={styles.chatButtonText}>Zeptat se MoneyBuddy</Text>
             </TouchableOpacity>

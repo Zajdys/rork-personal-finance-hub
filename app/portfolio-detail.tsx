@@ -37,7 +37,7 @@ import Svg, { Circle, G, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePortfolioStore, Trade } from '@/store/portfolio-store';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
-
+import { read, utils } from 'xlsx';
 import { mapRow, Txn } from '@/src/services/portfolio/importCsv';
 import { fetchCurrentPrices } from '@/src/services/priceService';
 import { calculatePortfolioMetrics } from '@/services/financial-calculations';
@@ -611,13 +611,12 @@ export default function PortfolioDetailScreen() {
         try {
           const response = await fetch(selectedFile.uri);
           const buffer = await response.arrayBuffer();
-          const XLSX = await import('xlsx');
-          const workbook = XLSX.read(buffer);
+          const workbook = read(buffer);
           const sheetName = workbook.SheetNames.includes('Trades')
             ? 'Trades'
             : workbook.SheetNames[0];
           const sheet = workbook.Sheets[sheetName];
-          const sheetRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+          const sheetRows = utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
 
           if (!sheetRows || sheetRows.length === 0) {
             throw new Error('Excel soubor neobsahuje žádná data nebo list je prázdný.');
@@ -755,7 +754,7 @@ export default function PortfolioDetailScreen() {
       activeOpacity={0.8}
       onPress={() => {
         router.push({
-          pathname: '/asset/[symbol]' as any,
+          pathname: '/asset/[symbol]',
           params: {
             symbol: String(item.symbol ?? '').toUpperCase(),
             name: String(item.name ?? item.symbol ?? ''),

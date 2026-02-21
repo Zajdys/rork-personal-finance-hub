@@ -19,7 +19,7 @@ export function LifeEventModeIndicator() {
   return (
     <TouchableOpacity
       style={styles.container}
-      onPress={() => router.push('/life-event' as any)}
+      onPress={() => router.push('/life-event')}
       activeOpacity={0.8}
     >
       <LinearGradient

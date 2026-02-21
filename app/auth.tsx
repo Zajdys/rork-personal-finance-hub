@@ -122,7 +122,7 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          router.replace('/onboarding' as any);
+          router.replace('/onboarding');
         } else {
           setError(result.error || 'Registrace selhala');
         }
@@ -204,7 +204,7 @@ export default function AuthScreen() {
 
           <TouchableOpacity
             style={[styles.codeButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
-            onPress={() => router.push('/redeem-code' as any)}
+            onPress={() => router.push('/redeem-code')}
           >
             <Text style={[styles.codeButtonText, { color: isDarkMode ? 'white' : '#667eea' }]}>
               Mám kód

@@ -193,7 +193,7 @@ export default function ExpenseDetailScreen() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addExpenseButton}
-            onPress={() => router.push('/(tabs)/add' as any)}
+            onPress={() => router.push('/(tabs)/add')}
           >
             <Plus color="white" size={20} />
             <Text style={styles.addExpenseButtonText}>Přidat výdaj</Text>
@@ -281,7 +281,7 @@ export default function ExpenseDetailScreen() {
             </Text>
             <TouchableOpacity 
               style={styles.chatButton}
-              onPress={() => router.push('/chat' as any)}
+              onPress={() => router.push('/chat')}
             >
               <Text style={styles.chatButtonText}>Zeptat se MoneyBuddy</Text>
             </TouchableOpacity>

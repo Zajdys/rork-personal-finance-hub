@@ -145,7 +145,7 @@ export default function GamingStatsScreen() {
               value={gamingStats.badges.length}
               subtitle={language === 'cs' ? 'Odemčeno' : 'Unlocked'}
               color="#667eea"
-              onPress={() => router.push('/badges' as any)}
+              onPress={() => router.push('/badges')}
             />
             <StatCard
               icon={Target}
@@ -153,7 +153,7 @@ export default function GamingStatsScreen() {
               value={gamingStats.quests.filter(q => q.completed).length}
               subtitle={language === 'cs' ? 'Splněno' : 'Completed'}
               color="#10B981"
-              onPress={() => router.push('/quests' as any)}
+              onPress={() => router.push('/quests')}
             />
             <StatCard
               icon={Flame}
@@ -201,7 +201,7 @@ export default function GamingStatsScreen() {
               title={language === 'cs' ? 'Síň slávy' : 'Hall of Fame'}
               value={language === 'cs' ? 'Zobrazit' : 'View'}
               color="#F59E0B"
-              onPress={() => router.push('/hall-of-fame' as any)}
+              onPress={() => router.push('/hall-of-fame')}
             />
           </View>
         </View>

@@ -217,7 +217,7 @@ export default function LifeEventScreen() {
                         style={styles.editGoalsButton}
                         onPress={() => {
                           setShowInfoModal(false);
-                          router.push('/financial-goals' as any);
+                          router.push('/financial-goals');
                         }}
                       >
                         <Edit2 color="#667eea" size={16} />
@@ -244,7 +244,7 @@ export default function LifeEventScreen() {
                       style={styles.customizeGoalsButton}
                       onPress={() => {
                         setShowInfoModal(false);
-                        router.push('/financial-goals' as any);
+                        router.push('/financial-goals');
                       }}
                     >
                       <Plus color="#667eea" size={16} />

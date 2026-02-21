@@ -222,7 +222,7 @@ export default function LoansScreen() {
           </View>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push('/add-loan' as any)}
+            onPress={() => router.push('/add-loan')}
           >
             <Plus color="white" size={24} />
           </TouchableOpacity>
@@ -233,7 +233,7 @@ export default function LoansScreen() {
         <View style={styles.content}>
           <TouchableOpacity
             style={styles.finderButton}
-            onPress={() => router.push('/loan-finder' as any)}
+            onPress={() => router.push('/loan-finder')}
           >
             <LinearGradient
               colors={['#F59E0B', '#D97706']}
@@ -378,7 +378,7 @@ export default function LoansScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.emptyButton}
-                onPress={() => router.push('/add-loan' as any)}
+                onPress={() => router.push('/add-loan')}
               >
                 <LinearGradient
                   colors={['#667eea', '#764ba2']}
@@ -403,7 +403,7 @@ export default function LoansScreen() {
                     <View style={styles.loanHeader}>
                       <TouchableOpacity
                         style={styles.loanHeaderTouchable}
-                        onPress={() => router.push(`/loan-detail?id=${loan.id}` as any)}
+                        onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
                       >
                         <View style={[
                           styles.loanIconContainer,

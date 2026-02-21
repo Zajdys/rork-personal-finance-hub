@@ -155,7 +155,7 @@ export default function LoanDetailScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => router.push(`/edit-loan?id=${loan.id}` as any)}
+              onPress={() => router.push(`/edit-loan?id=${loan.id}`)}
             >
               <Edit3 color="white" size={20} />
             </TouchableOpacity>

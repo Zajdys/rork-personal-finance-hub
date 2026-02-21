@@ -39,9 +39,6 @@ export default function ProfileScreen() {
   const { t, language } = useLanguageStore();
   const { getModeInfo, isActive } = useLifeEvent();
   const router = useRouter();
-  const navigateTo = React.useCallback((pathname: string, params?: Record<string, string>) => {
-    router.push({ pathname: pathname as any, params } as any);
-  }, [router]);
   
   const currentCurrency = getCurrentCurrency();
   const getThemeDisplayName = () => {
@@ -136,7 +133,7 @@ export default function ProfileScreen() {
           icon={User}
           title="Můj účet"
           subtitle={language === 'cs' ? 'Správa profilu a předplatného' : 'Profile and subscription management'}
-          onPress={() => navigateTo('/account')}
+          onPress={() => router.push('/account')}
         />
         
 
@@ -144,42 +141,42 @@ export default function ProfileScreen() {
           icon={Users}
           title={language === 'cs' ? 'Nastavení domácnosti' : 'Household Settings'}
           subtitle={language === 'cs' ? 'Správa partnerů a bilance' : 'Manage partners and balance'}
-          onPress={() => navigateTo('/household')}
+          onPress={() => router.push('/household')}
         />
         
         <MenuButton
           icon={Zap}
           title={language === 'cs' ? 'Životní režim' : 'Life-Event Mode'}
           subtitle={isActive ? `${getModeInfo().emoji} ${getModeInfo().title}` : (language === 'cs' ? 'Přizpůsob aplikaci své situaci' : 'Adapt app to your life situation')}
-          onPress={() => navigateTo('/life-event')}
+          onPress={() => router.push('/life-event')}
         />
         
         <MenuButton
           icon={Sparkles}
           title={t('financialGoals')}
           subtitle={language === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
-          onPress={() => navigateTo('/financial-goals')}
+          onPress={() => router.push('/financial-goals')}
         />
         
         <MenuButton
           icon={CreditCard}
           title="Moje závazky"
           subtitle={language === 'cs' ? 'Správa úvěrů a hypoték' : 'Manage loans and mortgages'}
-          onPress={() => navigateTo('/loans')}
+          onPress={() => router.push('/loans')}
         />
         
         <MenuButton
           icon={Sparkles}
           title="AI Hledač půjček"
           subtitle={language === 'cs' ? 'Najdi nejlepší nabídky na trhu' : 'Find the best offers on the market'}
-          onPress={() => navigateTo('/loan-finder')}
+          onPress={() => router.push('/loan-finder')}
         />
         
         <MenuButton
           icon={Eye}
           title="Náhled Landing Page"
           subtitle={language === 'cs' ? 'Podívej se, jak vypadá úvodní stránka' : 'See how the landing page looks'}
-          onPress={() => navigateTo('/landing-preview')}
+          onPress={() => router.push('/landing-preview')}
         />
       </View>
 
@@ -191,49 +188,49 @@ export default function ProfileScreen() {
           icon={Globe}
           title={t('language')}
           subtitle={language === 'cs' ? 'Čeština' : 'English'}
-          onPress={() => navigateTo('/language-settings')}
+          onPress={() => router.push('/language-settings')}
         />
         
         <MenuButton
           icon={DollarSign}
           title={t('currency')}
           subtitle="CZK (Koruna česká)"
-          onPress={() => navigateTo('/currency-settings')}
+          onPress={() => router.push('/currency-settings')}
         />
         
         <MenuButton
           icon={Palette}
           title={t('theme')}
           subtitle={language === 'cs' ? 'Světlé' : 'Light'}
-          onPress={() => navigateTo('/theme-settings')}
+          onPress={() => router.push('/theme-settings')}
         />
         
         <MenuButton
           icon={Bell}
           title={t('notifications')}
           subtitle={language === 'cs' ? 'Správa upozornění a tipů' : 'Manage alerts and tips'}
-          onPress={() => navigateTo('/notifications-settings')}
+          onPress={() => router.push('/notifications-settings')}
         />
         
         <MenuButton
           icon={Shield}
           title={t('privacySecurity')}
           subtitle={t('protectData')}
-          onPress={() => navigateTo('/privacy-settings')}
+          onPress={() => router.push('/privacy-settings')}
         />
         
         <MenuButton
           icon={Settings}
           title={t('generalSettings')}
           subtitle={t('additionalOptions')}
-          onPress={() => navigateTo('/general-settings')}
+          onPress={() => router.push('/general-settings')}
         />
         
         <MenuButton
           icon={HelpCircle}
           title={t('help')}
           subtitle={t('faqContact')}
-          onPress={() => navigateTo('/help-support')}
+          onPress={() => router.push('/help-support')}
         />
       </View>
     </ScrollView>

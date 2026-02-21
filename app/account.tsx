@@ -45,7 +45,7 @@ export default function AccountScreen() {
   };
 
   const handleManageSubscription = () => {
-    router.push('/subscription' as any);
+    router.push('/subscription');
   };
 
   const handleLogout = () => {
@@ -219,7 +219,7 @@ export default function AccountScreen() {
               if (hasActiveSubscription) {
                 router.push('/');
               } else {
-                router.push('/subscription' as any);
+                router.push('/subscription');
               }
             }}
           >
@@ -249,21 +249,21 @@ export default function AccountScreen() {
             icon={Bell}
             title="Notifikace"
             subtitle="Správa upozornění a tipů"
-            onPress={() => router.push('/notifications-settings' as any)}
+            onPress={() => router.push('/notifications-settings')}
           />
 
           <MenuButton
             icon={Shield}
             title="Soukromí a bezpečnost"
             subtitle="Ochrana vašich dat"
-            onPress={() => router.push('/privacy-settings' as any)}
+            onPress={() => router.push('/privacy-settings')}
           />
 
           <MenuButton
             icon={Settings}
             title="Obecná nastavení"
             subtitle="Jazyk, měna, téma"
-            onPress={() => router.push('/general-settings' as any)}
+            onPress={() => router.push('/general-settings')}
           />
         </View>
 
