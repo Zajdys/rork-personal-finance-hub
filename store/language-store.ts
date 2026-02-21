@@ -20,7 +20,7 @@ export const TRANSLATIONS = {
     // Tab names
     overview: 'Přehled',
     add: 'Přidat',
-    learn: 'Učit se',
+    save: 'Ušetři',
     investments: 'Investice',
     profile: 'Profil',
     moneyBuddy: 'MoneyBuddy',
@@ -348,7 +348,7 @@ export const TRANSLATIONS = {
     // Tab names
     overview: 'Overview',
     add: 'Add',
-    learn: 'Learn',
+    save: 'Save',
     investments: 'Investments',
     profile: 'Profile',
     moneyBuddy: 'MoneyBuddy',

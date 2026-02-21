@@ -2,8 +2,8 @@ import { Tabs } from "expo-router";
 import { 
   Home, 
   PlusCircle, 
-  BookOpen, 
   TrendingUp, 
+  PiggyBank, 
   User
 } from "lucide-react-native";
 import React from "react";
@@ -66,10 +66,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="learn"
+        name="save"
         options={{
-          title: t('learn'),
-          tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
+          title: t('save'),
+          tabBarIcon: ({ color, size }) => <PiggyBank color={color} size={size} />,
         }}
       />
       <Tabs.Screen
