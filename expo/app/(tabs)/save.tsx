@@ -144,14 +144,17 @@ export default function SaveScreen() {
         Alert.alert('Oznámení', 'Povol upozornění, aby ti aplikace připomněla rozhodnutí.');
         return;
       }
-      const trigger = new Date(item.remindAt);
+      const triggerDate = new Date(item.remindAt);
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Rozmyslet nákup',
           body: `Chceš koupit „${item.title}“ nebo to nechat být?`,
           sound: true,
         },
-        trigger,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate,
+        },
       });
       console.log('Scheduled notification', notificationId);
       setPendingItems((prev) =>
@@ -353,7 +356,7 @@ export default function SaveScreen() {
           <TextInput
             value={annualReturn}
             onChangeText={setAnnualReturn}
-            placeholder="Roční výnos %"
+            placeholder="Roční výnos % (např. 7)"
             placeholderTextColor={subtleText}
             keyboardType="decimal-pad"
             style={[styles.input, styles.rowInput, { color: primaryText, borderColor: isDarkMode ? '#334155' : '#E2E8F0' }]}
@@ -362,19 +365,21 @@ export default function SaveScreen() {
           <TextInput
             value={years}
             onChangeText={setYears}
-            placeholder="Počet let"
+            placeholder="Počet let (např. 10)"
             placeholderTextColor={subtleText}
             keyboardType="decimal-pad"
             style={[styles.input, styles.rowInput, { color: primaryText, borderColor: isDarkMode ? '#334155' : '#E2E8F0' }]}
             testID="save-years"
           />
         </View>
+        <Text style={[styles.sectionSubtitle, { color: subtleText, marginTop: 10, marginBottom: 0 }]}>7 = očekávaný roční výnos v %, 10 = počet let investování.</Text>
         <View style={[styles.resultBox, { backgroundColor: isDarkMode ? '#0B1220' : '#E0F2FE' }]}
         >
           <Text style={[styles.resultLabel, { color: subtleText }]}>Budoucí hodnota</Text>
           <Text style={[styles.resultValue, { color: primaryText }]}>{
             futureValue > 0 ? `${formatCurrency(futureValue)} ${currency.symbol}` : '--'
           }</Text>
+          <Text style={[styles.resultHint, { color: subtleText }]}>Vzorec: cena × (1 + {parsedAnnualReturn > 0 ? parsedAnnualReturn : 0}% / 100)^{parsedYears > 0 ? parsedYears : 0}</Text>
           <Text style={[styles.resultHint, { color: subtleText }]}>Kolik by mohly mít tyto peníze, kdyby pracovaly pro tebe.</Text>
         </View>
       </View>
