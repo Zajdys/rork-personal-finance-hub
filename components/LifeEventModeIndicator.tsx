@@ -4,9 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useLifeEvent } from '@/store/life-event-store';
 import { LifeEventMode } from '@/types/life-event';
+import { useLanguageStore } from '@/store/language-store';
 
 export function LifeEventModeIndicator() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { state, getModeInfo, getDaysSinceActivation } = useLifeEvent();
 
   if (state.activeMode === LifeEventMode.NONE) {
@@ -15,6 +17,12 @@ export function LifeEventModeIndicator() {
 
   const modeInfo = getModeInfo();
   const daysActive = getDaysSinceActivation();
+  const daysWord =
+    daysActive === 1
+      ? t('lifeEventDayOne')
+      : daysActive >= 2 && daysActive <= 4
+        ? t('lifeEventDayFew')
+        : t('lifeEventDayMany');
 
   return (
     <TouchableOpacity
@@ -33,7 +41,7 @@ export function LifeEventModeIndicator() {
           <View style={styles.textContainer}>
             <Text style={styles.title}>{modeInfo.title}</Text>
             <Text style={styles.subtitle}>
-              Aktivní {daysActive} {daysActive === 1 ? 'den' : daysActive < 5 ? 'dny' : 'dní'}
+              {t('lifeEventActiveDays', { count: daysActive, daysWord })}
             </Text>
           </View>
         </View>

@@ -17,9 +17,17 @@ import {
   ArrowLeft,
 } from 'lucide-react-native';
 import { useFinanceStore, INCOME_CATEGORIES } from '@/store/finance-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { useRouter, Stack } from 'expo-router';
 
 export default function IncomeDetailScreen() {
+  const { isDarkMode } = useSettingsStore();
+  const pageBg = isDarkMode ? '#0f0f0f' : '#f5f5f5';
+  const cardBg = isDarkMode ? '#1c1c1e' : '#ffffff';
+  const textMain = isDarkMode ? '#ffffff' : '#1a1a1a';
+  const textSec = isDarkMode ? '#ababab' : '#666666';
+  const mutedBg = isDarkMode ? '#2c2c2e' : '#f3f4f6';
+
   const { transactions, totalIncome } = useFinanceStore();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
@@ -95,27 +103,30 @@ export default function IncomeDetailScreen() {
     <TouchableOpacity
       style={[
         styles.periodButton,
-        selectedPeriod === period && styles.periodButtonActive
+        selectedPeriod === period && [styles.periodButtonActive, { backgroundColor: cardBg }],
       ]}
       onPress={() => setSelectedPeriod(period)}
     >
-      <Text style={[
-        styles.periodButtonText,
-        selectedPeriod === period && styles.periodButtonTextActive
-      ]}>
+      <Text
+        style={[
+          styles.periodButtonText,
+          { color: textSec },
+          selectedPeriod === period && [styles.periodButtonTextActive, { color: textMain }],
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
   );
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle }: any) => (
-    <View style={styles.statCard}>
+    <View style={[styles.statCard, { backgroundColor: cardBg }]}>
       <View style={styles.statHeader}>
         <Icon color={color} size={20} />
-        <Text style={styles.statTitle}>{title}</Text>
+        <Text style={[styles.statTitle, { color: textSec }]}>{title}</Text>
       </View>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
-      {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
+      {subtitle && <Text style={[styles.statSubtitle, { color: textSec }]}>{subtitle}</Text>}
     </View>
   );
 
@@ -123,14 +134,23 @@ export default function IncomeDetailScreen() {
     const categoryData = INCOME_CATEGORIES[category.category as keyof typeof INCOME_CATEGORIES];
 
     return (
-      <View style={styles.categoryDetailCard}>
+      <TouchableOpacity
+        style={[styles.categoryDetailCard, { backgroundColor: cardBg }]}
+        onPress={() =>
+          router.push({
+            pathname: '/category-detail',
+            params: { category: category.category, type: 'income' },
+          })
+        }
+        activeOpacity={0.85}
+      >
         <View style={styles.categoryDetailHeader}>
-          <View style={styles.categoryDetailIconContainer}>
+          <View style={[styles.categoryDetailIconContainer, { backgroundColor: mutedBg }]}>
             <Text style={styles.categoryDetailIcon}>{categoryData?.icon || '💰'}</Text>
           </View>
           <View style={styles.categoryDetailInfo}>
-            <Text style={styles.categoryDetailName}>{category.category}</Text>
-            <Text style={styles.categoryDetailCount}>
+            <Text style={[styles.categoryDetailName, { color: textMain }]}>{category.category}</Text>
+            <Text style={[styles.categoryDetailCount, { color: textSec }]}>
               {category.transactions} transakcí
             </Text>
           </View>
@@ -138,13 +158,13 @@ export default function IncomeDetailScreen() {
             <Text style={[styles.categoryDetailAmountText, { color: category.color }]}>
               +{category.amount.toLocaleString('cs-CZ')} Kč
             </Text>
-            <Text style={styles.categoryDetailPercentage}>
+            <Text style={[styles.categoryDetailPercentage, { color: textSec }]}>
               {category.percentage}% z celku
             </Text>
           </View>
         </View>
         <View style={styles.progressBarContainer}>
-          <View style={styles.progressBarBackground}>
+          <View style={[styles.progressBarBackground, { backgroundColor: mutedBg }]}>
             <View 
               style={[
                 styles.progressBar, 
@@ -156,15 +176,31 @@ export default function IncomeDetailScreen() {
             />
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
   const RecommendationCard = ({ type, title, description, icon: Icon }: any) => (
-    <View style={[
-      styles.recommendationCard,
-      type === 'insight' ? styles.insightCard : styles.tipCard
-    ]}>
+    <View
+      style={[
+        styles.recommendationCard,
+        type === 'insight'
+          ? [
+              styles.insightCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(59,130,246,0.22)' : '#DBEAFE',
+                borderLeftColor: '#3B82F6',
+              },
+            ]
+          : [
+              styles.tipCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(16,185,129,0.22)' : '#D1FAE5',
+                borderLeftColor: '#10B981',
+              },
+            ],
+      ]}
+    >
       <View style={styles.recommendationHeader}>
         <Icon 
           color={type === 'insight' ? '#3B82F6' : '#10B981'} 
@@ -177,12 +213,12 @@ export default function IncomeDetailScreen() {
           {title}
         </Text>
       </View>
-      <Text style={styles.recommendationDescription}>{description}</Text>
+      <Text style={[styles.recommendationDescription, { color: textMain }]}>{description}</Text>
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: pageBg }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
         colors={['#10B981', '#059669']}
@@ -208,7 +244,10 @@ export default function IncomeDetailScreen() {
           </View>
         </View>
       </LinearGradient>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={[styles.scrollView, { flex: 1, backgroundColor: pageBg }]}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Add Income Button */}
         <View style={styles.addButtonContainer}>
@@ -223,8 +262,8 @@ export default function IncomeDetailScreen() {
 
         {/* Period Selection */}
         <View style={styles.periodContainer}>
-          <Text style={styles.sectionTitle}>Období</Text>
-          <View style={styles.periodButtons}>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Období</Text>
+          <View style={[styles.periodButtons, { backgroundColor: mutedBg }]}>
             <PeriodButton period="week" label="Týden" />
             <PeriodButton period="month" label="Měsíc" />
             <PeriodButton period="year" label="Rok" />
@@ -233,7 +272,7 @@ export default function IncomeDetailScreen() {
 
         {/* Statistics */}
         <View style={styles.statsContainer}>
-          <Text style={styles.sectionTitle}>Statistiky</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Statistiky</Text>
           <View style={styles.statsGrid}>
             <StatCard
               title="Počet transakcí"
@@ -253,16 +292,16 @@ export default function IncomeDetailScreen() {
 
         {/* Categories Breakdown */}
         <View style={styles.categoriesContainer}>
-          <Text style={styles.sectionTitle}>Příjmy podle kategorií</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Příjmy podle kategorií</Text>
           {categoryIncomes.length > 0 ? (
             categoryIncomes.map((category, index) => (
               <CategoryIncomeCard key={index} category={category} />
             ))
           ) : (
             <View style={styles.emptyState}>
-              <DollarSign color="#9CA3AF" size={48} />
-              <Text style={styles.emptyStateText}>Zatím žádné příjmy</Text>
-              <Text style={styles.emptyStateSubtext}>
+              <DollarSign color={textSec} size={48} />
+              <Text style={[styles.emptyStateText, { color: textSec }]}>Zatím žádné příjmy</Text>
+              <Text style={[styles.emptyStateSubtext, { color: textSec }]}>
                 Začni přidáváním svých příjmů
               </Text>
               <TouchableOpacity 
@@ -279,7 +318,7 @@ export default function IncomeDetailScreen() {
         {/* Analysis & Recommendations */}
         {categoryIncomes.length > 0 && (
           <View style={styles.analysisContainer}>
-            <Text style={styles.sectionTitle}>Analýza a doporučení</Text>
+            <Text style={[styles.sectionTitle, { color: textMain }]}>Analýza a doporučení</Text>
             
             {/* Insights */}
             {analysis.insights.map((insight, index) => (
@@ -305,7 +344,7 @@ export default function IncomeDetailScreen() {
           </View>
         )}
 
-        {/* MoneyBuddy Insights */}
+        {/* Tip */}
         <View style={styles.insightsContainer}>
           <LinearGradient
             colors={['#667eea', '#764ba2']}
@@ -313,7 +352,7 @@ export default function IncomeDetailScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.insightsTitle}>💡 MoneyBuddy říká:</Text>
+            <Text style={styles.insightsTitle}>💡 Tip:</Text>
             <Text style={styles.insightsText}>
               {analysis.highestCategory 
                 ? `Tvůj hlavní zdroj příjmů je ${analysis.highestCategory.category.toLowerCase()} (${analysis.highestCategory.percentage}%). ${
@@ -321,13 +360,13 @@ export default function IncomeDetailScreen() {
                       ? 'Zvažuj diverzifikaci příjmů pro větší finanční bezpečnost.'
                       : 'Máš dobře diverzifikované příjmy, to je skvělé!'
                   }`
-                : 'Začni sledovat své příjmy pro lepší finanční plánování. Každá koruna se počítá!'}
+                : 'Naimportuj výpis z banky a sleduj příjmy společně s výdaji v jedné aplikaci.'}
             </Text>
             <TouchableOpacity 
               style={styles.chatButton}
-              onPress={() => router.push('/chat')}
+              onPress={() => router.push('/bank-import')}
             >
-              <Text style={styles.chatButtonText}>Zeptat se MoneyBuddy</Text>
+              <Text style={styles.chatButtonText}>Importovat bankovní výpis</Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -339,7 +378,6 @@ export default function IncomeDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -391,12 +429,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1F2937',
     marginBottom: 16,
   },
   periodButtons: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
     borderRadius: 12,
     padding: 4,
   },
@@ -408,7 +444,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   periodButtonActive: {
-    backgroundColor: 'white',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -418,11 +453,8 @@ const styles = StyleSheet.create({
   periodButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
-  periodButtonTextActive: {
-    color: '#1F2937',
-  },
+  periodButtonTextActive: {},
   statsContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
@@ -433,7 +465,6 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     shadowColor: '#000',
@@ -449,7 +480,6 @@ const styles = StyleSheet.create({
   },
   statTitle: {
     fontSize: 12,
-    color: '#6B7280',
     marginLeft: 8,
     flex: 1,
   },
@@ -460,14 +490,12 @@ const styles = StyleSheet.create({
   },
   statSubtitle: {
     fontSize: 11,
-    color: '#9CA3AF',
   },
   categoriesContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
   categoryDetailCard: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -486,7 +514,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -500,12 +527,10 @@ const styles = StyleSheet.create({
   categoryDetailName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 2,
   },
   categoryDetailCount: {
     fontSize: 12,
-    color: '#6B7280',
   },
   categoryDetailAmount: {
     alignItems: 'flex-end',
@@ -517,14 +542,12 @@ const styles = StyleSheet.create({
   },
   categoryDetailPercentage: {
     fontSize: 11,
-    color: '#9CA3AF',
   },
   progressBarContainer: {
     marginTop: 8,
   },
   progressBarBackground: {
     height: 6,
-    backgroundColor: '#F3F4F6',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -539,12 +562,10 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
     marginTop: 12,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#9CA3AF',
     marginTop: 4,
     textAlign: 'center',
     marginBottom: 20,
@@ -573,14 +594,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   insightCard: {
-    backgroundColor: '#DBEAFE',
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
   },
   tipCard: {
-    backgroundColor: '#D1FAE5',
     borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
   },
   recommendationHeader: {
     flexDirection: 'row',
@@ -594,7 +611,6 @@ const styles = StyleSheet.create({
   },
   recommendationDescription: {
     fontSize: 13,
-    color: '#374151',
     lineHeight: 18,
   },
   insightsContainer: {

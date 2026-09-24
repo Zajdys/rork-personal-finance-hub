@@ -12,16 +12,18 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import {
   Send,
   User,
   Bot,
   AlertCircle,
   CheckCircle,
-  ArrowLeft,
 } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
+import { useLanguageStore } from '@/store/language-store';
+import { safeGoBack } from '@/lib/safe-back';
+import { BackButton } from '@/components/BackButton';
 
 interface Message {
   id: string;
@@ -54,11 +56,11 @@ Odpovídej v češtině.
 `;
 
 export default function SupportChatScreen() {
-  const router = useRouter();
+  const { t } = useLanguageStore();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Ahoj! 👋 Jsem MoneyBuddy Support AI. S čím ti mohu pomoci?',
+      text: t('supportChat.welcome'),
       isUser: false,
       timestamp: new Date(),
     },
@@ -135,7 +137,7 @@ export default function SupportChatScreen() {
       });
 
       if (!response.ok) {
-        throw new Error('Chyba při komunikaci s AI');
+        throw new Error(t('supportChat.aiError'));
       }
 
       const data = await response.json();
@@ -155,8 +157,8 @@ export default function SupportChatScreen() {
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert(
-        'Chyba',
-        'Nepodařilo se odeslat zprávu. Zkuste to prosím znovu.',
+        t('error'),
+        t('supportChat.sendFailed'),
         [{ text: 'OK' }]
       );
     } finally {
@@ -166,13 +168,13 @@ export default function SupportChatScreen() {
 
   const handleEscalation = async () => {
     if (!userEmail.trim()) {
-      Alert.alert('Email chybí', 'Prosím zadej svůj email pro kontakt.');
+      Alert.alert(t('supportChat.emailMissing'), t('supportChat.enterEmail'));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(userEmail.trim())) {
-      Alert.alert('Neplatný email', 'Prosím zadej platnou emailovou adresu.');
+      Alert.alert(t('supportChat.invalidEmail'), t('supportChat.enterValidEmail'));
       return;
     }
 
@@ -180,10 +182,10 @@ export default function SupportChatScreen() {
 
     try {
       const lastUserMessage = messages.filter(m => m.isUser).pop();
-      const issue = lastUserMessage?.text || 'Problém nebyl specifikován';
+      const issue = lastUserMessage?.text || t('supportChat.issueFallback');
 
       await sendNotificationMutation.mutateAsync({
-        userName: 'Uživatel',
+        userName: t('supportChat.userFallback'),
         userEmail: userEmail.trim(),
         issue,
         conversationHistory: messages.map(m => ({
@@ -194,20 +196,20 @@ export default function SupportChatScreen() {
       });
 
       Alert.alert(
-        'Odesláno! ✅',
-        'Tvůj problém byl odeslán našemu týmu. Ozveme se ti na email co nejdříve.',
+        t('supportChat.sentTitle'),
+        t('supportChat.sentMessage'),
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(),
           },
         ]
       );
     } catch (error) {
       console.error('Error escalating support:', error);
       Alert.alert(
-        'Chyba',
-        'Nepodařilo se odeslat notifikaci. Zkus to prosím znovu nebo nás kontaktuj na moneybuddy@email.cz',
+        t('error'),
+        t('supportChat.escalationFailed'),
         [{ text: 'OK' }]
       );
     } finally {
@@ -224,7 +226,7 @@ export default function SupportChatScreen() {
           <Bot color="#10B981" size={16} />
         )}
         <Text style={styles.messageAuthor}>
-          {message.isUser ? 'Ty' : 'Support AI'}
+          {message.isUser ? t('supportChat.you') : t('supportChat.supportAi')}
         </Text>
       </View>
       <Text style={[styles.messageText, message.isUser ? styles.userText : styles.aiText]}>
@@ -251,14 +253,12 @@ export default function SupportChatScreen() {
             backgroundColor: '#667eea',
           },
           headerTintColor: 'white',
-          headerTitle: 'Live Chat Podpora',
+          headerTitle: t('supportChat.headerTitle'),
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 8 }}>
-              <ArrowLeft color="white" size={24} />
-            </TouchableOpacity>
+            <BackButton color="white" size={24} style={{ marginLeft: 8 }} />
           ),
         }}
       />
@@ -273,11 +273,11 @@ export default function SupportChatScreen() {
           <Bot color="white" size={32} />
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Support AI</Text>
-            <Text style={styles.headerSubtitle}>Jsme tu pro tebe 24/7</Text>
+            <Text style={styles.headerSubtitle}>{t('supportChat.bannerSubtitle')}</Text>
           </View>
           <View style={styles.statusIndicator}>
             <View style={styles.onlineIndicator} />
-            <Text style={styles.statusText}>Online</Text>
+            <Text style={styles.statusText}>{t('supportChat.online')}</Text>
           </View>
         </LinearGradient>
       </View>
@@ -286,7 +286,7 @@ export default function SupportChatScreen() {
         <View style={styles.escalationBanner}>
           <AlertCircle color="#F59E0B" size={20} />
           <Text style={styles.escalationText}>
-            Problém bude předán lidské podpoře
+            {t('supportChat.escalationBanner')}
           </Text>
         </View>
       )}
@@ -303,19 +303,19 @@ export default function SupportChatScreen() {
         {isLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color="#667eea" size="small" />
-            <Text style={styles.loadingText}>Support AI přemýšlí...</Text>
+            <Text style={styles.loadingText}>{t('supportChat.thinking')}</Text>
           </View>
         )}
       </ScrollView>
 
       {needsEscalation && (
         <View style={styles.escalationForm}>
-          <Text style={styles.escalationFormTitle}>Zadej svůj email pro kontakt:</Text>
+          <Text style={styles.escalationFormTitle}>{t('supportChat.enterEmailTitle')}</Text>
           <TextInput
             style={styles.emailInput}
             value={userEmail}
             onChangeText={setUserEmail}
-            placeholder="tvuj@email.cz"
+            placeholder={t('supportChat.emailPlaceholder')}
             placeholderTextColor="#9CA3AF"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -331,7 +331,7 @@ export default function SupportChatScreen() {
               style={styles.escalationButtonGradient}
             >
               <CheckCircle color="white" size={20} />
-              <Text style={styles.escalationButtonText}>Odeslat týmu podpory</Text>
+              <Text style={styles.escalationButtonText}>{t('supportChat.sendToTeam')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -343,7 +343,7 @@ export default function SupportChatScreen() {
             style={styles.textInput}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Popiš svůj problém..."
+            placeholder={t('supportChat.inputPlaceholder')}
             placeholderTextColor="#9CA3AF"
             multiline
             maxLength={500}

@@ -17,9 +17,17 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { useFinanceStore, EXPENSE_CATEGORIES } from '@/store/finance-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { useRouter, Stack } from 'expo-router';
 
 export default function ExpenseDetailScreen() {
+  const { isDarkMode } = useSettingsStore();
+  const pageBg = isDarkMode ? '#0f0f0f' : '#f5f5f5';
+  const cardBg = isDarkMode ? '#1c1c1e' : '#ffffff';
+  const textMain = isDarkMode ? '#ffffff' : '#1a1a1a';
+  const textSec = isDarkMode ? '#ababab' : '#666666';
+  const mutedBg = isDarkMode ? '#2c2c2e' : '#f3f4f6';
+
   const { transactions, totalExpenses, categoryExpenses } = useFinanceStore();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
@@ -68,27 +76,30 @@ export default function ExpenseDetailScreen() {
     <TouchableOpacity
       style={[
         styles.periodButton,
-        selectedPeriod === period && styles.periodButtonActive
+        selectedPeriod === period && [styles.periodButtonActive, { backgroundColor: cardBg }],
       ]}
       onPress={() => setSelectedPeriod(period)}
     >
-      <Text style={[
-        styles.periodButtonText,
-        selectedPeriod === period && styles.periodButtonTextActive
-      ]}>
+      <Text
+        style={[
+          styles.periodButtonText,
+          { color: textSec },
+          selectedPeriod === period && [styles.periodButtonTextActive, { color: textMain }],
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
   );
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle }: any) => (
-    <View style={styles.statCard}>
+    <View style={[styles.statCard, { backgroundColor: cardBg }]}>
       <View style={styles.statHeader}>
         <Icon color={color} size={20} />
-        <Text style={styles.statTitle}>{title}</Text>
+        <Text style={[styles.statTitle, { color: textSec }]}>{title}</Text>
       </View>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
-      {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
+      {subtitle && <Text style={[styles.statSubtitle, { color: textSec }]}>{subtitle}</Text>}
     </View>
   );
 
@@ -99,17 +110,22 @@ export default function ExpenseDetailScreen() {
     );
 
     return (
-      <TouchableOpacity 
-        style={styles.categoryDetailCard}
-        onPress={() => router.push(`/(tabs)/category-detail?category=${encodeURIComponent(category.category)}` as any)}
+      <TouchableOpacity
+        style={[styles.categoryDetailCard, { backgroundColor: cardBg }]}
+        onPress={() =>
+          router.push({
+            pathname: '/category-detail',
+            params: { category: category.category, type: 'expense' },
+          })
+        }
       >
         <View style={styles.categoryDetailHeader}>
-          <View style={styles.categoryDetailIconContainer}>
+          <View style={[styles.categoryDetailIconContainer, { backgroundColor: mutedBg }]}>
             <Text style={styles.categoryDetailIcon}>{categoryData?.icon || '📦'}</Text>
           </View>
           <View style={styles.categoryDetailInfo}>
-            <Text style={styles.categoryDetailName}>{category.category}</Text>
-            <Text style={styles.categoryDetailCount}>
+            <Text style={[styles.categoryDetailName, { color: textMain }]}>{category.category}</Text>
+            <Text style={[styles.categoryDetailCount, { color: textSec }]}>
               {categoryTransactions.length} transakcí
             </Text>
           </View>
@@ -117,13 +133,13 @@ export default function ExpenseDetailScreen() {
             <Text style={[styles.categoryDetailAmountText, { color: category.color }]}>
               {category.amount.toLocaleString('cs-CZ')} Kč
             </Text>
-            <Text style={styles.categoryDetailPercentage}>
+            <Text style={[styles.categoryDetailPercentage, { color: textSec }]}>
               {category.percentage}% z celku
             </Text>
           </View>
         </View>
         <View style={styles.progressBarContainer}>
-          <View style={styles.progressBarBackground}>
+          <View style={[styles.progressBarBackground, { backgroundColor: mutedBg }]}>
             <View 
               style={[
                 styles.progressBar, 
@@ -140,10 +156,26 @@ export default function ExpenseDetailScreen() {
   };
 
   const RecommendationCard = ({ type, title, description, icon: Icon }: any) => (
-    <View style={[
-      styles.recommendationCard,
-      type === 'warning' ? styles.warningCard : styles.tipCard
-    ]}>
+    <View
+      style={[
+        styles.recommendationCard,
+        type === 'warning'
+          ? [
+              styles.warningCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(245,158,11,0.22)' : '#FEF3C7',
+                borderLeftColor: '#F59E0B',
+              },
+            ]
+          : [
+              styles.tipCard,
+              {
+                backgroundColor: isDarkMode ? 'rgba(16,185,129,0.22)' : '#D1FAE5',
+                borderLeftColor: '#10B981',
+              },
+            ],
+      ]}
+    >
       <View style={styles.recommendationHeader}>
         <Icon 
           color={type === 'warning' ? '#F59E0B' : '#10B981'} 
@@ -156,12 +188,12 @@ export default function ExpenseDetailScreen() {
           {title}
         </Text>
       </View>
-      <Text style={styles.recommendationDescription}>{description}</Text>
+      <Text style={[styles.recommendationDescription, { color: textMain }]}>{description}</Text>
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: pageBg }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
         colors={['#EF4444', '#DC2626']}
@@ -187,7 +219,10 @@ export default function ExpenseDetailScreen() {
           </View>
         </View>
       </LinearGradient>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={[styles.scrollView, { flex: 1, backgroundColor: pageBg }]}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Add Expense Button */}
         <View style={styles.addButtonContainer}>
@@ -202,8 +237,8 @@ export default function ExpenseDetailScreen() {
 
         {/* Period Selection */}
         <View style={styles.periodContainer}>
-          <Text style={styles.sectionTitle}>Období</Text>
-          <View style={styles.periodButtons}>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Období</Text>
+          <View style={[styles.periodButtons, { backgroundColor: mutedBg }]}>
             <PeriodButton period="week" label="Týden" />
             <PeriodButton period="month" label="Měsíc" />
             <PeriodButton period="year" label="Rok" />
@@ -212,7 +247,7 @@ export default function ExpenseDetailScreen() {
 
         {/* Statistics */}
         <View style={styles.statsContainer}>
-          <Text style={styles.sectionTitle}>Statistiky</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Statistiky</Text>
           <View style={styles.statsGrid}>
             <StatCard
               title="Počet transakcí"
@@ -232,7 +267,7 @@ export default function ExpenseDetailScreen() {
 
         {/* Categories Breakdown */}
         <View style={styles.categoriesContainer}>
-          <Text style={styles.sectionTitle}>Výdaje podle kategorií</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Výdaje podle kategorií</Text>
           {categoryExpenses.map((category, index) => (
             <CategoryDetailCard key={index} category={category} />
           ))}
@@ -240,7 +275,7 @@ export default function ExpenseDetailScreen() {
 
         {/* Analysis & Recommendations */}
         <View style={styles.analysisContainer}>
-          <Text style={styles.sectionTitle}>Analýza a doporučení</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Analýza a doporučení</Text>
           
           {/* Warnings */}
           {analysis.warnings.map((warning, index) => (
@@ -265,7 +300,7 @@ export default function ExpenseDetailScreen() {
           ))}
         </View>
 
-        {/* MoneyBuddy Insights */}
+        {/* Tip */}
         <View style={styles.insightsContainer}>
           <LinearGradient
             colors={['#667eea', '#764ba2']}
@@ -273,17 +308,17 @@ export default function ExpenseDetailScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.insightsTitle}>💡 MoneyBuddy říká:</Text>
+            <Text style={styles.insightsTitle}>💡 Tip:</Text>
             <Text style={styles.insightsText}>
               {analysis.highestCategory 
                 ? `Nejvíce utrácíš za ${analysis.highestCategory.category.toLowerCase()} (${analysis.highestCategory.percentage}%). Zkus si pro tuto kategorii stanovit měsíční limit a sleduj ho.`
-                : 'Zatím nemám dostatek dat pro analýzu. Přidej více transakcí!'}
+                : 'Přidej více transakcí nebo naimportuj výpis z banky pro přesnější přehled.'}
             </Text>
             <TouchableOpacity 
               style={styles.chatButton}
-              onPress={() => router.push('/chat')}
+              onPress={() => router.push('/bank-import')}
             >
-              <Text style={styles.chatButtonText}>Zeptat se MoneyBuddy</Text>
+              <Text style={styles.chatButtonText}>Importovat bankovní výpis</Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -295,7 +330,6 @@ export default function ExpenseDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -347,12 +381,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1F2937',
     marginBottom: 16,
   },
   periodButtons: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
     borderRadius: 12,
     padding: 4,
   },
@@ -364,7 +396,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   periodButtonActive: {
-    backgroundColor: 'white',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -374,11 +405,8 @@ const styles = StyleSheet.create({
   periodButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
-  periodButtonTextActive: {
-    color: '#1F2937',
-  },
+  periodButtonTextActive: {},
   statsContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
@@ -389,7 +417,6 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     shadowColor: '#000',
@@ -405,7 +432,6 @@ const styles = StyleSheet.create({
   },
   statTitle: {
     fontSize: 12,
-    color: '#6B7280',
     marginLeft: 8,
     flex: 1,
   },
@@ -416,14 +442,12 @@ const styles = StyleSheet.create({
   },
   statSubtitle: {
     fontSize: 11,
-    color: '#9CA3AF',
   },
   categoriesContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
   categoryDetailCard: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -442,7 +466,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -456,12 +479,10 @@ const styles = StyleSheet.create({
   categoryDetailName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 2,
   },
   categoryDetailCount: {
     fontSize: 12,
-    color: '#6B7280',
   },
   categoryDetailAmount: {
     alignItems: 'flex-end',
@@ -473,14 +494,12 @@ const styles = StyleSheet.create({
   },
   categoryDetailPercentage: {
     fontSize: 11,
-    color: '#9CA3AF',
   },
   progressBarContainer: {
     marginTop: 8,
   },
   progressBarBackground: {
     height: 6,
-    backgroundColor: '#F3F4F6',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -498,14 +517,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   warningCard: {
-    backgroundColor: '#FEF3C7',
     borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
   },
   tipCard: {
-    backgroundColor: '#D1FAE5',
     borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
   },
   recommendationHeader: {
     flexDirection: 'row',
@@ -519,7 +534,6 @@ const styles = StyleSheet.create({
   },
   recommendationDescription: {
     fontSize: 13,
-    color: '#374151',
     lineHeight: 18,
   },
   insightsContainer: {

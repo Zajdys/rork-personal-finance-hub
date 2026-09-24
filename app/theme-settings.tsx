@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,25 +8,34 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
+import { StackHeaderBackButton } from '@/components/BackButton';
 import { Check, Sun, Moon, Smartphone } from 'lucide-react-native';
 import { useSettingsStore, Theme } from '@/store/settings-store';
-
-const THEMES = [
-  { id: 'light', name: 'Světlé', description: 'Klasické světlé téma', icon: Sun },
-  { id: 'dark', name: 'Tmavé', description: 'Šetrné k očím v noci', icon: Moon },
-  { id: 'auto', name: 'Automatické', description: 'Podle nastavení systému', icon: Smartphone },
-];
+import { useLanguageStore } from '@/store/language-store';
 
 export default function ThemeSettingsScreen() {
   const { theme, isDarkMode, setTheme } = useSettingsStore();
+  const { t } = useLanguageStore();
+
+  const themes = useMemo(
+    () => [
+      { id: 'light', name: t('themeSettings.light'), description: t('themeSettings.lightDesc'), icon: Sun },
+      { id: 'dark', name: t('themeSettings.dark'), description: t('themeSettings.darkDesc'), icon: Moon },
+      { id: 'auto', name: t('themeSettings.auto'), description: t('themeSettings.autoDesc'), icon: Smartphone },
+    ],
+    [t],
+  );
 
   return (
     <>
       <Stack.Screen 
         options={{
-          title: 'Téma',
+          title: t('themeSettings.title'),
           headerStyle: { backgroundColor: '#667eea' },
           headerTintColor: 'white',
+          headerLeft: ({ tintColor }) => (
+            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
+          ),
           headerTitleStyle: { fontWeight: 'bold' },
         }} 
       />
@@ -41,12 +50,12 @@ export default function ThemeSettingsScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Text style={styles.headerTitle}>Téma aplikace</Text>
-          <Text style={styles.headerSubtitle}>Vyber si vzhled aplikace</Text>
+          <Text style={styles.headerTitle}>{t('themeSettings.headerTitle')}</Text>
+          <Text style={styles.headerSubtitle}>{t('themeSettings.headerSubtitle')}</Text>
         </LinearGradient>
 
         <View style={styles.content}>
-          {THEMES.map((themeItem) => {
+          {themes.map((themeItem) => {
             const IconComponent = themeItem.icon;
             return (
               <TouchableOpacity

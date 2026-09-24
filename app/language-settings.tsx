@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,29 +8,23 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
+import { StackHeaderBackButton } from '@/components/BackButton';
 
 import { useLanguageStore, LANGUAGES, Language } from '@/store/language-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useBuddyStore } from '@/store/buddy-store';
 
 export default function LanguageSettingsScreen() {
-  const { language, setLanguage, t, updateCounter } = useLanguageStore();
+  const { language, setLanguage, t } = useLanguageStore();
   const { isDarkMode } = useSettingsStore();
   const { refreshDailyTip } = useBuddyStore();
   
   const languageList = Object.values(LANGUAGES);
   
   const handleLanguageChange = useCallback(async (newLanguage: Language) => {
-    console.log('Changing language from', language, 'to', newLanguage);
     await setLanguage(newLanguage);
-    // Refresh daily tip when language changes
     refreshDailyTip();
-  }, [language, setLanguage, refreshDailyTip]);
-  
-  // Force re-render when language changes
-  useEffect(() => {
-    console.log('Language changed, updateCounter:', updateCounter);
-  }, [updateCounter]);
+  }, [setLanguage, refreshDailyTip]);
 
   return (
     <>
@@ -39,6 +33,9 @@ export default function LanguageSettingsScreen() {
           title: t('language'),
           headerStyle: { backgroundColor: '#667eea' },
           headerTintColor: 'white',
+          headerLeft: ({ tintColor }) => (
+            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
+          ),
           headerTitleStyle: { fontWeight: 'bold' },
         }} 
       />

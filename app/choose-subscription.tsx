@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,16 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   CheckCircle,
   Star,
   RefreshCw,
 } from 'lucide-react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { BackButton } from '@/components/BackButton';
 import { 
   getOfferings, 
   purchasePackage, 
@@ -31,6 +32,7 @@ import {
 
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
+  const { t } = useLanguageStore();
   const { user, activateSubscription } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -52,15 +54,15 @@ export default function ChooseSubscriptionScreen() {
         await activateSubscription('monthly');
         queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
         Alert.alert(
-          'Úspěch!',
-          'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
+          t('chooseSubscription.successTitle'),
+          t('chooseSubscription.activated'),
           [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
         );
       }
     },
     onError: (error: any) => {
       console.error('[Paywall] Purchase error:', error);
-      Alert.alert('Chyba', 'Nepodařilo se dokončit nákup. Zkuste to prosím znovu.');
+      Alert.alert(t('error'), t('chooseSubscription.purchaseFailed'));
     },
   });
 
@@ -71,17 +73,17 @@ export default function ChooseSubscriptionScreen() {
         await activateSubscription('monthly');
         queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
         Alert.alert(
-          'Úspěch!',
-          'Vaše předplatné bylo obnoveno!',
+          t('chooseSubscription.successTitle'),
+          t('chooseSubscription.restored'),
           [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
         );
       } else {
-        Alert.alert('Info', 'Nebyla nalezena žádná předchozí předplatná.');
+        Alert.alert('Info', t('chooseSubscription.noPrevious'));
       }
     },
     onError: (error: any) => {
       console.error('[Paywall] Restore error:', error);
-      Alert.alert('Chyba', 'Nepodařilo se obnovit nákupy.');
+      Alert.alert(t('error'), t('chooseSubscription.restoreFailed'));
     },
   });
 
@@ -96,21 +98,31 @@ export default function ChooseSubscriptionScreen() {
 
   const handleSelectPackage = (pkg: PurchasesPackage) => {
     Alert.alert(
-      'Potvrdit předplatné',
-      `Chcete aktivovat ${pkg.product.title}?`,
+      t('chooseSubscription.confirmTitle'),
+      t('chooseSubscription.confirmMessage', { title: pkg.product.title }),
       [
-        { text: 'Zrušit', style: 'cancel' },
-        { text: 'Potvrdit', onPress: () => purchaseMutation.mutate(pkg) },
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('confirm'), onPress: () => purchaseMutation.mutate(pkg) },
       ]
     );
   };
+
+  const planFeatures = useMemo(
+    () => [
+      t('chooseSubscription.featureAll'),
+      t('chooseSubscription.featureAi'),
+      t('chooseSubscription.featureSupport'),
+      t('chooseSubscription.featureUnlimited'),
+    ],
+    [t],
+  );
 
   const getPackageDetails = (pkg: PurchasesPackage) => {
     const isAnnual = pkg.packageType === 'ANNUAL' || pkg.identifier.includes('annual') || pkg.identifier.includes('yearly');
     return {
       isAnnual,
       popular: isAnnual,
-      badge: isAnnual ? 'Nejlepší hodnota' : null,
+      badge: isAnnual ? t('chooseSubscription.bestValue') : null,
       badgeColor: '#F59E0B',
     };
   };
@@ -126,15 +138,10 @@ export default function ChooseSubscriptionScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Vyberte předplatné</Text>
-            <Text style={styles.headerSubtitle}>30denní záruka vrácení peněz</Text>
+            <Text style={styles.headerTitle}>{t('screenChooseSubscription')}</Text>
+            <Text style={styles.headerSubtitle}>{t('chooseSubscription.subtitle')}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -145,20 +152,20 @@ export default function ChooseSubscriptionScreen() {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#667eea" />
               <Text style={[styles.loadingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Načítání nabídek...
+                {t('chooseSubscription.loading')}
               </Text>
             </View>
           ) : packages.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
               <Text style={[styles.emptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Momentálně nejsou dostupné žádné nabídky.
+                {t('chooseSubscription.noOffers')}
               </Text>
               <TouchableOpacity
                 style={styles.retryButton}
                 onPress={() => offeringsQuery.refetch()}
               >
                 <RefreshCw color="#667eea" size={20} />
-                <Text style={styles.retryText}>Zkusit znovu</Text>
+                <Text style={styles.retryText}>{t('chooseSubscription.retry')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -192,7 +199,7 @@ export default function ChooseSubscriptionScreen() {
                         {pkg.product.priceString}
                       </Text>
                       <Text style={[styles.period, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                        /{details.isAnnual ? 'rok' : 'měsíc'}
+                        /{details.isAnnual ? t('chooseSubscription.perYear') : t('chooseSubscription.perMonth')}
                       </Text>
                     </View>
                   </View>
@@ -204,7 +211,7 @@ export default function ChooseSubscriptionScreen() {
                   )}
 
                   <View style={styles.features}>
-                    {['Všechny funkce', 'AI asistent', 'Prioritní podpora', 'Neomezené transakce'].map((feature, index) => (
+                    {planFeatures.map((feature, index) => (
                       <View key={index} style={styles.feature}>
                         <CheckCircle color="#10B981" size={16} />
                         <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
@@ -228,7 +235,7 @@ export default function ChooseSubscriptionScreen() {
                       {purchaseMutation.isPending ? (
                         <ActivityIndicator color="white" size="small" />
                       ) : (
-                        <Text style={styles.selectButtonText}>Vybrat plán</Text>
+                        <Text style={styles.selectButtonText}>{t('chooseSubscription.selectPlan')}</Text>
                       )}
                     </LinearGradient>
                   </TouchableOpacity>
@@ -248,7 +255,7 @@ export default function ChooseSubscriptionScreen() {
               <>
                 <RefreshCw color="#667eea" size={18} />
                 <Text style={[styles.restoreText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Obnovit předchozí nákupy
+                  {t('chooseSubscription.restore')}
                 </Text>
               </>
             )}
@@ -256,10 +263,10 @@ export default function ChooseSubscriptionScreen() {
 
           <View style={[styles.guaranteeCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
             <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              30denní záruka vrácení peněz
+              {t('chooseSubscription.guaranteeTitle')}
             </Text>
             <Text style={[styles.guaranteeText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Pokud nebudete spokojeni, vrátíme vám peníze do 30 dnů bez ptaní.
+              {t('chooseSubscription.guaranteeText')}
             </Text>
           </View>
         </View>

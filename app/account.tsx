@@ -21,13 +21,14 @@ import {
   Bell,
   ExternalLink,
   CheckCircle,
-  ArrowLeft,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BackButton } from '@/components/BackButton';
+import { safeGoBack } from '@/lib/safe-back';
 
 export default function AccountScreen() {
   const { isDarkMode } = useSettingsStore();
@@ -37,11 +38,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
 
   const handleEditProfile = () => {
-    Alert.alert(
-      'Upravit profil',
-      'Tato funkce bude dostupná v plné verzi aplikace.',
-      [{ text: 'OK' }]
-    );
+    router.push('/edit-profile');
   };
 
   const handleManageSubscription = () => {
@@ -50,12 +47,12 @@ export default function AccountScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Odhlásit se',
-      'Opravdu se chcete odhlásit?',
+      t('account.logoutTitle'),
+      t('account.logoutConfirm'),
       [
-        { text: 'Zrušit', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         { 
-          text: 'Odhlásit se', 
+          text: t('account.logoutTitle'), 
           style: 'destructive',
           onPress: async () => {
             await logout();
@@ -68,10 +65,10 @@ export default function AccountScreen() {
 
   const getSubscriptionPlanName = (plan: string | null) => {
     switch (plan) {
-      case 'monthly': return 'Měsíční';
-      case 'quarterly': return '3 měsíce';
-      case 'yearly': return 'Roční';
-      default: return 'Neznámý';
+      case 'monthly': return t('account.planMonthly');
+      case 'quarterly': return t('account.planQuarterly');
+      case 'yearly': return t('account.planYearly');
+      default: return t('account.planUnknown');
     }
   };
 
@@ -90,10 +87,10 @@ export default function AccountScreen() {
         </View>
         <View style={styles.accountInfo}>
           <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {user?.name || 'Uživatel'}
+            {user?.name || t('account.userFallback')}
           </Text>
           <Text style={[styles.accountEmail, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {user?.email || 'Neznámý email'}
+            {user?.email || t('account.unknownEmail')}
           </Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
@@ -105,7 +102,11 @@ export default function AccountScreen() {
         <View style={styles.accountDetail}>
           <Calendar color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={16} />
           <Text style={[styles.accountDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            Člen od {user?.registrationDate ? new Date(user.registrationDate).toLocaleDateString('cs-CZ') : 'Neznámé'}
+            {t('account.memberSince', {
+              date: user?.registrationDate
+                ? new Date(user.registrationDate).toLocaleDateString('cs-CZ')
+                : t('account.unknown'),
+            })}
           </Text>
         </View>
       </View>
@@ -120,16 +121,16 @@ export default function AccountScreen() {
         </View>
         <View style={styles.subscriptionInfo}>
           <Text style={[styles.subscriptionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Předplatné
+            {t('account.subscription')}
           </Text>
           <Text style={[styles.subscriptionSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
             {user?.subscription ? (
               <>
                 {getSubscriptionPlanName(user.subscription.plan)} • 
-                {user.subscription.active ? ' Aktivní' : ' Neaktivní'}
+                {user.subscription.active ? ` ${t('account.active')}` : ` ${t('account.inactive')}`}
               </>
             ) : (
-              'Žádné aktivní předplatné'
+              t('account.noActiveSubscription')
             )}
           </Text>
         </View>
@@ -138,7 +139,7 @@ export default function AccountScreen() {
           { backgroundColor: hasActiveSubscription ? '#10B981' : '#EF4444' }
         ]}>
           <Text style={styles.subscriptionBadgeText}>
-            {hasActiveSubscription ? 'Aktivní' : 'Neaktivní'}
+            {hasActiveSubscription ? t('account.active') : t('account.inactive')}
           </Text>
         </View>
       </View>
@@ -148,7 +149,9 @@ export default function AccountScreen() {
           <View style={styles.subscriptionDetail}>
             <CheckCircle color="#10B981" size={16} />
             <Text style={[styles.subscriptionDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Platné do: {new Date(user.subscription.expiresAt).toLocaleDateString('cs-CZ')}
+              {t('account.validUntil', {
+                date: new Date(user.subscription.expiresAt).toLocaleDateString('cs-CZ'),
+              })}
             </Text>
           </View>
         </View>
@@ -166,7 +169,7 @@ export default function AccountScreen() {
         >
           <CreditCard color="white" size={20} />
           <Text style={styles.manageSubscriptionText}>
-            {hasActiveSubscription ? 'Spravovat předplatné' : 'Aktivovat předplatné'}
+            {hasActiveSubscription ? t('account.manageSubscription') : t('account.activateSubscription')}
           </Text>
           <ExternalLink color="white" size={16} />
         </LinearGradient>
@@ -213,21 +216,17 @@ export default function AccountScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerTop}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => {
-              if (hasActiveSubscription) {
-                router.push('/');
-              } else {
-                router.push('/subscription');
-              }
-            }}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton
+            color="white"
+            size={24}
+            style={styles.backButton}
+            onPress={() =>
+              safeGoBack(hasActiveSubscription ? '/(tabs)' : '/choose-subscription')
+            }
+          />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Můj účet</Text>
-            <Text style={styles.headerSubtitle}>Správa profilu a předplatného</Text>
+            <Text style={styles.headerTitle}>{t('profileMyAccount')}</Text>
+            <Text style={styles.headerSubtitle}>{t('profileAccountSubtitle')}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -242,27 +241,27 @@ export default function AccountScreen() {
         {/* Menu Options */}
         <View style={styles.menuSection}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Nastavení účtu
+            {t('account.accountSettings')}
           </Text>
 
           <MenuButton
             icon={Bell}
-            title="Notifikace"
-            subtitle="Správa upozornění a tipů"
+            title={t('notifications')}
+            subtitle={t('profileNotificationsSubtitle')}
             onPress={() => router.push('/notifications-settings')}
           />
 
           <MenuButton
             icon={Shield}
-            title="Soukromí a bezpečnost"
-            subtitle="Ochrana vašich dat"
+            title={t('privacySecurity')}
+            subtitle={t('protectData')}
             onPress={() => router.push('/privacy-settings')}
           />
 
           <MenuButton
             icon={Settings}
-            title="Obecná nastavení"
-            subtitle="Jazyk, měna, téma"
+            title={t('generalSettings')}
+            subtitle={t('additionalOptions')}
             onPress={() => router.push('/general-settings')}
           />
         </View>
@@ -271,8 +270,8 @@ export default function AccountScreen() {
         <View style={styles.logoutSection}>
           <MenuButton
             icon={LogOut}
-            title="Odhlásit se"
-            subtitle="Odhlásit se z aplikace"
+            title={t('account.logoutTitle')}
+            subtitle={t('account.logoutSubtitle')}
             onPress={handleLogout}
             danger={true}
           />

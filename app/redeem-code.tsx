@@ -10,22 +10,24 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   Gift,
   Check,
 } from 'lucide-react-native';
-import { useRouter, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { safeGoBack } from '@/lib/safe-back';
+import { BackButton } from '@/components/BackButton';
 
 export default function RedeemCodeScreen() {
   const { isDarkMode } = useSettingsStore();
-  const router = useRouter();
+  const { t } = useLanguageStore();
   const [code, setCode] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const handleRedeem = async () => {
     if (!code.trim()) {
-      Alert.alert('Chyba', 'Zadejte prosím kód');
+      Alert.alert(t('error'), t('redeemCode.enterCode'));
       return;
     }
 
@@ -35,12 +37,12 @@ export default function RedeemCodeScreen() {
       setIsProcessing(false);
       
       Alert.alert(
-        'Úspěch!',
-        `Váš kód "${code}" byl úspěšně uplatněn. Předplatné je nyní aktivní!`,
+        t('redeemCode.successTitle'),
+        t('redeemCode.successMessage', { code }),
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => safeGoBack(),
           },
         ]
       );
@@ -58,14 +60,9 @@ export default function RedeemCodeScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Uplatnit kód</Text>
+            <Text style={styles.headerTitle}>{t('screenRedeemCode')}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -78,10 +75,10 @@ export default function RedeemCodeScreen() {
             </View>
             
             <Text style={[styles.title, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Máte slevový kód?
+              {t('redeemCode.hasCode')}
             </Text>
             <Text style={[styles.description, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Zadejte váš kód níže pro aktivaci předplatného nebo speciální nabídky
+              {t('redeemCode.description')}
             </Text>
 
             <View style={styles.inputGroup}>
@@ -113,7 +110,7 @@ export default function RedeemCodeScreen() {
               >
                 <Check color="white" size={20} />
                 <Text style={styles.redeemButtonText}>
-                  {isProcessing ? 'Zpracovávám...' : 'Uplatnit kód'}
+                  {isProcessing ? t('redeemCode.processing') : t('redeemCode.redeem')}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -121,13 +118,10 @@ export default function RedeemCodeScreen() {
 
           <View style={[styles.infoCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
             <Text style={[styles.infoTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Kde získat kód?
+              {t('redeemCode.whereToGet')}
             </Text>
             <Text style={[styles.infoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              • Propagační kampaně{'\n'}
-              • Dárkové poukazy{'\n'}
-              • Partnerské akce{'\n'}
-              • Věrnostní program
+              {t('redeemCode.sources')}
             </Text>
           </View>
         </View>

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Eye, EyeOff, FileText } from 'lucide-react-native';
 import type { Visibility } from '@/types/household';
+import { useLanguageStore } from '@/store/language-store';
 
 interface VisibilityBadgeProps {
   visibility: Visibility;
@@ -9,10 +10,11 @@ interface VisibilityBadgeProps {
 }
 
 export function VisibilityBadge({ visibility, size = 'medium' }: VisibilityBadgeProps) {
+  const { t } = useLanguageStore();
   const iconSize = size === 'small' ? 12 : size === 'large' ? 20 : 16;
   const fontSize = size === 'small' ? 10 : size === 'large' ? 14 : 12;
 
-  const config = getVisibilityConfig(visibility);
+  const config = getVisibilityConfig(visibility, t);
 
   return (
     <View style={[styles.badge, { backgroundColor: config.bgColor }]}>
@@ -32,7 +34,10 @@ export function VisibilityBadge({ visibility, size = 'medium' }: VisibilityBadge
   );
 }
 
-function getVisibilityConfig(visibility: Visibility): {
+function getVisibilityConfig(
+  visibility: Visibility,
+  t: ReturnType<typeof useLanguageStore.getState>['t'],
+): {
   label: string;
   color: string;
   bgColor: string;
@@ -41,21 +46,21 @@ function getVisibilityConfig(visibility: Visibility): {
   switch (visibility) {
     case 'SHARED':
       return {
-        label: 'Sdílené',
+        label: t('visibilityShared'),
         color: '#10B981',
         bgColor: '#D1FAE5',
         icon: 'eye',
       };
     case 'PRIVATE':
       return {
-        label: 'Soukromé',
+        label: t('visibilityPrivate'),
         color: '#EF4444',
         bgColor: '#FEE2E2',
         icon: 'eye-off',
       };
     case 'SUMMARY_ONLY':
       return {
-        label: 'Jen součet',
+        label: t('visibilitySummaryOnly'),
         color: '#F59E0B',
         bgColor: '#FEF3C7',
         icon: 'file-text',

@@ -24,27 +24,31 @@ import {
   Smartphone,
   Camera,
   FileText,
-  Scan,
   Plus,
   ArrowLeft,
+  FileSpreadsheet,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useFinanceStore, CustomCategory } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
+import { pluralTransakce } from '@/lib/plural-cs';
+import { logAndGetUserFacingError } from '@/lib/user-facing-error';
+import { randomUUID } from '@/lib/random-uuid';
+import { useTheme } from '@/hooks/use-theme';
+import { toYyyyMmDd, transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
 import { router } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { generateObject } from '@rork-ai/toolkit-sdk';
+import { z } from 'zod';
 
 type ParsedTxn = {
   type: 'income' | 'expense';
   amount: number;
   title: string;
   category: string;
-  date: Date;
+  date: string;
 };
-import { generateObject } from '@rork-ai/toolkit-sdk';
-import { Platform } from 'react-native';
-import { z } from 'zod';
 
 const EXPENSE_CATEGORY_ICONS = {
   'Jídlo a nápoje': Coffee,
@@ -68,6 +72,7 @@ const INCOME_CATEGORY_ICONS = {
 };
 
 export default function AddTransactionScreen() {
+  const { colors } = useTheme();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState<string>('');
   const [title, setTitle] = useState<string>('');
@@ -85,7 +90,7 @@ export default function AddTransactionScreen() {
   
   const { addTransaction, getAllCategories, addCustomCategory } = useFinanceStore();
   const { addPoints, showBuddyMessage } = useBuddyStore();
-  const { t } = useLanguageStore();
+  const { t, language } = useLanguageStore();
 
   const categoryData = getAllCategories(type);
   const categoryIcons = type === 'income' ? INCOME_CATEGORY_ICONS : EXPENSE_CATEGORY_ICONS;
@@ -110,12 +115,12 @@ export default function AddTransactionScreen() {
     }
 
     addTransaction({
-      id: Date.now().toString(),
+      id: randomUUID(),
       type,
       amount: numAmount,
       title,
       category: selectedCategory,
-      date: new Date(),
+      date: toYyyyMmDd(new Date()),
     });
 
     addPoints(5);
@@ -140,7 +145,7 @@ export default function AddTransactionScreen() {
       let count = 0;
       for (const p of preview) {
         const tx = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          id: randomUUID(),
           type: p.type,
           amount: p.amount,
           title: p.title,
@@ -152,14 +157,20 @@ export default function AddTransactionScreen() {
       }
       setPreview([]);
       setPreviewOpen(false);
-      Alert.alert('Hotovo', `Načteno ${count} transakcí z výpisu.`);
+      Alert.alert(
+        t('done'),
+        t('addTransaction.importedCount', {
+          count,
+          transactionsWord: pluralTransakce(count, language === 'en' ? 'en' : 'cs'),
+        }),
+      );
       addPoints(10);
-      showBuddyMessage('Výpis z banky byl úspěšně zpracován. Skvělý krok k přehledu!');
+      showBuddyMessage(t('addTransaction.bankImportBuddy'));
     } catch (e) {
       console.error('confirmImport error', e);
-      Alert.alert('Chyba', 'Import se nepodařilo dokončit.');
+      Alert.alert(t('error'), t('addTransaction.importFailed'));
     }
-  }, [preview, addTransaction, addPoints, showBuddyMessage]);
+  }, [preview, addTransaction, addPoints, showBuddyMessage, t, language]);
 
   const scanInvoiceWithCamera = useCallback(async () => {
     setInvoiceScanOpen(true);
@@ -182,14 +193,14 @@ export default function AddTransactionScreen() {
         try {
           const result = reader.result as string;
           if (!result) {
-            Alert.alert('Chyba', 'Soubor účtenky je prázdný.');
+            Alert.alert(t('error'), t('addTransaction.receiptEmpty'));
             setScanningReceipt(false);
             return;
           }
           
           const base64Data = result.split(',')[1];
           if (!base64Data) {
-            Alert.alert('Chyba', 'Nepodařilo se převést účtenku.');
+            Alert.alert(t('error'), t('addTransaction.receiptConvertFailed'));
             setScanningReceipt(false);
             return;
           }
@@ -197,7 +208,7 @@ export default function AddTransactionScreen() {
           console.log('Base64 data length:', base64Data.length);
           
           if (base64Data.length < 100) {
-            Alert.alert('Chyba', 'Obrázek účtenky je příliš malý nebo prázdný.');
+            Alert.alert(t('error'), t('addTransaction.receiptTooSmall'));
             setScanningReceipt(false);
             return;
           }
@@ -258,29 +269,29 @@ export default function AddTransactionScreen() {
                   errorMsg.includes('network error') ||
                   errorMsg.includes('fetch failed')) {
                 Alert.alert(
-                  'Chyba připojení', 
-                  'Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.\n\nMůžete také nahrát jinou účtenku nebo zadat transakci ručně.'
+                  t('addTransaction.connectionError'), 
+                  t('addTransaction.connectionErrorBody')
                 );
               } else if (errorMsg.includes('timeout')) {
                 Alert.alert(
-                  'Timeout', 
-                  'AI zpracování trvalo příliš dlouho. Zkuste prosím:\n• Menší soubor\n• Jinou účtenku\n• Zadejte transakci ručně'
+                  t('addTransaction.aiTimeout'), 
+                  t('addTransaction.aiTimeoutBody')
                 );
               } else if (errorMsg.includes('not configured') || errorMsg.includes('undefined')) {
                 Alert.alert(
-                  'Služba nedostupná', 
-                  'AI služba pro zpracování účtenek není správně nakonfigurována. Zadejte prosím transakci ručně.'
+                  t('addTransaction.serviceUnavailable'), 
+                  t('addTransaction.serviceUnavailableReceipt')
                 );
               } else {
                 Alert.alert(
-                  'Chyba', 
-                  `Nepodařilo se zpracovat účtenku: ${aiError.message}\n\nZadejte prosím transakci ručně.`
+                  t('error'), 
+                  t('addTransaction.receiptProcessFailed', { message: aiError.message })
                 );
               }
             } else {
               Alert.alert(
-                'Chyba', 
-                'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.'
+                t('error'), 
+                t('addTransaction.receiptProcessFailedGeneric')
               );
             }
             setScanningReceipt(false);
@@ -291,7 +302,7 @@ export default function AddTransactionScreen() {
           console.log('Parsed receipt items:', receiptItems);
           
           if (receiptItems.length === 0) {
-            Alert.alert('Chyba', 'Na účtence nebyly nalezeny žádné položky. Zkuste prosím jinou účtenku nebo zadejte transakci ručně.');
+            Alert.alert(t('error'), t('addTransaction.noReceiptItems'));
             setScanningReceipt(false);
             return;
           }
@@ -299,9 +310,9 @@ export default function AddTransactionScreen() {
           const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
             type: 'expense' as const,
             amount: parseFloat(item.amount) || 0,
-            title: item.title || `Položka ${index + 1}`,
+            title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
             category: item.category || 'Ostatní',
-            date: new Date(),
+            date: toYyyyMmDd(new Date()),
           }));
           
           console.log('Receipt transactions created:', receiptTransactions.length);
@@ -310,11 +321,13 @@ export default function AddTransactionScreen() {
           setScanningReceipt(false);
           
           addPoints(3);
-          showBuddyMessage('Účtenka byla úspěšně zpracována! Zkontrolujte položky a potvrďte.');
+          showBuddyMessage(t('addTransaction.receiptSuccessBuddy'));
           
         } catch (error) {
           console.error('Receipt processing error:', error);
-          Alert.alert('Chyba', 'Nepodařilo se zpracovat účtenku. Zkuste prosím jinou účtenku nebo zadejte transakci ručně. Chyba: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
+          Alert.alert(t('error'), t('addTransaction.receiptProcessError', {
+            error: logAndGetUserFacingError('add-tab', error),
+          }));
           setScanningReceipt(false);
         }
       };
@@ -323,10 +336,10 @@ export default function AddTransactionScreen() {
       
     } catch (error) {
       console.error('Receipt file processing error:', error);
-      Alert.alert('Chyba', 'Nepodařilo se načíst soubor účtenky.');
+      Alert.alert(t('error'), t('addTransaction.receiptLoadFailed'));
       setScanningReceipt(false);
     }
-  }, [addPoints, showBuddyMessage]);
+  }, [addPoints, showBuddyMessage, t]);
 
   const processInvoiceFile = useCallback(async (uri: string) => {
     try {
@@ -341,14 +354,14 @@ export default function AddTransactionScreen() {
         try {
           const result = reader.result as string;
           if (!result) {
-            Alert.alert('Chyba', 'Soubor faktury je prázdný.');
+            Alert.alert(t('error'), t('addTransaction.invoiceEmpty'));
             setScanningInvoice(false);
             return;
           }
           
           const base64Data = result.split(',')[1];
           if (!base64Data) {
-            Alert.alert('Chyba', 'Nepodařilo se převést fakturu.');
+            Alert.alert(t('error'), t('addTransaction.invoiceConvertFailed'));
             setScanningInvoice(false);
             return;
           }
@@ -356,7 +369,7 @@ export default function AddTransactionScreen() {
           console.log('Base64 data length:', base64Data.length);
           
           if (base64Data.length < 100) {
-            Alert.alert('Chyba', 'Obrázek faktury je příliš malý nebo prázdný.');
+            Alert.alert(t('error'), t('addTransaction.invoiceTooSmall'));
             setScanningInvoice(false);
             return;
           }
@@ -417,29 +430,29 @@ export default function AddTransactionScreen() {
                   errorMsg.includes('network error') ||
                   errorMsg.includes('fetch failed')) {
                 Alert.alert(
-                  'Chyba připojení', 
-                  'Nepodařilo se spojit s AI službou. Zkontrolujte připojení k internetu a zkuste to znovu.\n\nMůžete také nahrát jinou fakturu nebo zadat transakci ručně.'
+                  t('addTransaction.connectionError'), 
+                  t('addTransaction.connectionErrorInvoice')
                 );
               } else if (errorMsg.includes('timeout')) {
                 Alert.alert(
-                  'Timeout', 
-                  'AI zpracování trvalo příliš dlouho. Zkuste prosím:\n• Menší soubor\n• Jinou fakturu\n• Zadejte transakci ručně'
+                  t('addTransaction.aiTimeout'), 
+                  t('addTransaction.aiTimeoutInvoice')
                 );
               } else if (errorMsg.includes('not configured') || errorMsg.includes('undefined')) {
                 Alert.alert(
-                  'Služba nedostupná', 
-                  'AI služba pro zpracování faktur není správně nakonfigurována. Zadejte prosím transakci ručně.'
+                  t('addTransaction.serviceUnavailable'), 
+                  t('addTransaction.serviceUnavailableInvoice')
                 );
               } else {
                 Alert.alert(
-                  'Chyba', 
-                  `Nepodařilo se zpracovat fakturu: ${aiError.message}\n\nZadejte prosím transakci ručně.`
+                  t('error'), 
+                  t('addTransaction.invoiceProcessFailed', { message: aiError.message })
                 );
               }
             } else {
               Alert.alert(
-                'Chyba', 
-                'Nepodařilo se zpracovat fakturu. Zkuste prosím jinou fakturu nebo zadejte transakci ručně.'
+                t('error'), 
+                t('addTransaction.invoiceProcessFailedGeneric')
               );
             }
             setScanningInvoice(false);
@@ -450,7 +463,7 @@ export default function AddTransactionScreen() {
           console.log('Parsed invoice items:', invoiceItems);
           
           if (invoiceItems.length === 0) {
-            Alert.alert('Chyba', 'Na faktuře nebyly nalezeny žádné položky. Zkuste prosím jinou fakturu nebo zadejte transakci ručně.');
+            Alert.alert(t('error'), t('addTransaction.noInvoiceItems'));
             setScanningInvoice(false);
             return;
           }
@@ -458,9 +471,9 @@ export default function AddTransactionScreen() {
           const invoiceTransactions: ParsedTxn[] = invoiceItems.map((item: any, index: number) => ({
             type: 'expense' as const,
             amount: parseFloat(item.amount) || 0,
-            title: item.title || `Položka ${index + 1}`,
+            title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
             category: item.category || 'Ostatní',
-            date: new Date(),
+            date: toYyyyMmDd(new Date()),
           }));
           
           console.log('Invoice transactions created:', invoiceTransactions.length);
@@ -469,11 +482,13 @@ export default function AddTransactionScreen() {
           setScanningInvoice(false);
           
           addPoints(3);
-          showBuddyMessage('Faktura byla úspěšně zpracována! Zkontrolujte položky a potvrďte.');
+          showBuddyMessage(t('addTransaction.invoiceSuccessBuddy'));
           
         } catch (error) {
           console.error('Invoice processing error:', error);
-          Alert.alert('Chyba', 'Nepodařilo se zpracovat fakturu. Zkuste prosím jinou fakturu nebo zadejte transakci ručně. Chyba: ' + (error instanceof Error ? error.message : 'Neznámá chyba'));
+          Alert.alert(t('error'), t('addTransaction.invoiceProcessError', {
+            error: logAndGetUserFacingError('add-tab', error),
+          }));
           setScanningInvoice(false);
         }
       };
@@ -482,40 +497,10 @@ export default function AddTransactionScreen() {
       
     } catch (error) {
       console.error('Invoice file processing error:', error);
-      Alert.alert('Chyba', 'Nepodařilo se načíst soubor faktury.');
+      Alert.alert(t('error'), t('addTransaction.invoiceLoadFailed'));
       setScanningInvoice(false);
     }
-  }, [addPoints, showBuddyMessage]);
-
-  const uploadInvoicePDF = useCallback(async () => {
-    try {
-      setScanningInvoice(true);
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
-        multiple: false,
-        copyToCacheDirectory: true,
-      });
-      
-      if (res.canceled) {
-        setScanningInvoice(false);
-        return;
-      }
-      
-      const asset = res.assets?.[0];
-      if (!asset?.uri) {
-        Alert.alert(t('errorMessage'), t('fileLoadError'));
-        setScanningInvoice(false);
-        return;
-      }
-      
-      await processInvoiceFile(asset.uri);
-    } catch (error) {
-      console.error('Invoice upload error:', error);
-      Alert.alert(t('errorMessage'), 'Nepodařilo se nahrát fakturu. Zkuste to prosím znovu.');
-    } finally {
-      setScanningInvoice(false);
-    }
-  }, [t, processInvoiceFile]);
+  }, [addPoints, showBuddyMessage, t]);
 
   const requestCameraPermission = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -634,7 +619,7 @@ export default function AddTransactionScreen() {
 
   const handleCreateCategory = () => {
     if (!newCategoryName.trim()) {
-      Alert.alert(t('errorMessage'), 'Zadejte název kategorie');
+      Alert.alert(t('errorMessage'), t('addTransaction.enterCategoryName'));
       return;
     }
 
@@ -654,7 +639,7 @@ export default function AddTransactionScreen() {
     setNewCategoryColor('#6B7280');
     
     addPoints(2);
-    showBuddyMessage('Nová kategorie byla vytvořena! 🎉');
+    showBuddyMessage(t('addTransaction.categoryCreated'));
   };
 
   const TypeSelector = () => (
@@ -670,7 +655,7 @@ export default function AddTransactionScreen() {
           colors={type === 'income' ? ['#10B981', '#059669'] : ['transparent', 'transparent']}
           style={styles.typeButtonGradient}
         >
-          <TrendingUp color={type === 'income' ? 'white' : '#6B7280'} size={20} />
+          <TrendingUp color={type === 'income' ? 'white' : colors.textSecondary} size={20} />
           <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>
             {t('income')}
           </Text>
@@ -688,7 +673,7 @@ export default function AddTransactionScreen() {
           colors={type === 'expense' ? ['#EF4444', '#DC2626'] : ['transparent', 'transparent']}
           style={styles.typeButtonGradient}
         >
-          <TrendingDown color={type === 'expense' ? 'white' : '#6B7280'} size={20} />
+          <TrendingDown color={type === 'expense' ? 'white' : colors.textSecondary} size={20} />
           <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>
             {t('expense')}
           </Text>
@@ -711,6 +696,7 @@ export default function AddTransactionScreen() {
             accessibilityState={{ selected: isSelected }}
             style={[
               styles.categoryCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
               isSelected && styles.categoryCardSelected,
               isSelected ? { borderColor: category.color } : null,
             ]}
@@ -733,6 +719,7 @@ export default function AddTransactionScreen() {
             <Text
               style={[
                 styles.categoryText,
+                { color: colors.text },
                 isSelected ? { color: category.color, fontWeight: '700' } : null,
               ]}
               numberOfLines={1}
@@ -744,23 +731,23 @@ export default function AddTransactionScreen() {
       })}
       
       <TouchableOpacity
-        style={[styles.categoryCard, styles.addCategoryCard]}
+        style={[styles.categoryCard, styles.addCategoryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
         onPress={() => setCreateCategoryOpen(true)}
       >
-        <View style={[styles.categoryIcon, { backgroundColor: '#F3F4F6' }]}>
-          <Plus color="#6B7280" size={24} />
+        <View style={[styles.categoryIcon, { backgroundColor: colors.muted }]}>
+          <Plus color={colors.textSecondary} size={24} />
         </View>
-        <Text style={[styles.categoryText, { color: '#6B7280' }]}>
-          Nová kategorie
+        <Text style={[styles.categoryText, { color: colors.textSecondary }]}>
+          {t('addTransaction.newCategory')}
         </Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={[colors.gradientStart, colors.gradientEnd]}
         style={styles.header}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -770,6 +757,28 @@ export default function AddTransactionScreen() {
       </LinearGradient>
 
       <View style={styles.content}>
+        <View style={styles.bankImportWrap}>
+          <TouchableOpacity onPress={() => router.push('/bank-import')} activeOpacity={0.92}>
+            <LinearGradient
+              colors={['#0D9488', '#0F766E']}
+              style={styles.bankImportCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.bankImportIconCircle}>
+                <FileSpreadsheet color="white" size={26} />
+              </View>
+              <View style={styles.bankImportTextCol}>
+                <Text style={styles.bankImportTitle}>{t('addTransaction.importStatement')}</Text>
+                <Text style={styles.bankImportSubtitle}>
+                  {t('addTransaction.importStatementSubtitle')}
+                </Text>
+              </View>
+              <ChevronRight color="rgba(255,255,255,0.9)" size={24} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
         <TypeSelector />
 
         <View style={styles.importSection}>
@@ -785,7 +794,7 @@ export default function AddTransactionScreen() {
                 ) : (
                   <>
                     <Camera color="#fff" size={16} />
-                    <Text style={styles.receiptButtonText}>Vyfotit účtenku</Text>
+                    <Text style={styles.receiptButtonText}>{t('photoReceipt')}</Text>
                   </>
                 )}
               </LinearGradient>
@@ -802,7 +811,7 @@ export default function AddTransactionScreen() {
                 ) : (
                   <>
                     <Camera color="#fff" size={16} />
-                    <Text style={styles.receiptButtonText}>Vyfotit fakturu</Text>
+                    <Text style={styles.receiptButtonText}>{t('addTransaction.photoInvoice')}</Text>
                   </>
                 )}
               </LinearGradient>
@@ -812,33 +821,33 @@ export default function AddTransactionScreen() {
         </View>
 
         <View style={styles.inputSection}>
-          <Text style={styles.sectionTitle}>{t('amount')}</Text>
-          <View style={styles.amountInputContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('amount')}</Text>
+          <View style={[styles.amountInputContainer, { backgroundColor: colors.surface }]}>
             <TextInput
-              style={styles.amountInput}
+              style={[styles.amountInput, { color: colors.text }]}
               value={amount}
               onChangeText={setAmount}
               placeholder="0"
               keyboardType="numeric"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textSecondary}
             />
-            <Text style={styles.currency}>Kč</Text>
+            <Text style={[styles.currency, { color: colors.textSecondary }]}>{t('currencySymbol')}</Text>
           </View>
         </View>
 
         <View style={styles.inputSection}>
-          <Text style={styles.sectionTitle}>{t('description')}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('description')}</Text>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
             value={title}
             onChangeText={setTitle}
             placeholder={type === 'income' ? t('exampleSalary') : t('exampleShopping')}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textSecondary}
           />
         </View>
 
         <View style={styles.inputSection}>
-          <Text style={styles.sectionTitle}>{t('category')}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('category')}</Text>
           <CategoryGrid />
         </View>
 
@@ -859,20 +868,20 @@ export default function AddTransactionScreen() {
       <Modal visible={receiptScanOpen} transparent animationType="slide" onRequestClose={() => setReceiptScanOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.receiptScanModal}>
-            <Text style={styles.modalTitle}>Nahrát účtenku</Text>
-            <Text style={styles.modalSubtitle}>Vyberte způsob nahrání účtenky</Text>
+            <Text style={styles.modalTitle}>{t('uploadReceipt')}</Text>
+            <Text style={styles.modalSubtitle}>{t('selectScanMethod')}</Text>
             
             <View style={styles.receiptScanOptions}>
               <TouchableOpacity style={styles.receiptScanOption} onPress={takePictureReceipt}>
                 <Camera color="#f59e0b" size={32} />
-                <Text style={styles.receiptScanOptionTitle}>Vyfotit</Text>
-                <Text style={styles.receiptScanOptionDesc}>Pořídit novou fotku</Text>
+                <Text style={styles.receiptScanOptionTitle}>{t('takePhoto')}</Text>
+                <Text style={styles.receiptScanOptionDesc}>{t('takeNewPhoto')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.receiptScanOption} onPress={selectFromGalleryReceipt}>
                 <FileText color="#f59e0b" size={32} />
-                <Text style={styles.receiptScanOptionTitle}>Z galerie</Text>
-                <Text style={styles.receiptScanOptionDesc}>Vybrat existující foto</Text>
+                <Text style={styles.receiptScanOptionTitle}>{t('selectFromGallery')}</Text>
+                <Text style={styles.receiptScanOptionDesc}>{t('useExistingPhoto')}</Text>
               </TouchableOpacity>
             </View>
             
@@ -889,20 +898,20 @@ export default function AddTransactionScreen() {
       <Modal visible={invoiceScanOpen} transparent animationType="slide" onRequestClose={() => setInvoiceScanOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.receiptScanModal}>
-            <Text style={styles.modalTitle}>Nahrát fakturu</Text>
-            <Text style={styles.modalSubtitle}>Vyberte způsob nahrání faktury</Text>
+            <Text style={styles.modalTitle}>{t('addTransaction.uploadInvoice')}</Text>
+            <Text style={styles.modalSubtitle}>{t('addTransaction.uploadInvoiceSubtitle')}</Text>
             
             <View style={styles.receiptScanOptions}>
               <TouchableOpacity style={styles.receiptScanOption} onPress={takePictureInvoice}>
                 <Camera color="#10b981" size={32} />
-                <Text style={styles.receiptScanOptionTitle}>Vyfotit</Text>
-                <Text style={styles.receiptScanOptionDesc}>Pořídit novou fotku</Text>
+                <Text style={styles.receiptScanOptionTitle}>{t('takePhoto')}</Text>
+                <Text style={styles.receiptScanOptionDesc}>{t('takeNewPhoto')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.receiptScanOption} onPress={selectFromGalleryInvoice}>
                 <FileText color="#8b5cf6" size={32} />
-                <Text style={styles.receiptScanOptionTitle}>Z galerie</Text>
-                <Text style={styles.receiptScanOptionDesc}>Vybrat existující foto</Text>
+                <Text style={styles.receiptScanOptionTitle}>{t('selectFromGallery')}</Text>
+                <Text style={styles.receiptScanOptionDesc}>{t('useExistingPhoto')}</Text>
               </TouchableOpacity>
             </View>
             
@@ -928,31 +937,31 @@ export default function AddTransactionScreen() {
                 <ArrowLeft color="#6B7280" size={24} />
               </TouchableOpacity>
               <View style={styles.modalHeaderTexts}>
-                <Text style={styles.modalTitle}>Náhled importu</Text>
-                <Text style={styles.modalSubtitle}>Počet načtených transakcí: {preview.length}</Text>
+                <Text style={styles.modalTitle}>{t('addTransaction.previewTitle')}</Text>
+                <Text style={styles.modalSubtitle}>{t('addTransaction.previewCount', { count: preview.length })}</Text>
               </View>
             </View>
             <ScrollView style={styles.previewList} contentContainerStyle={{ paddingBottom: 12 }}>
               {preview.slice(0, 50).map((p, idx) => (
                 <View key={`${p.title}-${idx}`} style={styles.previewItem} testID={`preview-item-${idx}`}>
                   <View style={styles.previewHeaderRow}>
-                    <Text style={styles.previewBadge}>{p.type === 'income' ? 'Příjem' : 'Výdaj'}</Text>
+                    <Text style={styles.previewBadge}>{p.type === 'income' ? t('income') : t('expense')}</Text>
                     <Text style={styles.previewAmount}>{p.amount.toLocaleString('cs-CZ')} Kč</Text>
                   </View>
                   <Text style={styles.previewTitle}>{p.title}</Text>
-                  <Text style={styles.previewMeta}>{p.category} • {p.date.toLocaleDateString('cs-CZ')}</Text>
+                  <Text style={styles.previewMeta}>{p.category} • {ymdToLocalDateNoon(transactionDateYmd(p.date)).toLocaleDateString('cs-CZ')}</Text>
                 </View>
               ))}
               {preview.length > 50 ? (
-                <Text style={styles.previewMore}>… a další {preview.length - 50} položek</Text>
+                <Text style={styles.previewMore}>{t('addTransaction.previewMore', { count: preview.length - 50 })}</Text>
               ) : null}
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.modalButton, styles.modalCancel]} onPress={() => setPreviewOpen(false)} testID="cancel-import">
-                <Text style={styles.modalButtonText}>Zrušit</Text>
+                <Text style={styles.modalButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.modalConfirm]} onPress={confirmImport} testID="confirm-import">
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Importovat</Text>
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>{t('addTransaction.importButton')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -962,19 +971,19 @@ export default function AddTransactionScreen() {
       <Modal visible={createCategoryOpen} transparent animationType="slide" onRequestClose={() => setCreateCategoryOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.createCategoryModal}>
-            <Text style={styles.modalTitle}>Vytvořit novou kategorii</Text>
+            <Text style={styles.modalTitle}>{t('addTransaction.createCategory')}</Text>
             
             <View style={styles.createCategoryForm}>
-              <Text style={styles.formLabel}>Název kategorie</Text>
+              <Text style={styles.formLabel}>{t('addTransaction.categoryName')}</Text>
               <TextInput
                 style={styles.categoryNameInput}
                 value={newCategoryName}
                 onChangeText={setNewCategoryName}
-                placeholder="Zadejte název kategorie"
+                placeholder={t('addTransaction.categoryNamePlaceholder')}
                 placeholderTextColor="#9CA3AF"
               />
               
-              <Text style={styles.formLabel}>Ikona</Text>
+              <Text style={styles.formLabel}>{t('addTransaction.icon')}</Text>
               <View style={styles.iconGrid}>
                 {availableIcons.map((icon) => (
                   <TouchableOpacity
@@ -990,7 +999,7 @@ export default function AddTransactionScreen() {
                 ))}
               </View>
               
-              <Text style={styles.formLabel}>Barva</Text>
+              <Text style={styles.formLabel}>{t('addTransaction.color')}</Text>
               <View style={styles.colorGrid}>
                 {availableColors.map((color) => (
                   <TouchableOpacity
@@ -1011,13 +1020,13 @@ export default function AddTransactionScreen() {
                 style={[styles.modalButton, styles.modalCancel]} 
                 onPress={() => setCreateCategoryOpen(false)}
               >
-                <Text style={styles.modalButtonText}>Zrušit</Text>
+                <Text style={styles.modalButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.modalButton, styles.modalConfirm]} 
                 onPress={handleCreateCategory}
               >
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Vytvořit</Text>
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>{t('addTransaction.create')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1051,6 +1060,45 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  bankImportWrap: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  bankImportCard: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bankImportIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  bankImportTextCol: {
+    flex: 1,
+  },
+  bankImportTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'white',
+  },
+  bankImportSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.88)',
+    marginTop: 4,
+    lineHeight: 18,
   },
   importSection: {
     marginTop: 16,
@@ -1103,7 +1151,7 @@ const styles = StyleSheet.create({
   },
   typeSelector: {
     flexDirection: 'row',
-    marginTop: -16,
+    marginTop: 12,
     marginBottom: 32,
     gap: 12,
   },
