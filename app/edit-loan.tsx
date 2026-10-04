@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   Home,
   Car,
   DollarSign,
@@ -19,15 +22,24 @@ import {
   CreditCard,
   Palette,
   Lock,
+  Calendar,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { getLoanTypeLabel } from '@/lib/loan-type-labels';
+import { formatDateCs, fixationEndFromYears, monthlyPaymentAmortizing, monthlyPaymentDiffersOverOnePercent, parseDateDdMmYyyy, resolvePaidMonths, resolveRemainingMonths } from '@/lib/loan-math';
+import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
+import { safeGoBack } from '@/lib/safe-back';
+import { BackButton } from '@/components/BackButton';
+import { AsyncButton } from '@/components/AsyncButton';
+import { useAsyncAction } from '@/hooks/use-async-action';
 
 export default function EditLoanScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const { loans, updateLoan } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { t } = useLanguageStore();
   const currentCurrency = getCurrentCurrency();
 
   const loan = loans.find((l) => l.id === id);
@@ -36,16 +48,21 @@ export default function EditLoanScreen() {
   const [name, setName] = useState<string>('');
   const [loanAmount, setLoanAmount] = useState<string>('');
   const [interestRate, setInterestRate] = useState<string>('');
-  const [monthlyPayment, setMonthlyPayment] = useState<string>('');
-  const [remainingMonths, setRemainingMonths] = useState<string>('');
+  const [termMonths, setTermMonths] = useState<string>('');
+  const [monthlyPaymentManual, setMonthlyPaymentManual] = useState<string>('');
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [fixedEndPickerVisible, setFixedEndPickerVisible] = useState(false);
+  const [dateInputText, setDateInputText] = useState('');
   const [selectedColor, setSelectedColor] = useState<string>('#3B82F6');
   const [selectedEmoji, setSelectedEmoji] = useState<string>('💰');
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isFixed, setIsFixed] = useState<boolean>(false);
   const [fixedYears, setFixedYears] = useState<string>('');
   const [currentBalance, setCurrentBalance] = useState<string>('');
-  const [loanStartDate, setLoanStartDate] = useState<string>('');
   const [fixationStartDate, setFixationStartDate] = useState<string>('');
+  const [fixedEndDate, setFixedEndDate] = useState<Date | null>(null);
+  /** true = uživatel zvolil konkrétní datum (picker); false = z let */
+  const [fixedEndManual, setFixedEndManual] = useState(false);
 
   useEffect(() => {
     if (loan) {
@@ -53,17 +70,142 @@ export default function EditLoanScreen() {
       setName(loan.name || '');
       setLoanAmount(loan.loanAmount.toString());
       setInterestRate(loan.interestRate.toString());
-      setMonthlyPayment(loan.monthlyPayment.toString());
-      setRemainingMonths(loan.remainingMonths.toString());
+      const n = loan.termMonths && loan.termMonths > 0 ? loan.termMonths : loan.remainingMonths;
+      setTermMonths(String(n));
+      const sd = loan.startDate ? new Date(loan.startDate) : new Date();
+      sd.setHours(12, 0, 0, 0);
+      setStartDate(sd);
+      setDateInputText(formatDateCs(sd));
       setSelectedColor(loan.color || '#3B82F6');
-      setSelectedEmoji(loan.emoji || '💰');
-      setIsFixed(loan.isFixed || false);
+      setSelectedEmoji(loan.emoji || (loan.loanType === 'mortgage' ? '🏠' : '💰'));
+      const end = loan.fixedEndDate ? new Date(loan.fixedEndDate) : null;
+      setIsFixed(Boolean(loan.isFixed) || (end != null && !Number.isNaN(end.getTime())));
       setFixedYears(loan.fixedYears?.toString() || '');
-      setCurrentBalance(loan.currentBalance?.toString() || '');
-      setLoanStartDate(loan.startDate ? loan.startDate.toISOString().split('T')[0] : '');
-      setFixationStartDate(loan.fixationStartDate ? loan.fixationStartDate.toISOString().split('T')[0] : '');
+      setCurrentBalance(loan.currentBalance != null ? String(loan.currentBalance) : '');
+      setFixationStartDate(
+        loan.fixationStartDate
+          ? new Date(loan.fixationStartDate).toISOString().split('T')[0]
+          : '',
+      );
+      setFixedEndDate(end && !Number.isNaN(end.getTime()) ? end : null);
+      setFixedEndManual(end != null && !Number.isNaN(end.getTime()));
+      setMonthlyPaymentManual(
+        loan.monthlyPayment != null ? String(loan.monthlyPayment) : '',
+      );
     }
   }, [loan]);
+
+  const computedMonthlyPayment = useMemo(() => {
+    const P = parseMoneyInput(loanAmount);
+    const r = parseDecimalInput(interestRate, 4);
+    const n = parseInt(termMonths, 10);
+    if (P == null || !(P > 0) || r == null || !Number.isFinite(n) || n <= 0) return 0;
+    return monthlyPaymentAmortizing(P, r, n);
+  }, [loanAmount, interestRate, termMonths]);
+
+  const numManualPayment = useMemo(() => {
+    if (!monthlyPaymentManual.trim()) return null;
+    const p = parseMoneyInput(monthlyPaymentManual);
+    return p != null && p > 0 ? p : null;
+  }, [monthlyPaymentManual]);
+
+  const effectiveMonthlyPayment = numManualPayment ?? computedMonthlyPayment;
+
+  const showPaymentMismatchHint = useMemo(
+    () =>
+      numManualPayment != null &&
+      monthlyPaymentDiffersOverOnePercent(numManualPayment, computedMonthlyPayment),
+    [numManualPayment, computedMonthlyPayment],
+  );
+
+  const onDateChange = (_e: unknown, date?: Date) => {
+    if (Platform.OS === 'android') setDatePickerVisible(false);
+    if (date) {
+      const d = new Date(date);
+      d.setHours(12, 0, 0, 0);
+      setStartDate(d);
+      setDateInputText(formatDateCs(d));
+    }
+  };
+
+  const { run: handleSubmit } = useAsyncAction(async () => {
+    if (!loan || !loanAmount || !interestRate || !termMonths) {
+      Alert.alert(t('error'), t('editLoanFillRequired'));
+      return;
+    }
+
+    const numLoanAmount = parseMoneyInput(loanAmount);
+    const numInterestRate = parseDecimalInput(interestRate, 4);
+    const numTermMonths = parseInt(termMonths, 10);
+    const numCurrentBalance = parseMoneyInput(currentBalance);
+
+    if (
+      numLoanAmount == null ||
+      numInterestRate == null ||
+      isNaN(numTermMonths) ||
+      numLoanAmount <= 0 ||
+      numInterestRate < 0 ||
+      numTermMonths <= 0
+    ) {
+      Alert.alert(t('error'), t('editLoanInvalidValues'));
+      return;
+    }
+
+    const M = Math.round(effectiveMonthlyPayment * 100) / 100;
+
+    let resolvedFixedEnd: Date | undefined =
+      fixedEndDate && !Number.isNaN(fixedEndDate.getTime()) ? fixedEndDate : undefined;
+    let parsedFixationStartDate: Date | undefined = undefined;
+    if (fixationStartDate.trim()) {
+      const d = new Date(fixationStartDate);
+      if (!Number.isNaN(d.getTime())) parsedFixationStartDate = d;
+    }
+    const numFixedYears = fixedYears ? parseInt(fixedYears, 10) : NaN;
+    if (
+      Number.isFinite(numFixedYears) &&
+      numFixedYears > 0 &&
+      (!resolvedFixedEnd || !fixedEndManual)
+    ) {
+      const base = parsedFixationStartDate ? new Date(parsedFixationStartDate) : new Date(startDate);
+      resolvedFixedEnd = fixationEndFromYears(base, numFixedYears);
+    }
+    const effectiveIsFixed = Boolean(isFixed || resolvedFixedEnd);
+    if (!effectiveIsFixed) {
+      resolvedFixedEnd = undefined;
+      parsedFixationStartDate = undefined;
+    }
+
+    const paid = resolvePaidMonths({
+      startDate,
+      termMonths: numTermMonths,
+      paymentsMade: loan.paymentsMade,
+    });
+    const remainingMonths = resolveRemainingMonths(numTermMonths, paid);
+
+    const updates = {
+      loanType,
+      name: name.trim() || undefined,
+      loanAmount: numLoanAmount,
+      interestRate: numInterestRate,
+      monthlyPayment: M,
+      termMonths: numTermMonths,
+      remainingMonths,
+      startDate,
+      color: selectedColor,
+      emoji: loanType === 'mortgage' && selectedEmoji === '💰' ? '🏠' : selectedEmoji,
+      isFixed: effectiveIsFixed,
+      fixedYears: effectiveIsFixed && Number.isFinite(numFixedYears) && numFixedYears > 0 ? numFixedYears : undefined,
+      fixedEndDate: effectiveIsFixed ? resolvedFixedEnd : undefined,
+      fixationStartDate: effectiveIsFixed ? parsedFixationStartDate : undefined,
+      currentBalance:
+        numCurrentBalance != null && Number.isFinite(numCurrentBalance)
+          ? numCurrentBalance
+          : undefined,
+    };
+
+    updateLoan(loan.id, updates);
+    safeGoBack();
+  });
 
   if (!loan) {
     return (
@@ -71,25 +213,25 @@ export default function EditLoanScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Závazek nenalezen
+            {t('loanNotFound')}
           </Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack()}
           >
-            <Text style={styles.backButtonText}>Zpět</Text>
+            <Text style={styles.backButtonText}>{t('back')}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const loanTypes: Array<{ type: LoanType; label: string; icon: any; color: string }> = [
-    { type: 'mortgage', label: 'Hypotéka', icon: Home, color: '#10B981' },
-    { type: 'car', label: 'Úvěr na auto', icon: Car, color: '#3B82F6' },
-    { type: 'personal', label: 'Osobní úvěr', icon: DollarSign, color: '#8B5CF6' },
-    { type: 'student', label: 'Studentský úvěr', icon: GraduationCap, color: '#F59E0B' },
-    { type: 'other', label: 'Jiný úvěr', icon: CreditCard, color: '#6B7280' },
+  const loanTypes: { type: LoanType; label: string; icon: any; color: string }[] = [
+    { type: 'mortgage', label: getLoanTypeLabel('mortgage'), icon: Home, color: '#10B981' },
+    { type: 'car', label: getLoanTypeLabel('car'), icon: Car, color: '#3B82F6' },
+    { type: 'personal', label: getLoanTypeLabel('personal'), icon: DollarSign, color: '#8B5CF6' },
+    { type: 'student', label: getLoanTypeLabel('student'), icon: GraduationCap, color: '#F59E0B' },
+    { type: 'other', label: getLoanTypeLabel('other'), icon: CreditCard, color: '#6B7280' },
   ];
 
   const availableColors = [
@@ -102,90 +244,6 @@ export default function EditLoanScreen() {
     '🏡', '🚙', '📚', '🎯', '💎', '🔑', '🏢', '🛒',
   ];
 
-  const handleSubmit = () => {
-    if (isSubmitting) {
-      console.log('Already submitting, ignoring click');
-      return;
-    }
-
-    console.log('Submit clicked', { loanAmount, interestRate, monthlyPayment, remainingMonths, currentBalance });
-    
-    if (!loanAmount || !interestRate || !monthlyPayment || !remainingMonths) {
-      Alert.alert('Chyba', 'Vyplňte prosím všechna povinná pole (výše úvěru, úroková sazba, měsíční splátka, zbývá měsíců)');
-      return;
-    }
-
-    const numLoanAmount = parseFloat(loanAmount.replace(',', '.'));
-    const numInterestRate = parseFloat(interestRate.replace(',', '.'));
-    const numMonthlyPayment = parseFloat(monthlyPayment.replace(',', '.'));
-    const numRemainingMonths = parseInt(remainingMonths, 10);
-    const numCurrentBalance = currentBalance ? parseFloat(currentBalance.replace(',', '.')) : undefined;
-
-    console.log('Parsed values:', { numLoanAmount, numInterestRate, numMonthlyPayment, numRemainingMonths });
-
-    if (
-      isNaN(numLoanAmount) ||
-      isNaN(numInterestRate) ||
-      isNaN(numMonthlyPayment) ||
-      isNaN(numRemainingMonths) ||
-      numLoanAmount <= 0 ||
-      numInterestRate < 0 ||
-      numMonthlyPayment <= 0 ||
-      numRemainingMonths <= 0
-    ) {
-      Alert.alert('Chyba', 'Zadejte prosím platné číselné hodnoty. Výše úvěru, měsíční splátka a zbývající měsíce musí být větší než 0.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    let startDate: Date = loan.startDate;
-    if (loanStartDate) {
-      startDate = new Date(loanStartDate);
-    }
-
-    let fixedEndDate: Date | undefined = loan.fixedEndDate;
-    let parsedFixationStartDate: Date | undefined = loan.fixationStartDate;
-    if (isFixed && fixedYears) {
-      const numFixedYears = parseInt(fixedYears, 10);
-      if (!isNaN(numFixedYears) && numFixedYears > 0) {
-        if (fixationStartDate) {
-          parsedFixationStartDate = new Date(fixationStartDate);
-          fixedEndDate = new Date(parsedFixationStartDate);
-        } else {
-          fixedEndDate = new Date(startDate);
-        }
-        fixedEndDate.setFullYear(fixedEndDate.getFullYear() + numFixedYears);
-      }
-    } else if (!isFixed) {
-      fixedEndDate = undefined;
-      parsedFixationStartDate = undefined;
-    }
-
-    const updates = {
-      loanType,
-      name: name.trim() || undefined,
-      loanAmount: numLoanAmount,
-      interestRate: numInterestRate,
-      monthlyPayment: numMonthlyPayment,
-      remainingMonths: numRemainingMonths,
-      startDate: startDate,
-      color: selectedColor,
-      emoji: selectedEmoji,
-      isFixed: isFixed,
-      fixedYears: isFixed && fixedYears ? parseInt(fixedYears, 10) : undefined,
-      fixedEndDate: fixedEndDate,
-      fixationStartDate: parsedFixationStartDate,
-      currentBalance: numCurrentBalance,
-    };
-
-    console.log('Updating loan:', updates);
-    updateLoan(loan.id, updates);
-    console.log('Loan updated successfully, navigating back');
-
-    router.back();
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -197,15 +255,10 @@ export default function EditLoanScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.headerBackButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.headerBackButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Upravit závazek</Text>
-            <Text style={styles.headerSubtitle}>Změňte informace o závazku</Text>
+            <Text style={styles.headerTitle}>{t('screenEditLoan')}</Text>
+            <Text style={styles.headerSubtitle}>{t('loanDetailSubtitle')}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -214,7 +267,7 @@ export default function EditLoanScreen() {
         <View style={styles.content}>
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Typ závazku
+              {t('editLoanLoanType')}
             </Text>
             <View style={styles.loanTypesGrid}>
               {loanTypes.map((type) => {
@@ -228,7 +281,12 @@ export default function EditLoanScreen() {
                       { backgroundColor: isDarkMode ? '#374151' : 'white' },
                       isSelected && { borderColor: type.color, borderWidth: 2 },
                     ]}
-                    onPress={() => setLoanType(type.type)}
+                    onPress={() => {
+                      setLoanType(type.type);
+                      if (type.type === 'mortgage' && (selectedEmoji === '💰' || !selectedEmoji)) {
+                        setSelectedEmoji('🏠');
+                      }
+                    }}
                   >
                     <View
                       style={[
@@ -266,7 +324,7 @@ export default function EditLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Název závazku (volitelné)
+              {t('editLoanNameOptional')}
             </Text>
             <TextInput
               style={[
@@ -275,14 +333,14 @@ export default function EditLoanScreen() {
               ]}
               value={name}
               onChangeText={setName}
-              placeholder="např. Hypotéka na byt"
+              placeholder={t('editLoanNamePlaceholder')}
               placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
             />
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Celková částka *
+              {t('editLoanTotalAmount')}
             </Text>
             <View style={styles.inputWithCurrency}>
               <TextInput
@@ -294,7 +352,7 @@ export default function EditLoanScreen() {
                 value={loanAmount}
                 onChangeText={setLoanAmount}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
               />
               <Text style={[styles.currencyLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
@@ -305,7 +363,7 @@ export default function EditLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Úroková sazba (% p.a.) *
+              {t('editLoanInterestRate')}
             </Text>
             <View style={styles.inputWithCurrency}>
               <TextInput
@@ -317,7 +375,7 @@ export default function EditLoanScreen() {
                 value={interestRate}
                 onChangeText={setInterestRate}
                 placeholder="0"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
               />
               <Text style={[styles.currencyLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
@@ -328,7 +386,31 @@ export default function EditLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Měsíční splátka *
+              {t('editLoanTermMonths')}
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
+              ]}
+              value={termMonths}
+              onChangeText={setTermMonths}
+              placeholder={t('editLoanTermPlaceholder')}
+              keyboardType="number-pad"
+              placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+            />
+            {computedMonthlyPayment > 0 ? (
+              <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {t('addLoan.monthlyPreview')}{' '}
+                {computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })}{' '}
+                {currentCurrency.symbol}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {t('addLoan.monthlyPayment')}
             </Text>
             <View style={styles.inputWithCurrency}>
               <TextInput
@@ -337,57 +419,130 @@ export default function EditLoanScreen() {
                   styles.inputFlex,
                   { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
                 ]}
-                value={monthlyPayment}
-                onChangeText={setMonthlyPayment}
-                placeholder="0"
-                keyboardType="numeric"
+                value={monthlyPaymentManual}
+                onChangeText={setMonthlyPaymentManual}
+                placeholder={
+                  computedMonthlyPayment > 0
+                    ? computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })
+                    : '0'
+                }
+                keyboardType="decimal-pad"
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
               />
               <Text style={[styles.currencyLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
                 {currentCurrency.symbol}
               </Text>
             </View>
+            {showPaymentMismatchHint ? (
+              <Text style={[styles.helperText, { color: '#D97706' }]}>
+                {t('addLoan.monthlyPaymentMismatchHint')}
+              </Text>
+            ) : (
+              <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {t('addLoan.monthlyPaymentManualHint')}
+              </Text>
+            )}
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Zbývá měsíců *
+              {t('editLoanStartDate')}
             </Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
-              ]}
-              value={remainingMonths}
-              onChangeText={setRemainingMonths}
-              placeholder="0"
-              keyboardType="numeric"
-              placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Datum zahájení úvěru
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
-              ]}
-              value={loanStartDate}
-              onChangeText={setLoanStartDate}
-              placeholder="YYYY-MM-DD (např. 2020-01-15)"
-              placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
-            />
+            {Platform.OS === 'web' ? (
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
+                ]}
+                value={dateInputText}
+                onChangeText={setDateInputText}
+                onBlur={() => {
+                  const d = parseDateDdMmYyyy(dateInputText);
+                  if (d) {
+                    d.setHours(12, 0, 0, 0);
+                    if (+d <= +new Date()) {
+                      setStartDate(d);
+                    } else {
+                      setDateInputText(formatDateCs(startDate));
+                    }
+                  } else {
+                    setDateInputText(formatDateCs(startDate));
+                  }
+                }}
+                placeholder={t('editLoanDateFormat')}
+                placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+              />
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.dateRow,
+                  { backgroundColor: isDarkMode ? '#374151' : 'white', borderColor: isDarkMode ? '#4B5563' : '#E2E8F0' },
+                ]}
+                onPress={() => setDatePickerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Calendar color="#667eea" size={22} />
+                <Text style={[styles.dateRowText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {formatDateCs(startDate)}
+                </Text>
+                <Text style={[styles.dateRowHint, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('editLoanDateFormat')}</Text>
+              </TouchableOpacity>
+            )}
             <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              Kdy jste si půjčili od banky (formát: rok-měsíc-den)
+              {t('editLoanStartDateHint')}
+            </Text>
+          </View>
+
+          {Platform.OS === 'ios' && (
+            <Modal transparent animationType="slide" visible={datePickerVisible}>
+              <View style={styles.modalRoot}>
+                <Pressable style={styles.modalBackdrop} onPress={() => setDatePickerVisible(false)} />
+                <View style={[styles.iosPickerCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+                  <View style={styles.iosPickerHeader}>
+                    <TouchableOpacity onPress={() => setDatePickerVisible(false)}>
+                      <Text style={styles.iosPickerDone}>{t('done')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={startDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
+                    style={{ height: 180 }}
+                  />
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          {Platform.OS === 'android' && datePickerVisible && (
+            <DateTimePicker
+              value={startDate}
+              mode="date"
+              display="default"
+              onChange={onDateChange}
+              maximumDate={new Date()}
+            />
+          )}
+
+          <View style={[styles.section, styles.computedBox, { backgroundColor: isDarkMode ? '#0B1220' : '#EFF6FF' }]}>
+            <Text style={[styles.computedLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              {t('editLoanMonthlyComputed')}
+            </Text>
+            <Text style={[styles.computedValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {computedMonthlyPayment > 0
+                ? `${computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
+                : '—'}
+            </Text>
+            <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280', marginTop: 6 }]}>
+              {t('editLoanAnnuityFormula')}
             </Text>
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Aktuální zůstatek dluhu (volitelné)
+              {t('addLoan.currentBalance')}
             </Text>
             <View style={styles.inputWithCurrency}>
               <TextInput
@@ -398,8 +553,8 @@ export default function EditLoanScreen() {
                 ]}
                 value={currentBalance}
                 onChangeText={setCurrentBalance}
-                placeholder="0"
-                keyboardType="numeric"
+                placeholder={t('addLoan.currentBalancePlaceholder')}
+                keyboardType="decimal-pad"
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
               />
               <Text style={[styles.currencyLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
@@ -407,13 +562,13 @@ export default function EditLoanScreen() {
               </Text>
             </View>
             <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              Kolik aktuálně zbývá splatit (pokud se liší od původní výše)
+              {t('editLoanBalanceHint')}
             </Text>
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Fixace úrokové sazby
+              {t('editLoanRateFixation')}
             </Text>
             <TouchableOpacity
               style={[
@@ -421,7 +576,16 @@ export default function EditLoanScreen() {
                 { backgroundColor: isDarkMode ? '#374151' : 'white' },
                 isFixed && { borderColor: '#667eea', borderWidth: 2 },
               ]}
-              onPress={() => setIsFixed(!isFixed)}
+              onPress={() => {
+                const next = !isFixed;
+                setIsFixed(next);
+                if (!next) {
+                  setFixedEndDate(null);
+                  setFixedYears('');
+                  setFixationStartDate('');
+                  setFixedEndManual(false);
+                }
+              }}
             >
               <View style={styles.fixedToggleContent}>
                 <View style={[
@@ -432,10 +596,10 @@ export default function EditLoanScreen() {
                 </View>
                 <View style={styles.fixedTextContainer}>
                   <Text style={[styles.fixedLabel, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    Fixovaná úroková sazba
+                    {t('editLoanFixedRate')}
                   </Text>
                   <Text style={[styles.fixedDescription, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                    {isFixed ? 'Zapnuto' : 'Vypnuto'}
+                    {isFixed ? t('editLoanOn') : t('editLoanOff')}
                   </Text>
                 </View>
               </View>
@@ -443,7 +607,30 @@ export default function EditLoanScreen() {
             {isFixed && (
               <View style={styles.fixedYearsContainer}>
                 <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Fixace na kolik let?
+                  {t('addLoan.fixationEndDate')}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.dateRow,
+                    {
+                      backgroundColor: isDarkMode ? '#374151' : 'white',
+                      borderColor: isDarkMode ? '#4B5563' : '#E2E8F0',
+                      marginBottom: 12,
+                    },
+                  ]}
+                  onPress={() => {
+                    setIsFixed(true);
+                    setFixedEndPickerVisible(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Calendar color="#667eea" size={22} />
+                  <Text style={[styles.dateRowText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                    {fixedEndDate ? formatDateCs(fixedEndDate) : t('addLoan.selectDate')}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                  {t('editLoanFixedYears')}
                 </Text>
                 <TextInput
                   style={[
@@ -451,17 +638,30 @@ export default function EditLoanScreen() {
                     { backgroundColor: isDarkMode ? '#374151' : 'white', color: isDarkMode ? 'white' : '#1F2937' },
                   ]}
                   value={fixedYears}
-                  onChangeText={setFixedYears}
-                  placeholder="např. 3, 5, 10"
-                  keyboardType="numeric"
+                  onChangeText={(text) => {
+                    setFixedYears(text);
+                    const y = parseInt(text, 10);
+                    if (Number.isFinite(y) && y > 0) {
+                      const base = fixationStartDate.trim()
+                        ? new Date(fixationStartDate)
+                        : new Date(startDate);
+                      if (!Number.isNaN(base.getTime())) {
+                        setFixedEndDate(fixationEndFromYears(base, y));
+                        setFixedEndManual(false);
+                        setIsFixed(true);
+                      }
+                    }
+                  }}
+                  placeholder={t('editLoanFixedYearsPlaceholder')}
+                  keyboardType="number-pad"
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                 />
                 <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                  Zadejte počet let, na které je úroková sazba fixována
+                  {t('editLoanFixedYearsHint')}
                 </Text>
                 
                 <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280', marginTop: 16 }]}>
-                  Datum zahájení fixace
+                  {t('editLoanFixationStart')}
                 </Text>
                 <TextInput
                   style={[
@@ -470,19 +670,66 @@ export default function EditLoanScreen() {
                   ]}
                   value={fixationStartDate}
                   onChangeText={setFixationStartDate}
-                  placeholder="YYYY-MM-DD (např. 2022-06-01)"
+                  placeholder={t('editLoanFixationStartPlaceholder')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                 />
                 <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                  Od kdy je úroková sazba zafixována (formát: rok-měsíc-den)
+                  {t('editLoanFixationStartHint')}
                 </Text>
               </View>
             )}
           </View>
 
+          {Platform.OS === 'android' && fixedEndPickerVisible && (
+            <DateTimePicker
+              value={fixedEndDate ?? startDate}
+              mode="date"
+              display="default"
+              onChange={(_e, date) => {
+                setFixedEndPickerVisible(false);
+                if (date) {
+                  const d = new Date(date);
+                  d.setHours(12, 0, 0, 0);
+                  setFixedEndDate(d);
+                  setFixedEndManual(true);
+                  setIsFixed(true);
+                }
+              }}
+            />
+          )}
+          {Platform.OS === 'ios' && (
+            <Modal transparent animationType="slide" visible={fixedEndPickerVisible}>
+              <View style={styles.modalRoot}>
+                <Pressable style={styles.modalBackdrop} onPress={() => setFixedEndPickerVisible(false)} />
+                <View style={[styles.iosPickerCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+                  <View style={styles.iosPickerHeader}>
+                    <TouchableOpacity onPress={() => setFixedEndPickerVisible(false)}>
+                      <Text style={styles.iosPickerDone}>{t('done')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={fixedEndDate ?? startDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_e, date) => {
+                      if (date) {
+                        const d = new Date(date);
+                        d.setHours(12, 0, 0, 0);
+                        setFixedEndDate(d);
+                        setFixedEndManual(true);
+                        setIsFixed(true);
+                      }
+                    }}
+                    style={{ height: 180 }}
+                  />
+                </View>
+              </View>
+            </Modal>
+          )}
+
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Barva
+              {t('editLoanColor')}
             </Text>
             <View style={styles.colorGrid}>
               {availableColors.map((color) => (
@@ -505,7 +752,7 @@ export default function EditLoanScreen() {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Emoji
+              {t('editLoanEmoji')}
             </Text>
             <View style={styles.emojiGrid}>
               {availableEmojis.map((emoji) => (
@@ -527,22 +774,15 @@ export default function EditLoanScreen() {
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
+          <AsyncButton
+            variant="primary"
+            label={t('save')}
+            loadingLabel={t('editLoanSaving')}
             onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            <LinearGradient
-              colors={isSubmitting ? ['#9CA3AF', '#6B7280'] : ['#667eea', '#764ba2']}
-              style={styles.submitGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.submitText}>
-                {isSubmitting ? 'Ukládám...' : 'Uložit změny'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            style={styles.submitButton}
+            contentStyle={styles.submitGradient}
+            textStyle={styles.submitText}
+          />
         </View>
       </ScrollView>
     </View>
@@ -657,6 +897,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dateRowText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dateRowHint: {
+    fontSize: 12,
+  },
+  computedBox: {
+    borderRadius: 14,
+    padding: 16,
+  },
+  computedLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  computedValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  iosPickerCard: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 24,
+  },
+  iosPickerHeader: {
+    alignItems: 'flex-end',
+    padding: 12,
+  },
+  iosPickerDone: {
+    color: '#2563EB',
+    fontSize: 17,
+    fontWeight: '600',
+  },
   submitButton: {
     marginTop: 16,
     marginBottom: 32,
@@ -669,6 +962,11 @@ const styles = StyleSheet.create({
   submitGradient: {
     paddingVertical: 18,
     alignItems: 'center',
+  },
+  submitInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   submitText: {
     fontSize: 18,

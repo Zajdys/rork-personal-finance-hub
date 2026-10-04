@@ -6,19 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Trophy, Award, Medal, Crown } from 'lucide-react-native';
+import { Trophy, Award, Medal, Crown } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { HallOfFameEntry } from '@/types/gaming';
+import { BackButton } from '@/components/BackButton';
 
 export default function HallOfFameScreen() {
-  const router = useRouter();
   const { gamingStats, getBuddyScore } = useBuddyStore();
   const { isDarkMode } = useSettingsStore();
-  const { language } = useLanguageStore();
+  const { t } = useLanguageStore();
 
   const mockEntries: HallOfFameEntry[] = [
     {
@@ -73,19 +73,6 @@ export default function HallOfFameScreen() {
     }
   };
 
-  const getRankColor = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return ['#F59E0B', '#D97706'];
-      case 2:
-        return ['#9CA3AF', '#6B7280'];
-      case 3:
-        return ['#CD7F32', '#A0522D'];
-      default:
-        return ['#667eea', '#764ba2'];
-    }
-  };
-
   const LeaderboardEntry = ({ entry, isCurrentUser = false }: { entry: HallOfFameEntry; isCurrentUser?: boolean }) => (
     <View
       style={[
@@ -104,13 +91,13 @@ export default function HallOfFameScreen() {
       <View style={styles.entryContent}>
         <Text style={[styles.username, { color: isDarkMode ? 'white' : '#1F2937' }]}>
           {entry.username}
-          {isCurrentUser && ' (Ty)'}
+          {isCurrentUser && ` (${t('supportChat.you')})`}
         </Text>
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs' ? 'Level' : 'Level'}
+              Level
             </Text>
             <Text style={[styles.statValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {entry.level}
@@ -119,7 +106,7 @@ export default function HallOfFameScreen() {
 
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs' ? 'Odznaky' : 'Badges'}
+              {t('screenBadges')}
             </Text>
             <Text style={[styles.statValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {entry.badges}
@@ -128,7 +115,7 @@ export default function HallOfFameScreen() {
 
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs' ? 'Epic' : 'Epic'}
+              {t('badgeFilterEpic')}
             </Text>
             <Text style={[styles.statValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {entry.epicBadges}
@@ -137,7 +124,7 @@ export default function HallOfFameScreen() {
 
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs' ? 'Legacy' : 'Legacy'}
+              {t('badgeTypeLegacy')}
             </Text>
             <Text style={[styles.statValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {entry.legacyBadges}
@@ -162,15 +149,13 @@ export default function HallOfFameScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: language === 'cs' ? 'Síň slávy' : 'Hall of Fame',
+          title: t('screenHallOfFame'),
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : 'white',
           },
           headerTintColor: isDarkMode ? 'white' : '#1F2937',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={24} />
-            </TouchableOpacity>
+            <BackButton color={isDarkMode ? 'white' : '#1F2937'} size={24} style={styles.backButton} />
           ),
         }}
       />
@@ -184,16 +169,16 @@ export default function HallOfFameScreen() {
         >
           <Trophy color="white" size={64} />
           <Text style={styles.headerTitle}>
-            {language === 'cs' ? 'Síň slávy' : 'Hall of Fame'}
+            {t('screenHallOfFame')}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {language === 'cs' ? 'Top 1% hráčů sezóny' : 'Top 1% players of the season'}
+            {t('hallOfFameTopPlayers')}
           </Text>
         </LinearGradient>
 
         <View style={styles.currentUserSection}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Tvoje pozice' : 'Your position'}
+            {t('progress')}
           </Text>
           <LeaderboardEntry
             entry={{
@@ -216,7 +201,7 @@ export default function HallOfFameScreen() {
 
         <View style={styles.leaderboardSection}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Žebříček' : 'Leaderboard'}
+            {t('screenLeaderboard')}
           </Text>
           {mockEntries.map((entry) => (
             <LeaderboardEntry key={entry.userId} entry={entry} />
@@ -226,12 +211,10 @@ export default function HallOfFameScreen() {
         <View style={styles.infoSection}>
           <Award color="#667eea" size={32} />
           <Text style={[styles.infoTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Jak se dostat do Síně slávy?' : 'How to get into Hall of Fame?'}
+            {t('hallOfFameHowTo')}
           </Text>
           <Text style={[styles.infoText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            {language === 'cs'
-              ? 'Získej co nejvíce Buddy Score během sezóny. Top 1% hráčů získá exkluzivní rám avatara a zápis do Síně slávy!'
-              : 'Earn as much Buddy Score as possible during the season. Top 1% players will get an exclusive avatar frame and Hall of Fame entry!'}
+            {t('hallOfFameHowToDesc')}
           </Text>
         </View>
       </ScrollView>

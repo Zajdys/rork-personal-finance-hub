@@ -22,16 +22,21 @@ import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter, Stack } from 'expo-router';
+import { StackHeaderBackButton } from '@/components/BackButton';
 
 export default function GamingStatsScreen() {
   const { gamingStats, getBuddyScore } = useBuddyStore();
   const { isDarkMode } = useSettingsStore();
-  const { language } = useLanguageStore();
+  const { t } = useLanguageStore();
   const router = useRouter();
 
   const buddyScore = getBuddyScore();
   const personalityType = gamingStats.personality.type;
-  const personalityLabel = personalityType === 'analyst' ? '🧊 Analytik' : personalityType === 'motivator' ? '🔥 Motivátor' : '⚖️ Vyvážený';
+  const personalityLabel = personalityType === 'analyst'
+    ? t('gamingPersonalityAnalyst')
+    : personalityType === 'motivator'
+    ? t('gamingPersonalityMotivator')
+    : t('gamingPersonalityBalanced');
 
   const getSeasonIcon = (theme: string) => {
     switch (theme) {
@@ -93,11 +98,14 @@ export default function GamingStatsScreen() {
       <Stack.Screen 
         options={{
           headerShown: true,
-          title: language === 'cs' ? 'Herní statistiky' : 'Gaming Stats',
+          title: t('screenGamingStats'),
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
           },
           headerTintColor: isDarkMode ? '#FFFFFF' : '#1F2937',
+          headerLeft: ({ tintColor }) => (
+            <StackHeaderBackButton tintColor={tintColor ?? (isDarkMode ? '#FFFFFF' : '#1F2937')} />
+          ),
           headerShadowVisible: false,
         }}
       />
@@ -113,22 +121,22 @@ export default function GamingStatsScreen() {
         >
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>
-              {language === 'cs' ? 'Tvoje herní statistiky' : 'Your Gaming Stats'}
+              {t('gamingStatsTitle')}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {language === 'cs' ? 'Sleduj svůj pokrok a úspěchy' : 'Track your progress and achievements'}
+              {t('gamingStatsSubtitle')}
             </Text>
           </View>
         </LinearGradient>
 
         <View style={styles.scoresContainer}>
           <InfoCard
-            title={language === 'cs' ? 'Buddy Score' : 'Buddy Score'}
+            title="Buddy Score"
             value={buddyScore}
             color={['#F59E0B', '#D97706']}
           />
           <InfoCard
-            title={language === 'cs' ? 'Level' : 'Level'}
+            title="Level"
             value={gamingStats.level}
             color={['#8B5CF6', '#7C3AED']}
           />
@@ -136,37 +144,37 @@ export default function GamingStatsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Hlavní statistiky' : 'Main Stats'}
+            {t('gamingMainStats')}
           </Text>
           <View style={styles.statsGrid}>
             <StatCard
               icon={Award}
-              title={language === 'cs' ? 'Odznaky' : 'Badges'}
+              title={t('screenBadges')}
               value={gamingStats.badges.length}
-              subtitle={language === 'cs' ? 'Odemčeno' : 'Unlocked'}
+              subtitle={t('gamingUnlocked')}
               color="#667eea"
               onPress={() => router.push('/badges')}
             />
             <StatCard
               icon={Target}
-              title={language === 'cs' ? 'Questy' : 'Quests'}
+              title={t('screenQuests')}
               value={gamingStats.quests.filter(q => q.completed).length}
-              subtitle={language === 'cs' ? 'Splněno' : 'Completed'}
+              subtitle={t('gamingCompleted')}
               color="#10B981"
               onPress={() => router.push('/quests')}
             />
             <StatCard
               icon={Flame}
-              title={language === 'cs' ? 'Streak' : 'Streak'}
+              title="Streak"
               value={gamingStats.streak}
-              subtitle={language === 'cs' ? 'Dní v řadě' : 'Days in a row'}
+              subtitle={t('gamingDaysInRow')}
               color="#EF4444"
             />
             <StatCard
               icon={Zap}
-              title={language === 'cs' ? 'Kešáky' : 'Coins'}
+              title={t('gamingCoins')}
               value={gamingStats.coins}
-              subtitle={language === 'cs' ? 'Herní měna' : 'Game currency'}
+              subtitle={t('gamingCurrency')}
               color="#8B5CF6"
             />
           </View>
@@ -174,32 +182,32 @@ export default function GamingStatsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Pokročilé statistiky' : 'Advanced Stats'}
+            {t('gamingAdvancedStats')}
           </Text>
           <View style={styles.statsGrid}>
             <StatCard
               icon={TrendingUp}
-              title={language === 'cs' ? 'Celkové XP' : 'Total XP'}
+              title={t('gamingTotalXp')}
               value={gamingStats.xp}
               color="#10B981"
             />
             <StatCard
               icon={Star}
-              title={language === 'cs' ? 'Lifetime XP' : 'Lifetime XP'}
+              title="Lifetime XP"
               value={gamingStats.lifetimeXp}
               color="#F59E0B"
             />
             <StatCard
               icon={Calendar}
-              title={language === 'cs' ? 'Nejdelší streak' : 'Longest Streak'}
+              title={t('gamingLongestStreak')}
               value={gamingStats.longestStreak}
-              subtitle={language === 'cs' ? 'Dní' : 'Days'}
+              subtitle={t('gamingDays')}
               color="#EF4444"
             />
             <StatCard
               icon={Trophy}
-              title={language === 'cs' ? 'Síň slávy' : 'Hall of Fame'}
-              value={language === 'cs' ? 'Zobrazit' : 'View'}
+              title={t('gamingHallOfFame')}
+              value={t('viewAll')}
               color="#F59E0B"
               onPress={() => router.push('/hall-of-fame')}
             />
@@ -208,29 +216,23 @@ export default function GamingStatsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Osobnost' : 'Personality'}
+            {t('gamingPersonalityType')}
           </Text>
           <View style={[styles.personalityCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
             <Flame color="#EF4444" size={32} />
             <View style={styles.personalityContent}>
               <Text style={[styles.personalityLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                {language === 'cs' ? 'Tvůj typ osobnosti' : 'Your personality type'}
+                {t('gamingPersonalityType')}
               </Text>
               <Text style={[styles.personalityValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                 {personalityLabel}
               </Text>
               <Text style={[styles.personalityDescription, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                {personalityType === 'analyst' 
-                  ? language === 'cs' 
-                    ? 'Preferuješ analytické tipy a KPI' 
-                    : 'You prefer analytical tips and KPIs'
+                {personalityType === 'analyst'
+                  ? t('gamingPersonalityAnalystDesc')
                   : personalityType === 'motivator'
-                  ? language === 'cs'
-                    ? 'Preferuješ motivační zprávy a povzbuzení'
-                    : 'You prefer motivational messages and encouragement'
-                  : language === 'cs'
-                  ? 'Máš vyvážený přístup k financím'
-                  : 'You have a balanced approach to finances'
+                  ? t('gamingPersonalityMotivatorDesc')
+                  : t('gamingPersonalityBalancedDesc')
                 }
               </Text>
             </View>
@@ -247,13 +249,13 @@ export default function GamingStatsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Členství' : 'Membership'}
+            {t('gamingMembership')}
           </Text>
           <View style={[styles.membershipCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
             <Calendar color="#667eea" size={24} />
             <View style={styles.membershipContent}>
               <Text style={[styles.membershipLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                {language === 'cs' ? 'Člen od' : 'Member since'}
+                {t('gamingMemberSince')}
               </Text>
               <Text style={[styles.membershipValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                 {new Date(gamingStats.memberSince).toLocaleDateString('cs-CZ')}
@@ -265,7 +267,7 @@ export default function GamingStatsScreen() {
         {gamingStats.currentSeason && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              {language === 'cs' ? 'Aktuální sezóna' : 'Current Season'}
+              {t('gamingCurrentSeason')}
             </Text>
             <View style={[styles.seasonCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <LinearGradient

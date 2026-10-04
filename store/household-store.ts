@@ -1,7 +1,17 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { trpc } from '@/lib/trpc';
-import { useFinanceStore } from './finance-store';
+import { useFinanceStore, isTransferLikeTransaction } from './finance-store';
+import { transactionDateYmd } from '@/lib/transaction-date';
+import {
+  deleteCategoryBudgetRemote,
+  fetchCategoryBudgetsRemote,
+  resolveHouseholdIdForBudgets,
+  upsertCategoryBudgetRemote,
+} from '@/lib/household-category-budgets';
+import { useHouseholdActiveStore } from '@/store/household-active-store';
+import { logAndGetUserFacingError } from '@/lib/user-facing-error';
 import type {
   Household,
   SharedPolicy,
@@ -93,6 +103,8 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   ]);
   const [mockSettlements] = useState<Settlement[]>([]);
   const [mockIsLoading, setMockIsLoading] = useState(false);
+  /** Kategorie rozpočty ze Supabase (household_category_budgets). */
+  const [categoryBudgets, setCategoryBudgets] = useState<Record<string, CategoryBudget>>({});
 
   const householdsQuery = trpc.household.list.useQuery(undefined, {
     enabled: false,
@@ -223,6 +235,19 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
     [createMutation, mockHouseholds]
   );
 
+  const renameHousehold = useCallback(
+    (householdId: string, name: string) => {
+      if (USE_MOCK_MODE) {
+        setMockHouseholds((prev) =>
+          prev.map((h) =>
+            h.id === householdId ? { ...h, name, updatedAt: new Date() } : h,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
   const inviteMember = useCallback(
     async (email: string, role: 'PARTNER' | 'SUMMARY_VIEWER' | 'READ_ONLY' = 'PARTNER'): Promise<void> => {
       if (!selectedHouseholdId) {
@@ -337,28 +362,80 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
 
   const setCategoryBudget = useCallback(
     async (categoryId: string, budget: CategoryBudget): Promise<void> => {
-      if (!selectedHouseholdId) {
-        throw new Error('No household selected');
+      const householdId = await resolveHouseholdIdForBudgets(selectedHouseholdId);
+      if (!householdId) {
+        const msg = 'Žádná domácnost — nelze uložit rozpočet.';
+        Alert.alert('Chyba', msg);
+        throw new Error(msg);
       }
-      
-      if (USE_MOCK_MODE) {
-        setMockIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setMockHouseholds(prev => 
-          prev.map(h => 
-            h.id === selectedHouseholdId 
-              ? { ...h, categoryBudgets: { ...h.categoryBudgets, [categoryId]: budget } }
-              : h
-          )
+
+      const shouldRemove = !budget.enabled || budget.monthlyLimit <= 0;
+
+      try {
+        const { error } = shouldRemove
+          ? await deleteCategoryBudgetRemote(householdId, categoryId)
+          : await upsertCategoryBudgetRemote(householdId, categoryId, budget.monthlyLimit, {
+              currency: budget.currency,
+              notifyAtPercentage: budget.notifyAtPercentage ?? null,
+            });
+        if (error) throw error;
+      } catch (e) {
+        const msg = logAndGetUserFacingError('household-budget-save', e);
+        Alert.alert('Chyba', msg);
+        throw e instanceof Error ? e : new Error(msg);
+      }
+
+      setCategoryBudgets((prev) => {
+        if (shouldRemove) {
+          const next = { ...prev };
+          delete next[categoryId];
+          return next;
+        }
+        return { ...prev, [categoryId]: { ...budget, categoryId } };
+      });
+
+      if (USE_MOCK_MODE && selectedHouseholdId) {
+        setMockHouseholds((prev) =>
+          prev.map((h) => {
+            if (h.id !== selectedHouseholdId) return h;
+            const nextBudgets = { ...h.categoryBudgets };
+            if (shouldRemove) delete nextBudgets[categoryId];
+            else nextBudgets[categoryId] = { ...budget, categoryId };
+            return { ...h, categoryBudgets: nextBudgets };
+          }),
         );
-        setMockIsLoading(false);
-        return;
       }
-      
-      console.log('Setting category budget (backend not implemented)', categoryId, budget);
     },
-    [selectedHouseholdId]
+    [selectedHouseholdId],
   );
+
+  const activeHouseholdId = useHouseholdActiveStore((s) => s.activeHouseholdId);
+
+  const getCategoryBudgets = useCallback(async (): Promise<Record<string, CategoryBudget>> => {
+    const householdId = await resolveHouseholdIdForBudgets(selectedHouseholdId ?? activeHouseholdId);
+    if (!householdId) {
+      setCategoryBudgets({});
+      return {};
+    }
+
+    const { budgets, error } = await fetchCategoryBudgetsRemote(householdId);
+    if (error) {
+      Alert.alert('Chyba', logAndGetUserFacingError('household-budgets', error));
+      return {};
+    }
+
+    setCategoryBudgets(budgets);
+    if (USE_MOCK_MODE && selectedHouseholdId) {
+      setMockHouseholds((prev) =>
+        prev.map((h) => (h.id === selectedHouseholdId ? { ...h, categoryBudgets: budgets } : h)),
+      );
+    }
+    return budgets;
+  }, [selectedHouseholdId, activeHouseholdId]);
+
+  useEffect(() => {
+    void getCategoryBudgets();
+  }, [getCategoryBudgets]);
 
   const shareTransaction = useCallback(
     async (
@@ -435,17 +512,21 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
   );
 
   const currentHousehold = useMemo(() => {
+    let base: Household | null = null;
     if (USE_MOCK_MODE) {
       if (selectedHouseholdId) {
-        return mockHouseholds.find(h => h.id === selectedHouseholdId) || null;
+        base = mockHouseholds.find(h => h.id === selectedHouseholdId) || null;
+      } else {
+        base = mockHouseholds[0] || null;
       }
-      return mockHouseholds[0] || null;
+    } else if (selectedHouseholdId) {
+      base = householdQuery.data || null;
+    } else {
+      base = householdsQuery.data?.[0] || null;
     }
-    if (selectedHouseholdId) {
-      return householdQuery.data || null;
-    }
-    return householdsQuery.data?.[0] || null;
-  }, [selectedHouseholdId, householdQuery.data, householdsQuery.data, mockHouseholds]);
+    if (!base) return null;
+    return { ...base, categoryBudgets };
+  }, [selectedHouseholdId, householdQuery.data, householdsQuery.data, mockHouseholds, categoryBudgets]);
 
   const isInHousehold = useMemo(() => {
     return !!currentHousehold;
@@ -466,7 +547,8 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       policiesQuery.refetch();
       settlementsQuery.refetch();
     }
-  }, [householdsQuery, selectedHouseholdId, householdQuery, dashboardQuery, policiesQuery, settlementsQuery]);
+    void getCategoryBudgets();
+  }, [householdsQuery, selectedHouseholdId, householdQuery, dashboardQuery, policiesQuery, settlementsQuery, getCategoryBudgets]);
 
   const { transactions } = useFinanceStore();
 
@@ -479,14 +561,19 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
     const currentMonth = new Date().toISOString().slice(0, 7);
     
     const manualTransactions = transactions.filter(t => {
-      const txMonth = new Date(t.date).toISOString().slice(0, 7);
-      return txMonth === currentMonth;
+      if (isTransferLikeTransaction(t) || (t as { type?: string }).type === 'transfer') return false;
+      const txDate = transactionDateYmd(t.date);
+      return txDate.startsWith(currentMonth);
     });
 
     const allTransactions = [...manualTransactions];
 
-    const sharedExpenses = allTransactions.filter(t => t.type === 'expense');
-    const sharedIncome = allTransactions.filter(t => t.type === 'income');
+    const sharedExpenses = allTransactions.filter(
+      (t) => t.type === 'expense' && (t as { type?: string }).type !== 'transfer',
+    );
+    const sharedIncome = allTransactions.filter(
+      (t) => t.type === 'income' && (t as { type?: string }).type !== 'transfer',
+    );
 
     const totalSharedExpenses = sharedExpenses.reduce((sum, t) => sum + t.amount, 0);
     const totalSharedIncome = sharedIncome.reduce((sum, t) => sum + t.amount, 0);
@@ -650,11 +737,13 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       selectedHouseholdId,
       setSelectedHouseholdId,
       createHousehold,
+      renameHousehold,
       inviteMember,
       acceptInvitation,
       createPolicy,
       setDefaultSplit,
       setCategoryBudget,
+      getCategoryBudgets,
       shareTransaction,
       createSettlement,
       getVisibilityForTransaction,
@@ -687,11 +776,13 @@ export const [HouseholdProvider, useHousehold] = createContextHook(() => {
       isOwner,
       selectedHouseholdId,
       createHousehold,
+      renameHousehold,
       inviteMember,
       acceptInvitation,
       createPolicy,
       setDefaultSplit,
       setCategoryBudget,
+      getCategoryBudgets,
       shareTransaction,
       createSettlement,
       getVisibilityForTransaction,

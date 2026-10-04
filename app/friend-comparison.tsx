@@ -6,6 +6,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Stack } from 'expo-router';
+import { StackHeaderBackButton } from '@/components/BackButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   TrendingUp,
@@ -22,7 +23,7 @@ import { useBuddyStore } from '@/store/buddy-store';
 
 export default function FriendComparisonScreen() {
   const { isDarkMode } = useSettingsStore();
-  const { language } = useLanguageStore();
+  const { t } = useLanguageStore();
   const { totalIncome, totalExpenses, balance } = useFinanceStore();
   const { level, points, completedLessons } = useBuddyStore();
 
@@ -55,7 +56,7 @@ export default function FriendComparisonScreen() {
         <View style={styles.valuesContainer}>
           <View style={styles.valueColumn}>
             <Text style={[styles.valueLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs' ? 'Ty' : 'You'}
+              {t('supportChat.you')}
             </Text>
             <Text style={[styles.valueText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {myValue.toLocaleString('cs-CZ')}{unit}
@@ -64,7 +65,7 @@ export default function FriendComparisonScreen() {
 
           <View style={styles.valueColumn}>
             <Text style={[styles.valueLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs' ? 'Přítel' : 'Friend'}
+              {t('friendsFriend')}
             </Text>
             <Text style={[styles.valueText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {friendValue.toLocaleString('cs-CZ')}{unit}
@@ -98,11 +99,14 @@ export default function FriendComparisonScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen
         options={{
-          title: language === 'cs' ? 'Porovnání' : 'Comparison',
+          title: t('screenComparison'),
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : 'white',
           },
           headerTintColor: isDarkMode ? 'white' : '#1F2937',
+          headerLeft: ({ tintColor }) => (
+            <StackHeaderBackButton tintColor={tintColor ?? (isDarkMode ? 'white' : '#1F2937')} />
+          ),
         }}
       />
 
@@ -114,7 +118,7 @@ export default function FriendComparisonScreen() {
           end={{ x: 1, y: 1 }}
         >
           <Text style={styles.headerTitle}>
-            {language === 'cs' ? 'Porovnání s přítelem' : 'Compare with Friend'}
+            {t('comparisonWithFriend')}
           </Text>
           <Text style={styles.headerSubtitle}>
             {friendData.name}
@@ -123,11 +127,11 @@ export default function FriendComparisonScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Pokrok v učení' : 'Learning Progress'}
+            {t('comparisonLearningProgress')}
           </Text>
 
           <ComparisonCard
-            title={language === 'cs' ? 'Level' : 'Level'}
+            title="Level"
             myValue={level}
             friendValue={friendData.level}
             icon={Award}
@@ -135,7 +139,7 @@ export default function FriendComparisonScreen() {
           />
 
           <ComparisonCard
-            title={language === 'cs' ? 'Body' : 'Points'}
+            title={t('points')}
             myValue={points}
             friendValue={friendData.points}
             icon={Target}
@@ -143,7 +147,7 @@ export default function FriendComparisonScreen() {
           />
 
           <ComparisonCard
-            title={language === 'cs' ? 'Dokončené lekce' : 'Completed Lessons'}
+            title={t('comparisonCompletedLessons')}
             myValue={completedLessons.length}
             friendValue={friendData.completedLessons}
             icon={Calendar}
@@ -153,11 +157,11 @@ export default function FriendComparisonScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? 'Finanční statistiky' : 'Financial Statistics'}
+            {t('comparisonFinancialStats')}
           </Text>
 
           <ComparisonCard
-            title={language === 'cs' ? 'Celkový příjem' : 'Total Income'}
+            title={t('comparisonTotalIncome')}
             myValue={totalIncome}
             friendValue={friendData.totalIncome}
             icon={TrendingUp}
@@ -166,7 +170,7 @@ export default function FriendComparisonScreen() {
           />
 
           <ComparisonCard
-            title={language === 'cs' ? 'Celkové výdaje' : 'Total Expenses'}
+            title={t('comparisonTotalExpenses')}
             myValue={totalExpenses}
             friendValue={friendData.totalExpenses}
             icon={TrendingDown}
@@ -175,7 +179,7 @@ export default function FriendComparisonScreen() {
           />
 
           <ComparisonCard
-            title={language === 'cs' ? 'Zůstatek' : 'Balance'}
+            title={t('comparisonBalance')}
             myValue={balance}
             friendValue={friendData.balance}
             icon={DollarSign}
@@ -186,12 +190,10 @@ export default function FriendComparisonScreen() {
 
         <View style={[styles.motivationCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
           <Text style={[styles.motivationTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {language === 'cs' ? '💪 Motivace' : '💪 Motivation'}
+            💪 {t('achievements')}
           </Text>
           <Text style={[styles.motivationText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            {language === 'cs'
-              ? 'Skvělá práce! Pokračuj v učení a zlepšování svých finančních návyků.'
-              : 'Great job! Keep learning and improving your financial habits.'}
+            {t('comparisonKeepGoing')}
           </Text>
         </View>
       </ScrollView>

@@ -129,7 +129,7 @@ async function upsertTransactions(portfolioId: string): Promise<{ upserted: numb
 
   const { data, error } = await supabase
     .from('investment_transactions')
-    .upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false })
+    .upsert(rows, { onConflict: 'portfolio_id,external_id', ignoreDuplicates: false })
     .select('id');
 
   if (error) {

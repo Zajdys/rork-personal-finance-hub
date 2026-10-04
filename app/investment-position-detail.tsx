@@ -21,6 +21,7 @@ import { useAuth } from '@/store/auth-store';
 import { useInvestmentStore } from '@/store/investment-store';
 import { CURRENCIES, useSettingsStore, type Currency } from '@/store/settings-store';
 import { appLocale } from '@/lib/app-locale';
+import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
 import {
   AUTO_PAIRED_DEPOSIT_NOTE,
   fetchInvestmentTransactionsRemote,
@@ -58,15 +59,17 @@ function formatMoney(
 function formatQty(units: number | null | undefined, locale: string): string {
   if (units == null || !Number.isFinite(units)) return '—';
   if (!Number.isInteger(units)) {
-    return units.toLocaleString(locale, { maximumFractionDigits: 8 });
+    return units.toLocaleString(locale, {
+      maximumFractionDigits: 8,
+      minimumFractionDigits: 0,
+    });
   }
   return String(units);
 }
 
-function parseOptionalNumber(raw: string | undefined): number | null {
-  if (raw == null || raw === '') return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+function paramStr(raw: string | string[] | undefined): string | undefined {
+  if (raw == null) return undefined;
+  return Array.isArray(raw) ? raw[0] : raw;
 }
 
 function isAutoPairedDeposit(tx: InvestmentTransactionRow): boolean {
@@ -131,24 +134,12 @@ export default function InvestmentPositionDetailScreen() {
   const isinRaw = Array.isArray(params.isin) ? params.isin[0] : params.isin;
   const isin = isinRaw?.trim() || null;
 
-  const heldUnits = parseOptionalNumber(
-    Array.isArray(params.heldUnits) ? params.heldUnits[0] : params.heldUnits,
-  );
-  const invested = parseOptionalNumber(
-    Array.isArray(params.invested) ? params.invested[0] : params.invested,
-  );
-  const currentPrice = parseOptionalNumber(
-    Array.isArray(params.currentPrice) ? params.currentPrice[0] : params.currentPrice,
-  );
-  const currentValue = parseOptionalNumber(
-    Array.isArray(params.currentValue) ? params.currentValue[0] : params.currentValue,
-  );
-  const unrealizedPnl = parseOptionalNumber(
-    Array.isArray(params.unrealizedPnl) ? params.unrealizedPnl[0] : params.unrealizedPnl,
-  );
-  const unrealizedPnlPct = parseOptionalNumber(
-    Array.isArray(params.unrealizedPnlPct) ? params.unrealizedPnlPct[0] : params.unrealizedPnlPct,
-  );
+  const heldUnits = parseDecimalInput(paramStr(params.heldUnits), 8);
+  const invested = parseMoneyInput(paramStr(params.invested));
+  const currentPrice = parseDecimalInput(paramStr(params.currentPrice), 6);
+  const currentValue = parseMoneyInput(paramStr(params.currentValue));
+  const unrealizedPnl = parseMoneyInput(paramStr(params.unrealizedPnl));
+  const unrealizedPnlPct = parseDecimalInput(paramStr(params.unrealizedPnlPct), 4);
 
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
@@ -262,7 +253,10 @@ export default function InvestmentPositionDetailScreen() {
   const qtyLabel =
     heldUnits != null
       ? !Number.isInteger(heldUnits)
-        ? heldUnits.toLocaleString(numberLocale, { maximumFractionDigits: 4 })
+        ? heldUnits.toLocaleString(numberLocale, {
+            maximumFractionDigits: 8,
+            minimumFractionDigits: 0,
+          })
         : String(heldUnits)
       : '—';
 
@@ -324,7 +318,9 @@ export default function InvestmentPositionDetailScreen() {
                 {t('investPositionCurrentPrice')}
               </Text>
               <Text style={[styles.metaValue, { color: colors.text }]}>
-                {formatMoney(currentPrice, displayCurrency, numberLocale)}
+                {currentPrice != null
+                  ? formatMoney(currentPrice, displayCurrency, numberLocale)
+                  : t('investPriceUnavailable')}
               </Text>
             </View>
             <View style={styles.headerCell}>
@@ -332,7 +328,9 @@ export default function InvestmentPositionDetailScreen() {
                 {t('investPositionValue')}
               </Text>
               <Text style={[styles.metaValue, { color: colors.text }]}>
-                {formatMoney(currentValue, displayCurrency, numberLocale)}
+                {currentValue != null
+                  ? formatMoney(currentValue, displayCurrency, numberLocale)
+                  : t('investPriceUnavailable')}
               </Text>
             </View>
           </View>
@@ -344,7 +342,7 @@ export default function InvestmentPositionDetailScreen() {
             <Text style={[styles.pnlValue, { color: pnlColor }]}>
               {unrealizedPnl != null
                 ? `${unrealizedPnl >= 0 ? '+' : ''}${formatMoney(unrealizedPnl, displayCurrency, numberLocale)}`
-                : '—'}
+                : t('investPriceUnavailable')}
               {unrealizedPnlPct != null
                 ? ` (${unrealizedPnlPct >= 0 ? '+' : ''}${unrealizedPnlPct.toLocaleString(numberLocale, {
                     minimumFractionDigits: 1,

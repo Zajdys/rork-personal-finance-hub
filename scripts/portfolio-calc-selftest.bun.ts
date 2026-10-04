@@ -29,6 +29,7 @@ const parsed = parseEtoroTransactionsXlsx(buf.buffer.slice(buf.byteOffset, buf.b
 const result = await calculatePortfolioFromTransactions(parsed.transactions, {
   displayCurrency: 'USD',
   accountCurrency: 'USD',
+  forceAmountCurrency: 'USD',
 });
 
 const { summary, positions } = result;

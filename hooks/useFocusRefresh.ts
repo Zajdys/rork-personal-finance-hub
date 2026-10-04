@@ -73,7 +73,8 @@ export function useFocusRefresh(
         await onRefreshRef.current(opts);
         lastSuccessAtRef.current = Date.now();
       } catch (e) {
-        throw e;
+        // Nepropouštět síťové chyby jako unhandled rejection / red box.
+        console.warn('[useFocusRefresh] onRefresh failed', e);
       }
     },
     [minIntervalMs],

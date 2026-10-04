@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,10 +26,26 @@ import {
   CheckCircle,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { pluralUver } from '@/lib/plural-cs';
 import { useAuth } from '@/store/auth-store';
 import { useRouter } from 'expo-router';
 import { useFinanceStore } from '@/store/finance-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  buildBudgetGoalsFromOnboarding,
+  insertLoanRecurringExpenses,
+  isLikelyNetworkError,
+  parseDecimalInput,
+  parseMoneyInput,
+  persistOnboardingUserRow,
+  savePendingOnboardingProfileSync,
+  type LoanPersist,
+  type OnboardingUserRowPayload,
+} from '@/lib/onboarding-completion';
+import { hasAppLockPin, setAppLockEnabled, setAppLockPin } from '@/lib/app-lock-storage';
+import { PinSetupFlow } from '@/components/PinSetupFlow';
+import { BiometricOptIn, resolveBiometricLabel } from '@/components/BiometricOptIn';
 
 type EmploymentStatus = 'employed' | 'selfEmployed' | 'student' | 'unemployed' | 'retired';
 type IncomeRange = 'under20k' | '20k-40k' | '40k-60k' | '60k-100k' | 'over100k';
@@ -69,6 +87,8 @@ interface OnboardingData {
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<number>(1);
+  /** null = checking SecureStore; pin/bio = mandatory security before questions */
+  const [securityPhase, setSecurityPhase] = useState<'loading' | 'pin' | 'bio' | 'done'>('loading');
   const [data, setData] = useState<OnboardingData>({
     employmentStatus: null,
     monthlyIncome: null,
@@ -89,46 +109,92 @@ export default function OnboardingScreen() {
   });
 
   const { isDarkMode, setCurrency } = useSettingsStore();
+  const { t, language } = useLanguageStore();
   const { user, setUser } = useAuth();
-  const { addLoan: addLoanToStore } = useFinanceStore();
+  const { addLoan: addLoanToStore, addFinancialGoal } = useFinanceStore();
   const router = useRouter();
 
   const totalSteps = 7;
 
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      setSecurityPhase('done');
+      return;
+    }
+    void (async () => {
+      const hasPin = await hasAppLockPin();
+      setSecurityPhase(hasPin ? 'done' : 'pin');
+    })();
+  }, []);
+
+  const finishSecurity = useCallback(() => {
+    setSecurityPhase('done');
+  }, []);
+
+  const handlePinComplete = useCallback(
+    async (pin: string) => {
+      await setAppLockPin(pin);
+      await setAppLockEnabled(true);
+      const bio = await resolveBiometricLabel(language);
+      if (bio.available) {
+        setSecurityPhase('bio');
+      } else {
+        finishSecurity();
+      }
+    },
+    [language, finishSecurity],
+  );
+
+  if (securityPhase === 'loading') {
+    return (
+      <View style={[styles.container, styles.securityLoading, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
+    );
+  }
+
+  if (securityPhase === 'pin') {
+    return <PinSetupFlow onComplete={(pin) => void handlePinComplete(pin)} />;
+  }
+
+  if (securityPhase === 'bio') {
+    return <BiometricOptIn onDone={finishSecurity} />;
+  }
+
   const handleNext = () => {
     if (step === 1 && !data.employmentStatus) {
-      Alert.alert('Chyba', 'Prosím vyberte váš pracovní status');
+      Alert.alert(t('error'), t('onboardingSelectWorkStatus'));
       return;
     }
     if (step === 2 && !data.monthlyIncome) {
-      Alert.alert('Chyba', 'Prosím vyberte váš příjmový rozsah');
+      Alert.alert(t('error'), t('onboardingSelectIncome'));
       return;
     }
     if (step === 3 && data.financialGoals.length === 0) {
-      Alert.alert('Chyba', 'Prosím vyberte alespoň jeden finanční cíl');
+      Alert.alert(t('error'), t('onboardingSelectGoals'));
       return;
     }
     if (step === 4 && !data.experienceLevel) {
-      Alert.alert('Chyba', 'Prosím vyberte vaši úroveň zkušeností');
+      Alert.alert(t('error'), t('onboardingSelectExperience'));
       return;
     }
     if (step === 5 && data.loanData.hasLoan) {
       if (data.loanData.loans.length === 0) {
-        Alert.alert('Chyba', 'Prosím přidejte alespoň jeden úvěr nebo hypotéku');
+        Alert.alert(t('error'), t('onboardingAddLoan'));
         return;
       }
       const incompleteLoan = data.loanData.loans.find(
         loan => !loan.loanAmount || !loan.interestRate || !loan.monthlyPayment || !loan.remainingMonths
       );
       if (incompleteLoan) {
-        Alert.alert('Chyba', 'Prosím vyplňte všechny údaje u všech úvěrů');
+        Alert.alert(t('error'), t('onboardingFillLoans'));
         return;
       }
     }
     if (step === 6) {
       const { housing, food, transportation } = data.budgetBreakdown;
       if (!housing || !food || !transportation) {
-        Alert.alert('Chyba', 'Prosím vyplňte alespoň základní kategorie rozpočtu (bydlení, jídlo, doprava)');
+        Alert.alert(t('error'), t('onboardingFillBudget'));
         return;
       }
     }
@@ -150,199 +216,194 @@ export default function OnboardingScreen() {
     try {
       console.log('Starting onboarding completion...');
 
-      const onboardingProfile = {
-        ...data,
-        completedAt: new Date().toISOString(),
-        userId: user?.id,
-      };
-
-      console.log('Saving onboarding profile to AsyncStorage...');
-      await AsyncStorage.setItem('onboarding_completed', 'true');
-      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
-      console.log('Onboarding profile saved');
+      if (!user?.id || !user.email) {
+        Alert.alert(t('error'), t('onboardingNotSignedIn'));
+        return;
+      }
 
       const suggestedCurrency = 'CZK' as const;
-      console.log('Setting currency to:', suggestedCurrency);
       setCurrency(suggestedCurrency);
 
       const employmentStatusLabels: Record<EmploymentStatus, string> = {
-        employed: 'Zaměstnanec',
-        selfEmployed: 'OSVČ / Podnikatel',
-        student: 'Student',
-        unemployed: 'Nezaměstnaný',
-        retired: 'Důchodce',
+        employed: t('onboardingEmployed'),
+        selfEmployed: t('onboardingSelfEmployed'),
+        student: t('onboardingStudent'),
+        unemployed: t('onboardingUnemployed'),
+        retired: t('onboardingRetired'),
       };
 
       const incomeLabels: Record<IncomeRange, string> = {
-        under20k: 'Méně než 20 000 Kč',
-        '20k-40k': '20 000 - 40 000 Kč',
-        '40k-60k': '40 000 - 60 000 Kč',
-        '60k-100k': '60 000 - 100 000 Kč',
-        over100k: 'Více než 100 000 Kč',
+        under20k: t('onboardingIncomeUnder20k'),
+        '20k-40k': t('onboardingIncome20to40k'),
+        '40k-60k': t('onboardingIncome40to60k'),
+        '60k-100k': t('onboardingIncome60to100k'),
+        over100k: t('onboardingIncomeOver100k'),
       };
 
       const experienceLabels: Record<ExperienceLevel, string> = {
-        beginner: 'Začátečník',
-        intermediate: 'Pokročilý',
-        advanced: 'Expert',
+        beginner: t('onboardingBeginner'),
+        intermediate: t('onboardingIntermediate'),
+        advanced: t('onboardingAdvanced'),
       };
 
       const goalLabels: Record<FinancialGoal, string> = {
-        savings: 'Spořit peníze',
-        investment: 'Investovat',
-        debt: 'Splatit dluhy',
-        house: 'Koupit nemovitost',
-        car: 'Koupit auto',
-        education: 'Koupit auto',
-        retirement: 'Spořit peníze',
+        savings: t('onboardingGoalSavings'),
+        investment: t('onboardingGoalInvest'),
+        debt: t('onboardingGoalDebt'),
+        house: t('onboardingGoalSavings'),
+        car: t('onboardingGoalSavings'),
+        education: t('onboardingGoalEducation'),
+        retirement: t('onboardingGoalRetirement'),
       };
 
       const loanTypeLabels: Record<Loan['loanType'], string> = {
-        mortgage: 'Hypotéka',
-        car: 'Auto',
-        personal: 'Osobní',
-        student: 'Studium',
-        other: 'Osobní',
+        mortgage: t('loanTypeMortgage'),
+        car: t('loanTypeCar'),
+        personal: t('onboardingLoanPersonal'),
+        student: t('loanTypeStudent'),
+        other: t('onboardingLoanOther'),
       };
+
+      if (!data.employmentStatus || !data.monthlyIncome || !data.experienceLevel) {
+        Alert.alert(t('error'), t('onboardingMissingData'));
+        return;
+      }
+
+      const loanDetails: LoanPersist[] | null =
+        data.loanData.hasLoan && data.loanData.loans.length > 0
+          ? data.loanData.loans.map((l) => ({
+              loanType: l.loanType,
+              loanAmount: parseMoneyInput(l.loanAmount) ?? 0,
+              interestRate: parseDecimalInput(l.interestRate, 4) ?? 0,
+              monthlyPayment: parseMoneyInput(l.monthlyPayment) ?? 0,
+              remainingMonths: Number.parseInt(String(l.remainingMonths ?? '0'), 10) || 0,
+            }))
+          : null;
+
+      const profilePayload: OnboardingUserRowPayload = {
+        userId: user.id,
+        email: user.email,
+        displayName: user.name || user.email,
+        employmentStatus: data.employmentStatus,
+        monthlyIncome: data.monthlyIncome,
+        financialGoals: data.financialGoals.slice(),
+        experienceLevel: data.experienceLevel,
+        hasLoans: Boolean(data.loanData.hasLoan),
+        loanDetails,
+        monthlyBudget: { ...data.budgetBreakdown },
+      };
+
+      const { error: saveErr } = await persistOnboardingUserRow(profilePayload);
+
+      if (saveErr) {
+        if (isLikelyNetworkError(saveErr)) {
+          console.warn('[onboarding] Supabase save offline; queueing profile for sync', saveErr.message);
+          await savePendingOnboardingProfileSync(profilePayload);
+        } else {
+          console.error('[onboarding] Supabase save', saveErr);
+          Alert.alert(t('error'), saveErr.message || t('onboardingSaveFailed'));
+          return;
+        }
+      }
+
+      const budgetGoals = buildBudgetGoalsFromOnboarding(user.id, data.budgetBreakdown);
+      budgetGoals.forEach((g) => addFinancialGoal(g));
+
+      if (data.loanData.hasLoan && data.loanData.loans.length > 0) {
+        const { error: loanErr } = await insertLoanRecurringExpenses({
+          userId: user.id,
+          loans: data.loanData.loans.map((l) => ({
+            loanType: l.loanType,
+            monthlyPayment: l.monthlyPayment,
+            displayName: t('onboardingPaymentLabel', { type: loanTypeLabels[l.loanType] ?? l.loanType }),
+          })),
+        });
+        if (loanErr) {
+          Alert.alert(t('error'), loanErr.message);
+        }
+
+        data.loanData.loans.forEach((loan, index) => {
+          const loanItem = {
+            id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+            loanType: loan.loanType,
+            loanAmount: parseMoneyInput(loan.loanAmount) ?? 0,
+            interestRate: parseDecimalInput(loan.interestRate, 4) ?? 0,
+            monthlyPayment: parseMoneyInput(loan.monthlyPayment) ?? 0,
+            remainingMonths: Number.parseInt(String(loan.remainingMonths ?? '0'), 10) || 0,
+            startDate: new Date(),
+            name: getLoanTypeLabel(loan.loanType, t),
+            currentBalance: parseMoneyInput(loan.loanAmount) ?? 0,
+          };
+          addLoanToStore(loanItem);
+        });
+      }
+
+      setUser({
+        ...user,
+        onboardingCompleted: true,
+        welcomeTourCompleted: false,
+      });
+
+      const onboardingProfile = {
+        ...data,
+        completedAt: new Date().toISOString(),
+        userId: user.id,
+      };
+      await AsyncStorage.setItem('onboarding_completed', 'true');
+      await AsyncStorage.setItem('onboarding_profile', JSON.stringify(onboardingProfile));
 
       const apiBaseUrlRaw =
         (process.env.EXPO_PUBLIC_RORK_API_BASE_URL ?? process.env.EXPO_PUBLIC_API_URL) ||
         (typeof window !== 'undefined' ? window.location.origin : '');
       const apiBaseUrl = String(apiBaseUrlRaw).replace(/\/$/, '');
       const onboardingUrl = `${apiBaseUrl}/api/onboarding/submit`;
-
       const token = (await AsyncStorage.getItem('authToken')) ?? '';
-
-      console.log('[onboarding] submit prepare', {
-        hasUser: Boolean(user?.email),
-        hasToken: Boolean(token),
-        apiBaseUrl,
-        onboardingUrl,
-      });
-
-      const userEmail = user?.email ?? '';
-
-      if (!token && !userEmail) {
-        Alert.alert('Chyba', 'Nejste přihlášený. Přihlaste se prosím znovu a zkuste to.');
-        return;
-      }
-
-      if (!data.employmentStatus || !data.monthlyIncome || !data.experienceLevel) {
-        Alert.alert('Chyba', 'Chybí povinné údaje pro onboarding.');
-        return;
-      }
-
       const payload = {
-        email: userEmail,
+        email: user.email,
         workStatus: employmentStatusLabels[data.employmentStatus],
         monthlyIncomeRange: incomeLabels[data.monthlyIncome],
         financeExperience: experienceLabels[data.experienceLevel],
         financialGoals: data.financialGoals.map((g) => goalLabels[g]).filter(Boolean),
         hasLoan: Boolean(data.loanData.hasLoan),
-        budgetHousing: Number.parseFloat(String(data.budgetBreakdown?.housing ?? '')) || 0,
-        budgetFood: Number.parseFloat(String(data.budgetBreakdown?.food ?? '')) || 0,
-        budgetTransport: Number.parseFloat(String(data.budgetBreakdown?.transportation ?? '')) || 0,
-        budgetFun: Number.parseFloat(String(data.budgetBreakdown?.entertainment ?? '')) || 0,
-        budgetSavings: Number.parseFloat(String(data.budgetBreakdown?.savings ?? '')) || 0,
+        budgetHousing: parseMoneyInput(String(data.budgetBreakdown?.housing ?? '')) ?? 0,
+        budgetFood: parseMoneyInput(String(data.budgetBreakdown?.food ?? '')) ?? 0,
+        budgetTransport: parseMoneyInput(String(data.budgetBreakdown?.transportation ?? '')) ?? 0,
+        budgetFun: parseMoneyInput(String(data.budgetBreakdown?.entertainment ?? '')) ?? 0,
+        budgetSavings: parseMoneyInput(String(data.budgetBreakdown?.savings ?? '')) ?? 0,
         loans: (data.loanData.loans ?? []).map((l) => ({
           loanType: loanTypeLabels[l.loanType] ?? String(l.loanType),
-          loanAmount: Number.parseFloat(String(l.loanAmount ?? '0')) || 0,
-          interestRate: Number.parseFloat(String(l.interestRate ?? '0')) || 0,
-          monthlyPayment: Number.parseFloat(String(l.monthlyPayment ?? '0')) || 0,
+          loanAmount: parseMoneyInput(String(l.loanAmount ?? '0')) ?? 0,
+          interestRate: parseDecimalInput(String(l.interestRate ?? '0'), 4) ?? 0,
+          monthlyPayment: parseMoneyInput(String(l.monthlyPayment ?? '0')) ?? 0,
           remainingMonths: Number.parseInt(String(l.remainingMonths ?? '0'), 10) || 0,
         })),
       } as const;
 
-      console.log('[onboarding] submitting to backend', {
-        onboardingUrl,
-        payloadPreview: {
-          workStatus: payload.workStatus,
-          monthlyIncomeRange: payload.monthlyIncomeRange,
-          financeExperience: payload.financeExperience,
-          financialGoalsCount: payload.financialGoals.length,
-          hasLoan: payload.hasLoan,
-          loansCount: payload.loans.length,
-          budgets: {
-            budgetHousing: payload.budgetHousing,
-            budgetFood: payload.budgetFood,
-            budgetTransport: payload.budgetTransport,
-            budgetFun: payload.budgetFun,
-            budgetSavings: payload.budgetSavings,
-          },
-        },
-      });
-
-      const resp = await fetch(onboardingUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const respJson = (await resp.json().catch(() => null)) as any;
-      console.log('[onboarding] backend response', { status: resp.status, respJson });
-
-      if (!resp.ok) {
-        const errorMsg = typeof respJson?.error === 'string' ? respJson.error : `Chyba serveru: ${resp.status}`;
-        const details = typeof respJson?.details === 'string' ? respJson.details : '';
-        console.error('[onboarding] Backend error:', { status: resp.status, errorMsg, details, respJson });
-        Alert.alert(
-          'Chyba',
-          details ? `${errorMsg}\n\n${details}` : errorMsg
-        );
-        return;
-      }
-
-      if (data.employmentStatus) {
-        console.log('Updating user with onboarding data:', data.employmentStatus);
-
-        if (user && setUser) {
-          const updatedUser = {
-            ...user,
-            name: employmentStatusLabels[data.employmentStatus] || user.name,
-            employmentStatus: data.employmentStatus,
-            monthlyIncome: data.monthlyIncome,
-            financialGoals: data.financialGoals,
-            experienceLevel: data.experienceLevel,
-          };
-          setUser(updatedUser);
-          console.log('User updated:', updatedUser);
+      try {
+        if (token || user.email) {
+          const resp = await fetch(onboardingUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+          if (!resp.ok) {
+            console.warn('[onboarding] optional backend submit failed', resp.status);
+          }
         }
+      } catch (e) {
+        console.warn('[onboarding] optional backend submit', e);
       }
 
-      if (data.loanData.hasLoan && data.loanData.loans.length > 0) {
-        console.log('Adding loans to store:', data.loanData.loans.length);
-        data.loanData.loans.forEach((loan, index) => {
-          const loanItem = {
-            id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
-            loanType: loan.loanType,
-            loanAmount: parseFloat(loan.loanAmount),
-            interestRate: parseFloat(loan.interestRate),
-            monthlyPayment: parseFloat(loan.monthlyPayment),
-            remainingMonths: parseInt(loan.remainingMonths, 10),
-            startDate: new Date(),
-            name: getLoanTypeLabel(loan.loanType),
-            currentBalance: parseFloat(loan.loanAmount),
-          };
-          console.log('Adding loan:', loanItem);
-          addLoanToStore(loanItem);
-        });
-        console.log('All loans added');
-      }
-
-      console.log('Onboarding completed successfully!');
-      console.log('Navigating to home screen...');
-
-      router.replace('/');
-
+      // Navigaci na welcome-tour řídí root _layout gate po aktualizaci user stavu.
       setTimeout(() => {
-        Alert.alert('Hotovo! 🎉', 'Vaše odpovědi byly uložené.', [{ text: 'OK' }]);
+        Alert.alert(t('onboardingDoneTitle'), t('onboardingDoneMessage'), [{ text: t('confirm') }]);
       }, 500);
     } catch (error) {
       console.error('Failed to save onboarding data:', error);
-      Alert.alert('Chyba', 'Nepodařilo se uložit data. Zkuste to prosím znovu.');
+      Alert.alert(t('error'), t('onboardingSaveError'));
     }
   };
 
@@ -401,44 +462,44 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Jaký je váš pracovní status?
+              Jaký je tvůj pracovní status?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Pomůže nám to lépe nastavit vaše finanční plány
+              Pomůže nám to lépe nastavit tvoje finanční plány
             </Text>
 
             <View style={styles.optionsContainer}>
               <OptionCard
                 icon={Briefcase}
-                title="Zaměstnanec"
+                title={t('onboardingEmployed')}
                 selected={data.employmentStatus === 'employed'}
                 onPress={() => setData({ ...data, employmentStatus: 'employed' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={TrendingUp}
-                title="OSVČ / Podnikatel"
+                title={t('onboardingSelfEmployed')}
                 selected={data.employmentStatus === 'selfEmployed'}
                 onPress={() => setData({ ...data, employmentStatus: 'selfEmployed' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={GraduationCap}
-                title="Student"
+                title={t('onboardingStudent')}
                 selected={data.employmentStatus === 'student'}
                 onPress={() => setData({ ...data, employmentStatus: 'student' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={Home}
-                title="Nezaměstnaný"
+                title={t('onboardingUnemployed')}
                 selected={data.employmentStatus === 'unemployed'}
                 onPress={() => setData({ ...data, employmentStatus: 'unemployed' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={Heart}
-                title="Důchodce"
+                title={t('onboardingRetired')}
                 selected={data.employmentStatus === 'retired'}
                 onPress={() => setData({ ...data, employmentStatus: 'retired' })}
                 isDarkMode={isDarkMode}
@@ -451,7 +512,7 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Jaký je váš měsíční příjem?
+              Jaký je tvůj měsíční příjem?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
               Přibližná částka nám pomůže nastavit realistické cíle
@@ -460,35 +521,35 @@ export default function OnboardingScreen() {
             <View style={styles.optionsContainer}>
               <OptionCard
                 icon={DollarSign}
-                title="Méně než 20 000 Kč"
+                title={t('onboardingIncomeUnder20k')}
                 selected={data.monthlyIncome === 'under20k'}
                 onPress={() => setData({ ...data, monthlyIncome: 'under20k' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={DollarSign}
-                title="20 000 - 40 000 Kč"
+                title={t('onboardingIncome20to40k')}
                 selected={data.monthlyIncome === '20k-40k'}
                 onPress={() => setData({ ...data, monthlyIncome: '20k-40k' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={DollarSign}
-                title="40 000 - 60 000 Kč"
+                title={t('onboardingIncome40to60k')}
                 selected={data.monthlyIncome === '40k-60k'}
                 onPress={() => setData({ ...data, monthlyIncome: '40k-60k' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={DollarSign}
-                title="60 000 - 100 000 Kč"
+                title={t('onboardingIncome60to100k')}
                 selected={data.monthlyIncome === '60k-100k'}
                 onPress={() => setData({ ...data, monthlyIncome: '60k-100k' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={DollarSign}
-                title="Více než 100 000 Kč"
+                title={t('onboardingIncomeOver100k')}
                 selected={data.monthlyIncome === 'over100k'}
                 onPress={() => setData({ ...data, monthlyIncome: 'over100k' })}
                 isDarkMode={isDarkMode}
@@ -501,16 +562,16 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Jaké jsou vaše finanční cíle?
+              Jaké jsou tvoje finanční cíle?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Můžete vybrat více možností
+              Můžeš vybrat víc možností
             </Text>
 
             <View style={styles.optionsContainer}>
               <OptionCard
                 icon={Target}
-                title="Spořit peníze"
+                title={t('onboardingGoalSavings')}
                 selected={data.financialGoals.includes('savings')}
                 onPress={() => toggleGoal('savings')}
                 isDarkMode={isDarkMode}
@@ -518,7 +579,7 @@ export default function OnboardingScreen() {
               />
               <OptionCard
                 icon={TrendingUp}
-                title="Investovat"
+                title={t('onboardingGoalInvest')}
                 selected={data.financialGoals.includes('investment')}
                 onPress={() => toggleGoal('investment')}
                 isDarkMode={isDarkMode}
@@ -526,7 +587,7 @@ export default function OnboardingScreen() {
               />
               <OptionCard
                 icon={DollarSign}
-                title="Splatit dluhy"
+                title={t('onboardingGoalDebt')}
                 selected={data.financialGoals.includes('debt')}
                 onPress={() => toggleGoal('debt')}
                 isDarkMode={isDarkMode}
@@ -550,7 +611,7 @@ export default function OnboardingScreen() {
               />
               <OptionCard
                 icon={GraduationCap}
-                title="Vzdělání"
+                title={t('onboardingGoalEducation')}
                 selected={data.financialGoals.includes('education')}
                 onPress={() => toggleGoal('education')}
                 isDarkMode={isDarkMode}
@@ -558,7 +619,7 @@ export default function OnboardingScreen() {
               />
               <OptionCard
                 icon={Heart}
-                title="Důchod"
+                title={t('onboardingGoalRetirement')}
                 selected={data.financialGoals.includes('retirement')}
                 onPress={() => toggleGoal('retirement')}
                 isDarkMode={isDarkMode}
@@ -572,33 +633,33 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Jaká je vaše zkušenost s financemi?
+              Jaká je tvoje zkušenost s financemi?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Přizpůsobíme obsah podle vaší úrovně
+              Přizpůsobíme obsah podle tvojí úrovně
             </Text>
 
             <View style={styles.optionsContainer}>
               <OptionCard
                 icon={Target}
-                title="Začátečník"
-                subtitle="Teprve začínám s financemi"
+                title={t('onboardingBeginner')}
+                subtitle={t('onboardingBeginnerSub')}
                 selected={data.experienceLevel === 'beginner'}
                 onPress={() => setData({ ...data, experienceLevel: 'beginner' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={TrendingUp}
-                title="Pokročilý"
-                subtitle="Mám základní znalosti"
+                title={t('onboardingIntermediate')}
+                subtitle={t('onboardingIntermediateSub')}
                 selected={data.experienceLevel === 'intermediate'}
                 onPress={() => setData({ ...data, experienceLevel: 'intermediate' })}
                 isDarkMode={isDarkMode}
               />
               <OptionCard
                 icon={CheckCircle}
-                title="Expert"
-                subtitle="Mám pokročilé znalosti"
+                title={t('onboardingAdvanced')}
+                subtitle={t('onboardingAdvancedSub')}
                 selected={data.experienceLevel === 'advanced'}
                 onPress={() => setData({ ...data, experienceLevel: 'advanced' })}
                 isDarkMode={isDarkMode}
@@ -611,16 +672,16 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Máte nějaký úvěr nebo hypotéku?
+              Máš nějaký úvěr nebo hypotéku?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Pomůže nám to lépe plánovat vaše finance
+              Pomůže nám to lépe plánovat tvoje finance
             </Text>
 
             <View style={styles.optionsContainer}>
               <OptionCard
                 icon={CheckCircle}
-                title="Ano, mám úvěr"
+                title={t('onboardingHasLoan')}
                 selected={data.loanData.hasLoan === true}
                 onPress={() => {
                   setData({ ...data, loanData: { ...data.loanData, hasLoan: true } });
@@ -632,7 +693,7 @@ export default function OnboardingScreen() {
               />
               <OptionCard
                 icon={CheckCircle}
-                title="Ne, nemám žádný úvěr"
+                title={t('onboardingNoLoan')}
                 selected={data.loanData.hasLoan === false}
                 onPress={() => setData({ ...data, loanData: { hasLoan: false, loans: [] } })}
                 isDarkMode={isDarkMode}
@@ -642,7 +703,7 @@ export default function OnboardingScreen() {
             {data.loanData.hasLoan && (
               <View style={{ marginTop: 24 }}>
                 <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  Vaše úvěry a hypotéky
+                  Tvoje úvěry a hypotéky
                 </Text>
 
                 {data.loanData.loans.map((loan, index) => (
@@ -671,7 +732,7 @@ export default function OnboardingScreen() {
                         onPress={() => updateLoan(loan.id, 'loanType', 'mortgage')}
                       >
                         <Home color={loan.loanType === 'mortgage' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'mortgage' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Hypotéka</Text>
+                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'mortgage' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>{t('loanTypeMortgage')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[
@@ -682,7 +743,7 @@ export default function OnboardingScreen() {
                         onPress={() => updateLoan(loan.id, 'loanType', 'car')}
                       >
                         <Car color={loan.loanType === 'car' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'car' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Auto</Text>
+                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'car' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>{t('loanTypeCar')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[
@@ -693,7 +754,7 @@ export default function OnboardingScreen() {
                         onPress={() => updateLoan(loan.id, 'loanType', 'personal')}
                       >
                         <DollarSign color={loan.loanType === 'personal' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'personal' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Osobní</Text>
+                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'personal' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>{t('onboardingLoanPersonal')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[
@@ -704,15 +765,15 @@ export default function OnboardingScreen() {
                         onPress={() => updateLoan(loan.id, 'loanType', 'student')}
                       >
                         <GraduationCap color={loan.loanType === 'student' ? 'white' : isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
-                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'student' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>Studium</Text>
+                        <Text style={[styles.loanTypeText, { color: loan.loanType === 'student' ? 'white' : isDarkMode ? 'white' : '#1F2937' }]}>{t('loanTypeStudent')}</Text>
                       </TouchableOpacity>
                     </View>
 
                     <View style={[styles.loanInputContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F9FAFB' }]}>
-                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Výše úvěru (Kč)</Text>
+                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingLoanAmountLabel')}</Text>
                       <TextInput
                         style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                        placeholder="Např. 2000000"
+                        placeholder={t('onboardingPlaceholderAmount')}
                         placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                         value={loan.loanAmount}
                         onChangeText={(text) => updateLoan(loan.id, 'loanAmount', text)}
@@ -721,10 +782,10 @@ export default function OnboardingScreen() {
                     </View>
 
                     <View style={[styles.loanInputContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F9FAFB' }]}>
-                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Úroková sazba (%)</Text>
+                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingInterestRateLabel')}</Text>
                       <TextInput
                         style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                        placeholder="Např. 4.5"
+                        placeholder={t('onboardingPlaceholderRate')}
                         placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                         value={loan.interestRate}
                         onChangeText={(text) => updateLoan(loan.id, 'interestRate', text)}
@@ -733,10 +794,10 @@ export default function OnboardingScreen() {
                     </View>
 
                     <View style={[styles.loanInputContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F9FAFB' }]}>
-                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Měsíční splátka (Kč)</Text>
+                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingMonthlyPaymentLabel')}</Text>
                       <TextInput
                         style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                        placeholder="Např. 15000"
+                        placeholder={t('onboardingPlaceholderPayment')}
                         placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                         value={loan.monthlyPayment}
                         onChangeText={(text) => updateLoan(loan.id, 'monthlyPayment', text)}
@@ -745,10 +806,10 @@ export default function OnboardingScreen() {
                     </View>
 
                     <View style={[styles.loanInputContainer, { backgroundColor: isDarkMode ? '#4B5563' : '#F9FAFB' }]}>
-                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zbývající měsíce splácení</Text>
+                      <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingRemainingMonthsLabel')}</Text>
                       <TextInput
                         style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                        placeholder="Např. 240"
+                        placeholder={t('onboardingPlaceholderMonths')}
                         placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                         value={loan.remainingMonths}
                         onChangeText={(text) => updateLoan(loan.id, 'remainingMonths', text)}
@@ -768,7 +829,7 @@ export default function OnboardingScreen() {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Text style={styles.addLoanText}>+ Přidat další úvěr</Text>
+                    <Text style={styles.addLoanText}>{t('onboardingAddAnotherLoan')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -780,106 +841,106 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Jaký je váš měsíční rozpočet?
+              Jaký je tvůj měsíční rozpočet?
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Rozdělte si měsíční výdaje do kategorií
+              Rozděl si měsíční výdaje do kategorií
             </Text>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Home color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Bydlení (nájem, energie)</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingHousingLabel')}</Text>
                 <TextInput
                   style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                  placeholder="Např. 12000"
+                  placeholder={t('onboardingPlaceholderHousing')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   value={data.budgetBreakdown.housing}
                   onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, housing: text } })}
                   keyboardType="numeric"
                 />
               </View>
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('currencySymbol')}</Text>
             </View>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Text style={{ fontSize: 20 }}>🍽️</Text>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Jídlo a nápoje</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingFoodDrinksLabel')}</Text>
                 <TextInput
                   style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                  placeholder="Např. 5000"
+                  placeholder={t('onboardingPlaceholderFood')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   value={data.budgetBreakdown.food}
                   onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, food: text } })}
                   keyboardType="numeric"
                 />
               </View>
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('currencySymbol')}</Text>
             </View>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Car color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Doprava</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingTransportLabel')}</Text>
                 <TextInput
                   style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                  placeholder="Např. 2000"
+                  placeholder={t('onboardingPlaceholderTransport')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   value={data.budgetBreakdown.transportation}
                   onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, transportation: text } })}
                   keyboardType="numeric"
                 />
               </View>
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('currencySymbol')}</Text>
             </View>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Text style={{ fontSize: 20 }}>🎬</Text>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zábava (volitelné)</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingFunOptionalLabel')}</Text>
                 <TextInput
                   style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                  placeholder="Např. 3000"
+                  placeholder={t('onboardingPlaceholderFun')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   value={data.budgetBreakdown.entertainment}
                   onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, entertainment: text } })}
                   keyboardType="numeric"
                 />
               </View>
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('currencySymbol')}</Text>
             </View>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Target color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Spoření (volitelné)</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingSavingsOptionalLabel')}</Text>
                 <TextInput
                   style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                  placeholder="Např. 5000"
+                  placeholder={t('onboardingPlaceholderSavings')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   value={data.budgetBreakdown.savings}
                   onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, savings: text } })}
                   keyboardType="numeric"
                 />
               </View>
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('currencySymbol')}</Text>
             </View>
 
             <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
               <Text style={{ fontSize: 20 }}>📦</Text>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Ostatní (volitelné)</Text>
+                <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>{t('onboardingOtherOptionalLabel')}</Text>
                 <TextInput
                   style={[styles.input, { color: isDarkMode ? 'white' : '#1F2937' }]}
-                  placeholder="Např. 2000"
+                  placeholder={t('onboardingPlaceholderOther')}
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   value={data.budgetBreakdown.other}
                   onChangeText={(text) => setData({ ...data, budgetBreakdown: { ...data.budgetBreakdown, other: text } })}
                   keyboardType="numeric"
                 />
               </View>
-              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>Kč</Text>
+              <Text style={[styles.currencyLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('currencySymbol')}</Text>
             </View>
           </View>
         );
@@ -888,10 +949,10 @@ export default function OnboardingScreen() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Shrnutí vašeho profilu
+              Shrnutí tvého profilu
             </Text>
             <Text style={[styles.stepSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Zkontrolujte si zadané údaje před dokončením
+              Zkontroluj si zadané údaje před dokončením
             </Text>
 
             <View style={[styles.summaryContainer, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
@@ -900,7 +961,7 @@ export default function OnboardingScreen() {
                   Pracovní status:
                 </Text>
                 <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {getEmploymentStatusLabel(data.employmentStatus)}
+                  {getEmploymentStatusLabel(data.employmentStatus, t)}
                 </Text>
               </View>
               <View style={styles.summaryItem}>
@@ -908,7 +969,7 @@ export default function OnboardingScreen() {
                   Měsíční příjem:
                 </Text>
                 <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {getIncomeRangeLabel(data.monthlyIncome)}
+                  {getIncomeRangeLabel(data.monthlyIncome, t)}
                 </Text>
               </View>
               <View style={styles.summaryItem}>
@@ -924,7 +985,7 @@ export default function OnboardingScreen() {
                   Zkušenosti:
                 </Text>
                 <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {getExperienceLevelLabel(data.experienceLevel)}
+                  {getExperienceLevelLabel(data.experienceLevel, t)}
                 </Text>
               </View>
               <View style={styles.summaryItem}>
@@ -932,7 +993,15 @@ export default function OnboardingScreen() {
                   Úvěry/Hypotéky:
                 </Text>
                 <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {data.loanData.hasLoan ? `${data.loanData.loans.length} úvěrů` : 'Ne'}
+                  {data.loanData.hasLoan
+                    ? t('onboardingLoanCount', {
+                        count: data.loanData.loans.length,
+                        loansWord: pluralUver(
+                          data.loanData.loans.length,
+                          language === 'en' ? 'en' : 'cs',
+                        ),
+                      })
+                    : t('onboardingNo')}
                 </Text>
               </View>
               {data.loanData.hasLoan && data.loanData.loans.length > 0 && (
@@ -950,7 +1019,7 @@ export default function OnboardingScreen() {
                   Měsíční rozpočet:
                 </Text>
                 <Text style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {calculateTotalBudget(data.budgetBreakdown)} Kč
+                  {calculateTotalBudget(data.budgetBreakdown, t('onboardingNotFilled'))} Kč
                 </Text>
               </View>
             </View>
@@ -970,7 +1039,7 @@ export default function OnboardingScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Text style={styles.headerTitle}>Nastavení profilu</Text>
+        <Text style={styles.headerTitle}>{t('screenProfileSetup')}</Text>
         <Text style={styles.headerSubtitle}>
           Krok {step} z {totalSteps}
         </Text>
@@ -990,7 +1059,7 @@ export default function OnboardingScreen() {
               <View style={[styles.backButtonContent, { backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }]}>
                 <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={20} />
                 <Text style={[styles.backButtonText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  Zpět
+                  {t('back')}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1007,7 +1076,7 @@ export default function OnboardingScreen() {
               end={{ x: 1, y: 1 }}
             >
               <Text style={styles.nextButtonText}>
-                {step === totalSteps ? 'Dokončit' : 'Další'}
+                {step === totalSteps ? t('onboardingFinish') : t('next')}
               </Text>
               <ArrowRight color="white" size={20} />
             </LinearGradient>
@@ -1089,71 +1158,84 @@ const OptionCard = React.memo<OptionCardProps>(
 
 OptionCard.displayName = 'OptionCard';
 
-function getEmploymentStatusLabel(status: EmploymentStatus | null): string {
+function getEmploymentStatusLabel(
+  status: EmploymentStatus | null,
+  t: ReturnType<typeof useLanguageStore.getState>['t'],
+): string {
   switch (status) {
     case 'employed':
-      return 'Zaměstnanec';
+      return t('onboardingEmployed');
     case 'selfEmployed':
-      return 'OSVČ / Podnikatel';
+      return t('onboardingSelfEmployed');
     case 'student':
-      return 'Student';
+      return t('onboardingStudent');
     case 'unemployed':
-      return 'Nezaměstnaný';
+      return t('onboardingUnemployed');
     case 'retired':
-      return 'Důchodce';
+      return t('onboardingRetired');
     default:
-      return 'Nevybráno';
+      return t('onboardingNotSelected');
   }
 }
 
-function getIncomeRangeLabel(range: IncomeRange | null): string {
+function getIncomeRangeLabel(
+  range: IncomeRange | null,
+  t: ReturnType<typeof useLanguageStore.getState>['t'],
+): string {
   switch (range) {
     case 'under20k':
-      return 'Méně než 20 000 Kč';
+      return t('onboardingIncomeUnder20k');
     case '20k-40k':
-      return '20 000 - 40 000 Kč';
+      return t('onboardingIncome20to40k');
     case '40k-60k':
-      return '40 000 - 60 000 Kč';
+      return t('onboardingIncome40to60k');
     case '60k-100k':
-      return '60 000 - 100 000 Kč';
+      return t('onboardingIncome60to100k');
     case 'over100k':
-      return 'Více než 100 000 Kč';
+      return t('onboardingIncomeOver100k');
     default:
-      return 'Nevybráno';
+      return t('onboardingNotSelected');
   }
 }
 
-function getExperienceLevelLabel(level: ExperienceLevel | null): string {
+function getExperienceLevelLabel(
+  level: ExperienceLevel | null,
+  t: ReturnType<typeof useLanguageStore.getState>['t'],
+): string {
   switch (level) {
     case 'beginner':
-      return 'Začátečník';
+      return t('onboardingBeginner');
     case 'intermediate':
-      return 'Pokročilý';
+      return t('onboardingIntermediate');
     case 'advanced':
-      return 'Expert';
+      return t('onboardingAdvanced');
     default:
-      return 'Nevybráno';
+      return t('onboardingNotSelected');
   }
 }
 
-function getLoanTypeLabel(type?: 'mortgage' | 'car' | 'personal' | 'student' | 'other'): string {
+function getLoanTypeLabel(
+  type?: 'mortgage' | 'car' | 'personal' | 'student' | 'other',
+  t?: ReturnType<typeof useLanguageStore.getState>['t'],
+): string {
+  if (!t) return '';
   switch (type) {
     case 'mortgage':
-      return 'Hypotéka';
+      return t('loanTypeMortgage');
     case 'car':
-      return 'Auto';
+      return t('loanTypeCar');
     case 'personal':
-      return 'Osobní';
+      return t('onboardingLoanPersonal');
     case 'student':
-      return 'Studium';
+      return t('loanTypeStudent');
     case 'other':
-      return 'Jiný';
+      return t('onboardingLoanOther');
     default:
-      return 'Nevybráno';
+      return t('onboardingNotSelected');
   }
 }
 
-function calculateTotalBudget(breakdown: BudgetBreakdown): string {
+function calculateTotalBudget(breakdown: BudgetBreakdown, notFilledLabel: string): string {
   const total = [
     breakdown.housing,
     breakdown.food,
@@ -1163,15 +1245,15 @@ function calculateTotalBudget(breakdown: BudgetBreakdown): string {
     breakdown.other,
   ]
     .filter(v => v && v.trim() !== '')
-    .reduce((sum, v) => sum + parseFloat(v), 0);
+    .reduce((sum, v) => sum + (parseMoneyInput(v) ?? 0), 0);
   
-  return total > 0 ? total.toFixed(0) : 'Nevyplněno';
+  return total > 0 ? total.toFixed(0) : notFilledLabel;
 }
 
 function calculateTotalLoanPayment(loans: Loan[]): string {
   const total = loans
     .filter(loan => loan.monthlyPayment && loan.monthlyPayment.trim() !== '')
-    .reduce((sum, loan) => sum + parseFloat(loan.monthlyPayment), 0);
+    .reduce((sum, loan) => sum + (parseMoneyInput(loan.monthlyPayment) ?? 0), 0);
   
   return total > 0 ? total.toFixed(0) : '0';
 }
@@ -1179,6 +1261,10 @@ function calculateTotalLoanPayment(loans: Loan[]): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  securityLoading: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     paddingBottom: 30,

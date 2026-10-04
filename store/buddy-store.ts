@@ -2,15 +2,17 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { useLanguageStore } from './language-store';
-import { GamingStats, UserBadge, Achievement, Quest, MetaQuest, PersonalityStats, PersonalityType } from '@/types/gaming';
+import { GamingStats, UserBadge, PersonalityType } from '@/types/gaming';
 import { ALL_BADGES } from '@/constants/badges';
 import { getCurrentSeason } from '@/constants/seasons';
+import { DAILY_TIP_KEYS, type DailyTipKey } from '@/constants/daily-tip-keys';
 
 interface BuddyState {
   level: number;
   points: number;
   completedLessons: string[];
   dailyTip: string;
+  dailyTipKey: DailyTipKey;
   currentMessage: string | null;
   isLoaded: boolean;
   gamingStats: GamingStats;
@@ -30,50 +32,20 @@ interface BuddyState {
   refreshDailyTip: () => void;
 }
 
-const DAILY_TIP_KEYS = [
-  'dailyTip1',
-  'dailyTip2', 
-  'dailyTip3',
-  'dailyTip4',
-  'dailyTip5',
-  'dailyTip6',
-  'dailyTip7',
-  'dailyTip8',
-  'dailyTip9',
-  'dailyTip10',
-  'dailyTip11',
-  'dailyTip12',
-  'dailyTip13',
-  'dailyTip14',
-  'dailyTip15',
-  'dailyTip16',
-  'dailyTip17',
-  'dailyTip18',
-  'dailyTip19',
-  'dailyTip20',
-  'dailyTip21',
-  'dailyTip22',
-  'dailyTip23',
-  'dailyTip24',
-  'dailyTip25',
-  'dailyTip26',
-  'dailyTip27',
-  'dailyTip28',
-  'dailyTip29',
-  'dailyTip30',
-] as const;
-
-function getDailyTip(): string {
+function pickDailyTip(): { key: DailyTipKey; text: string } {
   const { t } = useLanguageStore.getState();
-  const randomKey = DAILY_TIP_KEYS[Math.floor(Math.random() * DAILY_TIP_KEYS.length)];
-  return t(randomKey);
+  const randomKey = DAILY_TIP_KEYS[Math.floor(Math.random() * DAILY_TIP_KEYS.length)]!;
+  return { key: randomKey, text: t(randomKey) };
 }
+
+const initialTip = pickDailyTip();
 
 export const useBuddyStore = create<BuddyState>((set, get) => ({
   level: 1,
   points: 45,
   completedLessons: [],
-  dailyTip: getDailyTip(),
+  dailyTip: initialTip.text,
+  dailyTipKey: initialTip.key,
   currentMessage: null,
   isLoaded: false,
   gamingStats: {
@@ -295,7 +267,8 @@ export const useBuddyStore = create<BuddyState>((set, get) => ({
   },
 
   refreshDailyTip: () => {
-    set({ dailyTip: getDailyTip() });
+    const next = pickDailyTip();
+    set({ dailyTip: next.text, dailyTipKey: next.key });
   },
 
   earnBadge: (badgeId: string) => {

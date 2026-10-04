@@ -65,6 +65,16 @@ export function namesMatchOwner(counterpartyName: string, ownerName: string): bo
   return a === b;
 }
 
+/** Shoda, pokud protistrana odpovídá kterémukoli vlastnímu jménu. */
+export function namesMatchAnyOwner(
+  counterpartyName: string,
+  ownerNames: string[],
+): boolean {
+  const names = (ownerNames ?? []).map((n) => String(n ?? '').trim()).filter(Boolean);
+  if (!names.length) return false;
+  return names.some((n) => namesMatchOwner(counterpartyName, n));
+}
+
 export function extractCzechAccountNumbers(text: string): string[] {
   const out: string[] = [];
   const s = String(text ?? '');

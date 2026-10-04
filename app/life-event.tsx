@@ -19,9 +19,13 @@ import { Stack, useRouter } from 'expo-router';
 import { useLifeEvent } from '@/store/life-event-store';
 import { LifeEventMode, LIFE_EVENT_MODES } from '@/types/life-event';
 import { useFinanceStore } from '@/store/finance-store';
+import { useLanguageStore } from '@/store/language-store';
+import { safeGoBack } from '@/lib/safe-back';
+import { BackButton } from '@/components/BackButton';
 
 export default function LifeEventScreen() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const { state, setMode } = useLifeEvent();
   const { addFinancialGoal } = useFinanceStore();
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
@@ -60,7 +64,7 @@ export default function LifeEventScreen() {
     setShowInfoModal(false);
     setSelectedModeForInfo(null);
     
-    router.back();
+    safeGoBack();
   };
 
   const ModeCard = ({ mode }: { mode: LifeEventMode }) => {
@@ -84,7 +88,7 @@ export default function LifeEventScreen() {
             {isActive && (
               <View style={[styles.activeBadge, { backgroundColor: modeInfo.color }]}>
                 <Check color="white" size={16} />
-                <Text style={styles.activeBadgeText}>Aktivní</Text>
+                <Text style={styles.activeBadgeText}>{t('lifeEventActive')}</Text>
               </View>
             )}
           </View>
@@ -108,7 +112,7 @@ export default function LifeEventScreen() {
             onPress={() => handleModeSelect(mode)}
           >
             <Text style={[styles.selectButtonText, { color: modeInfo.color }]}>
-              {isActive ? 'Zůstat v režimu' : 'Vybrat režim'}
+              {isActive ? t('lifeEventStayInMode') : t('lifeEventSelectMode')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -127,15 +131,10 @@ export default function LifeEventScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Životní režim</Text>
-            <Text style={styles.headerSubtitle}>Přizpůsob aplikaci své životní situaci</Text>
+            <Text style={styles.headerTitle}>{t('lifeEventHeaderTitle')}</Text>
+            <Text style={styles.headerSubtitle}>{t('lifeEventHeaderSubtitle')}</Text>
           </View>
           <View style={styles.headerSpacer} />
         </View>
@@ -150,7 +149,7 @@ export default function LifeEventScreen() {
         </View>
 
         <View style={styles.modesContainer}>
-          <Text style={styles.sectionTitle}>Dostupné režimy</Text>
+          <Text style={styles.sectionTitle}>{t('lifeEventAvailableModes')}</Text>
           
           <View style={styles.modesGrid}>
             {Object.values(LifeEventMode).map((mode) => (
@@ -193,14 +192,14 @@ export default function LifeEventScreen() {
 
               <ScrollView style={styles.modalContent}>
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Co se změní?</Text>
+                  <Text style={styles.modalSectionTitle}>{t('lifeEventWhatChanges')}</Text>
                   <Text style={styles.modalDescription}>
                     {LIFE_EVENT_MODES[selectedModeForInfo].description}
                   </Text>
                 </View>
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Výhody režimu</Text>
+                  <Text style={styles.modalSectionTitle}>{t('lifeEventModeBenefits')}</Text>
                   {LIFE_EVENT_MODES[selectedModeForInfo].benefits.map((benefit, index) => (
                     <View key={index} style={styles.modalBenefitItem}>
                       <View style={[styles.modalBenefitDot, { backgroundColor: LIFE_EVENT_MODES[selectedModeForInfo].color }]} />
@@ -212,7 +211,7 @@ export default function LifeEventScreen() {
                 {LIFE_EVENT_MODES[selectedModeForInfo].defaultGoals.length > 0 && (
                   <View style={styles.modalSection}>
                     <View style={styles.modalSectionHeader}>
-                      <Text style={styles.modalSectionTitle}>Doporučené cíle</Text>
+                      <Text style={styles.modalSectionTitle}>{t('lifeEventRecommendedGoals')}</Text>
                       <TouchableOpacity
                         style={styles.editGoalsButton}
                         onPress={() => {
@@ -221,7 +220,7 @@ export default function LifeEventScreen() {
                         }}
                       >
                         <Edit2 color="#667eea" size={16} />
-                        <Text style={styles.editGoalsButtonText}>Upravit</Text>
+                        <Text style={styles.editGoalsButtonText}>{t('edit')}</Text>
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.modalGoalsInfo}>
@@ -232,7 +231,7 @@ export default function LifeEventScreen() {
                         <View style={styles.modalGoalContent}>
                           <Text style={styles.modalGoalTitle}>{goal.title}</Text>
                           <Text style={styles.modalGoalType}>
-                            {goal.type === 'saving' ? '💰 Spoření' : '📊 Limit'}
+                            {goal.type === 'saving' ? t('lifeEventSavingGoal') : t('lifeEventLimitGoal')}
                           </Text>
                         </View>
                         <Text style={styles.modalGoalAmount}>
@@ -256,7 +255,7 @@ export default function LifeEventScreen() {
                 )}
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Důležité</Text>
+                  <Text style={styles.modalSectionTitle}>{t('lifeEventImportant')}</Text>
                   <View style={styles.modalWarning}>
                     <Text style={styles.modalWarningText}>
                       • Změna režimu nesmaže žádná existující data{'\n'}
@@ -273,7 +272,7 @@ export default function LifeEventScreen() {
                   onPress={confirmModeChange}
                 >
                   <Text style={styles.confirmButtonText}>
-                    {state.activeMode === selectedModeForInfo ? 'Zůstat v režimu' : 'Aktivovat režim'}
+                    {state.activeMode === selectedModeForInfo ? t('lifeEventStayInMode') : t('lifeEventActivateMode')}
                   </Text>
                 </TouchableOpacity>
               </View>

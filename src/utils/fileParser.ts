@@ -1,6 +1,6 @@
 import { read, utils } from 'xlsx';
 
-export type ParsedTable = Array<Record<string, string | number | undefined>>;
+export type ParsedTable = Record<string, string | number | undefined>[];
 
 export async function parseXlsxArrayBuffer(buf: ArrayBuffer, sheetName?: string): Promise<ParsedTable> {
   const workbook = read(buf);

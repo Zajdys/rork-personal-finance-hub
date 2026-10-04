@@ -50,10 +50,17 @@ assert(normalizeMerchantKey('BOLT.EU') === 'BOLT', 'bolt eu');
 assert(normalizeMerchantKey('UBER TRIP 123456789') === 'UBER', 'uber');
 assert(normalizeMerchantKey('WOLT1234567') === 'WOLT', 'wolt glued');
 assert(normalizeMerchantKey('PAYPAL *1234567890') === 'PAYPAL', 'paypal');
-assert(normalizeMerchantKey('GOPAY 987654321') === 'GOPAY', 'gopay');
+assert(normalizeMerchantKey('GOPAY 987654321') === 'GOPAY', 'gopay id only');
+assert(normalizeMerchantKey('GOPAY *CISTEDREVO.CZ') === 'GOPAY CISTEDREVO', 'gopay cistedrevo');
+assert(normalizeMerchantKey('GOPAY *GRIZLY.CZ') === 'GOPAY GRIZLY', 'gopay grizly');
+assert(normalizeMerchantKey('NYX*myckasro') === 'NYX MYCKASRO', 'nyx mycka');
+assert(normalizeMerchantKey('NYX*GalerieSlovanysro') === 'NYX GALERIESLOVANYSRO', 'nyx galerie');
+assert(normalizeMerchantKey('NYX*Lokni') === 'NYX LOKNI', 'nyx lokni');
 assert(normalizeMerchantKey('NYX260101123456') === 'NYX', 'nyx');
 assert(normalizeMerchantKey('PMDP 123456') === 'PMDP', 'pmdp');
 assert(normalizeMerchantKey('KLEPIERRE PLAZA 1234567') === 'KLEPIERRE', 'klepierre');
+assert(normalizeMerchantKey('PAYPAL *SOMESTORE') === 'PAYPAL SOMESTORE', 'paypal store');
+assert(normalizeMerchantKey('COMGATE *SHOP') === 'COMGATE SHOP', 'comgate');
 
 
 assert(lookupMerchantDictionary('APPLE.COM') === 'Elektronika', 'apple dict → Elektronika');

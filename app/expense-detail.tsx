@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { mergeOrderIds } from '@/lib/list-order';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -13,58 +16,249 @@ import {
   Lightbulb,
   Target,
   BarChart3,
-  ArrowLeft,
   Plus,
 } from 'lucide-react-native';
-import { useFinanceStore, EXPENSE_CATEGORIES } from '@/store/finance-store';
+import { useFocusRefresh } from '@/hooks/useFocusRefresh';
+import { useFinanceStore, EXPENSE_CATEGORIES, getMonthTransactions, isExpenseForReport, isRefundTransaction, isTransferLikeTransaction, netExpenseAmount, type Transaction } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { appLocale } from '@/lib/app-locale';
+import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
+import { useAuth } from '@/store/auth-store';
 import { useRouter, Stack } from 'expo-router';
+import { filterTransactionsByPeriod, filterTransfersByPeriod } from '@/lib/period-transactions';
+import { BackButton } from '@/components/BackButton';
+import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
+import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
+import { useOverviewFiltersStore } from '@/store/overview-filters-store';
+
+const EXPENSE_CATEGORY_ORDER_KEY = 'expense_category_order';
+const EXCLUDED_FROM_TOTAL_COLOR = '#9CA3AF';
+const EXCLUDED_EXPENSE_META: Record<string, { icon: string; color: string }> = {
+  Převod: { icon: '🔄', color: EXCLUDED_FROM_TOTAL_COLOR },
+  Investice: { icon: '📈', color: EXCLUDED_FROM_TOTAL_COLOR },
+};
+
+function excludedExpenseCategoryKey(t: Transaction): string {
+  return t.category === 'Investice' ? 'Investice' : 'Převod';
+}
+function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.getState>['t']): string {
+  const n100 = count % 100;
+  if (count === 1) return t('transactionsWordOne');
+  if (n100 >= 12 && n100 <= 14) return t('transactionsWordMany');
+  const n10 = count % 10;
+  if (n10 >= 2 && n10 <= 4) return t('transactionsWordFew');
+  return t('transactionsWordMany');
+}
 
 export default function ExpenseDetailScreen() {
-  const { isDarkMode } = useSettingsStore();
+  const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { t, language } = useLanguageStore();
+  const numberLocale = appLocale(language);
+  const currency = getCurrentCurrency();
+  const { user } = useAuth();
   const pageBg = isDarkMode ? '#0f0f0f' : '#f5f5f5';
   const cardBg = isDarkMode ? '#1c1c1e' : '#ffffff';
   const textMain = isDarkMode ? '#ffffff' : '#1a1a1a';
   const textSec = isDarkMode ? '#ababab' : '#666666';
   const mutedBg = isDarkMode ? '#2c2c2e' : '#f3f4f6';
 
-  const { transactions, totalExpenses, categoryExpenses } = useFinanceStore();
+  const effectiveYm = useOverviewFiltersStore((s) => s.selectedMonth);
+
+  const { y: yearNum, m: monthNum } = useMemo(() => {
+    const [yStr, mStr] = effectiveYm.split('-');
+    const y = parseInt(yStr ?? '', 10);
+    const mo = parseInt(mStr ?? '', 10);
+    return { y, m: mo };
+  }, [effectiveYm]);
+
+  const referenceInMonth = useMemo(() => new Date(yearNum, monthNum - 1, 15), [yearNum, monthNum]);
+
+  const remoteTransactions = useFilteredTransactions();
+  const financeIsLoaded = useFinanceStore((s) => s.isLoaded);
+  const loadTransactionsFromSupabase = useFinanceStore((s) => s.loadTransactionsFromSupabase);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadPending, setLoadPending] = useState(!financeIsLoaded);
+
+  useFocusRefresh(
+    useCallback(async () => {
+      if (!user?.id) {
+        setLoadError(null);
+        setLoadPending(false);
+        return;
+      }
+      setLoadPending(true);
+      setLoadError(null);
+      const result = await loadTransactionsFromSupabase();
+      if (!result.ok) {
+        setLoadError(result.error ?? t('auth.genericError'));
+      }
+      setLoadPending(false);
+    }, [user?.id, loadTransactionsFromSupabase, t]),
+  );
+
+  useEffect(() => {
+    if (financeIsLoaded) setLoadPending(false);
+  }, [financeIsLoaded]);
+
+  const { getAllCategories } = useFinanceStore();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
 
-  const expenseTransactions = transactions.filter(t => t.type === 'expense');
-  const averageExpense = expenseTransactions.length > 0 ? totalExpenses / expenseTransactions.length : 0;
-  
+  const periodExpenseTransactions = useMemo(() => {
+    let list: Transaction[];
+    if (selectedPeriod === 'month') {
+      list = getMonthTransactions(remoteTransactions, yearNum, monthNum).filter(
+        (t) => isExpenseForReport(t) || isRefundTransaction(t),
+      );
+    } else if (selectedPeriod === 'week') {
+      list = filterTransactionsByPeriod(remoteTransactions, 'expense', 'week', referenceInMonth);
+    } else {
+      list = filterTransactionsByPeriod(remoteTransactions, 'expense', 'year', referenceInMonth);
+    }
+    return list;
+  }, [remoteTransactions, selectedPeriod, yearNum, monthNum, referenceInMonth]);
+
+  const periodTransferExpenses = useMemo(() => {
+    if (selectedPeriod === 'month') {
+      return getMonthTransactions(remoteTransactions, yearNum, monthNum).filter(
+        (t) => isTransferLikeTransaction(t) && t.type === 'expense',
+      );
+    }
+    return filterTransfersByPeriod(
+      remoteTransactions,
+      'expense',
+      selectedPeriod,
+      referenceInMonth,
+    );
+  }, [remoteTransactions, selectedPeriod, yearNum, monthNum, referenceInMonth]);
+
+  const periodTotalExpenses = useMemo(
+    () => netExpenseAmount(periodExpenseTransactions),
+    [periodExpenseTransactions],
+  );
+
+  const displayTotalExpenses = periodTotalExpenses;
+
+  const periodCategoryExpenses = useMemo(() => {
+    const total = periodTotalExpenses;
+    const totals: Record<string, number> = {};
+    for (const t of periodExpenseTransactions) {
+      const c = t.category || 'Ostatní';
+      if (isRefundTransaction(t)) {
+        totals[c] = (totals[c] || 0) - t.amount;
+      } else {
+        totals[c] = (totals[c] || 0) + t.amount;
+      }
+    }
+    const allCats = getAllCategories('expense');
+    const rows = Object.entries(totals)
+      .filter(([, amount]) => amount > 0.009)
+      .map(([category, amount]) => ({
+        category,
+        amount,
+        percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+        icon: allCats[category]?.icon || '📦',
+        color: allCats[category]?.color || '#6B7280',
+        excludedFromTotal: false as boolean,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const transferAmountByCat: Record<string, number> = {};
+    for (const t of periodTransferExpenses) {
+      const key = excludedExpenseCategoryKey(t);
+      transferAmountByCat[key] = (transferAmountByCat[key] || 0) + t.amount;
+    }
+    for (const [category, amount] of Object.entries(transferAmountByCat)) {
+      if (amount <= 0.009) continue;
+      const meta = EXCLUDED_EXPENSE_META[category] ?? EXCLUDED_EXPENSE_META.Převod!;
+      rows.push({
+        category,
+        amount,
+        percentage: 0,
+        icon: meta.icon,
+        color: meta.color,
+        excludedFromTotal: true,
+      });
+    }
+    return rows;
+  }, [periodExpenseTransactions, periodTotalExpenses, periodTransferExpenses, getAllCategories]);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+
+  useEffect(() => {
+    const ids = periodCategoryExpenses.filter((c) => !c.excludedFromTotal).map((c) => c.category);
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(EXPENSE_CATEGORY_ORDER_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw) as string[];
+          if (Array.isArray(saved)) {
+            setCategoryOrder(mergeOrderIds(saved, ids));
+            return;
+          }
+        }
+      } catch {
+        // ignore invalid storage
+      }
+      setCategoryOrder(ids);
+    })();
+  }, [periodCategoryExpenses]);
+
+  const orderedCategoryExpenses = useMemo(() => {
+    const excluded = periodCategoryExpenses.filter((c) => c.excludedFromTotal);
+    const regular = periodCategoryExpenses.filter((c) => !c.excludedFromTotal);
+    const byCategory = new Map(regular.map((c) => [c.category, c]));
+    const order =
+      categoryOrder.length > 0 ? categoryOrder : regular.map((c) => c.category);
+    const ordered = order
+      .map((cat) => byCategory.get(cat))
+      .filter((c): c is (typeof periodCategoryExpenses)[number] => c != null);
+    // Převod, pak Investice (stabilní pořadí vyloučených)
+    const excludedOrder = ['Převod', 'Investice'];
+    for (const cat of excludedOrder) {
+      const row = excluded.find((c) => c.category === cat);
+      if (row) ordered.push(row);
+    }
+    for (const row of excluded) {
+      if (!excludedOrder.includes(row.category)) ordered.push(row);
+    }
+    return ordered;
+  }, [periodCategoryExpenses, categoryOrder]);
+
+  const averageExpense =
+    periodExpenseTransactions.length > 0 ? periodTotalExpenses / periodExpenseTransactions.length : 0;
+
   // Analýza výdajů
   const getExpenseAnalysis = () => {
+    const ranked = periodCategoryExpenses.filter((c) => !c.excludedFromTotal);
     const analysis = {
-      highestCategory: categoryExpenses[0] || null,
-      totalTransactions: expenseTransactions.length,
+      highestCategory: ranked[0] || null,
+      totalTransactions: periodExpenseTransactions.length,
       averagePerTransaction: averageExpense,
       recommendations: [] as string[],
       warnings: [] as string[],
     };
 
     // Doporučení na základě kategorií
-    categoryExpenses.forEach(category => {
+    ranked.forEach((category) => {
       if (category.category === 'Jídlo a nápoje' && category.percentage > 30) {
-        analysis.warnings.push('Utrácíš příliš za jídlo a nápoje (více než 30%)');
-        analysis.recommendations.push('Zkus více vařit doma místo objednávání jídla');
+        analysis.warnings.push(t('expenseWarnFood'));
+        analysis.recommendations.push(t('expenseRecCookHome'));
       }
       if (category.category === 'Zábava' && category.percentage > 20) {
-        analysis.warnings.push('Vysoké výdaje za zábavu (více než 20%)');
-        analysis.recommendations.push('Hledej levnější alternativy zábavy');
+        analysis.warnings.push(t('expenseWarnEntertainment'));
+        analysis.recommendations.push(t('expenseRecCheaperFun'));
       }
       if (category.category === 'Oblečení' && category.percentage > 15) {
-        analysis.warnings.push('Vysoké výdaje za oblečení');
-        analysis.recommendations.push('Nakupuj oblečení pouze když je potřeba');
+        analysis.warnings.push(t('expenseWarnClothing'));
+        analysis.recommendations.push(t('expenseRecClothingNeed'));
       }
     });
 
     // Obecná doporučení
     if (analysis.recommendations.length === 0) {
-      analysis.recommendations.push('Skvělá práce! Tvé výdaje vypadají vyváženě');
-      analysis.recommendations.push('Zkus si stanovit měsíční rozpočet pro každou kategorii');
+      analysis.recommendations.push(t('expenseRecBalanced'));
+      analysis.recommendations.push(t('expenseRecSetBudget'));
     }
 
     return analysis;
@@ -103,58 +297,87 @@ export default function ExpenseDetailScreen() {
     </View>
   );
 
-  const CategoryDetailCard = ({ category }: any) => {
+  const CategoryDetailCard = ({
+    category,
+  }: {
+    category: (typeof periodCategoryExpenses)[number];
+  }) => {
+    const isExcluded = !!category.excludedFromTotal;
     const categoryData = EXPENSE_CATEGORIES[category.category as keyof typeof EXPENSE_CATEGORIES];
-    const categoryTransactions = transactions.filter(
-      t => t.type === 'expense' && t.category === category.category
-    );
+    const categoryTransactions = isExcluded
+      ? periodTransferExpenses.filter(
+          (t) => excludedExpenseCategoryKey(t) === category.category,
+        )
+      : periodExpenseTransactions.filter(
+          (t) => (t.category || 'Ostatní') === category.category,
+        );
+    const excludedMeta = EXCLUDED_EXPENSE_META[category.category];
+    const icon = isExcluded
+      ? excludedMeta?.icon || category.icon || '📦'
+      : categoryData?.icon || category.icon || '📦';
+    const amountColor = isExcluded ? EXCLUDED_FROM_TOTAL_COLOR : category.color;
 
     return (
       <TouchableOpacity
-        style={[styles.categoryDetailCard, { backgroundColor: cardBg }]}
+        style={[
+          styles.categoryDetailCard,
+          { backgroundColor: cardBg },
+          isExcluded && { opacity: 0.92, borderWidth: 1, borderColor: isDarkMode ? '#3a3a3c' : '#e5e7eb' },
+        ]}
         onPress={() =>
-          router.push({
-            pathname: '/category-detail',
-            params: { category: category.category, type: 'expense' },
-          })
-        }
-      >
-        <View style={styles.categoryDetailHeader}>
-          <View style={[styles.categoryDetailIconContainer, { backgroundColor: mutedBg }]}>
-            <Text style={styles.categoryDetailIcon}>{categoryData?.icon || '📦'}</Text>
+            router.push({
+              pathname: '/category-detail',
+              params: {
+                category: category.category,
+                type: 'expense',
+                ...(selectedPeriod === 'month' ? { month: effectiveYm } : { period: selectedPeriod }),
+              },
+            })
+          }
+        >
+          <View style={styles.categoryDetailHeader}>
+            <View style={[styles.categoryDetailIconContainer, { backgroundColor: mutedBg }]}>
+              <Text style={styles.categoryDetailIcon}>{icon}</Text>
+            </View>
+            <View style={styles.categoryDetailInfo}>
+              <Text style={[styles.categoryDetailName, { color: isExcluded ? EXCLUDED_FROM_TOTAL_COLOR : textMain }]}>
+                {category.category}
+              </Text>
+              <Text style={[styles.categoryDetailCount, { color: textSec }]}>
+                {isExcluded
+                  ? t('detailExcludedFromTotal')
+                  : `${categoryTransactions.length} ${transactionsWord(categoryTransactions.length, t)}`}
+              </Text>
+            </View>
+            <View style={styles.categoryDetailAmount}>
+              <Text style={[styles.categoryDetailAmountText, { color: amountColor }]}>
+                {formatMoneyWithSymbol(category.amount, numberLocale, currency.symbol)}
+              </Text>
+              {!isExcluded ? (
+                <Text style={[styles.categoryDetailPercentage, { color: textSec }]}>
+                  {category.percentage}% z celku
+                </Text>
+              ) : null}
+            </View>
           </View>
-          <View style={styles.categoryDetailInfo}>
-            <Text style={[styles.categoryDetailName, { color: textMain }]}>{category.category}</Text>
-            <Text style={[styles.categoryDetailCount, { color: textSec }]}>
-              {categoryTransactions.length} transakcí
-            </Text>
-          </View>
-          <View style={styles.categoryDetailAmount}>
-            <Text style={[styles.categoryDetailAmountText, { color: category.color }]}>
-              {category.amount.toLocaleString('cs-CZ')} Kč
-            </Text>
-            <Text style={[styles.categoryDetailPercentage, { color: textSec }]}>
-              {category.percentage}% z celku
-            </Text>
-          </View>
-        </View>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBarBackground, { backgroundColor: mutedBg }]}>
-            <View 
-              style={[
-                styles.progressBar, 
-                { 
-                  width: `${category.percentage}%`, 
-                  backgroundColor: category.color 
-                }
-              ]} 
-            />
-          </View>
-        </View>
+          {!isExcluded ? (
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBarBackground, { backgroundColor: mutedBg }]}>
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: `${category.percentage}%`,
+                      backgroundColor: category.color,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          ) : null}
       </TouchableOpacity>
     );
   };
-
   const RecommendationCard = ({ type, title, description, icon: Icon }: any) => (
     <View
       style={[
@@ -202,17 +425,13 @@ export default function ExpenseDetailScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Celkové výdaje</Text>
+            <Text style={styles.headerTitle}>{t('detailTotalExpenses')}</Text>
             <Text style={styles.headerAmount}>
-              {totalExpenses.toLocaleString('cs-CZ')} Kč
+              {loadPending ? '…' : formatMoneyWithSymbol(displayTotalExpenses, numberLocale, currency.symbol)}
             </Text>
+            <OverviewFilterBadge onAccent style={{ marginTop: 8 }} />
           </View>
           <View style={styles.headerIcon}>
             <TrendingDown color="white" size={28} />
@@ -223,6 +442,16 @@ export default function ExpenseDetailScreen() {
         style={[styles.scrollView, { flex: 1, backgroundColor: pageBg }]}
         showsVerticalScrollIndicator={false}
       >
+        {loadError ? (
+          <View style={styles.loadBanner}>
+            <Text style={[styles.loadBannerText, { color: textMain }]}>{loadError}</Text>
+          </View>
+        ) : null}
+        {loadPending ? (
+          <View style={styles.loadCenter}>
+            <ActivityIndicator size="large" color="#EF4444" />
+          </View>
+        ) : null}
 
         {/* Add Expense Button */}
         <View style={styles.addButtonContainer}>
@@ -231,34 +460,40 @@ export default function ExpenseDetailScreen() {
             onPress={() => router.push('/(tabs)/add')}
           >
             <Plus color="white" size={20} />
-            <Text style={styles.addExpenseButtonText}>Přidat výdaj</Text>
+            <Text style={styles.addExpenseButtonText}>{t('addExpense')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Period Selection */}
         <View style={styles.periodContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Období</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailPeriod')}</Text>
           <View style={[styles.periodButtons, { backgroundColor: mutedBg }]}>
-            <PeriodButton period="week" label="Týden" />
-            <PeriodButton period="month" label="Měsíc" />
-            <PeriodButton period="year" label="Rok" />
+            <PeriodButton period="week" label={t('week')} />
+            <PeriodButton period="month" label={t('month')} />
+            <PeriodButton period="year" label={t('year')} />
           </View>
         </View>
 
         {/* Statistics */}
         <View style={styles.statsContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Statistiky</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailStatistics')}</Text>
           <View style={styles.statsGrid}>
             <StatCard
-              title="Počet transakcí"
+              title={t('detailTransactionCount')}
               value={analysis.totalTransactions}
               icon={BarChart3}
               color="#6366F1"
-              subtitle="za měsíc"
+              subtitle={
+                selectedPeriod === 'month'
+                  ? t('detailPerMonth')
+                  : selectedPeriod === 'week'
+                    ? t('detailPerWeek')
+                    : t('detailPerYear')
+              }
             />
             <StatCard
-              title="Průměr na transakci"
-              value={`${Math.round(analysis.averagePerTransaction).toLocaleString('cs-CZ')} Kč`}
+              title={t('detailAvgPerTransaction')}
+              value={formatMoneyWithSymbol(analysis.averagePerTransaction, numberLocale, currency.symbol)}
               icon={Target}
               color="#8B5CF6"
             />
@@ -267,22 +502,22 @@ export default function ExpenseDetailScreen() {
 
         {/* Categories Breakdown */}
         <View style={styles.categoriesContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Výdaje podle kategorií</Text>
-          {categoryExpenses.map((category, index) => (
-            <CategoryDetailCard key={index} category={category} />
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailExpensesByCategory')}</Text>
+          {orderedCategoryExpenses.map((category) => (
+            <CategoryDetailCard key={category.category} category={category} />
           ))}
         </View>
 
         {/* Analysis & Recommendations */}
         <View style={styles.analysisContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Analýza a doporučení</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailAnalysisRecommendations')}</Text>
           
           {/* Warnings */}
           {analysis.warnings.map((warning, index) => (
             <RecommendationCard
               key={`warning-${index}`}
               type="warning"
-              title="Upozornění"
+              title={t('detailWarning')}
               description={warning}
               icon={AlertTriangle}
             />
@@ -293,7 +528,7 @@ export default function ExpenseDetailScreen() {
             <RecommendationCard
               key={`tip-${index}`}
               type="tip"
-              title="Tip na úsporu"
+              title={t('detailSavingTip')}
               description={recommendation}
               icon={Lightbulb}
             />
@@ -308,17 +543,20 @@ export default function ExpenseDetailScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.insightsTitle}>💡 Tip:</Text>
+            <Text style={styles.insightsTitle}>{t('detailTipLabel')}</Text>
             <Text style={styles.insightsText}>
               {analysis.highestCategory 
-                ? `Nejvíce utrácíš za ${analysis.highestCategory.category.toLowerCase()} (${analysis.highestCategory.percentage}%). Zkus si pro tuto kategorii stanovit měsíční limit a sleduj ho.`
-                : 'Přidej více transakcí nebo naimportuj výpis z banky pro přesnější přehled.'}
+                ? t('detailExpenseTipWithCategory', {
+                    category: analysis.highestCategory.category.toLowerCase(),
+                    percentage: analysis.highestCategory.percentage,
+                  })
+                : t('detailExpenseTipEmpty')}
             </Text>
             <TouchableOpacity 
               style={styles.chatButton}
               onPress={() => router.push('/bank-import')}
             >
-              <Text style={styles.chatButtonText}>Importovat bankovní výpis</Text>
+              <Text style={styles.chatButtonText}>{t('detailImportBankStatement')}</Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -330,6 +568,20 @@ export default function ExpenseDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+  },
+  loadBannerText: {
+    fontSize: 14,
+  },
+  loadCenter: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,

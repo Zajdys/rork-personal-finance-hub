@@ -23,6 +23,7 @@ import { supabase } from '@/lib/supabase';
 import { updateUserProfileFields, updateUserMonthlyIncome } from '@/lib/user-profile-supabase';
 import { Image } from 'expo-image';
 import { safeGoBack } from '@/lib/safe-back';
+import { parseMoneyInput } from '@/lib/parse-money-input';
 
 async function resizeAvatarUri(uri: string, width?: number, height?: number): Promise<string> {
   const w = width ?? 1024;
@@ -180,8 +181,13 @@ export default function EditProfileScreen() {
         fields.avatar_url = nextAvatarUrl;
       }
 
-      const incomeTrim = monthlyIncome.trim().replace(/\s/g, '').replace(',', '.');
-      const monthlyIncomeDb: string | null = incomeTrim === '' ? null : incomeTrim;
+      const monthlyIncomeDb: string | null =
+        monthlyIncome.trim() === ''
+          ? null
+          : (() => {
+              const n = parseMoneyInput(monthlyIncome);
+              return n == null ? null : String(n);
+            })();
 
       const [profileRes, incomeRes] = await Promise.all([
         updateUserProfileFields(user.id, fields),

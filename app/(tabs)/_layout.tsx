@@ -2,34 +2,30 @@ import { Tabs } from "expo-router";
 import { 
   Home, 
   PlusCircle, 
-  TrendingUp, 
-  PiggyBank, 
+  Users,
+  TrendingUp,
   User
 } from "lucide-react-native";
 import React from "react";
-import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function TabLayout() {
-  const { isDarkMode } = useSettingsStore();
-  const { t, updateCounter } = useLanguageStore();
-  
-  // This will force re-render when language changes
-  React.useEffect(() => {
-    console.log('Language changed, updateCounter:', updateCounter);
-  }, [updateCounter]);
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguageStore();
   
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#667eea',
-        tabBarInactiveTintColor: isDarkMode ? '#9CA3AF' : '#9CA3AF',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: isDarkMode ? '#1F2937' : 'white',
+          backgroundColor: colors.tabBar,
           borderTopWidth: 0,
+          borderTopColor: colors.border,
           elevation: 8,
-          shadowColor: '#000',
+          shadowColor: isDark ? '#000' : '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 8,
@@ -59,17 +55,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="investments"
+        name="household"
         options={{
-          title: t('investments'),
-          tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />,
+          title: t('household'),
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="save"
+        name="investice"
         options={{
-          title: t('save'),
-          tabBarIcon: ({ color, size }) => <PiggyBank color={color} size={size} />,
+          title: t('investments'),
+          tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />,
         }}
       />
       <Tabs.Screen

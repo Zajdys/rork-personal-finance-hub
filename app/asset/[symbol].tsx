@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrendingUp, TrendingDown, ArrowLeft, Info } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Info } from 'lucide-react-native';
+import { useLanguageStore } from '@/store/language-store';
+import { BackButton } from '@/components/BackButton';
 
 interface AssetProfile {
   sector?: string;
@@ -11,7 +13,7 @@ interface AssetProfile {
 }
 
 export default function AssetDetailScreen() {
-  const router = useRouter();
+  const { t } = useLanguageStore();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams() as Record<string, string | string[]>;
   const symbol = String(Array.isArray(params.symbol) ? params.symbol[0] : params.symbol ?? '').toUpperCase();
@@ -85,11 +87,14 @@ export default function AssetDetailScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]} testID="AssetDetailScreen">
-      <Stack.Screen options={{ title: symbol }} />
+      <Stack.Screen
+        options={{
+          title: symbol,
+          headerShown: false,
+        }}
+      />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="backBtn">
-          <ArrowLeft size={20} color="#111" />
-        </TouchableOpacity>
+        <BackButton color="#111" size={20} style={styles.backBtn} testID="backBtn" />
         <View style={styles.headerTextWrap}>
           <Text style={styles.title}>{nameFromParams}</Text>
           <Text style={styles.sub}>{symbol}</Text>
@@ -121,20 +126,26 @@ export default function AssetDetailScreen() {
               </Text>
             </View>
           </View>
-          <Text style={styles.muted}>Aktuální cena: {computed.currentPrice.toFixed(2)}{ccy ? ` ${ccy}` : ''}</Text>
-          <Text style={styles.muted}>Držíš: {sharesNum.toLocaleString('cs-CZ', { maximumFractionDigits: 4 })} ks, Průměr: {avgPriceNum.toFixed(2)}{ccy ? ` ${ccy}` : ''}</Text>
-          <Text style={styles.muted}>Investováno: {investedNum.toFixed(2)}{ccy ? ` ${ccy}` : ''}</Text>
+          <Text style={styles.muted}>{t('assetCurrentPrice', { price: computed.currentPrice.toFixed(2), currency: ccy ? ` ${ccy}` : '' })}</Text>
+          <Text style={styles.muted}>
+            {t('assetHoldingLine', {
+              shares: sharesNum.toLocaleString('cs-CZ', { maximumFractionDigits: 4 }),
+              avgPrice: avgPriceNum.toFixed(2),
+              currency: ccy ? ` ${ccy}` : '',
+            })}
+          </Text>
+          <Text style={styles.muted}>{t('invested')}: {investedNum.toFixed(2)}{ccy ? ` ${ccy}` : ''}</Text>
         </View>
 
         <View style={styles.grid}>
           <View style={styles.stat} testID="pnlBox">
-            <Text style={styles.label}>Nezrealizované P/L</Text>
+            <Text style={styles.label}>{t('assetUnrealizedPnl')}</Text>
             <Text style={[styles.value, { color: computed.unrealized >= 0 ? '#10B981' : '#EF4444' }]}>
               {computed.unrealized.toFixed(2)}{ccy ? ` ${ccy}` : ''}
             </Text>
           </View>
           <View style={styles.stat} testID="dividendBox">
-            <Text style={styles.label}>Dividenda (yld)</Text>
+            <Text style={styles.label}>{t('assetDividendYield')}</Text>
             <Text style={styles.value}>{dividendYield != null ? `${(dividendYield * 100).toFixed(2)}%` : '—'}</Text>
             <Text style={styles.smallMuted}>{dividendRate != null ? `${dividendRate.toFixed(2)} ${ccy}` : ''}</Text>
           </View>
@@ -152,10 +163,10 @@ export default function AssetDetailScreen() {
         <View style={styles.card} testID="about">
           <View style={styles.aboutHeader}>
             <Info size={16} color="#111" />
-            <Text style={styles.aboutTitle}>Základní informace</Text>
+            <Text style={styles.aboutTitle}>{t('assetBasicInfo')}</Text>
           </View>
           <Text style={styles.muted}>Sektor: {profile?.sector ?? '—'}</Text>
-          <Text style={styles.muted}>Odvětví: {profile?.industry ?? '—'}</Text>
+          <Text style={styles.muted}>{t('assetIndustry', { industry: profile?.industry ?? '—' })}</Text>
           <Text style={styles.muted}>Web: {profile?.website ?? '—'}</Text>
         </View>
       </ScrollView>

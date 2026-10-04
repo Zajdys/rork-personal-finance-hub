@@ -125,7 +125,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setInvestmentCurrency: (currency: Currency) => {
     set({ investmentCurrency: currency });
     AsyncStorage.setItem('investmentCurrency', currency).then(() => {
-      console.log('Investment currency changed to:', currency);
+      if (__DEV__) console.log('Investment currency changed to:', currency);
     }).catch((error) => {
       console.error('Failed to save investment currency:', error);
     });

@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx';
+import { encodeBrokerPositionNote } from '@/lib/broker-position-id';
+import { readXlsxWorkbook } from '@/lib/xlsx-read';
 import {
   classifyBrokerPaymentStatus,
   textLooksLikeFailedBrokerPayment,
@@ -14,7 +16,9 @@ export type InvestmentTransactionType =
   | 'fee'
   | 'promo'
   | 'transfer_out'
-  | 'gift';
+  | 'gift'
+  | 'interest'
+  | 'tax';
 
 export type ParsedEtoroTransaction = {
   type: InvestmentTransactionType;
@@ -29,6 +33,8 @@ export type ParsedEtoroTransaction = {
   external_id: string;
   source?: 'import' | 'manual';
   note?: string | null;
+  /** Broker Position ID (XTB / eToro) — lot cost basis. */
+  position_id?: string | null;
 };
 
 export type EtoroTransactionParseResult = {
@@ -53,6 +59,8 @@ const EMPTY_SUMMARY = (): EtoroTransactionParseResult['summary'] => ({
   promo: { count: 0, amountSum: 0 },
   transfer_out: { count: 0, amountSum: 0 },
   gift: { count: 0, amountSum: 0 },
+  interest: { count: 0, amountSum: 0 },
+  tax: { count: 0, amountSum: 0 },
 });
 
 const ETORO_TYPE_MAP: Record<string, InvestmentTransactionType | 'skip' | null> = {
@@ -88,13 +96,6 @@ const ETORO_TYPE_MAP: Record<string, InvestmentTransactionType | 'skip' | null> 
   SDRT: 'fee',
   'Account balance to mirror': 'skip',
 };
-
-function readWorkbook(fileContent: string | ArrayBuffer): XLSX.WorkBook {
-  if (fileContent instanceof ArrayBuffer) {
-    return XLSX.read(fileContent, { type: 'array', cellDates: true });
-  }
-  return XLSX.read(fileContent, { type: 'base64', cellDates: true });
-}
 
 function findSheet(workbook: XLSX.WorkBook, matchers: RegExp[]): XLSX.WorkSheet | null {
   for (const name of workbook.SheetNames) {
@@ -259,7 +260,7 @@ function parseUnits(raw: unknown): number | null {
 export function parseEtoroTransactionsXlsx(
   fileContent: string | ArrayBuffer,
 ): EtoroTransactionParseResult {
-  const workbook = readWorkbook(fileContent);
+  const workbook = readXlsxWorkbook(fileContent, { cellDates: true });
   const activitySheet =
     findSheet(workbook, [/Aktivita/i, /Account activity/i, /Account/i]) ??
     (workbook.SheetNames[2] ? workbook.Sheets[workbook.SheetNames[2]!] : null);
@@ -315,9 +316,11 @@ export function parseEtoroTransactionsXlsx(
       if (isFailedEtoroPaymentRow(row, details)) {
         const statusHint =
           rowString(row, 'Status', 'Stav', 'Payment status', 'Payment Status') || details || rawType;
-        console.log(
-          `[etoro-import] přeskočen neúspěšný vklad ${date} ${amountRaw} ${statusHint}`,
-        );
+        if (__DEV__) {
+          console.log(
+            `[etoro-import] přeskočen neúspěšný vklad ${date} ${amountRaw} ${statusHint}`,
+          );
+        }
         skipped += 1;
         continue;
       }
@@ -334,7 +337,7 @@ export function parseEtoroTransactionsXlsx(
         .join(' ');
       if (textLooksLikePromoBrokerDeposit(promoHay)) {
         effectiveType = 'promo';
-        console.log(`[etoro-import] promo vklad ${date} ${amountRaw} → type=promo`);
+        if (__DEV__) console.log(`[etoro-import] promo vklad ${date} ${amountRaw} → type=promo`);
       }
     }
 
@@ -406,6 +409,8 @@ export function parseEtoroTransactionsXlsx(
       original_currency: currency,
       date,
       external_id,
+      position_id: positionId !== '-' ? positionId : null,
+      note: encodeBrokerPositionNote(null, positionId !== '-' ? positionId : null, 'etoro'),
     });
 
     summary[effectiveType].count += 1;
@@ -453,6 +458,7 @@ export function parseEtoroTransactionsXlsxFiles(
 }
 
 export function logEtoroTransactionParseSummary(result: EtoroTransactionParseResult): void {
+  if (!__DEV__) return;
   const { summary, transactions, skipped, warnings, sellRealizedCapitalChangeSum } = result;
 
   console.log(`[eToro tx parser] Parsed ${transactions.length} transactions (skipped ${skipped}).`);

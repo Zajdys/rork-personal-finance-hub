@@ -26,6 +26,26 @@ import {
 import { randomUUID } from '@/lib/random-uuid';
 import type { InvestmentTransactionForCalc } from '@/lib/investment-portfolio-calc';
 import type { InvestmentBroker } from '@/lib/investment-portfolios';
+import {
+  computeNativeCashBalances,
+  roundCashMoney,
+} from '@/lib/investment-cash-balances';
+import { convertAmountBetweenCurrencies } from '@/lib/yahoo-ticker';
+import {
+  parseRevolutInvestCsv,
+  revolutInvestHoldingsByTicker,
+  type RevolutInvestParseResult,
+} from '@/lib/revolut-invest-csv-parse';
+import {
+  assertXtbInterestTaxImportAllowed,
+  logXtbTransactionParseSummary,
+  parseXtbTransactionsXlsx,
+  type XtbTransactionParseResult,
+} from '@/lib/xtb-transactions-parser';
+import {
+  encodeBrokerPositionNote,
+  parseBrokerPositionIdFromNote,
+} from '@/lib/broker-position-id';
 
 export type InvestmentTransactionRow = {
   id: string;
@@ -39,7 +59,9 @@ export type InvestmentTransactionRow = {
     | 'fee'
     | 'promo'
     | 'transfer_out'
-    | 'gift';
+    | 'gift'
+    | 'interest'
+    | 'tax';
   ticker: string | null;
   isin: string | null;
   units: number | null;
@@ -65,6 +87,7 @@ export function mapTransactionRowToCalc(row: InvestmentTransactionRow): Investme
     original_currency: row.original_currency,
     date: row.date,
     external_id: row.external_id ?? undefined,
+    position_id: parseBrokerPositionIdFromNote(row.note),
   };
 }
 
@@ -283,6 +306,160 @@ export async function findOrCreateTrading212Portfolio(
   );
 }
 
+export async function findOrCreateXtbPortfolio(
+  params: {
+    ownerUserId: string;
+    visibility?: InvestmentPortfolioVisibility;
+    householdId?: string | null;
+    portfolioName?: string;
+    currency?: 'EUR' | 'USD' | 'CZK';
+  },
+  client: SupabaseClient = defaultSupabase,
+): Promise<{ portfolioId: string | null; error: Error | null }> {
+  return findOrCreateBrokerPortfolio(
+    {
+      ownerUserId: params.ownerUserId,
+      broker: 'xtb',
+      currency: params.currency ?? 'EUR',
+      visibility: params.visibility,
+      householdId: params.householdId,
+      portfolioName: params.portfolioName ?? 'XTB',
+    },
+    client,
+  );
+}
+
+export async function findOrCreateRevolutInvestPortfolio(
+  params: {
+    ownerUserId: string;
+    visibility?: InvestmentPortfolioVisibility;
+    householdId?: string | null;
+    portfolioName?: string;
+  },
+  client: SupabaseClient = defaultSupabase,
+): Promise<{ portfolioId: string | null; error: Error | null }> {
+  return findOrCreateBrokerPortfolio(
+    {
+      ownerUserId: params.ownerUserId,
+      broker: 'revolut',
+      currency: 'EUR',
+      visibility: params.visibility,
+      householdId: params.householdId,
+      portfolioName: params.portfolioName ?? 'Revolut Invest',
+    },
+    client,
+  );
+}
+
+export async function importRevolutInvestTransactionsFromCsv(params: {
+  ownerUserId: string;
+  visibility?: InvestmentPortfolioVisibility;
+  householdId?: string | null;
+  csvText: string;
+  portfolioName?: string;
+  importBatchId?: string;
+  client?: SupabaseClient;
+}): Promise<{
+  parseResult: RevolutInvestParseResult;
+  portfolioId: string | null;
+  upserted: number;
+  summary: BrokerImportSummary;
+  error: Error | null;
+}> {
+  const client = params.client ?? defaultSupabase;
+  const parseResult = parseRevolutInvestCsv(params.csvText);
+
+  const emptySummary = (): BrokerImportSummary => ({
+    fileCount: 1,
+    upserted: 0,
+    newCount: 0,
+    openPositions: 0,
+    hasOrphanSells: false,
+    hasCompleteData: false,
+  });
+
+  if (!parseResult.ok) {
+    return {
+      parseResult,
+      portfolioId: null,
+      upserted: 0,
+      summary: emptySummary(),
+      error: new Error(parseResult.error),
+    };
+  }
+
+  if (parseResult.transactions.length === 0) {
+    return {
+      parseResult,
+      portfolioId: null,
+      upserted: 0,
+      summary: emptySummary(),
+      error: new Error('V CSV nebyly nalezeny žádné transakce.'),
+    };
+  }
+
+  const { portfolioId, error: portfolioErr } = await findOrCreateRevolutInvestPortfolio(
+    {
+      ownerUserId: params.ownerUserId,
+      visibility: params.visibility ?? 'personal',
+      householdId: params.householdId ?? null,
+      portfolioName: params.portfolioName ?? 'Revolut Invest',
+    },
+    client,
+  );
+  if (portfolioErr || !portfolioId) {
+    return {
+      parseResult,
+      portfolioId: null,
+      upserted: 0,
+      summary: emptySummary(),
+      error: portfolioErr,
+    };
+  }
+
+  const existingIds = await countExistingExternalIds(
+    portfolioId,
+    parseResult.transactions.map((t) => t.external_id),
+    client,
+  );
+
+  const { upserted, error } = await upsertInvestmentTransactionsRemote(
+    portfolioId,
+    parseResult.transactions,
+    params.importBatchId,
+    client,
+  );
+
+  if (error) {
+    return {
+      parseResult,
+      portfolioId,
+      upserted: 0,
+      summary: emptySummary(),
+      error,
+    };
+  }
+
+  const openPositions = await countOpenPositionsFromTxs(portfolioId, 'EUR', client);
+  const holdings = revolutInvestHoldingsByTicker(parseResult.transactions);
+  const openFromParse = Object.values(holdings).filter((u) => u > 1e-10).length;
+
+  const summary: BrokerImportSummary = {
+    fileCount: 1,
+    upserted,
+    newCount: Math.max(0, parseResult.transactions.length - existingIds),
+    openPositions: openPositions || openFromParse,
+    hasOrphanSells: false,
+    hasCompleteData: parseResult.summary.buy.count > 0,
+  };
+
+  console.log(
+    `[Revolut Invest] Upserted ${upserted} rows into portfolio ${portfolioId} (new=${summary.newCount}).`,
+  );
+
+  return { parseResult, portfolioId, upserted, summary, error: null };
+}
+
 export async function upsertInvestmentTransactionsRemote(
   portfolioId: string,
   transactions: ParsedEtoroTransaction[],
@@ -293,26 +470,33 @@ export async function upsertInvestmentTransactionsRemote(
 
   const deduped = dedupeInvestmentTransactionsByExternalId(transactions);
   const batchId = importBatchId ?? randomUUID();
-  const rows = deduped.map((tx) => ({
-    portfolio_id: portfolioId,
-    type: tx.type,
-    ticker: tx.ticker,
-    isin: tx.isin,
-    units: tx.units,
-    price_per_unit: tx.price_per_unit,
-    amount: tx.amount,
-    fee: tx.fee,
-    original_currency: tx.original_currency,
-    date: tx.date,
-    external_id: tx.external_id,
-    import_batch_id: batchId,
-    source: tx.source ?? 'import',
-    ...(tx.note != null && String(tx.note).trim() ? { note: String(tx.note).trim() } : {}),
-  }));
+  const rows = deduped.map((tx) => {
+    // Parsery (XTB/eToro) už ukládají `[xtb-pos:…]` / `[etoro-pos:…]` do note.
+    const tagged =
+      (tx.note != null && String(tx.note).trim()) ||
+      encodeBrokerPositionNote(null, tx.position_id ?? null, 'xtb') ||
+      null;
+    return {
+      portfolio_id: portfolioId,
+      type: tx.type,
+      ticker: tx.ticker,
+      isin: tx.isin,
+      units: tx.units,
+      price_per_unit: tx.price_per_unit,
+      amount: tx.amount,
+      fee: tx.fee,
+      original_currency: tx.original_currency,
+      date: tx.date,
+      external_id: tx.external_id,
+      import_batch_id: batchId,
+      source: tx.source ?? 'import',
+      ...(tagged ? { note: tagged } : {}),
+    };
+  });
 
   const { data, error } = await client
     .from('investment_transactions')
-    .upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false })
+    .upsert(rows, { onConflict: 'portfolio_id,external_id', ignoreDuplicates: false })
     .select('id');
 
   if (error) {
@@ -327,6 +511,7 @@ export function logEtoroTransactionImportSummary(
   parseResult: EtoroTransactionParseResult,
   savedByType?: EtoroTransactionParseResult['summary'],
 ): void {
+  if (!__DEV__) return;
   logEtoroTransactionParseSummary(parseResult);
   if (savedByType) {
     console.log('[eToro tx import] Saved to investment_transactions:');
@@ -352,12 +537,33 @@ async function syncPortfolioCashFromTransactions(
   portfolioId: string,
   accountCurrency: 'USD' | 'EUR' | 'CZK',
   client: SupabaseClient,
-): Promise<{ openPositions: number; cashBalance: number }> {
+): Promise<{ openPositions: number; cashBalance: number; cashBalances: Record<string, number> }> {
   const { transactions } = await fetchInvestmentTransactionsRemote([portfolioId], client);
   if (!transactions.length) {
-    await client.from('investment_portfolios').update({ cash_balance: 0 }).eq('id', portfolioId);
-    return { openPositions: 0, cashBalance: 0 };
+    await client
+      .from('investment_portfolios')
+      .update({ cash_balance: 0, cash_balances: {} })
+      .eq('id', portfolioId);
+    return { openPositions: 0, cashBalance: 0, cashBalances: {} };
   }
+
+  const cashBalances = computeNativeCashBalances(
+    transactions.map((tx) => ({
+      type: tx.type,
+      amount: tx.amount,
+      original_currency: tx.original_currency,
+    })),
+  );
+
+  // Scalar cash_balance v měně portfolia (native + přepočet ostatních měn).
+  let cashBalance = cashBalances[accountCurrency] ?? 0;
+  for (const [ccy, amt] of Object.entries(cashBalances)) {
+    if (ccy === accountCurrency) continue;
+    const converted = await convertAmountBetweenCurrencies(amt, ccy, accountCurrency);
+    if (converted != null) cashBalance += converted;
+  }
+  cashBalance = roundCashMoney(cashBalance);
+
   const { calculatePortfolioFromTransactions } = await import('@/lib/investment-portfolio-calc');
   const result = await calculatePortfolioFromTransactions(
     transactions.map(mapTransactionRowToCalc),
@@ -367,21 +573,23 @@ async function syncPortfolioCashFromTransactions(
       fetchLivePrices: false,
     },
   );
-  const cashBalance = result.summary.cash_balance;
+
   const { error } = await client
     .from('investment_portfolios')
-    .update({ cash_balance: cashBalance })
+    .update({ cash_balance: cashBalance, cash_balances: cashBalances })
     .eq('id', portfolioId);
   if (error) {
     console.warn('[investment-transactions] cash_balance sync failed', error.message);
   } else {
     console.log(
-      `[investment-transactions] cash_balance synced → ${cashBalance} ${accountCurrency} (portfolio ${portfolioId})`,
+      `[investment-transactions] cash synced → balance=${cashBalance} ${accountCurrency}`,
+      cashBalances,
     );
   }
   return {
     openPositions: result.positions.filter((p) => p.held_units > 0).length,
     cashBalance,
+    cashBalances,
   };
 }
 
@@ -528,9 +736,11 @@ export async function importEtoroTransactionsFromXlsx(params: {
     hasCompleteData: parseResult.summary.buy.count > 0,
   };
 
-  console.log(
-    `[eToro tx import] Upserted ${upserted} rows into portfolio ${portfolioId} (broker=etoro, files=${files.length}, new=${summary.newCount}).`,
-  );
+  if (__DEV__) {
+    console.log(
+      `[eToro tx import] Upserted ${upserted} rows into portfolio ${portfolioId} (broker=etoro, files=${files.length}, new=${summary.newCount}).`,
+    );
+  }
 
   return { parseResult, portfolioId, upserted, summary, error: null };
 }
@@ -628,26 +838,145 @@ export async function importTrading212TransactionsFromCsv(params: {
     hasCompleteData: parseResult.summary.buy.count > 0,
   };
 
-  console.log(
-    `[T212 tx import] Upserted ${upserted} rows into portfolio ${portfolioId} (broker=trading212, files=${params.csvTexts.length}, new=${summary.newCount}).`,
-  );
-  const depTx = parseResult.transactions.filter((t) => t.type === 'deposit');
-  console.log('[T212 deposits] saved to DB', {
-    portfolioId,
-    upsertedTotal: upserted,
-    depositCount: depTx.length,
-    depositSum: Math.round(depTx.reduce((s, t) => s + t.amount, 0) * 100) / 100,
-    byCurrency: depTx.reduce(
-      (acc, t) => {
-        const c = t.original_currency || '?';
-        acc[c] = (acc[c] ?? 0) + t.amount;
-        return acc;
-      },
-      {} as Record<string, number>,
-    ),
-  });
+  if (__DEV__) {
+    console.log(
+      `[T212 tx import] Upserted ${upserted} rows into portfolio ${portfolioId} (broker=trading212, files=${params.csvTexts.length}, new=${summary.newCount}).`,
+    );
+    const depTx = parseResult.transactions.filter((t) => t.type === 'deposit');
+    console.log('[T212 deposits] saved to DB', {
+      portfolioId,
+      upsertedTotal: upserted,
+      depositCount: depTx.length,
+      depositSum: Math.round(depTx.reduce((s, t) => s + t.amount, 0) * 100) / 100,
+      byCurrency: depTx.reduce(
+        (acc, t) => {
+          const c = t.original_currency || '?';
+          acc[c] = (acc[c] ?? 0) + t.amount;
+          return acc;
+        },
+        {} as Record<string, number>,
+      ),
+    });
+  }
 
   return { parseResult, portfolioId, upserted, summary, error: null };
+}
+
+export async function importXtbTransactionsFromXlsx(params: {
+  ownerUserId: string;
+  visibility?: InvestmentPortfolioVisibility;
+  householdId?: string | null;
+  fileContent: string | ArrayBuffer;
+  portfolioName?: string;
+  importBatchId?: string;
+  client?: SupabaseClient;
+}): Promise<{
+  parseResult: XtbTransactionParseResult;
+  portfolioId: string | null;
+  upserted: number;
+  summary: BrokerImportSummary;
+  error: Error | null;
+}> {
+  const client = params.client ?? defaultSupabase;
+  const parseResult = parseXtbTransactionsXlsx(params.fileContent);
+  logXtbTransactionParseSummary(parseResult);
+
+  const emptySummary = (): BrokerImportSummary => ({
+    fileCount: 1,
+    upserted: 0,
+    newCount: 0,
+    openPositions: 0,
+    hasOrphanSells: false,
+    hasCompleteData: parseResult.summary.buy.count > 0,
+  });
+
+  try {
+    assertXtbInterestTaxImportAllowed(parseResult.transactions);
+  } catch (e) {
+    return {
+      parseResult,
+      portfolioId: null,
+      upserted: 0,
+      summary: emptySummary(),
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+  }
+
+  if (parseResult.transactions.length === 0) {
+    return {
+      parseResult,
+      portfolioId: null,
+      upserted: 0,
+      summary: emptySummary(),
+      error: null,
+    };
+  }
+
+  const currency =
+    parseResult.accountCurrency === 'USD' || parseResult.accountCurrency === 'CZK'
+      ? parseResult.accountCurrency
+      : 'EUR';
+
+  const { portfolioId, error: portfolioErr } = await findOrCreateXtbPortfolio(
+    {
+      ownerUserId: params.ownerUserId,
+      visibility: params.visibility,
+      householdId: params.householdId,
+      portfolioName: params.portfolioName,
+      currency,
+    },
+    client,
+  );
+  if (portfolioErr || !portfolioId) {
+    return {
+      parseResult,
+      portfolioId: null,
+      upserted: 0,
+      summary: emptySummary(),
+      error: portfolioErr,
+    };
+  }
+
+  const existingIds = await countExistingExternalIds(
+    portfolioId,
+    parseResult.transactions.map((t) => t.external_id),
+    client,
+  );
+
+  const { upserted, error } = await upsertInvestmentTransactionsRemote(
+    portfolioId,
+    parseResult.transactions,
+    params.importBatchId,
+    client,
+  );
+
+  if (error) {
+    return {
+      parseResult,
+      portfolioId,
+      upserted: 0,
+      summary: emptySummary(),
+      error,
+    };
+  }
+
+  const openPositions = await countOpenPositionsFromTxs(portfolioId, currency, client);
+  await syncPortfolioCashFromTransactions(portfolioId, currency, client);
+
+  return {
+    parseResult,
+    portfolioId,
+    upserted,
+    summary: {
+      fileCount: 1,
+      upserted,
+      newCount: Math.max(0, parseResult.transactions.length - existingIds),
+      openPositions,
+      hasOrphanSells: false,
+      hasCompleteData: parseResult.summary.buy.count > 0,
+    },
+    error: null,
+  };
 }
 
 export async function findOrCreateAnycoinPortfolio(

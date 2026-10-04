@@ -8,10 +8,9 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   Sparkles,
   Home,
   Car,
@@ -24,7 +23,11 @@ import {
   CreditCard,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
 import { LoanType } from '@/store/finance-store';
+import { getLoanTypeLabel } from '@/lib/loan-type-labels';
+import { BackButton } from '@/components/BackButton';
+import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
 
 interface LoanOffer {
   provider: string;
@@ -49,8 +52,8 @@ interface LoanRecommendation {
 }
 
 export default function LoanFinderScreen() {
-  const router = useRouter();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { t } = useLanguageStore();
   const currentCurrency = getCurrentCurrency();
 
   const [loanType, setLoanType] = useState<LoanType>('mortgage');
@@ -60,10 +63,10 @@ export default function LoanFinderScreen() {
   const [recommendation, setRecommendation] = useState<LoanRecommendation | null>(null);
 
   const loanTypes: { type: LoanType; label: string; icon: any; color: string }[] = [
-    { type: 'mortgage', label: 'Hypotéka', icon: Home, color: '#8B5CF6' },
-    { type: 'car', label: 'Auto', icon: Car, color: '#10B981' },
-    { type: 'personal', label: 'Osobní', icon: DollarSign, color: '#F59E0B' },
-    { type: 'student', label: 'Studium', icon: GraduationCap, color: '#6366F1' },
+    { type: 'mortgage', label: getLoanTypeLabel('mortgage'), icon: Home, color: '#8B5CF6' },
+    { type: 'car', label: t('loanFinderTypeCar'), icon: Car, color: '#10B981' },
+    { type: 'personal', label: t('loanFinderTypePersonalShort'), icon: DollarSign, color: '#F59E0B' },
+    { type: 'student', label: t('loanFinderTypeStudentShort'), icon: GraduationCap, color: '#6366F1' },
   ];
 
   const getLoanOffers = (type: LoanType, loanAmount: number, loanYears: number): LoanOffer[] => {
@@ -345,7 +348,6 @@ export default function LoanFinderScreen() {
 
   const generateInsights = (
     type: LoanType,
-    loanAmount: number,
     loanYears: number,
     offers: LoanOffer[]
   ): string[] => {
@@ -357,39 +359,44 @@ export default function LoanFinderScreen() {
     const totalSavings = savingsPerMonth * loanYears * 12;
 
     insights.push(
-      `💰 Výběrem nejlepší nabídky ušetříte ${Math.round(totalSavings).toLocaleString('cs-CZ')} ${currentCurrency.symbol} oproti nejdražší variantě.`
+      t('loanFinderInsightSavings', {
+        amount: Math.round(totalSavings).toLocaleString('cs-CZ'),
+        symbol: currentCurrency.symbol,
+      })
     );
 
     if (rateDiff > 1.0) {
       insights.push(
-        `⚠️ Rozdíl mezi nejlepší a nejhorší sazbou je ${rateDiff.toFixed(2)}%. Výběr správné banky je klíčový!`
+        t('loanFinderInsightRateDiff', { diff: rateDiff.toFixed(2) })
       );
     }
 
     if (type === 'mortgage' && loanYears >= 20) {
-      insights.push(
-        '🏠 U dlouhodobých hypoték zvažte fixaci na 5-10 let pro ochranu před růstem sazeb.'
-      );
+      insights.push(t('loanFinderInsightMortgageFix'));
     }
 
     if (type === 'car' && loanYears <= 5) {
-      insights.push('🚗 Kratší doba splácení znamená nižší celkové náklady na úvěr.');
+      insights.push(t('loanFinderInsightCarShorter'));
     }
 
     if (bestRate < 5.0 && type === 'mortgage') {
-      insights.push('✨ Aktuální sazby jsou historicky nízké. Výborná doba pro hypotéku!');
+      insights.push(t('loanFinderInsightLowRates'));
     }
 
+    const avgRate = offers.reduce((sum, o) => sum + o.rate, 0) / offers.length;
     insights.push(
-      `📊 Průměrná sazba na trhu je ${(offers.reduce((sum, o) => sum + o.rate, 0) / offers.length).toFixed(2)}%. Nejlepší nabídka je o ${((offers.reduce((sum, o) => sum + o.rate, 0) / offers.length) - bestRate).toFixed(2)}% lepší.`
+      t('loanFinderInsightAvgRate', {
+        avg: avgRate.toFixed(2),
+        diff: (avgRate - bestRate).toFixed(2),
+      })
     );
 
     return insights;
   };
 
   const handleSearch = async () => {
-    const loanAmount = parseFloat(amount);
-    const loanYears = parseFloat(years);
+    const loanAmount = parseMoneyInput(amount);
+    const loanYears = parseDecimalInput(years, 2);
 
     if (!loanAmount || loanAmount <= 0) {
       return;
@@ -407,7 +414,7 @@ export default function LoanFinderScreen() {
     const offers = getLoanOffers(loanType, loanAmount, loanYears);
     const bestOffer = offers[0];
     const averageRate = offers.reduce((sum, o) => sum + o.rate, 0) / offers.length;
-    const insights = generateInsights(loanType, loanAmount, loanYears, offers);
+    const insights = generateInsights(loanType, loanYears, offers);
 
     setRecommendation({
       loanType,
@@ -433,15 +440,13 @@ export default function LoanFinderScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.headerBackButton} onPress={() => router.back()}>
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.headerBackButton} />
           <View style={styles.headerTitleContainer}>
             <View style={styles.headerTitleRow}>
               <Sparkles color="white" size={24} />
-              <Text style={styles.headerTitle}>AI Hledač půjček</Text>
+              <Text style={styles.headerTitle}>{t('loanFinderTitle')}</Text>
             </View>
-            <Text style={styles.headerSubtitle}>Najdeme pro vás nejlepší nabídky</Text>
+            <Text style={styles.headerSubtitle}>{t('loanFinderSubtitle')}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -450,7 +455,7 @@ export default function LoanFinderScreen() {
         <View style={styles.content}>
           <View style={[styles.searchCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Co hledáte?
+              {t('loanFinderWhatLooking')}
             </Text>
 
             <View style={styles.loanTypeGrid}>
@@ -491,7 +496,7 @@ export default function LoanFinderScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Výše úvěru ({currentCurrency.symbol})
+                {t('loanFinderAmountLabel', { symbol: currentCurrency.symbol })}
               </Text>
               <TextInput
                 style={[
@@ -501,7 +506,7 @@ export default function LoanFinderScreen() {
                     color: isDarkMode ? 'white' : '#1F2937',
                   },
                 ]}
-                placeholder="Např. 3000000"
+                placeholder={t('loanFinderAmountPlaceholder')}
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                 keyboardType="numeric"
                 value={amount}
@@ -511,7 +516,7 @@ export default function LoanFinderScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Doba splácení (roky)
+                {t('loanFinderYearsLabel')}
               </Text>
               <TextInput
                 style={[
@@ -521,7 +526,7 @@ export default function LoanFinderScreen() {
                     color: isDarkMode ? 'white' : '#1F2937',
                   },
                 ]}
-                placeholder="Např. 25"
+                placeholder={t('loanFinderYearsPlaceholder')}
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                 keyboardType="numeric"
                 value={years}
@@ -545,7 +550,7 @@ export default function LoanFinderScreen() {
                 ) : (
                   <>
                     <Sparkles color="white" size={20} />
-                    <Text style={styles.searchButtonText}>Najít nejlepší nabídky</Text>
+                    <Text style={styles.searchButtonText}>{t('loanFinderSearch')}</Text>
                   </>
                 )}
               </LinearGradient>
@@ -560,7 +565,7 @@ export default function LoanFinderScreen() {
                 <View style={styles.insightsHeader}>
                   <Sparkles color="#F59E0B" size={24} />
                   <Text style={[styles.insightsTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    AI Doporučení
+                    {t('loanFinderAiRecommendations')}
                   </Text>
                 </View>
                 {recommendation.insights.map((insight, index) => (
@@ -577,7 +582,7 @@ export default function LoanFinderScreen() {
               >
                 <View style={styles.bestOfferBadge}>
                   <CheckCircle color="#10B981" size={20} />
-                  <Text style={styles.bestOfferBadgeText}>Nejlepší nabídka</Text>
+                  <Text style={styles.bestOfferBadgeText}>{t('loanFinderBestOffer')}</Text>
                 </View>
                 <View style={styles.bestOfferHeader}>
                   <Building2 color="#667eea" size={32} />
@@ -589,7 +594,7 @@ export default function LoanFinderScreen() {
                   <View style={styles.bestOfferStat}>
                     <Percent color="#667eea" size={20} />
                     <Text style={[styles.bestOfferStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Úroková sazba
+                      {t('loanInterestRate')}
                     </Text>
                     <Text style={[styles.bestOfferStatValue, { color: '#10B981' }]}>
                       {recommendation.bestOffer.rate}% p.a.
@@ -598,7 +603,7 @@ export default function LoanFinderScreen() {
                   <View style={styles.bestOfferStat}>
                     <CreditCard color="#667eea" size={20} />
                     <Text style={[styles.bestOfferStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Měsíční splátka
+                      {t('loanMonthlyPayment')}
                     </Text>
                     <Text style={[styles.bestOfferStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                       {Math.round(recommendation.bestOffer.monthlyPayment).toLocaleString('cs-CZ')} {currentCurrency.symbol}
@@ -607,7 +612,7 @@ export default function LoanFinderScreen() {
                   <View style={styles.bestOfferStat}>
                     <Calendar color="#667eea" size={20} />
                     <Text style={[styles.bestOfferStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Doba vyřízení
+                      {t('loanFinderProcessingTime')}
                     </Text>
                     <Text style={[styles.bestOfferStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                       {recommendation.bestOffer.processingTime}
@@ -627,7 +632,7 @@ export default function LoanFinderScreen() {
               </View>
 
               <Text style={[styles.otherOffersTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Další nabídky
+                {t('loanFinderOtherOffers')}
               </Text>
 
               {recommendation.offers.slice(1).map((offer, index) => (
@@ -649,7 +654,7 @@ export default function LoanFinderScreen() {
                   <View style={styles.offerStats}>
                     <View style={styles.offerStat}>
                       <Text style={[styles.offerStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Sazba
+                        {t('loanFinderRate')}
                       </Text>
                       <Text style={[styles.offerStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                         {offer.rate}%
@@ -657,7 +662,7 @@ export default function LoanFinderScreen() {
                     </View>
                     <View style={styles.offerStat}>
                       <Text style={[styles.offerStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Měsíčně
+                        {t('loanFinderMonthly')}
                       </Text>
                       <Text style={[styles.offerStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                         {Math.round(offer.monthlyPayment).toLocaleString('cs-CZ')} {currentCurrency.symbol}
@@ -665,7 +670,7 @@ export default function LoanFinderScreen() {
                     </View>
                     <View style={styles.offerStat}>
                       <Text style={[styles.offerStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Vyřízení
+                        {t('loanFinderProcessing')}
                       </Text>
                       <Text style={[styles.offerStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                         {offer.processingTime}

@@ -59,8 +59,10 @@ export function convertUsdToDisplay(
   if (displayCurrency === 'USD') return Math.round(amountUsd * 100) / 100;
   const rate = getCachedFxRate('USD', displayCurrency);
   if (rate == null || !(rate > 0)) {
-    console.warn(`[portfolio-snapshots] missing FX USD→${displayCurrency}`);
-    return Math.round(amountUsd * 100) / 100;
+    console.warn(
+      `[portfolio-snapshots] missing FX USD→${displayCurrency} — hodnota nedostupná (ne USD as ${displayCurrency})`,
+    );
+    return NaN;
   }
   return Math.round(amountUsd * rate * 100) / 100;
 }
@@ -248,6 +250,8 @@ export function findMissingSnapshotDates(
   return eachCalendarDate(fromDate, toDate).filter((d) => !existing.has(d));
 }
 
+const SNAPSHOT_PAGE_SIZE = 1000;
+
 export async function fetchPortfolioSnapshots(
   portfolioIds: string[],
   options?: {
@@ -258,28 +262,39 @@ export async function fetchPortfolioSnapshots(
   if (portfolioIds.length === 0) return { rows: [], error: null };
 
   const client = options?.client ?? supabase;
-  let query = client
-    .from('portfolio_snapshots')
-    .select('portfolio_id, date, total_value_usd, locked')
-    .in('portfolio_id', portfolioIds)
-    .order('date', { ascending: true });
+  const rows: PortfolioSnapshotRow[] = [];
 
-  if (options?.fromDate) {
-    query = query.gte('date', options.fromDate);
+  // PostgREST default max 1000 — stránkovat, jinak graf dostane truncovanou řadu.
+  for (let from = 0; ; from += SNAPSHOT_PAGE_SIZE) {
+    let query = client
+      .from('portfolio_snapshots')
+      .select('portfolio_id, date, total_value_usd, locked')
+      .in('portfolio_id', portfolioIds)
+      .order('date', { ascending: true })
+      .order('portfolio_id', { ascending: true })
+      .range(from, from + SNAPSHOT_PAGE_SIZE - 1);
+
+    if (options?.fromDate) {
+      query = query.gte('date', options.fromDate);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      logSupabaseError('fetchPortfolioSnapshots', error);
+      return { rows: [], error: new Error(error.message) };
+    }
+
+    const page = data ?? [];
+    for (const r of page) {
+      rows.push({
+        portfolio_id: String(r.portfolio_id),
+        date: String(r.date).slice(0, 10),
+        total_value_usd: Number(r.total_value_usd) || 0,
+        locked: r.locked === true,
+      });
+    }
+    if (page.length < SNAPSHOT_PAGE_SIZE) break;
   }
-
-  const { data, error } = await query;
-  if (error) {
-    logSupabaseError('fetchPortfolioSnapshots', error);
-    return { rows: [], error: new Error(error.message) };
-  }
-
-  const rows: PortfolioSnapshotRow[] = (data ?? []).map((r) => ({
-    portfolio_id: String(r.portfolio_id),
-    date: String(r.date).slice(0, 10),
-    total_value_usd: Number(r.total_value_usd) || 0,
-    locked: r.locked === true,
-  }));
 
   return { rows, error: null };
 }
@@ -306,7 +321,8 @@ export function aggregateSnapshotsToSeries(
     .map(([date, usd]) => ({
       date,
       value: convertUsdToDisplay(usd, displayCurrency),
-    }));
+    }))
+    .filter((p) => Number.isFinite(p.value));
 }
 
 export function filterSeriesByPeriod(

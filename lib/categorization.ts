@@ -10,8 +10,19 @@ import { supabase } from '@/lib/supabase';
 import type { ClassifyImportResult } from '@/lib/classify-import-category';
 
 /**
+ * 10 — 2026-10-03: digitální předplatné ve slovníku (Cursor/Anthropic/ChatGPT/
+ *     Canva/Adobe/Notion/Figma/M365/PREHRAJ.TO…) → Předplatné; category_source
+ *     'user' se nepřepisuje.
+ * 9 — 2026-09-24: Revolut slovník — nástroje (Framer/Figma/…/OpenAI) → Služby;
+ *     Ticketmaster/SMSTicket → Zábava; ZČU/školné/Skillshare → Vzdělání;
+ *     Kotelna → Jídlo; Adobe/Cursor/GitHub/OpenAI přesun z Předplatné/Elektronika.
+ * 8 — 2026-09-24: výdajová kategorie Investice (mimo součty); brokeri ve slovníku
+ *     (ETORO, TRADING 212, XTB, PORTU, ANYCOIN, …) → Investice; Trading 212
+ *     normalizace (nestripovat „212“).
+ * 7 — 2026-03-24: platební brány (GOPAY/NYX/PAYPAL/PAYU/COMGATE) zachovají
+ *     obchodníka za *; neslučovat na holé „GOPAY“.
  * 6 — 2026-03-24: stripTrailingTxnId (6+ číslic) + collapseKnownBrands
- *     (BOLT/UBER/WOLT/PAYPAL/GOPAY/NYX/PMDP/KLEPIERRE → jeden klíč).
+ *     (BOLT/UBER/WOLT/PMDP/KLEPIERRE → jeden klíč).
  * 5 — 2026-03-24: stripCzechAddressTail v normalizeMerchantKey (Air Bank Detaily
  *     s ulicí/číslem → stejný klíč jako ČSOB/KB; RADKA STEFLOVA pravidla sedí).
  * 4 — 2026-03-23: normalizeMerchantKey multi-word + strip s.r.o./pobočka/datum;
@@ -19,7 +30,7 @@ import type { ClassifyImportResult } from '@/lib/classify-import-category';
  * 3 — 2026-03-23: false Převod (účet-only) zrušen; ATM vklad vs výběr;
  *     Původní částka z RB hlavičky; nové kategorie + slovník (Telefon, Splátky, …).
  */
-export const CATEGORIZATION_VERSION = 6;
+export const CATEGORIZATION_VERSION = 10;
 
 export type CategorySource =
   | 'user'
@@ -52,7 +63,7 @@ export function mapClassifySourceToCategorySource(
   }
 }
 
-let inFlight: Promise<{ ran: boolean; updated: number }> | null = null;
+let inFlight: Promise<{ ran: boolean; updated: number; categoryChanged: number }> | null = null;
 
 /**
  * Po načtení transakcí: pokud je profiles.categories_version < CATEGORIZATION_VERSION,
@@ -61,8 +72,8 @@ let inFlight: Promise<{ ran: boolean; updated: number }> | null = null;
  */
 export async function ensureCategorizationUpToDate(
   userId: string,
-): Promise<{ ran: boolean; updated: number }> {
-  if (!userId) return { ran: false, updated: 0 };
+): Promise<{ ran: boolean; updated: number; categoryChanged: number }> {
+  if (!userId) return { ran: false, updated: 0, categoryChanged: 0 };
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
@@ -75,14 +86,14 @@ export async function ensureCategorizationUpToDate(
 
       if (fetchErr) {
         console.warn('[categorization] fetch version failed', fetchErr.message);
-        return { ran: false, updated: 0 };
+        return { ran: false, updated: 0, categoryChanged: 0 };
       }
 
       const current =
         typeof profile?.categories_version === 'number' ? profile.categories_version : 0;
 
       if (current >= CATEGORIZATION_VERSION) {
-        return { ran: false, updated: 0 };
+        return { ran: false, updated: 0, categoryChanged: 0 };
       }
 
       console.log('[categorization] upgrade', {
@@ -94,6 +105,7 @@ export async function ensureCategorizationUpToDate(
       console.log('[categorization] reclassify done', {
         scanned: result.scanned,
         updated: result.updated,
+        categoryChanged: result.categoryChanged,
       });
 
       const { error: upsertErr } = await supabase.from('user_profiles').upsert(
@@ -108,14 +120,18 @@ export async function ensureCategorizationUpToDate(
 
       if (upsertErr) {
         console.warn('[categorization] save version failed', upsertErr.message);
-        return { ran: false, updated: 0 };
+        return { ran: false, updated: 0, categoryChanged: 0 };
       }
 
       console.log('[categorization] version saved', CATEGORIZATION_VERSION);
-      return { ran: true, updated: result.updated };
+      return {
+        ran: true,
+        updated: result.updated,
+        categoryChanged: result.categoryChanged,
+      };
     } catch (e) {
       console.warn('[categorization] ensure failed', e);
-      return { ran: false, updated: 0 };
+      return { ran: false, updated: 0, categoryChanged: 0 };
     } finally {
       inFlight = null;
     }

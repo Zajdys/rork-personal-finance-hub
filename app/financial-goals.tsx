@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useDraggableList } from '@/lib/use-draggable-list';
 import {
   View,
   Text,
@@ -9,9 +10,8 @@ import {
   Modal,
   Alert,
   Switch,
-  PanResponder,
   Animated,
-  PanResponderGestureState,
+  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -30,15 +30,45 @@ import {
   ShoppingBag,
   Fuel,
   RefreshCcw,
-  GripVertical,
-  ArrowLeft,
   Zap,
   Smartphone,
+  Sparkles,
+  PenLine,
+  ChevronLeft,
 } from 'lucide-react-native';
-import { Stack, useRouter } from 'expo-router';
-import { useFinanceStore, FinancialGoal, RecurrenceFrequency } from '@/store/finance-store';
+import { Stack } from 'expo-router';
+import { useFocusRefresh } from '@/hooks/useFocusRefresh';
+import { AsyncButton } from '@/components/AsyncButton';
+import { useAsyncAction } from '@/hooks/use-async-action';
+import { safePush } from '@/lib/safe-navigate';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  useFinanceStore,
+  FinancialGoal,
+  RecurrenceFrequency,
+  isExpenseForReport,
+  type Transaction,
+} from '@/store/finance-store';
+import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore, type TRANSLATIONS } from '@/store/language-store';
+import { useTheme } from '@/hooks/use-theme';
+import { SwipeableTransactionRow } from '@/components/SwipeableTransactionRow';
+import { compareTxDateDesc, transactionDateYmd } from '@/lib/transaction-date';
+import {
+  useSavingsGoalsStore,
+  getGoalCurrentAmount,
+  type SavingsGoal,
+} from '@/store/savings-goals-store';
+import { daysUntilDeadline } from '@/lib/savings-goal-utils';
+import { BackButton } from '@/components/BackButton';
+import { EmptyState } from '@/components/EmptyState';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { parseMoneyInput } from '@/lib/parse-money-input';
+
+type TranslateFn = (key: keyof typeof TRANSLATIONS.cs, params?: Record<string, string | number>) => string;
 
 
+const FINANCIAL_GOAL_ORDER_KEY = 'financial_goal_order';
 
 const GOAL_CATEGORIES = {
   'Bydlení': { icon: Home, color: '#8B5CF6', emoji: '🏠' },
@@ -53,87 +83,249 @@ const GOAL_CATEGORIES = {
   'Ostatní': { icon: Target, color: '#6B7280', emoji: '🎯' },
 };
 
+type InspirationTemplate = {
+  id: string;
+  emoji: string;
+  titleKey: keyof typeof TRANSLATIONS.cs;
+  descKey: keyof typeof TRANSLATIONS.cs;
+  category: keyof typeof GOAL_CATEGORIES;
+  type: 'saving' | 'spending_limit';
+};
 
-type TemplateGoal = { title: string; targetAmount: number; category: keyof typeof GOAL_CATEGORIES | 'Ostatní'; type: 'saving' | 'spending_limit'; recurring?: { isRecurring: boolean; frequency: RecurrenceFrequency; dayOfMonth?: number } };
+const SAVING_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
+  {
+    id: 'reserve',
+    emoji: '💰',
+    titleKey: 'fgTplReserveTitle',
+    descKey: 'fgTplReserveDesc',
+    category: 'Spoření',
+    type: 'saving',
+  },
+  {
+    id: 'vacation',
+    emoji: '✈️',
+    titleKey: 'fgTplVacationTitle',
+    descKey: 'fgTplVacationDesc',
+    category: 'Ostatní',
+    type: 'saving',
+  },
+  {
+    id: 'renovation',
+    emoji: '🏠',
+    titleKey: 'fgTplRenovationTitle',
+    descKey: 'fgTplRenovationDesc',
+    category: 'Bydlení',
+    type: 'saving',
+  },
+  {
+    id: 'car',
+    emoji: '🚗',
+    titleKey: 'fgTplCarTitle',
+    descKey: 'fgTplCarDesc',
+    category: 'Doprava',
+    type: 'saving',
+  },
+  {
+    id: 'life-event',
+    emoji: '💍',
+    titleKey: 'fgTplLifeEventTitle',
+    descKey: 'fgTplLifeEventDesc',
+    category: 'Ostatní',
+    type: 'saving',
+  },
+];
 
-const TEMPLATES: Array<{ id: string; title: string; description: string; color: string; goals: ReadonlyArray<TemplateGoal> }> = [
+const LIMIT_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
   {
-    id: 'starter',
-    title: 'Startér',
-    description: 'Kompletní základ pro jednotlivce',
-    color: '#10B981',
-    goals: [
-      { title: 'Nouzová rezerva 20 000 Kč', targetAmount: 20000, category: 'Spoření', type: 'saving' as const },
-      { title: 'Nájem (měsíčně)', targetAmount: 12000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 1 } },
-      { title: 'Energie a služby (měsíčně)', targetAmount: 2500, category: 'Energie', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 15 } },
-      { title: 'Internet/telefon (měsíčně)', targetAmount: 800, category: 'Telefon/Internet', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 10 } },
-      { title: 'Jídlo (měsíční limit)', targetAmount: 6000, category: 'Jídlo a nápoje', type: 'spending_limit' as const },
-      { title: 'Doprava (MHD/benzín)', targetAmount: 1200, category: 'Doprava', type: 'spending_limit' as const },
-      { title: 'Dovolená', targetAmount: 30000, category: 'Ostatní', type: 'saving' as const },
-      { title: 'Rezerva na vybavení bytu', targetAmount: 10000, category: 'Bydlení', type: 'saving' as const },
-    ],
+    id: 'food',
+    emoji: '🛒',
+    titleKey: 'fgTplFoodTitle',
+    descKey: 'fgTplFoodDesc',
+    category: 'Jídlo a nápoje',
+    type: 'spending_limit',
   },
   {
-    id: 'housing',
-    title: 'Bydlení & hypotéka',
-    description: 'Šablona pro nájem/hypotéku a provoz domácnosti',
-    color: '#8B5CF6',
-    goals: [
-      { title: 'Hypotéka (měsíčně)', targetAmount: 18000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 15 } },
-      { title: 'Energie (měsíčně)', targetAmount: 3500, category: 'Energie', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 5 } },
-      { title: 'Pojištění domácnosti/majetku (roční)', targetAmount: 3000, category: 'Bydlení', type: 'saving' as const },
-      { title: 'FO fond (opravy bytu/domu)', targetAmount: 20000, category: 'Bydlení', type: 'saving' as const },
-      { title: 'Internet/TV (měsíčně)', targetAmount: 900, category: 'Telefon/Internet', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 20 } },
-      { title: 'Rezerva 3× měsíční náklady', targetAmount: 60000, category: 'Spoření', type: 'saving' as const },
-      { title: 'Nákupy drogerie (měsíčně)', targetAmount: 1200, category: 'Nákupy', type: 'spending_limit' as const },
-      { title: 'Jídlo (měsíčně)', targetAmount: 8000, category: 'Jídlo a nápoje', type: 'spending_limit' as const },
-    ],
+    id: 'energy',
+    emoji: '⚡',
+    titleKey: 'fgTplEnergyTitle',
+    descKey: 'fgTplEnergyDesc',
+    category: 'Energie',
+    type: 'spending_limit',
   },
   {
-    id: 'family',
-    title: 'Rodinný rozpočet',
-    description: 'Praktický plán pro domácnost se dvěma příjmy',
-    color: '#6366F1',
-    goals: [
-      { title: 'Rezerva 6× měsíčních nákladů', targetAmount: 120000, category: 'Spoření', type: 'saving' as const },
-      { title: 'Nájem (měsíčně)', targetAmount: 20000, category: 'Bydlení', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 1 } },
-      { title: 'Energie (měsíčně)', targetAmount: 4000, category: 'Energie', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'monthly' as RecurrenceFrequency, dayOfMonth: 10 } },
-      { title: 'Jídlo (měsíční limit)', targetAmount: 10000, category: 'Jídlo a nápoje', type: 'spending_limit' as const },
-      { title: 'Auto: servis/pojistka (roční)', targetAmount: 15000, category: 'Doprava', type: 'spending_limit' as const, recurring: { isRecurring: true, frequency: 'yearly' as RecurrenceFrequency, dayOfMonth: 1 } },
-      { title: 'Benzín (měsíčně)', targetAmount: 3000, category: 'Benzín', type: 'spending_limit' as const },
-      { title: 'Dětské potřeby (měsíčně)', targetAmount: 2000, category: 'Nákupy', type: 'spending_limit' as const },
-      { title: 'Dovolená', targetAmount: 40000, category: 'Ostatní', type: 'saving' as const },
-    ],
+    id: 'transport',
+    emoji: '🚇',
+    titleKey: 'fgTplTransportTitle',
+    descKey: 'fgTplTransportDesc',
+    category: 'Doprava',
+    type: 'spending_limit',
   },
   {
-    id: 'investor',
-    title: 'Investiční růst',
-    description: 'Dlouhodobé budování majetku a ochrana rizik',
-    color: '#F59E0B',
-    goals: [
-      { title: 'Investiční kapitál', targetAmount: 100000, category: 'Investice', type: 'saving' as const },
-      { title: 'Rezerva na daně', targetAmount: 20000, category: 'Ostatní', type: 'saving' as const },
-      { title: 'Povinné výdaje (měsíční limit)', targetAmount: 15000, category: 'Ostatní', type: 'spending_limit' as const },
-      { title: 'Zbytné výdaje (měsíční limit)', targetAmount: 4000, category: 'Ostatní', type: 'spending_limit' as const },
-      { title: 'Dlouhodobé spoření (roční cíl)', targetAmount: 60000, category: 'Spoření', type: 'saving' as const },
-    ],
+    id: 'fun',
+    emoji: '🎉',
+    titleKey: 'fgTplFunTitle',
+    descKey: 'fgTplFunDesc',
+    category: 'Ostatní',
+    type: 'spending_limit',
   },
-] as const;
+  {
+    id: 'clothing',
+    emoji: '👗',
+    titleKey: 'fgTplClothingTitle',
+    descKey: 'fgTplClothingDesc',
+    category: 'Nákupy',
+    type: 'spending_limit',
+  },
+];
+
+type AddPickerSheet = 'chooser' | 'templates';
+
+
+function translateGoalCategory(cat: string, t: TranslateFn): string {
+  const keyMap: Record<string, keyof typeof TRANSLATIONS.cs> = {
+    Bydlení: 'fgCatHousing',
+    'Jídlo a nápoje': 'fgCatFoodDrinks',
+    Doprava: 'transport',
+    Benzín: 'fgCatGas',
+    Nákupy: 'shopping',
+    'Telefon/Internet': 'fgCatPhoneInternet',
+    Energie: 'hhCatEnergy',
+    Spoření: 'fgCatSavings',
+    Investice: 'fgCatInvestments',
+    Ostatní: 'other',
+  };
+  return t(keyMap[cat] ?? 'other');
+}
+
+function fgTransactionsWord(count: number, t: TranslateFn): string {
+  const n100 = count % 100;
+  if (count === 1) return t('fgTxOne');
+  if (n100 >= 12 && n100 <= 14) return t('fgTxMany');
+  const n10 = count % 10;
+  if (n10 >= 2 && n10 <= 4) return t('fgTxFew');
+  return t('fgTxMany');
+}
+
+function formatKč(amount: number): string {
+  return `${Math.round(amount).toLocaleString('cs-CZ')} Kč`;
+}
+
+/** 0–70 % zelená, 70–90 % oranžová, 90–100 % červená */
+function getProgressColor(progressPercent: number): string {
+  const p = Math.min(Math.max(progressPercent, 0), 100);
+  if (p < 70) return '#22C55E';
+  if (p < 90) return '#F97316';
+  return '#EF4444';
+}
+
+/** Výdaje v kategorii za aktuální kalendářní měsíc, nejnovější první */
+function getTransactionsForCategoryThisMonth(
+  transactions: Transaction[],
+  category: string,
+): Transaction[] {
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return transactions
+    .filter((t) => {
+      if (!isExpenseForReport(t) || t.category !== category) return false;
+      const txDate = transactionDateYmd(t.date);
+      return txDate.startsWith(prefix);
+    })
+    .sort(compareTxDateDesc);
+}
 
 export default function FinancialGoalsScreen() {
-  const router = useRouter();
+  const { t, language } = useLanguageStore();
+  const { colors } = useTheme();
   const finance = useFinanceStore();
-  const { 
-    financialGoals: goals, 
-    addFinancialGoal, 
-    updateFinancialGoal, 
+  const { getCurrentCurrency } = useSettingsStore();
+  const currencySymbol = getCurrentCurrency().symbol;
+  const {
+    financialGoals: goals,
+    addFinancialGoal,
+    updateFinancialGoal,
     deleteFinancialGoal,
-    reorderFinancialGoals,
-    loadData, 
-    isLoaded 
+    loadData,
+    isLoaded,
   } = finance;
-  
+
+  const savingsGoals = useSavingsGoalsStore((s) => s.goals);
+  const savingsGoalsLoaded = useSavingsGoalsStore((s) => s.isLoaded);
+  const loadSavingsGoals = useSavingsGoalsStore((s) => s.loadGoals);
+  const goalsLoading = !isLoaded || !savingsGoalsLoaded;
+
+  useFocusRefresh(
+    useCallback(async () => {
+      await loadSavingsGoals();
+    }, [loadSavingsGoals]),
+  );
+
+  const openAddSavingsGoal = useCallback(() => {
+    safePush('/add-savings-goal');
+  }, []);
+
+  const openSavingsGoalDetail = useCallback((goal: SavingsGoal) => {
+    safePush({ pathname: '/savings-goal-detail', params: { id: goal.id } });
+  }, []);
+
+  const hasAnyGoals = goals.length > 0 || savingsGoals.length > 0;
+
+  const summaryStats = useMemo(() => {
+    let totalDisplay = 0;
+    let totalTarget = 0;
+    let nearLimit = 0;
+    for (const goal of goals) {
+      const raw =
+        goal.type === 'spending_limit'
+          ? finance
+              .getExpensesByCategory(goal.category || 'Ostatní')
+              .reduce((sum: number, t) => sum + t.amount, 0)
+          : goal.currentAmount;
+      const display = Math.round(raw);
+      const target = Math.round(goal.targetAmount);
+      totalDisplay += display;
+      totalTarget += target;
+      const progress = target > 0 ? (display / target) * 100 : 0;
+      if (goal.type === 'spending_limit' && progress > 80) {
+        nearLimit += 1;
+      }
+    }
+    const overallPct = totalTarget > 0 ? (totalDisplay / totalTarget) * 100 : 0;
+    const totalRemaining = Math.max(0, totalTarget - totalDisplay);
+    return { totalDisplay, totalTarget, overallPct, nearLimit, totalRemaining };
+  }, [goals, finance]);
+
+  /** Limity výdajů sloučené podle kategorie — pro sekci „Rozložení výdajů“. */
+  const expenseBreakdownCategoryData = useMemo(() => {
+    const map = new Map<string, { amount: number; limit: number }>();
+    for (const goal of goals) {
+      if (goal.type !== 'spending_limit') continue;
+      const cat = goal.category || 'Ostatní';
+      const spent = Math.round(
+        finance.getExpensesByCategory(cat).reduce((s: number, t) => s + t.amount, 0),
+      );
+      const lim = Math.round(goal.targetAmount);
+      const ex = map.get(cat);
+      if (!ex) {
+        map.set(cat, { amount: spent, limit: lim });
+      } else {
+        map.set(cat, { amount: spent, limit: ex.limit + lim });
+      }
+    }
+    return Array.from(map.entries()).map(([category, v]) => ({
+      category,
+      amount: v.amount,
+      limit: v.limit,
+    }));
+  }, [goals, finance]);
+
+  const totalExpenses = useMemo(
+    () => expenseBreakdownCategoryData.reduce((sum, cat) => sum + cat.amount, 0),
+    [expenseBreakdownCategoryData],
+  );
+
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [addPickerSheet, setAddPickerSheet] = useState<AddPickerSheet | null>(null);
   const [editingGoal, setEditingGoal] = useState<FinancialGoal | null>(null);
   const [goalTitle, setGoalTitle] = useState<string>('');
   const [goalAmount, setGoalAmount] = useState<string>('');
@@ -142,11 +334,24 @@ export default function FinancialGoalsScreen() {
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
   const [dayOfMonth, setDayOfMonth] = useState<string>('1');
-  
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const cardRefs = useRef<{ [key: string]: { y: number; height: number } }>({});
-  const draggingGoalId = useRef<string | null>(null);
+  const [detailGoal, setDetailGoal] = useState<FinancialGoal | null>(null);
+  const [detailSelectionMode, setDetailSelectionMode] = useState(false);
+  const [detailSelectedIds, setDetailSelectedIds] = useState<Set<string>>(() => new Set());
+  const detailInsets = useSafeAreaInsets();
+  const screenInsets = useSafeAreaInsets();
+
+  const barAnim = useRef(new Animated.Value(0)).current;
+  const goalsAnimKey = goals.map((g) => g.id).join('|');
+
+  const {
+    orderedItems: orderedGoals,
+    loadOrder: loadGoalOrder,
+    showReorderAlert: showGoalReorderAlert,
+  } = useDraggableList(goals, FINANCIAL_GOAL_ORDER_KEY);
+
+  useEffect(() => {
+    void loadGoalOrder();
+  }, [loadGoalOrder]);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -154,349 +359,265 @@ export default function FinancialGoalsScreen() {
     }
   }, [isLoaded, loadData]);
 
-  const deadlineDefault = useMemo(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 12);
-    return d;
+  useEffect(() => {
+    if (goals.length === 0) return;
+    barAnim.setValue(0);
+    Animated.timing(barAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: false,
+    }).start();
+  }, [barAnim, goalsAnimKey, goals.length, finance.transactions.length]);
+
+  useEffect(() => {
+    setDetailSelectionMode(false);
+    setDetailSelectedIds(new Set());
+  }, [detailGoal?.id]);
+
+  const detailTransactions = useMemo(() => {
+    if (!detailGoal) return [];
+    return getTransactionsForCategoryThisMonth(
+      finance.transactions,
+      detailGoal.category || 'Ostatní',
+    );
+  }, [detailGoal, finance.transactions]);
+
+  const detailTotal = useMemo(
+    () => Math.round(detailTransactions.reduce((sum, t) => sum + t.amount, 0)),
+    [detailTransactions],
+  );
+
+  const toggleDetailSelect = useCallback((id: string) => {
+    setDetailSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
-  const applyTemplate = useCallback((templateId: string) => {
-    console.log('Apply template called with ID:', templateId);
-    const template = TEMPLATES.find(t => t.id === templateId);
-    if (!template) {
-      console.log('Template not found');
-      return;
-    }
-    console.log('Template found:', template.title);
+  const selectAllDetailTx = useCallback(() => {
+    setDetailSelectedIds(new Set(detailTransactions.map((t) => t.id)));
+  }, [detailTransactions]);
 
-    const alertMessage = goals.length > 0 
-      ? `Nahradit ${goals.length} aktuální${goals.length === 1 ? '' : 'ch'} cíl${goals.length === 1 ? '' : 'ů'} šablonou "${template.title}"?`
-      : `Přidat ${template.goals.length} cílů ze šablony "${template.title}"?`;
+  const exitDetailSelection = useCallback(() => {
+    setDetailSelectionMode(false);
+    setDetailSelectedIds(new Set());
+  }, []);
 
+  const confirmBulkDeleteDetail = useCallback(() => {
+    const ids = Array.from(detailSelectedIds);
+    if (ids.length === 0) return;
+    const transactionsWord = fgTransactionsWord(ids.length, t);
     Alert.alert(
-      'Použít šablonu',
-      alertMessage,
+      t('fgDeleteTransactionsTitle'),
+      t('fgDeleteTransactionsConfirm', { count: ids.length, transactionsWord }),
       [
-        { text: 'Zrušit', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Použít',
-          style: 'default',
+          text: t('delete'),
+          style: 'destructive',
           onPress: () => {
-            try {
-              console.log('Applying template, deleting', goals.length, 'goals');
-              goals.forEach(g => deleteFinancialGoal(g.id));
-              console.log('Adding', template.goals.length, 'new goals');
-              template.goals.forEach((g, idx) => {
-                const id = `${template.id}-${Date.now()}-${idx}`;
-                const goalData: FinancialGoal = {
-                  id,
-                  title: g.title,
-                  targetAmount: g.targetAmount,
-                  currentAmount: 0,
-                  category: g.category,
-                  deadline: deadlineDefault,
-                  type: g.type,
-                  recurring: g.recurring,
-                };
-                addFinancialGoal(goalData);
-                console.log('Added goal:', goalData.title);
-              });
-              console.log('Template applied successfully');
-              Alert.alert('Hotovo! 🎉', `Šablona "${template.title}" byla použita. Přidáno ${template.goals.length} cílů.`);
-            } catch (e) {
-              Alert.alert('Chyba', 'Nepodařilo se použít šablonu.');
-              console.error('Error applying template:', e);
-            }
-          }
-        }
-      ]
-    );
-  }, [goals, deleteFinancialGoal, addFinancialGoal, deadlineDefault]);
-
-  const GoalCard = React.memo(({ goal, index }: { goal: FinancialGoal; index: number }) => {
-    const actualSpent = useMemo(() => {
-      if (goal.type !== 'spending_limit') return goal.currentAmount;
-      
-      const categoryKey = goal.category || 'Ostatní';
-      const categoryExpenses = finance.getExpensesByCategory(categoryKey);
-      return categoryExpenses.reduce((sum: number, t) => sum + t.amount, 0);
-    }, [goal, finance.transactions]);
-
-    const displayAmount = goal.type === 'spending_limit' ? actualSpent : goal.currentAmount;
-    const progress = (displayAmount / goal.targetAmount) * 100;
-    const IconComponent = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.icon || Target;
-    const isOverLimit = goal.type === 'spending_limit' && displayAmount > goal.targetAmount;
-    const goalColor = GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.color || '#6B7280';
-    
-    const pan = useRef(new Animated.ValueXY()).current;
-    const isDragging = draggingIndex === index;
-    const dragStartIndex = useRef<number>(index);
-    const lastReorderTime = useRef<number>(0);
-    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isDragEnabled = useRef<boolean>(false);
-    
-    const panResponder = useMemo(
-      () => PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onStartShouldSetPanResponderCapture: () => false,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
-        },
-        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-          return isDragEnabled.current && Math.abs(gestureState.dy) > 5;
-        },
-        onPanResponderGrant: () => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-          }
-          longPressTimer.current = setTimeout(() => {
-            isDragEnabled.current = true;
-            dragStartIndex.current = index;
-            draggingGoalId.current = goal.id;
-            setDraggingIndex(index);
-            pan.setOffset({ x: 0, y: 0 });
-            pan.setValue({ x: 0, y: 0 });
-            console.log('Drag started for goal:', goal.title);
-          }, 300);
-        },
-        onPanResponderMove: (evt, gestureState: PanResponderGestureState) => {
-          if (!isDragEnabled.current) return;
-          
-          pan.setValue({ x: 0, y: gestureState.dy });
-          
-          const now = Date.now();
-          if (now - lastReorderTime.current < 150) return;
-          
-          const currentY = (cardRefs.current[goal.id]?.y || 0) + gestureState.dy;
-          let targetIndex = dragStartIndex.current;
-          
-          for (let i = 0; i < goals.length; i++) {
-            if (i === dragStartIndex.current) continue;
-            
-            const itemRef = cardRefs.current[goals[i].id];
-            if (!itemRef) continue;
-            
-            const itemMiddle = itemRef.y + itemRef.height / 2;
-            
-            if (currentY < itemMiddle && i < dragStartIndex.current) {
-              targetIndex = i;
-              break;
-            } else if (currentY > itemMiddle && i > dragStartIndex.current) {
-              targetIndex = i;
-            }
-          }
-          
-          if (targetIndex !== dragStartIndex.current) {
-            lastReorderTime.current = now;
-            const newGoals = [...goals];
-            const [removed] = newGoals.splice(dragStartIndex.current, 1);
-            newGoals.splice(targetIndex, 0, removed);
-            dragStartIndex.current = targetIndex;
-            console.log('Reordering goals, moving from', dragStartIndex.current, 'to', targetIndex);
-            reorderFinancialGoals(newGoals);
-          }
-        },
-        onPanResponderRelease: () => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-          if (isDragEnabled.current) {
-            console.log('Drag ended for goal:', goal.title);
-          }
-          isDragEnabled.current = false;
-          draggingGoalId.current = null;
-          setDraggingIndex(null);
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: true,
-            friction: 8,
-            tension: 50,
-          }).start();
-        },
-        onPanResponderTerminate: () => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-          isDragEnabled.current = false;
-          draggingGoalId.current = null;
-          setDraggingIndex(null);
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: true,
-            friction: 8,
-            tension: 50,
-          }).start();
-        },
-      }),
-      [index, goal.id, goals, reorderFinancialGoals]
-    );
-    
-    return (
-      <Animated.View 
-        style={[
-          styles.goalCard,
-          isDragging && styles.goalCardDragging,
-          {
-            transform: [
-              { translateY: pan.y },
-            ],
-            zIndex: isDragging ? 1000 : 1,
-            elevation: isDragging ? 12 : 4,
+            finance.deleteTransactions(ids);
+            exitDetailSelection();
           },
-        ]}
-        onLayout={(e) => {
-          const { height, y } = e.nativeEvent.layout;
-          cardRefs.current[goal.id] = { height, y };
-        }}
-      >
-        <View style={styles.goalHeader}>
-          <View style={styles.dragHandle} {...panResponder.panHandlers}>
-            <GripVertical color="#9CA3AF" size={20} />
-          </View>
-          <View style={styles.goalInfo}>
-            <View style={[styles.goalIcon, { backgroundColor: goalColor + '20' }]}>
-              <IconComponent color={goalColor} size={24} />
-            </View>
-            <View style={styles.goalDetails}>
-              <View style={styles.goalTitleRow}>
-                <Text style={styles.goalEmoji}>
-                  {GOAL_CATEGORIES[(goal.category || 'Ostatní') as keyof typeof GOAL_CATEGORIES]?.emoji || '🎯'}
-                </Text>
-                <Text style={styles.goalTitle}>{goal.title}</Text>
-              </View>
-              <Text style={styles.goalCategory}>{goal.category || 'Ostatní'}</Text>
-            </View>
-          </View>
-          <View style={styles.goalActions}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => {
-                setEditingGoal(goal);
-                setGoalTitle(goal.title);
-                setGoalAmount(goal.targetAmount.toString());
-                setGoalCategory(goal.category || 'Ostatní');
-                setGoalType(goal.type);
-                setIsRecurring(Boolean(goal.recurring?.isRecurring));
-                setFrequency((goal.recurring?.frequency ?? 'monthly') as RecurrenceFrequency);
-                setDayOfMonth(goal.recurring?.dayOfMonth ? String(goal.recurring.dayOfMonth) : '1');
-                setShowAddModal(true);
-              }}
-            >
-              <Edit3 color="#6B7280" size={16} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={() => {
-                console.log('Delete button pressed for goal:', goal.id, goal.title);
-                Alert.alert(
-                  'Smazat cíl',
-                  `Opravdu chceš smazat cíl "${goal.title}"?`,
-                  [
-                    { text: 'Zrušit', style: 'cancel' },
-                    { 
-                      text: 'Smazat', 
-                      style: 'destructive',
-                      onPress: async () => {
-                        console.log('Deleting goal:', goal.id);
-                        try {
-                          deleteFinancialGoal(goal.id);
-                          console.log('Goal deleted successfully');
-                          Alert.alert('Úspěch! 🗑️', `Cíl "${goal.title}" byl smazán.`);
-                        } catch (error) {
-                          console.error('Error deleting goal:', error);
-                          Alert.alert('Chyba', 'Nepodařilo se smazat cíl. Zkus to znovu.');
-                        }
-                      }
-                    }
-                  ]
-                );
-              }}
-              testID={`delete-goal-${goal.id}`}
-            >
-              <Trash2 color="#EF4444" size={18} />
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        <View style={styles.goalProgress}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.currentAmount}>
-              {displayAmount.toLocaleString('cs-CZ')} Kč
-            </Text>
-            <Text style={styles.targetAmount}>
-              {goal.type === 'spending_limit' ? (goal.recurring?.isRecurring ? 'částka k úhradě' : 'limit') : 'cíl'}: {goal.targetAmount.toLocaleString('cs-CZ')} Kč
-            </Text>
-          </View>
-          
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarBackground}>
-              <View 
-                style={[
-                  styles.progressBar, 
-                  { 
-                    width: `${Math.min(progress, 100)}%`, 
-                    backgroundColor: isOverLimit ? '#EF4444' : goalColor
-                  }
-                ]} 
-              />
-            </View>
-            <Text style={[
-              styles.progressText,
-              { color: isOverLimit ? '#EF4444' : goalColor }
-            ]}>
-              {Math.round(progress)}%
-            </Text>
-          </View>
-          
-          {isOverLimit && (
-            <Text style={styles.overLimitText}>
-              ⚠️ Překročil jsi limit o {(displayAmount - goal.targetAmount).toLocaleString('cs-CZ')} Kč
-            </Text>
-          )}
-          
-          {goal.type === 'spending_limit' && !isOverLimit && (
-            <Text style={styles.remainingText}>
-              Zbývá: {(goal.targetAmount - displayAmount).toLocaleString('cs-CZ')} Kč
-            </Text>
-          )}
-          
-          {goal.type === 'saving' && progress < 100 && (
-            <Text style={styles.remainingText}>
-              Zbývá: {(goal.targetAmount - displayAmount).toLocaleString('cs-CZ')} Kč
-            </Text>
-          )}
+        },
+      ],
+    );
+  }, [detailSelectedIds, finance, exitDetailSelection, t]);
 
-          {goal.recurring?.isRecurring && (
-            <View style={styles.recurringChip}>
-              <Calendar color={goalColor} size={14} />
-              <Text style={[styles.recurringText, { color: goalColor }]}>
-                {goal.recurring.frequency === 'monthly' ? 'měsíčně' : 'ročně'}{goal.recurring.dayOfMonth ? `, den ${goal.recurring.dayOfMonth}` : ''}
+  const resetGoalFormFields = useCallback(() => {
+    setGoalTitle('');
+    setGoalAmount('');
+    setGoalCategory('Ostatní');
+    setGoalType('saving');
+    setIsRecurring(false);
+    setFrequency('monthly');
+    setDayOfMonth('1');
+  }, []);
+
+  const openCustomGoalForm = useCallback(() => {
+    setEditingGoal(null);
+    resetGoalFormFields();
+    setAddPickerSheet(null);
+    setShowAddModal(true);
+  }, [resetGoalFormFields]);
+
+  const openTemplatePicker = useCallback(() => {
+    setAddPickerSheet('templates');
+  }, []);
+
+  const applyInspirationTemplate = useCallback(
+    (template: InspirationTemplate) => {
+      setEditingGoal(null);
+      setGoalTitle(t(template.titleKey));
+      setGoalAmount('');
+      setGoalCategory(template.category);
+      setGoalType(template.type);
+      setIsRecurring(false);
+      setFrequency('monthly');
+      setDayOfMonth('1');
+      setAddPickerSheet(null);
+      setShowAddModal(true);
+    },
+    [t],
+  );
+
+  const closeAddPicker = useCallback(() => {
+    setAddPickerSheet(null);
+  }, []);
+
+  const GoalCard = React.memo(
+    ({ goal, txSig, anim, localeSig }: { goal: FinancialGoal; txSig: number; anim: Animated.Value; localeSig: string }) => {
+      const cat = goal.category || 'Ostatní';
+      const rawDisplay = useMemo(() => {
+        if (goal.type !== 'spending_limit') return goal.currentAmount;
+        const categoryKey = goal.category || 'Ostatní';
+        const categoryExpenses = finance.getExpensesByCategory(categoryKey);
+        return categoryExpenses.reduce((sum: number, t) => sum + t.amount, 0);
+      }, [goal]);
+
+      const displayRounded = Math.round(rawDisplay);
+      const targetRounded = Math.round(goal.targetAmount);
+      const progress = targetRounded > 0 ? (displayRounded / targetRounded) * 100 : 0;
+      const progressClamped = Math.min(progress, 100);
+      const isOverLimit = goal.type === 'spending_limit' && displayRounded > targetRounded;
+      const barColor = isOverLimit ? '#EF4444' : getProgressColor(progressClamped);
+      const typeLabel = goal.type === 'spending_limit' ? t('spendingLimit') : t('savingGoal');
+      const emoji = GOAL_CATEGORIES[cat as keyof typeof GOAL_CATEGORIES]?.emoji || '🎯';
+
+      return (
+        <View
+          style={[
+            styles.goalCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.goalCardHeader}>
+            <View style={styles.goalCardTitleBlock}>
+              <Text style={styles.goalEmoji}>{emoji}</Text>
+              <Text style={[styles.goalTitle, { color: colors.text }]} numberOfLines={2}>
+                {goal.title}
+              </Text>
+              <Text style={[styles.goalTypeBadge, { color: colors.textSecondary }]} numberOfLines={1}>
+                {typeLabel}
               </Text>
             </View>
-          )}
-        </View>
-      </Animated.View>
-    );
-  }, (prevProps, nextProps) => {
-    return prevProps.goal.id === nextProps.goal.id && 
-           prevProps.index === nextProps.index &&
-           prevProps.goal.currentAmount === nextProps.goal.currentAmount &&
-           prevProps.goal.targetAmount === nextProps.goal.targetAmount &&
-           prevProps.goal.title === nextProps.goal.title &&
-           JSON.stringify(prevProps.goal.category) === JSON.stringify(nextProps.goal.category);
-  });
+            <View style={styles.goalCardActions}>
+              <TouchableOpacity
+                style={styles.goalIconAction}
+                onPress={() => {
+                  setEditingGoal(goal);
+                  setGoalTitle(goal.title);
+                  setGoalAmount(goal.targetAmount.toString());
+                  setGoalCategory(goal.category || 'Ostatní');
+                  setGoalType(goal.type);
+                  setIsRecurring(Boolean(goal.recurring?.isRecurring));
+                  setFrequency((goal.recurring?.frequency ?? 'monthly') as RecurrenceFrequency);
+                  setDayOfMonth(goal.recurring?.dayOfMonth ? String(goal.recurring.dayOfMonth) : '1');
+                  setShowAddModal(true);
+                }}
+                hitSlop={8}
+              >
+                <Edit3 color={colors.textSecondary} size={16} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.goalIconAction}
+                onPress={() => {
+                  Alert.alert(
+                    t('fgDeleteGoalTitle'),
+                    t('fgDeleteGoalConfirm', { title: goal.title }),
+                    [
+                      { text: t('cancel'), style: 'cancel' },
+                      {
+                        text: t('delete'),
+                        style: 'destructive',
+                        onPress: () => {
+                          try {
+                            deleteFinancialGoal(goal.id);
+                          } catch (error) {
+                            console.error('Error deleting goal:', error);
+                            Alert.alert(t('error'), t('fgGoalDeleteFailed'));
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+                testID={`delete-goal-${goal.id}`}
+                hitSlop={8}
+              >
+                <Trash2 color={colors.textSecondary} size={16} />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-  const handleSaveGoal = () => {
+          <Text style={[styles.goalAmountLarge, { color: colors.text }]}>{formatKč(displayRounded)}</Text>
+
+          <View style={[styles.progressBarTrack, { backgroundColor: colors.muted }]}>
+            <Animated.View
+              style={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: barColor,
+                width: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', `${progressClamped}%`],
+                }),
+              }}
+            />
+          </View>
+
+          <Text style={[styles.progressSubline, { color: colors.textSecondary }]}>
+            {t('fgGoalProgressLine', {
+              current: formatKč(displayRounded),
+              target: formatKč(targetRounded),
+              pct: Math.round(progressClamped),
+            })}
+          </Text>
+
+          {isOverLimit ? (
+            <Text style={styles.overLimitText}>
+              ⚠️ +{formatKč(displayRounded - targetRounded)} ({t('fgLimitLabel')})
+            </Text>
+          ) : null}
+
+          {goal.recurring?.isRecurring ? (
+            <Text style={[styles.goalRecurringHint, { color: colors.textSecondary }]}>
+              {goal.recurring.frequency === 'monthly' ? t('fgMonthly') : t('fgYearly')}
+              {goal.recurring.dayOfMonth ? ` · ${goal.recurring.dayOfMonth}.` : ''}
+            </Text>
+          ) : null}
+        </View>
+      );
+    },
+    (prevProps, nextProps) => {
+      return (
+        prevProps.goal.id === nextProps.goal.id &&
+        prevProps.txSig === nextProps.txSig &&
+        prevProps.localeSig === nextProps.localeSig &&
+        prevProps.goal.currentAmount === nextProps.goal.currentAmount &&
+        prevProps.goal.targetAmount === nextProps.goal.targetAmount &&
+        prevProps.goal.title === nextProps.goal.title &&
+        JSON.stringify(prevProps.goal.category) === JSON.stringify(nextProps.goal.category)
+      );
+    },
+  );
+  GoalCard.displayName = 'GoalCard';
+
+  const openGoalDetail = useCallback((goal: FinancialGoal) => {
+    setDetailGoal(goal);
+  }, []);
+
+  const { run: handleSaveGoal } = useAsyncAction(async () => {
     if (!goalTitle || !goalAmount) {
-      Alert.alert('Chyba', 'Vyplň všechna pole');
+      Alert.alert(t('error'), t('fillAllFields'));
       return;
     }
 
-    const amount = parseFloat(goalAmount);
-    if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Chyba', 'Zadej platnou částku');
+    const amount = parseMoneyInput(goalAmount);
+    if (amount == null || amount <= 0) {
+      Alert.alert(t('error'), t('enterValidAmount'));
       return;
     }
 
@@ -525,10 +646,61 @@ export default function FinancialGoalsScreen() {
     setShowAddModal(false);
     
     Alert.alert(
-      'Úspěch! 🎯',
-      `Cíl "${goalTitle}" byl ${editingGoal ? 'upraven' : 'přidán'}.`
+      t('fgGoalSaved'),
+      t('fgGoalSavedDetail', {
+        title: goalTitle,
+        action: editingGoal ? t('fgGoalUpdated') : t('fgGoalAdded'),
+      }),
     );
-  };
+  });
+
+  function GoalsScreenListHeader() {
+    return (
+      <>
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={openAddSavingsGoal}
+            testID="open-add-goal"
+          >
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.addButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Plus color="white" size={20} />
+              <Text style={styles.addButtonText}>{t('fgNewGoal')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+            {t('fgOverallProgress')}
+          </Text>
+          <View style={[styles.summaryBarTrack, { backgroundColor: colors.muted }]}>
+            <Animated.View
+              style={{
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: '#a855f7',
+                width: barAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', `${Math.min(summaryStats.overallPct, 100)}%`],
+                }),
+              }}
+            />
+          </View>
+        </View>
+      </>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -540,119 +712,281 @@ export default function FinancialGoalsScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Finanční cíle</Text>
-            <Text style={styles.headerSubtitle}>Nastav si cíle a sleduj pokrok</Text>
+            <Text style={styles.headerTitle}>{t('financialGoals')}</Text>
+            <Text style={styles.headerSubtitle}>{t('profileGoalsSubtitle')}</Text>
           </View>
           <View style={styles.headerSpacer} />
         </View>
       </LinearGradient>
-      <ScrollView 
-        ref={scrollViewRef}
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={true}
+        contentContainerStyle={styles.scrollContent}
+        nestedScrollEnabled
       >
-
-        {goals.length === 0 && (
-          <View style={styles.templatesContainer}>
-            <Text style={styles.sectionLabel}>Rychlé šablony</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {TEMPLATES.map(t => (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[styles.templateCard, { borderColor: t.color }]}
-                  onPress={() => applyTemplate(t.id)}
-                  testID={`apply-template-${t.id}`}
-                >
-                  <LinearGradient
-                    colors={[t.color, '#111827']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.templateGradient}
-                  >
-                    <Text style={styles.templateTitle} numberOfLines={1}>{t.title}</Text>
-                    <Text style={styles.templateDesc} numberOfLines={1}>{t.description}</Text>
-                    <View style={styles.templateBadgesRow}>
-                      {(() => {
-                        const maxBadges = 4;
-                        const shown = t.goals.slice(0, maxBadges);
-                        const extra = t.goals.length - shown.length;
-                        return (
-                          <>
-                            {shown.map((g, i) => (
-                              <View key={i} style={styles.templateBadge}>
-                                <Text style={styles.templateBadgeText} numberOfLines={1}>{g.title}</Text>
-                              </View>
-                            ))}
-                            {extra > 0 && (
-                              <View style={styles.templateBadge}>
-                                <Text style={styles.templateBadgeText}>+{extra}</Text>
-                              </View>
-                            )}
-                          </>
-                        );
-                      })()}
+        {goalsLoading && !hasAnyGoals ? (
+          <LoadingSkeleton loading variant="cards" />
+        ) : !goalsLoading && !hasAnyGoals ? (
+          <EmptyState
+            title={t('fgEmptyGoalsTitle')}
+            description={t('fgEmptyGoalsDescription')}
+            icon={<Target color={colors.textSecondary} size={48} />}
+            actionLabel={t('fgNewGoal')}
+            actionIcon={<Plus color={colors.onPrimary} size={20} />}
+            onAction={openAddSavingsGoal}
+            actionTestID="open-add-first-goal"
+          />
+        ) : (
+          <>
+            <GoalsScreenListHeader />
+            {savingsGoals.length > 0 ? (
+              <View style={styles.goalsContainer}>
+                {savingsGoals.map((sg) => {
+                  const current = Math.round(getGoalCurrentAmount(sg));
+                  const target = Math.round(sg.targetAmount);
+                  const progress = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+                  const daysLeft = daysUntilDeadline(sg.deadline);
+                  return (
+                    <TouchableOpacity
+                      key={sg.id}
+                      activeOpacity={0.85}
+                      onPress={() => openSavingsGoalDetail(sg)}
+                      testID={`savings-goal-${sg.id}`}
+                    >
+                      <View
+                        style={[
+                          styles.goalCard,
+                          { backgroundColor: colors.card, borderColor: colors.border },
+                        ]}
+                      >
+                        <View style={styles.goalCardHeader}>
+                          <Text style={styles.goalEmoji}>{sg.emoji}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.goalTitle, { color: colors.text }]} numberOfLines={1}>
+                              {sg.name}
+                            </Text>
+                            <Text style={[styles.goalTypeBadge, { color: colors.textSecondary }]}>
+                              {t('savingGoal')}
+                              {daysLeft >= 0
+                                ? ` · ${daysLeft} ${
+                                    daysLeft === 1
+                                      ? t('sgDayOne')
+                                      : daysLeft >= 2 && daysLeft <= 4
+                                        ? t('sgDayFew')
+                                        : t('sgDayMany')
+                                  }`
+                                : ''}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.goalAmountLarge, { color: colors.text }]}>
+                          {formatKč(current)}
+                        </Text>
+                        <View style={[styles.progressBarTrack, { backgroundColor: colors.muted }]}>
+                          <View
+                            style={{
+                              height: 8,
+                              borderRadius: 4,
+                              backgroundColor: sg.color || '#10B981',
+                              width: `${progress}%`,
+                            }}
+                          />
+                        </View>
+                        <Text style={[styles.progressSubline, { color: colors.textSecondary }]}>
+                          {t('fgGoalProgressLine', {
+                            current: formatKč(current),
+                            target: formatKč(target),
+                            pct: Math.round(progress),
+                          })}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : null}
+            {expenseBreakdownCategoryData.length > 0 && (
+              <View style={styles.expenseBreakdownSection}>
+                <Text style={[styles.expenseBreakdownTitle, { color: colors.text }]}>
+                  {t('expenseBreakdown')}
+                </Text>
+                {expenseBreakdownCategoryData.map((cat) => {
+                  const limitProgress =
+                    cat.limit > 0 ? Math.min(100, Math.round((cat.amount / cat.limit) * 100)) : 0;
+                  const percentage =
+                    totalExpenses > 0 ? Math.round((cat.amount / totalExpenses) * 100) : 0;
+                  const barWidth = cat.limit > 0 ? limitProgress : Math.min(percentage, 100);
+                  const hasLimit = cat.limit > 0;
+                  const overLimit = hasLimit && cat.amount > cat.limit;
+                  const percentColor = !hasLimit ? colors.textSecondary : overLimit ? '#EF4444' : '#22C55E';
+                  return (
+                    <View key={cat.category} style={[styles.expenseBreakdownRow, { borderBottomColor: colors.border }]}>
+                      <View style={styles.expenseBreakdownRowTop}>
+                        <Text style={[styles.expenseBreakdownCategory, { color: colors.text }]} numberOfLines={1}>
+                          {translateGoalCategory(cat.category, t)}
+                        </Text>
+                        <Text style={[styles.expenseBreakdownPercent, { color: percentColor }]}>
+                          {hasLimit ? `${limitProgress}%` : `${percentage}%`}
+                        </Text>
+                      </View>
+                      {cat.amount > 0 ? (
+                        <Text style={[styles.expenseBreakdownAmounts, { color: colors.textSecondary }]}>
+                          {formatKč(cat.amount)}
+                          {hasLimit ? t('fgLimitAmount', { amount: formatKč(cat.limit) }) : t('fgWithoutLimit')}
+                        </Text>
+                      ) : null}
+                      <View style={[styles.expenseBreakdownTrack, { backgroundColor: colors.muted }]}>
+                        <View
+                          style={[
+                            styles.expenseBreakdownFill,
+                            { width: `${barWidth}%`, backgroundColor: percentColor },
+                          ]}
+                        />
+                      </View>
                     </View>
-                    <Text style={styles.templateApply}>Použít</Text>
-                  </LinearGradient>
+                  );
+                })}
+              </View>
+            )}
+            <View style={styles.goalsContainer}>
+              {orderedGoals.map((goal) => (
+                <TouchableOpacity
+                  key={goal.id}
+                  activeOpacity={0.85}
+                  delayLongPress={500}
+                  onLongPress={() => showGoalReorderAlert(goal.id)}
+                  onPress={() => openGoalDetail(goal)}
+                >
+                  <GoalCard goal={goal} txSig={finance.transactions.length} anim={barAnim} localeSig={language} />
                 </TouchableOpacity>
               ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => {
-              setEditingGoal(null);
-              setGoalTitle('');
-              setGoalAmount('');
-              setGoalCategory('Ostatní');
-              setGoalType('saving');
-              setIsRecurring(false);
-              setFrequency('monthly');
-              setDayOfMonth('1');
-              setShowAddModal(true);
-            }}
-            testID="open-add-goal"
-          >
-            <LinearGradient
-              colors={['#10B981', '#059669']}
-              style={styles.addButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Plus color="white" size={20} />
-              <Text style={styles.addButtonText}>Přidat nový cíl</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.goalsContainer}>
-          {goals.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Target color="#9CA3AF" size={48} />
-              <Text style={styles.emptyStateTitle}>Žádné cíle</Text>
-              <Text style={styles.emptyStateText}>
-                Přidej svůj první finanční cíl a začni sledovat pokrok
-              </Text>
             </View>
-          ) : (
-            goals.map((goal, index) => (
-              <GoalCard key={goal.id} goal={goal} index={index} />
-            ))
-          )}
-        </View>
+          </>
+        )}
+      </ScrollView>
 
-        <Modal
+      <Modal
+        visible={addPickerSheet !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={closeAddPicker}
+      >
+        <Pressable style={styles.addPickerBackdrop} onPress={closeAddPicker}>
+          <Pressable
+            style={[
+              styles.addPickerSheet,
+              { backgroundColor: colors.card, paddingBottom: Math.max(screenInsets.bottom, 16) },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {addPickerSheet === 'chooser' ? (
+              <>
+                <Text style={[styles.addPickerTitle, { color: colors.text }]}>{t('fgHowToStart')}</Text>
+                <TouchableOpacity
+                  style={[styles.addPickerChoiceCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={openTemplatePicker}
+                  activeOpacity={0.85}
+                  testID="add-goal-from-template"
+                >
+                  <View style={[styles.addPickerChoiceIcon, { backgroundColor: 'rgba(168,85,247,0.15)' }]}>
+                    <Sparkles color="#a855f7" size={24} />
+                  </View>
+                  <View style={styles.addPickerChoiceText}>
+                    <Text style={[styles.addPickerChoiceTitle, { color: colors.text }]}>
+                      {t('fgFromTemplate')}
+                    </Text>
+                    <Text style={[styles.addPickerChoiceDesc, { color: colors.textSecondary }]}>
+                      {t('fgFromTemplateDesc')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.addPickerChoiceCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={openCustomGoalForm}
+                  activeOpacity={0.85}
+                  testID="add-goal-custom"
+                >
+                  <View style={[styles.addPickerChoiceIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
+                    <PenLine color="#10B981" size={24} />
+                  </View>
+                  <View style={styles.addPickerChoiceText}>
+                    <Text style={[styles.addPickerChoiceTitle, { color: colors.text }]}>
+                      {t('fgCustomGoal')}
+                    </Text>
+                    <Text style={[styles.addPickerChoiceDesc, { color: colors.textSecondary }]}>
+                      {t('fgCustomGoalDesc')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.addPickerTemplatesHeader}>
+                  <TouchableOpacity
+                    onPress={() => setAddPickerSheet('chooser')}
+                    style={styles.addPickerBackBtn}
+                    hitSlop={8}
+                  >
+                    <ChevronLeft color={colors.text} size={24} />
+                  </TouchableOpacity>
+                  <Text style={[styles.addPickerTitle, styles.addPickerTitleFlex, { color: colors.text }]}>
+                    {t('fgFromTemplate')}
+                  </Text>
+                  <View style={styles.addPickerBackBtn} />
+                </View>
+                <ScrollView style={styles.addPickerTemplatesScroll} showsVerticalScrollIndicator={false}>
+                  <Text style={[styles.addPickerSectionLabel, { color: colors.textSecondary }]}>
+                    {t('fgTplSectionSaving')}
+                  </Text>
+                  {SAVING_INSPIRATION_TEMPLATES.map((tpl) => (
+                    <TouchableOpacity
+                      key={tpl.id}
+                      style={[styles.addPickerTemplateRow, { borderColor: colors.border }]}
+                      onPress={() => applyInspirationTemplate(tpl)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.addPickerTemplateEmoji}>{tpl.emoji}</Text>
+                      <View style={styles.addPickerTemplateText}>
+                        <Text style={[styles.addPickerTemplateTitle, { color: colors.text }]}>
+                          {t(tpl.titleKey)}
+                        </Text>
+                        <Text style={[styles.addPickerTemplateDesc, { color: colors.textSecondary }]}>
+                          {t(tpl.descKey)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={[styles.addPickerSectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                    {t('fgTplSectionLimits')}
+                  </Text>
+                  {LIMIT_INSPIRATION_TEMPLATES.map((tpl) => (
+                    <TouchableOpacity
+                      key={tpl.id}
+                      style={[styles.addPickerTemplateRow, { borderColor: colors.border }]}
+                      onPress={() => applyInspirationTemplate(tpl)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.addPickerTemplateEmoji}>{tpl.emoji}</Text>
+                      <View style={styles.addPickerTemplateText}>
+                        <Text style={[styles.addPickerTemplateTitle, { color: colors.text }]}>
+                          {t(tpl.titleKey)}
+                        </Text>
+                        <Text style={[styles.addPickerTemplateDesc, { color: colors.textSecondary }]}>
+                          {t(tpl.descKey)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
           visible={showAddModal}
           animationType="slide"
           presentationStyle="pageSheet"
@@ -675,7 +1009,7 @@ export default function FinancialGoalsScreen() {
                   <X color="white" size={24} />
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>
-                  {editingGoal ? 'Upravit cíl' : 'Nový cíl'}
+                  {editingGoal ? t('fgEditGoal') : t('fgNewGoal')}
                 </Text>
                 <View style={styles.modalProgress} />
               </View>
@@ -694,7 +1028,7 @@ export default function FinancialGoalsScreen() {
                   <Text style={[
                     styles.typeButtonText,
                     goalType === 'saving' && styles.typeButtonTextActive
-                  ]}>Spoření</Text>
+                  ]}>{t('savingGoal')}</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
@@ -708,25 +1042,25 @@ export default function FinancialGoalsScreen() {
                   <Text style={[
                     styles.typeButtonText,
                     goalType === 'spending_limit' && styles.typeButtonTextActive
-                  ]}>Limit výdajů</Text>
+                  ]}>{t('spendingLimit')}</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.formContainer}>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Název cíle</Text>
+                  <Text style={styles.inputLabel}>{t('fgGoalName')}</Text>
                   <TextInput
                     style={styles.textInput}
                     value={goalTitle}
                     onChangeText={setGoalTitle}
-                    placeholder={goalType === 'saving' ? 'Dovolená' : 'Nájem / Hypotéka / Předplatné'}
+                    placeholder={goalType === 'saving' ? t('fgSavingPlaceholder') : t('fgLimitPlaceholder')}
                     testID="goal-title-input"
                   />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>
-                    {goalType === 'saving' ? 'Cílová částka' : (isRecurring ? 'Částka k úhradě' : 'Maximální částka')} (Kč)
+                    {goalType === 'saving' ? t('fgTargetAmount') : (isRecurring ? t('fgPaymentAmount') : t('fgMaxAmount'))} (Kč)
                   </Text>
                   <TextInput
                     style={styles.textInput}
@@ -739,7 +1073,7 @@ export default function FinancialGoalsScreen() {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Kategorie</Text>
+                  <Text style={styles.inputLabel}>{t('category')}</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categorySelector}>
                     {Object.entries(GOAL_CATEGORIES).map(([category, { icon: IconComponent, color }]) => (
                       <TouchableOpacity
@@ -760,7 +1094,7 @@ export default function FinancialGoalsScreen() {
                           styles.categoryButtonText,
                           goalCategory === category && styles.categoryButtonTextActive
                         ]}>
-                          {category}
+                          {translateGoalCategory(category, t)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -772,7 +1106,7 @@ export default function FinancialGoalsScreen() {
                     <View style={styles.recurringHeader}>
                       <View style={styles.recurringHeaderLeft}>
                         <RefreshCcw color="#10B981" size={18} />
-                        <Text style={styles.recurringLabel}>Pravidelná platba</Text>
+                        <Text style={styles.recurringLabel}>{t('fgRecurringPayment')}</Text>
                       </View>
                       <Switch
                         value={isRecurring}
@@ -790,7 +1124,7 @@ export default function FinancialGoalsScreen() {
                             testID="freq-monthly"
                           >
                             <Calendar color={frequency === 'monthly' ? 'white' : '#374151'} size={16} />
-                            <Text style={[styles.freqButtonText, frequency === 'monthly' && styles.freqButtonTextActive]}>Měsíčně</Text>
+                            <Text style={[styles.freqButtonText, frequency === 'monthly' && styles.freqButtonTextActive]}>{t('fgMonthly')}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={[styles.freqButton, frequency === 'yearly' && styles.freqButtonActive]}
@@ -798,12 +1132,12 @@ export default function FinancialGoalsScreen() {
                             testID="freq-yearly"
                           >
                             <Calendar color={frequency === 'yearly' ? 'white' : '#374151'} size={16} />
-                            <Text style={[styles.freqButtonText, frequency === 'yearly' && styles.freqButtonTextActive]}>Ročně</Text>
+                            <Text style={[styles.freqButtonText, frequency === 'yearly' && styles.freqButtonTextActive]}>{t('fgYearly')}</Text>
                           </TouchableOpacity>
                         </View>
 
                         <View style={styles.inputGroup}>
-                          <Text style={styles.inputLabel}>Den v měsíci</Text>
+                          <Text style={styles.inputLabel}>{t('fgDayOfMonth')}</Text>
                           <TextInput
                             style={styles.textInput}
                             value={dayOfMonth}
@@ -821,26 +1155,131 @@ export default function FinancialGoalsScreen() {
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.submitButton}
+              <AsyncButton
+                variant="success"
+                label={editingGoal ? t('subscription.saveChanges') : t('fgAddGoal')}
+                loadingLabel={t('hhNotifSaving')}
                 onPress={handleSaveGoal}
+                style={styles.submitButton}
+                contentStyle={styles.submitButtonGradient}
+                textStyle={styles.submitButtonText}
                 testID="save-goal"
-              >
-                <LinearGradient
-                  colors={['#10B981', '#059669']}
-                  style={styles.submitButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.submitButtonText}>
-                    {editingGoal ? 'Uložit změny' : 'Přidat cíl'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              />
             </View>
           </View>
         </Modal>
-      </ScrollView>
+
+      <Modal
+        visible={detailGoal !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setDetailGoal(null)}
+      >
+        <View style={styles.detailModalContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            style={styles.detailModalHeader}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.detailModalHeaderRow}>
+              <TouchableOpacity
+                onPress={() => setDetailGoal(null)}
+                style={styles.closeButton}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <X color="white" size={24} />
+              </TouchableOpacity>
+              <Text style={styles.detailModalTitle} numberOfLines={2}>
+                {detailGoal
+                  ? `${GOAL_CATEGORIES[detailGoal.category as keyof typeof GOAL_CATEGORIES]?.emoji ?? '🎯'} ${translateGoalCategory(detailGoal.category || 'Ostatní', t)}${t('fgDetailSuffix')}`
+                  : ''}
+              </Text>
+              {detailTransactions.length > 0 ? (
+                <View style={styles.detailHeaderActions}>
+                  {detailSelectionMode && (
+                    <TouchableOpacity onPress={selectAllDetailTx} hitSlop={8}>
+                      <Text style={styles.detailHeaderActionText}>{t('fgSelectAll')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (detailSelectionMode) exitDetailSelection();
+                      else setDetailSelectionMode(true);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.detailHeaderActionText}>
+                      {detailSelectionMode ? t('cancel') : t('fgSelect')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.headerSpacer} />
+              )}
+            </View>
+          </LinearGradient>
+          <ScrollView
+            style={styles.detailModalBody}
+            contentContainerStyle={[
+              styles.detailModalBodyContent,
+              detailSelectionMode && { paddingBottom: 100 + detailInsets.bottom },
+            ]}
+          >
+            {detailTransactions.length === 0 ? (
+              <Text style={styles.detailModalEmpty}>{t('fgNoExpensesInCategory')}</Text>
+            ) : (
+              <>
+                {detailTransactions.map((t) => (
+                  <View key={t.id} style={styles.detailTxSwipeWrap}>
+                    <SwipeableTransactionRow
+                      transaction={t}
+                      onDelete={finance.deleteTransaction}
+                      currencySymbol={currencySymbol}
+                      variant="goalDetail"
+                      containerStyle={styles.detailSwipeRowCard}
+                      selectionMode={detailSelectionMode}
+                      selected={detailSelectedIds.has(t.id)}
+                      onToggleSelection={() => toggleDetailSelect(t.id)}
+                    />
+                  </View>
+                ))}
+                <View style={styles.detailTxTotalRow}>
+                  <Text style={styles.detailTxTotalLabel}>{t('hhTotal')}</Text>
+                  <Text style={styles.detailTxTotalAmount}>{formatKč(detailTotal)}</Text>
+                </View>
+              </>
+            )}
+          </ScrollView>
+          {detailSelectionMode && detailTransactions.length > 0 && (
+            <View
+              style={[
+                styles.detailBulkToolbar,
+                {
+                  paddingBottom: Math.max(detailInsets.bottom, 12) + 8,
+                  borderTopColor: '#E5E7EB',
+                  backgroundColor: '#FFFFFF',
+                },
+              ]}
+            >
+              <Text style={styles.detailBulkToolbarLabel}>
+                {t('fgSelectedCount', {
+                  count: detailSelectedIds.size,
+                  transactionsWord: fgTransactionsWord(detailSelectedIds.size, t),
+                })}
+              </Text>
+              <TouchableOpacity
+                style={[styles.detailBulkDeleteBtn, detailSelectedIds.size === 0 && { opacity: 0.45 }]}
+                onPress={confirmBulkDeleteDetail}
+                disabled={detailSelectedIds.size === 0}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.detailBulkDeleteBtnText}>{t('fgDeleteSelected')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -852,6 +1291,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   headerGradient: {
     paddingTop: 60,
@@ -968,129 +1410,240 @@ const styles = StyleSheet.create({
     color: 'white',
     marginLeft: 8,
   },
+  addPickerBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  addPickerSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    maxHeight: '85%',
+  },
+  addPickerTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    marginBottom: 16,
+  },
+  addPickerTitleFlex: {
+    flex: 1,
+    textAlign: 'center',
+    marginBottom: 0,
+  },
+  addPickerTemplatesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addPickerBackBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPickerChoiceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+    gap: 14,
+  },
+  addPickerChoiceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPickerChoiceText: {
+    flex: 1,
+  },
+  addPickerChoiceTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    marginBottom: 4,
+  },
+  addPickerChoiceDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  addPickerTemplatesScroll: {
+    maxHeight: 480,
+  },
+  addPickerSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+  },
+  addPickerTemplateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  addPickerTemplateEmoji: {
+    fontSize: 24,
+    width: 32,
+    textAlign: 'center',
+  },
+  addPickerTemplateText: {
+    flex: 1,
+  },
+  addPickerTemplateTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    marginBottom: 2,
+  },
+  addPickerTemplateDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  summaryCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  summaryLabel: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    marginBottom: 12,
+  },
+  summaryBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  expenseBreakdownSection: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  expenseBreakdownTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 14,
+  },
+  expenseBreakdownRow: {
+    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  expenseBreakdownRowTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 6,
+  },
+  expenseBreakdownCategory: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  expenseBreakdownPercent: {
+    fontSize: 15,
+    fontWeight: '700',
+    flexShrink: 0,
+  },
+  expenseBreakdownAmounts: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  expenseBreakdownTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  expenseBreakdownFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
   goalsContainer: {
     paddingHorizontal: 20,
     paddingBottom: 32,
   },
   goalCard: {
-    backgroundColor: 'white',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  goalCardDragging: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-    opacity: 0.95,
-  },
-  dragHandle: {
-    padding: 8,
-    marginRight: 4,
-    marginLeft: -8,
-    cursor: 'grab' as any,
-  },
-  goalHeader: {
+  goalCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 8,
   },
-  goalInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  goalCardTitleBlock: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 52,
   },
-  goalIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  goalTypeBadge: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    flexShrink: 0,
+    maxWidth: 96,
+  },
+  goalCardActions: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  goalIconAction: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-  },
-  goalDetails: {
-    flex: 1,
-  },
-  goalTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
   },
   goalEmoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   goalTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '600' as const,
     flex: 1,
   },
-  goalCategory: {
+  goalAmountLarge: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  goalRecurringHint: {
     fontSize: 12,
-    color: '#6B7280',
+    marginTop: 8,
   },
-  goalActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteButton: {
-    backgroundColor: '#FEE2E2',
-  },
-  goalProgress: {
-    gap: 8,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  currentAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  targetAmount: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  progressBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  progressBarBackground: {
-    flex: 1,
+  progressBarTrack: {
     height: 8,
-    backgroundColor: '#E5E7EB',
     borderRadius: 4,
+    backgroundColor: '#E5E7EB',
     overflow: 'hidden',
   },
-  progressBar: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
+  progressSubline: {
+    fontSize: 13,
     fontWeight: '600',
-    minWidth: 40,
-    textAlign: 'right',
+    color: '#64748B',
+    marginTop: 4,
   },
   recurringChip: {
     flexDirection: 'row',
@@ -1116,24 +1669,173 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
+  remainingTextBold: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   emptyState: {
+    flex: 1,
+    minHeight: 420,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingHorizontal: 32,
+    paddingVertical: 48,
   },
   emptyStateTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: '700' as const,
     marginTop: 16,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyStateText: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  emptyStateButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    minWidth: 220,
+  },
+  emptyStateButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  emptyStateButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  detailModalContainer: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  detailModalHeader: {
+    paddingTop: 56,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  detailModalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  detailHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 96,
+    justifyContent: 'flex-end',
+  },
+  detailHeaderActionText: {
+    color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  detailBulkToolbar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  detailBulkToolbarLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    flex: 1,
+  },
+  detailBulkDeleteBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  detailBulkDeleteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  detailModalTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  detailModalBody: {
+    flex: 1,
+  },
+  detailModalBodyContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  detailModalEmpty: {
+    fontSize: 15,
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 32,
+    marginTop: 24,
+  },
+  detailTxSwipeWrap: {
+    minHeight: 64,
+    marginBottom: 8,
+  },
+  detailSwipeRowCard: {
+    marginBottom: 0,
+  },
+  detailTxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  detailTxDate: {
+    width: 86,
+    fontSize: 13,
+    color: '#64748B',
+  },
+  detailTxTitle: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+  },
+  detailTxAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  detailTxTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  detailTxTotalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  detailTxTotalAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
   },
   modalContainer: {
     flex: 1,

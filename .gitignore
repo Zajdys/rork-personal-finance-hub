@@ -32,6 +32,17 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Skutečná bankovní / broker data ve fixtures — nikdy necommitovat
+scripts/fixtures/cs-raw/
+scripts/fixtures/bank-pdf-raw/
+scripts/fixtures/etoro/
+scripts/fixtures/xtb/
+scripts/fixtures/revolut-invest/
+scripts/fixtures/bank-csv/revolut/
+scripts/fixtures/bank-csv/revolut.csv
+scripts/fixtures/bank-csv/revolut*.csv
+scripts/fixtures/cs/*.raw.txt
+
 # typescript
 *.tsbuildinfo
 .vercel

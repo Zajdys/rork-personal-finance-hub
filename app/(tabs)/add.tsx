@@ -34,13 +34,17 @@ import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import { pluralTransakce } from '@/lib/plural-cs';
 import { logAndGetUserFacingError } from '@/lib/user-facing-error';
+import { convertForeignAmount } from '@/lib/cnb-exchange-rates';
 import { randomUUID } from '@/lib/random-uuid';
 import { useTheme } from '@/hooks/use-theme';
 import { toYyyyMmDd, transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
-import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { generateObject } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
+import { parseMoneyInput } from '@/lib/parse-money-input';
+import { AsyncButton } from '@/components/AsyncButton';
+import { useAsyncAction } from '@/hooks/use-async-action';
+import { safePush } from '@/lib/safe-navigate';
 
 type ParsedTxn = {
   type: 'income' | 'expense';
@@ -71,10 +75,14 @@ const INCOME_CATEGORY_ICONS = {
   'Ostatní': TrendingUp,
 };
 
+const MANUAL_CURRENCIES = ['CZK', 'EUR', 'USD', 'GBP', 'CHF', 'PLN'] as const;
+
 export default function AddTransactionScreen() {
   const { colors } = useTheme();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState<string>('');
+  const [currency, setCurrency] = useState<(typeof MANUAL_CURRENCIES)[number]>('CZK');
+  const [fxBusy, setFxBusy] = useState(false);
   const [title, setTitle] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [preview, setPreview] = useState<ParsedTxn[]>([]);
@@ -102,42 +110,80 @@ export default function AddTransactionScreen() {
     color: data.color,
   }));
 
-  const handleSubmit = () => {
+  const { run: handleSubmit } = useAsyncAction(async () => {
+    if (fxBusy) return;
     if (!amount || !title || !selectedCategory) {
       Alert.alert(t('errorMessage'), t('fillAllFields'));
       return;
     }
 
-    const numAmount = parseFloat(amount.replace(',', '.'));
-    if (isNaN(numAmount) || numAmount <= 0) {
+    const numAmount = parseMoneyInput(amount);
+    if (numAmount == null || numAmount <= 0) {
       Alert.alert(t('errorMessage'), t('enterValidAmount'));
       return;
+    }
+
+    const dateYmd = toYyyyMmDd(new Date());
+    let amountCzk = numAmount;
+    let originalAmount: number | null = null;
+    let originalCurrency: string | null = null;
+    let exchangeRate: number | null = null;
+
+    if (currency !== 'CZK') {
+      try {
+        setFxBusy(true);
+        const fx = await convertForeignAmount({
+          originalAmount: numAmount,
+          originalCurrency: currency,
+          date: dateYmd,
+        });
+        amountCzk = fx.amountCzk;
+        originalAmount = fx.originalAmount;
+        originalCurrency = fx.originalCurrency;
+        exchangeRate = fx.exchangeRate;
+      } catch (e) {
+        Alert.alert(
+          t('errorMessage'),
+          e instanceof Error ? e.message : logAndGetUserFacingError('fx-convert', e),
+        );
+        return;
+      } finally {
+        setFxBusy(false);
+      }
     }
 
     addTransaction({
       id: randomUUID(),
       type,
-      amount: numAmount,
+      amount: amountCzk,
       title,
       category: selectedCategory,
-      date: toYyyyMmDd(new Date()),
+      date: dateYmd,
+      originalAmount,
+      originalCurrency,
+      exchangeRate,
     });
 
     addPoints(5);
     
+    const displayAmt =
+      originalCurrency && originalAmount != null
+        ? `${amountCzk.toLocaleString('cs-CZ')} Kč (${originalAmount.toLocaleString('cs-CZ')} ${originalCurrency})`
+        : `${amountCzk.toLocaleString('cs-CZ')} Kč`;
     showBuddyMessage(
       type === 'income' 
-        ? `${t('addedIncome')} ${numAmount.toLocaleString('cs-CZ')} Kč. ${t('dontForgetInvest')}`
-        : `${t('recordedExpense')} ${numAmount.toLocaleString('cs-CZ')} Kč za ${selectedCategory}. ${t('watchBudget')}`
+        ? `${t('addedIncome')} ${displayAmt}. ${t('dontForgetInvest')}`
+        : `${t('recordedExpense')} ${displayAmt} za ${selectedCategory}. ${t('watchBudget')}`
     );
 
     // Reset form
     setAmount('');
+    setCurrency('CZK');
     setTitle('');
     setSelectedCategory('');
     
     Alert.alert(t('successMessage'), t('transactionAdded'));
-  };
+  });
 
 
   const confirmImport = useCallback(() => {
@@ -309,7 +355,7 @@ export default function AddTransactionScreen() {
           
           const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
             type: 'expense' as const,
-            amount: parseFloat(item.amount) || 0,
+            amount: parseMoneyInput(item.amount) ?? 0,
             title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
             category: item.category || 'Ostatní',
             date: toYyyyMmDd(new Date()),
@@ -470,7 +516,7 @@ export default function AddTransactionScreen() {
           
           const invoiceTransactions: ParsedTxn[] = invoiceItems.map((item: any, index: number) => ({
             type: 'expense' as const,
-            amount: parseFloat(item.amount) || 0,
+            amount: parseMoneyInput(item.amount) ?? 0,
             title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
             category: item.category || 'Ostatní',
             date: toYyyyMmDd(new Date()),
@@ -758,7 +804,7 @@ export default function AddTransactionScreen() {
 
       <View style={styles.content}>
         <View style={styles.bankImportWrap}>
-          <TouchableOpacity onPress={() => router.push('/bank-import')} activeOpacity={0.92}>
+          <TouchableOpacity onPress={() => safePush('/bank-import')} activeOpacity={0.92}>
             <LinearGradient
               colors={['#0D9488', '#0F766E']}
               style={styles.bankImportCard}
@@ -828,11 +874,49 @@ export default function AddTransactionScreen() {
               value={amount}
               onChangeText={setAmount}
               placeholder="0"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               placeholderTextColor={colors.textSecondary}
             />
-            <Text style={[styles.currency, { color: colors.textSecondary }]}>{t('currencySymbol')}</Text>
+            <Text style={[styles.currency, { color: colors.textSecondary }]}>
+              {currency === 'CZK' ? t('currencySymbol') : currency}
+            </Text>
           </View>
+          <View style={styles.currencyRow}>
+            {MANUAL_CURRENCIES.map((c) => {
+              const active = currency === c;
+              return (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => setCurrency(c)}
+                  style={[
+                    styles.currencyChip,
+                    {
+                      backgroundColor: active ? colors.primary : colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: active ? '#fff' : colors.text,
+                      fontWeight: active ? '700' : '500',
+                      fontSize: 13,
+                    }}
+                  >
+                    {c}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {fxBusy ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                Stahuji kurz ČNB…
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.inputSection}>
@@ -851,18 +935,16 @@ export default function AddTransactionScreen() {
           <CategoryGrid />
         </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <LinearGradient
-            colors={type === 'income' ? ['#10B981', '#059669'] : ['#EF4444', '#DC2626']}
-            style={styles.submitGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.submitText}>
-              {type === 'income' ? t('addIncome') : t('addExpense')}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <AsyncButton
+          variant={type === 'income' ? 'success' : 'danger'}
+          label={type === 'income' ? t('addIncome') : t('addExpense')}
+          loadingLabel={t('hhNotifSaving')}
+          onPress={handleSubmit}
+          disabled={fxBusy}
+          style={styles.submitButton}
+          contentStyle={styles.submitGradient}
+          textStyle={styles.submitText}
+        />
       </View>
 
       <Modal visible={receiptScanOpen} transparent animationType="slide" onRequestClose={() => setReceiptScanOpen(false)}>
@@ -1216,6 +1298,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  currencyChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   textInput: {
     backgroundColor: 'white',

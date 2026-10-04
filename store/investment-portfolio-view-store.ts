@@ -20,8 +20,10 @@ export type PortfolioLayerEntry = {
   name: string;
   accountCurrency: DisplayCurrency;
   source: InvestmentPortfolioViewSource;
-  /** Má aspoň jednu buy transakci (kompletní historie pro vklady/pozice). */
+  /** Má aspoň jednu buy transakci a žádné vynechané částky kvůli chybějícímu kurzu. */
   hasCompleteData: boolean;
+  /** Vynechané transakce ze součtů kvůli chybějícímu ČNB kurzu. */
+  incompleteFx?: { count: number; currencies: string[] };
 };
 
 export type MultiPortfolioViewData = {

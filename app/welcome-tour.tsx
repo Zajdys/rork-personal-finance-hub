@@ -239,7 +239,11 @@ function FeatureListCard({
   );
 }
 
-function SplitPreviewCard({ t }: { t: (key: string, params?: Record<string, string | number>) => string }) {
+function SplitPreviewCard({
+  t,
+}: {
+  t: (key: any, params?: Record<string, string | number>) => string;
+}) {
   const rows = [
     { who: t('welcomeTourSplitDemoDebt1Who'), amount: t('welcomeTourSplitDemoDebt1Amount') },
     { who: t('welcomeTourSplitDemoDebt2Who'), amount: t('welcomeTourSplitDemoDebt2Amount') },

@@ -463,6 +463,7 @@ export function parseAnycoinCsv(csvText: string): AnycoinParseResult {
 }
 
 export function logAnycoinParseSummary(result: AnycoinParseResult): void {
+  if (!__DEV__) return;
   console.log(
     `[anycoin] Parsed ${result.transactions.length} transactions (skipped ${result.skipped}).`,
   );

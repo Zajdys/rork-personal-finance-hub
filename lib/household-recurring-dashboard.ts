@@ -29,21 +29,22 @@ export type HouseholdRecurringPaySummary = {
  * Počítá výskyty v aktuálním měsíci (weekly = 4–5×).
  */
 export async function fetchHouseholdRecurringPaySummary(userId: string): Promise<HouseholdRecurringPaySummary | null> {
-  if (!userId || !(await hasSupabaseSession())) return null;
+  try {
+    if (!userId || !(await hasSupabaseSession())) return null;
 
-  const { data: membership, error: mErr } = await supabase
-    .from('household_members')
-    .select('household_id')
-    .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle();
-  if (mErr) {
-    if (!isSessionLostError(mErr)) {
-      console.log('[household-recurring-dashboard] membership raw:', mErr);
+    const { data: membership, error: mErr } = await supabase
+      .from('household_members')
+      .select('household_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+    if (mErr) {
+      if (!isSessionLostError(mErr)) {
+        console.log('[household-recurring-dashboard] membership raw:', mErr);
+      }
+      return null;
     }
-    return null;
-  }
-  if (!membership?.household_id) return null;
+    if (!membership?.household_id) return null;
 
   const hid = membership.household_id as string;
   const now = new Date();
@@ -170,4 +171,8 @@ export async function fetchHouseholdRecurringPaySummary(userId: string): Promise
     if (allPaid) paidByMeCount += 1;
   }
   return { unpaidMyShareKc, paidByMeCount, totalCount };
+  } catch (e) {
+    console.warn('[household-recurring-dashboard] threw', e);
+    return null;
+  }
 }

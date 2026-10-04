@@ -10,24 +10,27 @@ import {
   TextInput,
 } from 'react-native';
 import { Stack } from 'expo-router';
+import { StackHeaderBackButton } from '@/components/BackButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Percent, Users, Plus, X, Save } from 'lucide-react-native';
+import { Percent, Users, X, Save } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
+import { useLanguageStore } from '@/store/language-store';
 import type { SplitRule } from '@/types/household';
 
 const CATEGORIES = [
-  { id: 'Bydlení', name: 'Bydlení', icon: '🏠' },
-  { id: 'Jídlo', name: 'Jídlo', icon: '🍽️' },
-  { id: 'Doprava', name: 'Doprava', icon: '🚗' },
-  { id: 'Zábava', name: 'Zábava', icon: '🎬' },
-  { id: 'Energie', name: 'Energie', icon: '⚡' },
-  { id: 'Nákupy', name: 'Nákupy', icon: '🛒' },
-  { id: 'Zdraví', name: 'Zdraví', icon: '💊' },
-  { id: 'Vzdělání', name: 'Vzdělání', icon: '📚' },
+  { id: 'Bydlení', icon: '🏠', nameKey: 'housing' as const },
+  { id: 'Jídlo', icon: '🍽️', nameKey: 'food' as const },
+  { id: 'Doprava', icon: '🚗', nameKey: 'transport' as const },
+  { id: 'Zábava', icon: '🎬', nameKey: 'entertainment' as const },
+  { id: 'Energie', icon: '⚡', nameKey: 'hhCatUtilities' as const },
+  { id: 'Nákupy', icon: '🛒', nameKey: 'shopping' as const },
+  { id: 'Zdraví', icon: '💊', nameKey: 'hhCatHealth' as const },
+  { id: 'Vzdělání', icon: '📚', nameKey: 'education' as const },
 ];
 
 export default function HouseholdSplitsScreen() {
   const { currentHousehold, setDefaultSplit } = useHousehold();
+  const { t } = useLanguageStore();
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [splitType, setSplitType] = useState<'EQUAL' | 'WEIGHTED'>('EQUAL');
@@ -64,11 +67,16 @@ export default function HouseholdSplitsScreen() {
     setShowEditModal(true);
   };
 
+  const getCategoryDisplayName = (categoryId: string): string => {
+    const category = CATEGORIES.find(c => c.id === categoryId);
+    return category ? t(category.nameKey) : categoryId;
+  };
+
   const handleSaveSplit = async () => {
     if (splitType === 'WEIGHTED') {
       const total = Object.values(weights).reduce((sum, w) => sum + (parseFloat(w) || 0), 0);
       if (Math.abs(total - 100) > 0.1) {
-        Alert.alert('Chyba', `Součet procent musí být 100% (aktuálně ${total.toFixed(0)}%)`);
+        Alert.alert(t('error'), t('hhSplitPercentSum', { total: total.toFixed(0) }));
         return;
       }
     }
@@ -84,24 +92,24 @@ export default function HouseholdSplitsScreen() {
       
       await setDefaultSplit(selectedCategory, splitRule);
       
-      const category = CATEGORIES.find(c => c.id === selectedCategory);
       Alert.alert(
-        'Pravidlo uloženo',
-        `Kategorie "${category?.name}" bude rozdělena ${
-          splitType === 'EQUAL' ? 'rovnoměrně' : 'podle nastavených poměrů'
-        }`
+        t('hhSplitSaved'),
+        t('hhSplitSavedDetail', {
+          name: getCategoryDisplayName(selectedCategory),
+          mode: splitType === 'EQUAL' ? t('hhSplitModeEqual') : t('hhSplitModeCustom'),
+        })
       );
       
       setShowEditModal(false);
     } catch (error) {
-      Alert.alert('Chyba', 'Nepodařilo se uložit pravidlo');
+      Alert.alert(t('error'), t('hhSplitSaveFailed'));
       console.error(error);
     }
   };
 
   const getSplitLabel = (split: SplitRule | null): string => {
-    if (!split) return 'Nenastaveno';
-    if (split.type === 'EQUAL') return 'Rovnoměrně (50/50)';
+    if (!split) return t('hhSplitNotSet');
+    if (split.type === 'EQUAL') return t('hhSplitEqual5050');
     if (split.weights) {
       const percentages = Object.entries(split.weights)
         .map(([userId, weight]) => {
@@ -109,36 +117,37 @@ export default function HouseholdSplitsScreen() {
           return `${member?.userName || '?'}: ${Math.round(weight * 100)}%`;
         })
         .join(', ');
-      return percentages || 'Vlastní poměry';
+      return percentages || t('hhSplitCustomRatios');
     }
-    return 'Vlastní poměry';
+    return t('hhSplitCustomRatios');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Rozdělení výdajů',
+          title: t('screenExpenseSplits'),
           headerShown: true,
+          headerLeft: ({ tintColor }) => (
+            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
+          ),
         }}
       />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>Jak funguje rozdělení?</Text>
+          <Text style={styles.infoTitle}>{t('hhSplitHowTitle')}</Text>
           <Text style={styles.infoText}>
-            Pro každou kategorii můžete nastavit, jak se budou výdaje rozdělovat mezi členy domácnosti.
-            {'\n\n'}
-            • <Text style={styles.bold}>Rovnoměrně</Text>: 50/50 mezi všemi{'\n'}
-            • <Text style={styles.bold}>Vlastní poměry</Text>: např. 70/30, 60/40{'\n'}
-            {'\n'}
-            Každá transakce pak automaticky použije tato pravidla pro výpočet, kdo kolik zaplatil.
+            {t('hhSplitHowText', {
+              equal: t('hhSplitEqual'),
+              custom: t('hhSplitCustomRatios'),
+            })}
           </Text>
         </View>
 
         <View style={styles.membersCard}>
           <View style={styles.membersHeader}>
             <Users size={20} color="#8B5CF6" strokeWidth={2} />
-            <Text style={styles.membersTitle}>Členové domácnosti</Text>
+            <Text style={styles.membersTitle}>{t('hhSplitMembers')}</Text>
           </View>
           {members.map(member => (
             <View key={member.userId} style={styles.memberRow}>
@@ -149,14 +158,14 @@ export default function HouseholdSplitsScreen() {
               </View>
               <Text style={styles.memberName}>{member.userName}</Text>
               <Text style={styles.memberRole}>
-                {member.role === 'OWNER' ? 'Vlastník' : 'Partner'}
+                {member.role === 'OWNER' ? t('hhSplitOwner') : t('hhSplitPartner')}
               </Text>
             </View>
           ))}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pravidla pro kategorie</Text>
+          <Text style={styles.sectionTitle}>{t('hhSplitRulesForCategories')}</Text>
           {CATEGORIES.map(category => {
             const split = getSplitForCategory(category.id);
             
@@ -169,7 +178,7 @@ export default function HouseholdSplitsScreen() {
                 <View style={styles.categoryLeft}>
                   <Text style={styles.categoryIcon}>{category.icon}</Text>
                   <View style={styles.categoryInfo}>
-                    <Text style={styles.categoryName}>{category.name}</Text>
+                    <Text style={styles.categoryName}>{getCategoryDisplayName(category.id)}</Text>
                     <Text style={styles.categorySplit}>{getSplitLabel(split)}</Text>
                   </View>
                 </View>
@@ -185,7 +194,7 @@ export default function HouseholdSplitsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Kategorie'}
+                {getCategoryDisplayName(selectedCategory) || t('category')}
               </Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <X size={24} color="#6B7280" strokeWidth={2} />
@@ -193,7 +202,7 @@ export default function HouseholdSplitsScreen() {
             </View>
 
             <View style={styles.modalBody}>
-              <Text style={styles.label}>Způsob rozdělení</Text>
+              <Text style={styles.label}>{t('hhSplitMethod')}</Text>
               <View style={styles.segmentControl}>
                 <TouchableOpacity
                   style={[
@@ -208,7 +217,7 @@ export default function HouseholdSplitsScreen() {
                       splitType === 'EQUAL' && styles.segmentTextActive,
                     ]}
                   >
-                    Rovnoměrně
+                    {t('hhSplitEqual')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -224,7 +233,7 @@ export default function HouseholdSplitsScreen() {
                       splitType === 'WEIGHTED' && styles.segmentTextActive,
                     ]}
                   >
-                    Vlastní poměry
+                    {t('hhSplitCustomRatios')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -232,17 +241,17 @@ export default function HouseholdSplitsScreen() {
               {splitType === 'EQUAL' && (
                 <View style={styles.equalInfo}>
                   <Text style={styles.equalText}>
-                    Výdaje v této kategorii budou rozděleny rovnoměrně mezi všechny aktivní členy domácnosti.
+                    {t('hhSplitEqualInfo')}
                   </Text>
                   {members.length === 2 && (
-                    <Text style={styles.equalExample}>Příklad: 50% / 50%</Text>
+                    <Text style={styles.equalExample}>{t('hhSplitEqualExample')}</Text>
                   )}
                 </View>
               )}
 
               {splitType === 'WEIGHTED' && (
                 <View style={styles.weightsSection}>
-                  <Text style={styles.label}>Procenta pro jednotlivé členy</Text>
+                  <Text style={styles.label}>{t('hhSplitMemberPercents')}</Text>
                   {members.map(member => (
                     <View key={member.userId} style={styles.weightRow}>
                       <View style={styles.weightLeft}>
@@ -269,7 +278,7 @@ export default function HouseholdSplitsScreen() {
                     </View>
                   ))}
                   <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Celkem:</Text>
+                    <Text style={styles.totalLabel}>{t('hhSplitTotal')}</Text>
                     <Text style={[
                       styles.totalValue,
                       {
@@ -291,7 +300,7 @@ export default function HouseholdSplitsScreen() {
                 onPress={handleSaveSplit}
               >
                 <Save size={20} color="#FFF" strokeWidth={2} />
-                <Text style={styles.saveButtonText}>Uložit rozdělení</Text>
+                <Text style={styles.saveButtonText}>{t('hhSplitSave')}</Text>
               </TouchableOpacity>
             </View>
           </View>

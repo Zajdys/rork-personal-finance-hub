@@ -133,5 +133,6 @@ export function aggregateProfitSeries(
         date,
         value: convertUsdToDisplay(profitUsd, displayCurrency),
       };
-    });
+    })
+    .filter((p) => Number.isFinite(p.value));
 }

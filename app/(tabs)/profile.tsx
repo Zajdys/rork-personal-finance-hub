@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
+  Linking,
+  Platform,
+  RefreshControl,
 } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusRefresh } from '@/hooks/useFocusRefresh';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   User,
@@ -17,58 +29,198 @@ import {
   DollarSign,
   Palette,
   ChevronRight,
-  Eye,
   Sparkles,
   CreditCard,
   Users,
-  Zap,
+  UsersRound,
+  PiggyBank,
+  Building2,
+  Lock,
+  FileText,
+  Pencil,
+  EyeOff,
 } from 'lucide-react-native';
 
-import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import { appLocale } from '@/lib/app-locale';
+import { useAuth } from '@/store/auth-store';
+import { useFinanceStore } from '@/store/finance-store';
+import { fetchUserProfileFromSupabase } from '@/lib/user-profile-supabase';
+import { computeProfileRecommendations } from '@/lib/financial-recommendations';
+import { formatMoneyWithSymbol } from '@/lib/format-money';
+import { yyyyMmLocalToday } from '@/lib/transaction-date';
+import { CollapsingGradientHeader } from '@/components/CollapsingGradientHeader';
 
 import { useRouter } from 'expo-router';
-import { useLifeEvent } from '@/store/life-event-store';
+import { useTheme } from '@/hooks/use-theme';
+import { TERMS_OF_USE_URL } from '@/constants/legal-urls';
 
+const HEADER_COLLAPSED_BODY = 44;
+const HEADER_EXPANDED_BODY = 88;
 
+function profileInitials(firstName: string, lastName: string, fallbackName: string, email: string): string {
+  const f = firstName.trim();
+  const l = lastName.trim();
+  if (f && l) return `${f.charAt(0)}${l.charAt(0)}`.toUpperCase();
+  if (f) return f.slice(0, 2).toUpperCase();
+  const fb = fallbackName.trim();
+  if (fb.length >= 2) return fb.slice(0, 2).toUpperCase();
+  if (fb.length === 1) return fb.toUpperCase();
+  const local = email.split('@')[0] ?? '';
+  if (local.length >= 2) return local.slice(0, 2).toUpperCase();
+  return local.charAt(0).toUpperCase() || '?';
+}
 
 export default function ProfileScreen() {
-  const { totalTransactions, totalIncome } = useFinanceStore();
-  const { isDarkMode, getCurrentCurrency, theme } = useSettingsStore();
+  const { user } = useAuth();
+  const { theme, userProfile, setUserProfile, getCurrentCurrency } = useSettingsStore();
+  const appCurrency = getCurrentCurrency();
+  const transactions = useFinanceStore((s) => s.transactions);
+  const { colors } = useTheme();
   const { t, language } = useLanguageStore();
-  const { getModeInfo, isActive } = useLifeEvent();
   const router = useRouter();
-  
-  const currentCurrency = getCurrentCurrency();
+  const numberLocale = appLocale(language);
+  const insets = useSafeAreaInsets();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const headerMin = insets.top + HEADER_COLLAPSED_BODY;
+  const headerMax = insets.top + HEADER_EXPANDED_BODY;
+  const scrollDistance = Math.max(1, headerMax - headerMin);
+  const isIOS = Platform.OS === 'ios';
+  const scrollYInsetOffset = isIOS ? headerMax : 0;
+  const scrollY = useSharedValue(isIOS ? -headerMax : 0);
+
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.value = e.contentOffset.y;
+    },
+  });
+
+  const collapsingHeaderStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      height: interpolate(y, [0, scrollDistance], [headerMax, headerMin], Extrapolation.CLAMP),
+    };
+  });
+  const headerGradientFadeStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return { opacity: interpolate(y, [0, scrollDistance], [1, 0], Extrapolation.CLAMP) };
+  });
+  const headerHairlineStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(y, [scrollDistance * 0.65, scrollDistance], [0, 1], Extrapolation.CLAMP),
+    };
+  });
+  const largeGreetingStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(y, [0, scrollDistance * 0.55], [1, 0], Extrapolation.CLAMP),
+      transform: [
+        { translateY: interpolate(y, [0, scrollDistance], [0, -12], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+  const compactTitleStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(y, [scrollDistance * 0.4, scrollDistance * 0.85], [0, 1], Extrapolation.CLAMP),
+    };
+  });
+
+  const loadProfile = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const row = await fetchUserProfileFromSupabase(user.id);
+      if (row) {
+        setUserProfile({
+          firstName: row.first_name ?? '',
+          lastName: row.last_name ?? '',
+          avatarUrl: row.avatar_url ?? null,
+        });
+      }
+    } catch (e) {
+      console.warn('[profile] load', e);
+    }
+  }, [user?.id, setUserProfile]);
+
+  useFocusRefresh(loadProfile);
+
+  const onPullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadProfile();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadProfile]);
+
+  const recommendations = useMemo(
+    () => computeProfileRecommendations(transactions, yyyyMmLocalToday()),
+    [transactions],
+  );
+
   const getThemeDisplayName = () => {
     switch (theme) {
-      case 'light': return 'Světlé';
-      case 'dark': return 'Tmavé';
-      case 'auto': return 'Automatické';
-      default: return 'Světlé';
+      case 'light':
+        return t('themeLightShort');
+      case 'dark':
+        return t('themeDarkShort');
+      case 'auto':
+        return t('themeAutoShort');
+      default:
+        return t('themeLightShort');
     }
   };
 
-
-
   const MenuButton = ({ icon: Icon, title, subtitle, onPress }: any) => (
-    <TouchableOpacity style={styles.menuButton} onPress={onPress}>
+    <TouchableOpacity style={[styles.menuButton, { backgroundColor: colors.card }]} onPress={onPress}>
       <View style={styles.menuButtonContent}>
-        <View style={styles.menuButtonIcon}>
-          <Icon color="#667eea" size={24} />
+        <View style={[styles.menuButtonIcon, { backgroundColor: colors.muted }]}>
+          <Icon color={colors.primary} size={24} />
         </View>
         <View style={styles.menuButtonText}>
-          <Text style={styles.menuButtonTitle}>{title}</Text>
-          {subtitle && <Text style={styles.menuButtonSubtitle}>{subtitle}</Text>}
+          <Text style={[styles.menuButtonTitle, { color: colors.text }]}>{title}</Text>
+          {subtitle && (
+            <Text style={[styles.menuButtonSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+          )}
         </View>
-        <ChevronRight color="#9CA3AF" size={20} />
+        <ChevronRight color={colors.textSecondary} size={20} />
       </View>
     </TouchableOpacity>
   );
 
-  const RecommendationCard = ({ title, value, subtitle, color }: any) => (
-    <View style={styles.recommendationCard}>
+  const displayName =
+    [userProfile.firstName, userProfile.lastName].filter(Boolean).join(' ').trim() ||
+    user?.name ||
+    `MoneyBuddy ${t('user')}`;
+  const initials = profileInitials(
+    userProfile.firstName,
+    userProfile.lastName,
+    user?.name ?? '',
+    user?.email ?? '',
+  );
+
+  const RecommendationCard = ({
+    title,
+    value,
+    subtitle,
+    color,
+    onPress,
+  }: {
+    title: string;
+    value: string;
+    subtitle: string;
+    color: readonly [string, string];
+    onPress?: () => void;
+  }) => (
+    <TouchableOpacity
+      style={styles.recommendationCard}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.88 : 1}
+      disabled={!onPress}
+    >
       <LinearGradient
         colors={color}
         style={styles.recommendationGradient}
@@ -79,346 +231,314 @@ export default function ProfileScreen() {
         <Text style={styles.recommendationTitle}>{title}</Text>
         <Text style={styles.recommendationSubtitle}>{subtitle}</Text>
       </LinearGradient>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+    <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
+      <StatusBar style="light" />
+      <CollapsingGradientHeader
+        heightStyle={collapsingHeaderStyle}
+        gradientOpacityStyle={headerGradientFadeStyle}
+        hairlineOpacityStyle={headerHairlineStyle}
+        expandedOpacityStyle={largeGreetingStyle}
+        collapsedOpacityStyle={compactTitleStyle}
+        insetsTop={insets.top}
+        backgroundColor={colors.background}
+        borderColor={colors.border}
+        gradientColors={[colors.gradientStart, colors.gradientEnd]}
+        collapsedTitle={t('profile')}
+        expandedContent={
+          <View style={styles.profileExpandedRow}>
+            <View style={styles.headerAvatar}>
+              <Text style={styles.headerAvatarText}>{initials}</Text>
+            </View>
+            <View style={styles.profileExpandedText}>
+              <Text style={styles.profileDisplayName} numberOfLines={1}>
+                {displayName}
+              </Text>
+              {user?.email ? (
+                <Text style={styles.profileEmail} numberOfLines={1}>
+                  {user.email}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              style={styles.editIconBtn}
+              onPress={() => router.push('/edit-profile')}
+              accessibilityRole="button"
+              accessibilityLabel={t('profileEditProfile')}
+              hitSlop={10}
+            >
+              <Pencil color="white" size={20} />
+            </TouchableOpacity>
+          </View>
+        }
+      />
+
+      <Animated.ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+        bounces
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        contentInset={isIOS ? { top: headerMax } : undefined}
+        contentOffset={isIOS ? { x: 0, y: -headerMax } : undefined}
+        scrollIndicatorInsets={isIOS ? { top: headerMax } : undefined}
+        contentInsetAdjustmentBehavior={isIOS ? 'never' : undefined}
+        contentContainerStyle={{
+          paddingTop: isIOS ? 24 : headerMin + 24,
+          paddingBottom: 32,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onPullRefresh}
+            tintColor="#FFFFFF"
+            colors={['#FFFFFF', colors.primary]}
+            progressBackgroundColor={colors.primary}
+            progressViewOffset={Platform.OS === 'android' ? headerMax : undefined}
+          />
+        }
       >
-        <View style={styles.profileInfo}>
-          <View style={styles.avatar}>
-            <User color="white" size={32} />
+        {!isIOS ? <View style={{ height: scrollDistance }} collapsable={false} /> : null}
+
+        {recommendations.visible ? (
+          <View style={styles.recommendationsContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {t('financialRecommendations')}
+            </Text>
+            <Text style={[styles.recommendationBasis, { color: colors.textSecondary }]}>
+              {t('profileRecBasedOnAvg')}
+            </Text>
+            <View style={styles.recommendationsGrid}>
+              <RecommendationCard
+                title={t('profileRecSetAside')}
+                value={formatMoneyWithSymbol(recommendations.setAside, numberLocale, appCurrency.symbol)}
+                subtitle={t('profileRecSetAsideHint')}
+                color={['#8B5CF6', '#7C3AED'] as const}
+                onPress={() => router.push('/investment-detail')}
+              />
+              <RecommendationCard
+                title={t('emergencyFundReserve')}
+                value={formatMoneyWithSymbol(
+                  recommendations.reserveTarget,
+                  numberLocale,
+                  appCurrency.symbol,
+                )}
+                subtitle={t('profileRecReserveHint')}
+                color={['#10B981', '#059669'] as const}
+                onPress={() => router.push('/reserve-detail')}
+              />
+            </View>
           </View>
-          <View style={styles.profileText}>
-            <Text style={styles.profileName}>MoneyBuddy {t('user')}</Text>
-            <Text style={styles.profileLevel}>Personal Finance</Text>
-          </View>
-        </View>
-      </LinearGradient>
+        ) : null}
 
+        <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionFinance')}</Text>
 
-
-      {/* Financial Recommendations */}
-      <View style={styles.recommendationsContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('financialRecommendations')}</Text>
-        <View style={styles.recommendationsGrid}>
-          <RecommendationCard
-            title={t('invest')}
-            value={`${Math.round(totalIncome * 0.15).toLocaleString('cs-CZ')} Kč`}
-            subtitle={`15${t('monthlyIncomePercent')}`}
-            color={['#8B5CF6', '#7C3AED']}
+          <MenuButton
+            icon={PiggyBank}
+            title={t('piggyBankFeature')}
+            subtitle={t('profileSaveSubtitle')}
+            onPress={() => router.push('/save')}
           />
-          <RecommendationCard
-            title={t('emergencyFundReserve')}
-            value={`${Math.round(totalIncome * 0.2).toLocaleString('cs-CZ')} Kč`}
-            subtitle={`20${t('monthlyIncomePercent')}`}
-            color={['#10B981', '#059669']}
+
+          <MenuButton
+            icon={UsersRound}
+            title={t('splitGroups')}
+            subtitle={t('profileSplitGroupsSubtitle')}
+            onPress={() => router.push('/split-groups')}
+          />
+
+          <MenuButton
+            icon={Sparkles}
+            title={t('financialGoals')}
+            subtitle={t('profileGoalsSubtitle')}
+            onPress={() => router.push('/financial-goals')}
+          />
+
+          <MenuButton
+            icon={CreditCard}
+            title={t('profileMyLiabilities')}
+            subtitle={t('profileLoansSubtitle')}
+            onPress={() => router.push('/loans')}
           />
         </View>
-      </View>
 
+        <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionHousehold')}</Text>
 
+          <MenuButton
+            icon={Users}
+            title={t('profileHouseholdSettings')}
+            subtitle={t('profileHouseholdSubtitle')}
+            onPress={() => router.push('/(tabs)/household')}
+          />
 
-      {/* Features */}
-      <View style={styles.menuContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{language === 'cs' ? 'Funkce' : 'Features'}</Text>
-        
-        <MenuButton
-          icon={User}
-          title="Můj účet"
-          subtitle={language === 'cs' ? 'Správa profilu a předplatného' : 'Profile and subscription management'}
-          onPress={() => router.push('/account')}
-        />
-        
+          <MenuButton
+            icon={Bell}
+            title={t('profileNotificationSettings')}
+            subtitle={t('profileHouseholdBillsSubtitle')}
+            onPress={() => router.push('/household-notification-settings')}
+          />
+        </View>
 
-        <MenuButton
-          icon={Users}
-          title={language === 'cs' ? 'Nastavení domácnosti' : 'Household Settings'}
-          subtitle={language === 'cs' ? 'Správa partnerů a bilance' : 'Manage partners and balance'}
-          onPress={() => router.push('/household')}
-        />
-        
-        <MenuButton
-          icon={Zap}
-          title={language === 'cs' ? 'Životní režim' : 'Life-Event Mode'}
-          subtitle={isActive ? `${getModeInfo().emoji} ${getModeInfo().title}` : (language === 'cs' ? 'Přizpůsob aplikaci své situaci' : 'Adapt app to your life situation')}
-          onPress={() => router.push('/life-event')}
-        />
-        
-        <MenuButton
-          icon={Sparkles}
-          title={t('financialGoals')}
-          subtitle={language === 'cs' ? 'Nastav si cíle a sleduj pokrok' : 'Set goals and track progress'}
-          onPress={() => router.push('/financial-goals')}
-        />
-        
-        <MenuButton
-          icon={CreditCard}
-          title="Moje závazky"
-          subtitle={language === 'cs' ? 'Správa úvěrů a hypoték' : 'Manage loans and mortgages'}
-          onPress={() => router.push('/loans')}
-        />
-        
-        <MenuButton
-          icon={Sparkles}
-          title="AI Hledač půjček"
-          subtitle={language === 'cs' ? 'Najdi nejlepší nabídky na trhu' : 'Find the best offers on the market'}
-          onPress={() => router.push('/loan-finder')}
-        />
-        
-        <MenuButton
-          icon={Eye}
-          title="Náhled Landing Page"
-          subtitle={language === 'cs' ? 'Podívej se, jak vypadá úvodní stránka' : 'See how the landing page looks'}
-          onPress={() => router.push('/landing-preview')}
-        />
-      </View>
+        <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionAccount')}</Text>
 
-      {/* Settings */}
-      <View style={styles.menuContainer}>
-        <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>{t('settings')}</Text>
-        
-        <MenuButton
-          icon={Globe}
-          title={t('language')}
-          subtitle={language === 'cs' ? 'Čeština' : 'English'}
-          onPress={() => router.push('/language-settings')}
-        />
-        
-        <MenuButton
-          icon={DollarSign}
-          title={t('currency')}
-          subtitle="CZK (Koruna česká)"
-          onPress={() => router.push('/currency-settings')}
-        />
-        
-        <MenuButton
-          icon={Palette}
-          title={t('theme')}
-          subtitle={language === 'cs' ? 'Světlé' : 'Light'}
-          onPress={() => router.push('/theme-settings')}
-        />
-        
-        <MenuButton
-          icon={Bell}
-          title={t('notifications')}
-          subtitle={language === 'cs' ? 'Správa upozornění a tipů' : 'Manage alerts and tips'}
-          onPress={() => router.push('/notifications-settings')}
-        />
-        
-        <MenuButton
-          icon={Shield}
-          title={t('privacySecurity')}
-          subtitle={t('protectData')}
-          onPress={() => router.push('/privacy-settings')}
-        />
-        
-        <MenuButton
-          icon={Settings}
-          title={t('generalSettings')}
-          subtitle={t('additionalOptions')}
-          onPress={() => router.push('/general-settings')}
-        />
-        
-        <MenuButton
-          icon={HelpCircle}
-          title={t('help')}
-          subtitle={t('faqContact')}
-          onPress={() => router.push('/help-support')}
-        />
-      </View>
-    </ScrollView>
+          <MenuButton
+            icon={User}
+            title={t('profileMyAccount')}
+            subtitle={t('profileAccountSubtitle')}
+            onPress={() => router.push('/account')}
+          />
+
+          <MenuButton
+            icon={Building2}
+            title={t('bankAccountsTitle')}
+            subtitle={t('bankAccountsSubtitle')}
+            onPress={() => router.push('/bank-accounts')}
+          />
+        </View>
+
+        <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('settings')}</Text>
+
+          <MenuButton
+            icon={Globe}
+            title={t('language')}
+            subtitle={language === 'cs' ? t('languageCs') : t('languageEn')}
+            onPress={() => router.push('/language-settings')}
+          />
+
+          <MenuButton
+            icon={DollarSign}
+            title={t('appCurrency')}
+            subtitle={`${appCurrency.name} (${appCurrency.code})`}
+            onPress={() => router.push('/currency-settings')}
+          />
+
+          <MenuButton
+            icon={Palette}
+            title={t('theme')}
+            subtitle={getThemeDisplayName()}
+            onPress={() => router.push('/theme-settings')}
+          />
+
+          <MenuButton
+            icon={Bell}
+            title={t('notifications')}
+            subtitle={t('profileNotificationsSubtitle')}
+            onPress={() => router.push('/notifications-settings')}
+          />
+
+          <MenuButton
+            icon={EyeOff}
+            title={t('hiddenSubsTitle')}
+            subtitle={t('dashboardDetectedHint')}
+            onPress={() => router.push('/hidden-subscription-suggestions')}
+          />
+
+          <MenuButton
+            icon={Lock}
+            title={t('privacySecurity')}
+            subtitle={t('profilePrivacySubtitle')}
+            onPress={() => router.push('/privacy-settings')}
+          />
+
+          <MenuButton
+            icon={Shield}
+            title={t('privacyPolicy')}
+            subtitle={t('privacyPolicySubtitle')}
+            onPress={() => router.push('/privacy-policy')}
+          />
+
+          <MenuButton
+            icon={FileText}
+            title={t('termsOfUse')}
+            subtitle={t('termsOfUseSubtitle')}
+            onPress={() => {
+              void Linking.openURL(TERMS_OF_USE_URL);
+            }}
+          />
+
+          <MenuButton
+            icon={HelpCircle}
+            title={t('helpSupport')}
+            subtitle={t('profileHelpSubtitle')}
+            onPress={() => router.push('/help-support')}
+          />
+
+          <MenuButton
+            icon={Settings}
+            title={t('generalSettings')}
+            subtitle={t('generalSettingsSubtitle')}
+            onPress={() => router.push('/general-settings')}
+          />
+        </View>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rootFill: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 32,
-    paddingHorizontal: 20,
-  },
-  profileInfo: {
+  profileExpandedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    gap: 12,
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  headerAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
   },
-  profileText: {
+  headerAvatarText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  profileExpandedText: {
     flex: 1,
+    minWidth: 0,
   },
-  profileName: {
+  profileDisplayName: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: 'white',
-    marginBottom: 4,
   },
-  profileLevel: {
+  profileEmail: {
     fontSize: 14,
-    color: 'white',
-    opacity: 0.9,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
   },
-  levelProgress: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: 'white',
-    opacity: 0.9,
-  },
-  progressPoints: {
-    fontSize: 12,
-    color: 'white',
-    opacity: 0.8,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: 'white',
-    borderRadius: 3,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 24,
-    gap: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  statIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  editIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-  },
-  statContent: {
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  statTitle: {
-    fontSize: 12,
-    fontWeight: '500' as const,
-    color: '#6B7280',
-  },
-  achievementsContainer: {
-    marginHorizontal: 20,
-    marginBottom: 32,
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  achievementsList: {
-    gap: 12,
-  },
-  achievementCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  achievementCardLocked: {
-    opacity: 0.6,
-  },
-  achievementIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  achievementContent: {
-    flex: 1,
-  },
-  achievementTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  achievementTitleLocked: {
-    color: '#9CA3AF',
-  },
-  achievementDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  achievementDescriptionLocked: {
-    color: '#D1D5DB',
-  },
-  achievementBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 12,
   },
   menuContainer: {
     marginHorizontal: 20,
     marginBottom: 32,
   },
   menuButton: {
-    backgroundColor: 'white',
     borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000',
@@ -436,7 +556,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -447,16 +566,19 @@ const styles = StyleSheet.create({
   menuButtonTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 2,
   },
   menuButtonSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
   },
   recommendationsContainer: {
     marginHorizontal: 20,
     marginBottom: 32,
+  },
+  recommendationBasis: {
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 12,
   },
   recommendationsGrid: {
     flexDirection: 'row',
@@ -475,97 +597,27 @@ const styles = StyleSheet.create({
   recommendationGradient: {
     padding: 20,
     alignItems: 'center',
+    minHeight: 140,
+    justifyContent: 'center',
   },
   recommendationValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 4,
+    textAlign: 'center',
   },
   recommendationTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   recommendationSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: 'white',
-    opacity: 0.8,
+    opacity: 0.85,
     textAlign: 'center',
-  },
-  dailyRewardsCard: {
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 0,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#FFA500',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  dailyRewardsGradient: {
-    padding: 24,
-  },
-  dailyRewardsBigTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  dailyRewardsContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dailyRewardsLeft: {
-    flex: 1,
-  },
-  dailyRewardsStats: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 24,
-  },
-  dailyRewardsStat: {
-    alignItems: 'flex-start',
-  },
-  dailyRewardsValue: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
-    lineHeight: 32,
-  },
-  dailyRewardsLabel: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginTop: 2,
-  },
-  dailyRewardsDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.3,
-  },
-  dailyRewardsRight: {
-    marginLeft: 8,
-  },
-  streakBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
-    alignSelf: 'flex-start',
-  },
-  streakText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
+    lineHeight: 15,
   },
 });

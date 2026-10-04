@@ -3,7 +3,9 @@ import type { InvestmentBroker, InvestmentPortfolio, InvestmentPosition } from '
 import {
   buildPortfolioResultForDisplay,
   loadMultiPortfolioDataLayer,
+  recomputePortfolioCoreForDisplay,
   dividendsByTickerFromResult,
+  resolvePortfolioAccountCurrency,
   type DisplayCurrency,
   type PortfolioCalcResult,
   type PortfolioDataLayer,
@@ -27,9 +29,16 @@ import {
 } from '@/lib/portfolio-snapshots-backfill';
 import {
   getCachedFxRate,
+  peekCachedNativeQuote,
   prefetchDisplayFxRates,
   prefetchFxRatesFromQuoteCurrencies,
 } from '@/lib/yahoo-ticker';
+import {
+  investPerfEnd,
+  investPerfMark,
+  investPerfSpan,
+  investPerfStart,
+} from '@/lib/invest-perf';
 import {
   buildPortfolioViewCacheKey,
   isPortfolioViewCacheFresh,
@@ -54,20 +63,25 @@ export type InvestmentPortfolioView = {
   hasTransactions: boolean;
   isEmpty: boolean;
   availableBrokers: InvestmentBroker[];
-  /** Aktuální broker filtr má kompletní nákupy (false = chybí buy tx). */
+  /** Aktuální broker filtr má kompletní nákupy a kurzy (false = neúplná data). */
   hasCompleteData: boolean;
+  /** Chybějící ČNB kurzy — součty jsou neúplné. */
+  incompleteFx: { count: number; currencies: string[] } | null;
   /** Inkrementuje se po zápisu denních portfolio snapshotů. */
   snapshotTick: number;
   /** Probíhá backfill historie snapshotů. */
   historyLoading: boolean;
 };
 
-function convertAmount(amount: number, from: string, to: DisplayCurrency): number {
+function convertAmount(amount: number, from: string, to: DisplayCurrency): number | null {
   const f = from.trim().toUpperCase();
   const t = to.trim().toUpperCase();
   if (f === t) return amount;
   const rate = getCachedFxRate(f, t);
-  if (rate == null || !(rate > 0)) return amount;
+  if (rate == null || !(rate > 0)) {
+    if (__DEV__) console.warn(`[invest-view FX] missing rate ${f}→${t} for amount ${amount} — not treated as ${t}`);
+    return null;
+  }
   return Math.round(amount * rate * 100) / 100;
 }
 
@@ -87,7 +101,9 @@ function buildPositionsResultForDisplay(
 ): PortfolioCalcResult {
   const mapped = layer.positions.map((p) => {
     const { amount: investedRaw, currency: investedCurrency } = positionInvestedBase(p);
-    const invested = convertAmount(investedRaw, investedCurrency, displayCurrency);
+    const investedConv = convertAmount(investedRaw, investedCurrency, displayCurrency);
+    const invested = investedConv ?? 0;
+    const investedOk = investedConv != null || investedRaw === 0;
     const storedValueUsd = p.current_value_usd;
     const storedValueEur = p.current_value_eur;
     const nativeQuote = layer.nativePrices.get(p.ticker);
@@ -106,7 +122,9 @@ function buildPositionsResultForDisplay(
             ? convertAmount(storedValueEur, 'EUR', displayCurrency)
             : null;
     const unrealized =
-      currentValue != null ? Math.round((currentValue - invested) * 100) / 100 : null;
+      currentValue != null && investedOk
+        ? Math.round((currentValue - invested) * 100) / 100
+        : null;
     const unrealizedPct =
       invested > 0 && unrealized != null
         ? Math.round((unrealized / invested) * 10000) / 100
@@ -138,6 +156,7 @@ function buildPositionsResultForDisplay(
     positions: mapped,
     summary: {
       total_deposits: Math.round(totalInvested * 100) / 100,
+      total_deposits_gross: Math.round(totalInvested * 100) / 100,
       total_withdrawals: 0,
       net_contributed: Math.round(totalInvested * 100) / 100,
       cash_balance: cashBalance,
@@ -180,11 +199,13 @@ function collectUsdNetWorthSnapshots(
     if (incomplete.length > 0) {
       const first = incomplete[0]!;
       const others = incomplete.length - 1;
-      console.log(
-        `[snapshot] SKIP dnes portfolio=${entry.broker}: chybí cena pro ${first}` +
-          (others > 0 ? ` (a ${others} dalších)` : '') +
-          ' (soft fallback jen pro hlavičku)',
-      );
+      if (__DEV__) {
+        console.log(
+          `[snapshot] SKIP dnes portfolio=${entry.broker}: chybí cena pro ${first}` +
+            (others > 0 ? ` (a ${others} dalších)` : '') +
+            ' (soft fallback jen pro hlavičku)',
+        );
+      }
       continue;
     }
 
@@ -196,10 +217,12 @@ function collectUsdNetWorthSnapshots(
     if (missing.length > 0) {
       const first = missing[0]!.ticker;
       const others = missing.length - 1;
-      console.log(
-        `[snapshot] SKIP dnes portfolio=${entry.broker}: chybí cena pro ${first}` +
-          (others > 0 ? ` (a ${others} dalších)` : ''),
-      );
+      if (__DEV__) {
+        console.log(
+          `[snapshot] SKIP dnes portfolio=${entry.broker}: chybí cena pro ${first}` +
+            (others > 0 ? ` (a ${others} dalších)` : ''),
+        );
+      }
       continue;
     }
     out.push({
@@ -215,8 +238,12 @@ function buildFilteredResult(
   brokerFilter: BrokerFilter,
   displayCurrency: DisplayCurrency,
   portfolios: InvestmentPortfolio[],
-): { result: PortfolioCalcResult | null; hasCompleteData: boolean } {
-  if (!viewData) return { result: null, hasCompleteData: true };
+): {
+  result: PortfolioCalcResult | null;
+  hasCompleteData: boolean;
+  incompleteFx: { count: number; currencies: string[] } | null;
+} {
+  if (!viewData) return { result: null, hasCompleteData: true, incompleteFx: null };
 
   if (viewData.kind === 'multi') {
     const { data } = viewData;
@@ -246,36 +273,56 @@ function buildFilteredResult(
       );
 
     if (brokerFilter === 'all' && tagged.length > 0) {
-      console.log('[invest-all aggregate]', {
-        displayCurrency,
-        brokers: tagged.map((t) => {
-          const s = t.result.summary;
-          const layer = data.transactionLayers[t.entry.portfolioId];
-          return {
-            broker: t.entry.broker,
-            portfolioId: t.entry.portfolioId,
-            hasCompleteData: t.hasCompleteData,
-            accountCurrency: t.entry.accountCurrency,
-            deposits_native: layer?.core.totalDeposits ?? null,
-            withdrawals_native: layer?.core.totalWithdrawals ?? null,
-            cash_native: layer?.core.cashBalance ?? null,
-            deposits_display: s.total_deposits,
-            withdrawals_display: s.total_withdrawals,
-            cash_display: s.cash_balance,
-            market_display: s.market_value_positions,
-            net_worth_display: s.total_current_value,
-            return_display: s.total_return,
-            fx_usd_eur: getCachedFxRate('USD', 'EUR'),
-            fx_eur_usd: getCachedFxRate('EUR', 'USD'),
-          };
-        }),
-      });
+      if (__DEV__) {
+        console.log('[invest-all aggregate]', {
+          displayCurrency,
+          brokers: tagged.map((t) => {
+            const s = t.result.summary;
+            const layer = data.transactionLayers[t.entry.portfolioId];
+            return {
+              broker: t.entry.broker,
+              portfolioId: t.entry.portfolioId,
+              hasCompleteData: t.hasCompleteData,
+              accountCurrency: t.entry.accountCurrency,
+              deposits_native: layer?.core.totalDeposits ?? null,
+              withdrawals_native: layer?.core.totalWithdrawals ?? null,
+              cash_native: layer?.core.cashBalance ?? null,
+              deposits_display: s.total_deposits,
+              withdrawals_display: s.total_withdrawals,
+              cash_display: s.cash_balance,
+              market_display: s.market_value_positions,
+              net_worth_display: s.total_current_value,
+              return_display: s.total_return,
+              fx_usd_eur: getCachedFxRate('USD', 'EUR'),
+              fx_eur_usd: getCachedFxRate('EUR', 'USD'),
+            };
+          }),
+        });
+      }
     }
 
-    const hasCompleteData =
-      brokerFilter === 'all'
-        ? tagged.some((t) => t.hasCompleteData)
-        : tagged.length > 0 && tagged.every((t) => t.hasCompleteData);
+    let fxCount = 0;
+    const fxCurrencies = new Set<string>();
+    for (const t of tagged) {
+      const fromEntry = t.entry.incompleteFx;
+      const layer = data.transactionLayers[t.entry.portfolioId];
+      const fromCore = layer?.core;
+      const count = Math.max(fromEntry?.count ?? 0, fromCore?.incompleteFxCount ?? 0);
+      if (count <= 0) continue;
+      fxCount += count;
+      for (const c of fromEntry?.currencies ?? []) fxCurrencies.add(c);
+      for (const c of fromCore?.incompleteFxCurrencies ?? []) fxCurrencies.add(c);
+    }
+    const incompleteFx =
+      fxCount > 0 ? { count: fxCount, currencies: [...fxCurrencies].sort() } : null;
+
+    // hasCompleteData false i při chybějícím display FX (nejen chybějící buy).
+    const hasCompleteDataResolved =
+      incompleteFx != null
+        ? false
+        : brokerFilter === 'all'
+          ? tagged.some((t) => t.hasCompleteData)
+          : tagged.length > 0 && tagged.every((t) => t.hasCompleteData);
 
     const result = applyTaggedBrokerFilterToResults(
       tagged.map(({ result, hasCompleteData }) => ({ result, hasCompleteData })),
@@ -284,36 +331,47 @@ function buildFilteredResult(
     );
 
     if (brokerFilter === 'all' && result) {
-      console.log('[invest-all aggregate totals]', {
-        displayCurrency,
-        deposits: result.summary.total_deposits,
-        withdrawals: result.summary.total_withdrawals,
-        cash: result.summary.cash_balance,
-        market: result.summary.market_value_positions,
-        net_worth: result.summary.total_current_value,
-        return: result.summary.total_return,
-        pct: result.summary.total_return_pct,
-        positions: result.positions.length,
-      });
+      if (__DEV__) {
+        console.log('[invest-all aggregate totals]', {
+          displayCurrency,
+          deposits: result.summary.total_deposits,
+          withdrawals: result.summary.total_withdrawals,
+          cash: result.summary.cash_balance,
+          market: result.summary.market_value_positions,
+          net_worth: result.summary.total_current_value,
+          return: result.summary.total_return,
+          pct: result.summary.total_return_pct,
+          positions: result.positions.length,
+        });
+      }
     }
 
     return {
       result,
-      hasCompleteData,
+      hasCompleteData: hasCompleteDataResolved,
+      incompleteFx,
     };
   }
 
   if (viewData.kind === 'transactions') {
     const result = buildPortfolioResultForDisplay(viewData.data, displayCurrency);
-    if (brokerFilter === 'all') return { result, hasCompleteData: true };
+    const fxCount = viewData.data.core.incompleteFxCount;
+    const incompleteFx =
+      fxCount > 0
+        ? { count: fxCount, currencies: viewData.data.core.incompleteFxCurrencies }
+        : null;
+    if (brokerFilter === 'all') {
+      return { result, hasCompleteData: incompleteFx == null, incompleteFx };
+    }
     const pf = portfolios.find((p) => p.broker === brokerFilter);
-    if (!pf) return { result: null, hasCompleteData: true };
-    return { result, hasCompleteData: true };
+    if (!pf) return { result: null, hasCompleteData: true, incompleteFx: null };
+    return { result, hasCompleteData: incompleteFx == null, incompleteFx };
   }
 
   return {
     result: buildPositionsResultForDisplay(viewData.data, displayCurrency),
     hasCompleteData: true,
+    incompleteFx: null,
   };
 }
 
@@ -358,6 +416,45 @@ function applyCacheEntry(entry: PortfolioViewCacheEntry): {
 function resolveViewSource(data: MultiPortfolioViewData): InvestmentPortfolioViewSource {
   if (data.entries.some((e) => e.source === 'transactions')) return 'transactions';
   return 'positions';
+}
+
+/** Okamžitý paint z DB pozic + posledních známých cen (cache / current_price). */
+function buildQuickViewFromStoredPositions(
+  portfolios: InvestmentPortfolio[],
+  positions: InvestmentPosition[],
+): MultiPortfolioViewData | null {
+  if (positions.length === 0 || portfolios.length === 0) return null;
+  const byPf = groupPositionsByPortfolio(positions);
+  const entries: MultiPortfolioViewData['entries'] = [];
+  const positionLayers: MultiPortfolioViewData['positionLayers'] = {};
+
+  for (const pf of portfolios) {
+    const pfPos = byPf.get(pf.id) ?? [];
+    if (pfPos.length === 0) continue;
+    const accountCurrency = resolvePortfolioAccountCurrency(pf);
+    const nativePrices = new Map<string, { price: number; currency: string } | null>();
+    for (const p of pfPos) {
+      if ((Number(p.units) || 0) <= 1e-9) continue;
+      const cached = peekCachedNativeQuote(p.ticker, null);
+      if (cached) {
+        nativePrices.set(p.ticker, cached);
+      } else if (p.current_price != null && p.current_price > 0) {
+        const ccy = (p.currency || accountCurrency).toUpperCase();
+        nativePrices.set(p.ticker, { price: p.current_price, currency: ccy });
+      }
+    }
+    positionLayers[pf.id] = { accountCurrency, positions: pfPos, nativePrices };
+    entries.push({
+      portfolioId: pf.id,
+      broker: pf.broker,
+      name: pf.name,
+      accountCurrency,
+      source: 'positions',
+      hasCompleteData: true,
+    });
+  }
+  if (entries.length === 0) return null;
+  return { entries, transactionLayers: {}, positionLayers };
 }
 
 export function useInvestmentPortfolioView(params: {
@@ -449,7 +546,7 @@ export function useInvestmentPortfolioView(params: {
         );
         if (runId !== runIdRef.current) return;
         if (txErr) {
-          console.warn('[backfill] txs fetch failed', txErr.message);
+          if (__DEV__) console.warn('[backfill] txs fetch failed', txErr.message);
           return;
         }
         const byPf = groupTransactionsByPortfolio(rows);
@@ -467,7 +564,7 @@ export function useInvestmentPortfolioView(params: {
         if (runId !== runIdRef.current) return;
         if (res.totalWritten > 0) setSnapshotTick((n) => n + 1);
       } catch (e) {
-        console.warn('[backfill] background failed', e);
+        if (__DEV__) console.warn('[backfill] background failed', e);
       } finally {
         backfillInFlightRef.current = false;
         if (runId === runIdRef.current) setHistoryLoading(false);
@@ -492,6 +589,7 @@ export function useInvestmentPortfolioView(params: {
   );
   const result = filtered.result;
   const hasCompleteData = filtered.hasCompleteData;
+  const incompleteFx = filtered.incompleteFx;
 
   const persistEntry = useCallback(
     (partial: {
@@ -520,6 +618,9 @@ export function useInvestmentPortfolioView(params: {
 
       const runId = ++runIdRef.current;
       loadInFlightRef.current = true;
+      const perfId = investPerfStart(
+        options.background ? 'invest-bg' : options.force ? 'invest-force' : 'invest-load',
+      );
 
       const portfoliosSnapshot = portfoliosRef.current;
       const storedPositionsSnapshot = storedPositionsRef.current;
@@ -533,23 +634,45 @@ export function useInvestmentPortfolioView(params: {
           setQuotesError(null);
           setViewData(null);
         }
+        // První paint hned z DB pozic + last-known ceny (nečekej na txs/Yahoo/ČNB edge).
+        const quick = buildQuickViewFromStoredPositions(
+          portfoliosSnapshot,
+          storedPositionsSnapshot,
+        );
+        if (quick) {
+          setViewData({ kind: 'multi', data: quick });
+          setSource('positions');
+          setCalcLoading(false);
+          setQuotesLoading(true);
+          investPerfMark('0_db_positions_first_paint', {
+            entries: quick.entries.length,
+            positions: storedPositionsSnapshot.length,
+          });
+        }
       } else {
         setQuotesLoading(true);
       }
 
       try {
-        const { transactions: rows, error: txErr } = await fetchInvestmentTransactionsRemote(
-          allPortfolioIds.length > 0 ? allPortfolioIds : undefined,
+        const { transactions: rows, error: txErr } = await investPerfSpan(
+          '1_txs_supabase',
+          () =>
+            fetchInvestmentTransactionsRemote(
+              allPortfolioIds.length > 0 ? allPortfolioIds : undefined,
+            ),
+          { portfolioCount: allPortfolioIds.length },
         );
         if (runId !== runIdRef.current) return;
 
-        console.log('[invest-portfolio-view] txs loaded', {
-          total: rows.length,
-          etoroPersonal: rows.filter((r) => r.portfolio_id === DEBUG_ETORO_PERSONAL_ID).length,
-          portfolioIds: allPortfolioIds,
-          txErr: txErr?.message ?? null,
-          background: options.background,
-        });
+        if (__DEV__) {
+          console.log('[invest-portfolio-view] txs loaded', {
+            total: rows.length,
+            etoroPersonal: rows.filter((r) => r.portfolio_id === DEBUG_ETORO_PERSONAL_ID).length,
+            portfolioIds: allPortfolioIds,
+            txErr: txErr?.message ?? null,
+            background: options.background,
+          });
+        }
 
         if (txErr) {
           if (!options.background) {
@@ -578,25 +701,61 @@ export function useInvestmentPortfolioView(params: {
         }
 
         // FX dřív než jakýkoli display přepočet (jinak USD částky = „EUR“ bez kurzu).
-        await prefetchDisplayFxRates();
+        await investPerfSpan('2_yahoo_display_fx_prefetch', () => prefetchDisplayFxRates());
         if (runId !== runIdRef.current) return;
         setFxRevision((n) => n + 1);
 
         if (!options.background) setQuotesLoading(true);
 
+        // Fáze A: cores z DB kurzů + cached ceny → UI hned (bez Edge/Yahoo sítě).
         let quotesHadErrors = false;
-        const multiData = await loadMultiPortfolioDataLayer(
-          portfoliosSnapshot,
-          txsByPortfolio,
-          positionsByPortfolio,
+        const multiDataFast = await investPerfSpan(
+          '3_multi_layer_fast',
+          () =>
+            loadMultiPortfolioDataLayer(
+              portfoliosSnapshot,
+              txsByPortfolio,
+              positionsByPortfolio,
+              {
+                displayCurrency,
+                fetchLivePrices: true,
+                pricesCacheOnly: true,
+                cnbMode: 'db-only',
+              },
+            ),
           {
-            fetchLivePrices: true,
-            onProgress: (partial) => {
-              if (runId !== runIdRef.current) return;
-              const nextView: PortfolioViewData = { kind: 'multi', data: partial };
-              setViewData(nextView);
-              setCalcLoading(false);
-            },
+            portfolios: portfoliosSnapshot.length,
+            txRows: rows.length,
+            storedPositions: storedPositionsSnapshot.length,
+          },
+        );
+        if (runId !== runIdRef.current) return;
+        {
+          const nextViewFast: PortfolioViewData = { kind: 'multi', data: multiDataFast };
+          setViewData(nextViewFast);
+          setSource(resolveViewSource(multiDataFast));
+          setCalcLoading(false);
+          investPerfMark('3a_fast_paint', { entries: multiDataFast.entries.length });
+        }
+
+        // Fáze B: ČNB Edge ensure + živé Yahoo (bez per-batch UI přepočtů).
+        const multiData = await investPerfSpan(
+          '3_multi_layer_live',
+          () =>
+            loadMultiPortfolioDataLayer(
+              portfoliosSnapshot,
+              txsByPortfolio,
+              positionsByPortfolio,
+              {
+                displayCurrency,
+                fetchLivePrices: true,
+                pricesCacheOnly: false,
+                cnbMode: 'ensure',
+              },
+            ),
+          {
+            portfolios: portfoliosSnapshot.length,
+            txRows: rows.length,
           },
         );
 
@@ -612,8 +771,13 @@ export function useInvestmentPortfolioView(params: {
             if (missing) quotesHadErrors = true;
 
             // Doplň chybějící portfolios.cash_balance z vypočteného cash (T212/eToro import).
+            // Jen když core je v měně účtu (ne v CZK zobrazení).
             const pf = portfoliosSnapshot.find((p) => p.id === entry.portfolioId);
-            if (pf && pf.cash_balance == null) {
+            if (
+              pf &&
+              pf.cash_balance == null &&
+              layer.core.baseCurrency === entry.accountCurrency
+            ) {
               const cash = layer.core.cashBalance;
               void (async () => {
                 const { error } = await supabase
@@ -621,11 +785,13 @@ export function useInvestmentPortfolioView(params: {
                   .update({ cash_balance: cash })
                   .eq('id', entry.portfolioId);
                 if (error) {
-                  console.warn('[invest-portfolio-view] cash_balance backfill failed', error.message);
+                  if (__DEV__) console.warn('[invest-portfolio-view] cash_balance backfill failed', error.message);
                 } else {
-                  console.log(
-                    `[invest-portfolio-view] cash_balance backfill → ${cash} (${entry.broker})`,
-                  );
+                  if (__DEV__) {
+                    console.log(
+                      `[invest-portfolio-view] cash_balance backfill → ${cash} (${entry.broker})`,
+                    );
+                  }
                 }
               })();
             }
@@ -639,9 +805,13 @@ export function useInvestmentPortfolioView(params: {
           }
         }
 
-        await prefetchFxRatesFromQuoteCurrencies(
-          Object.values(multiData.transactionLayers).flatMap((layer) =>
-            [...layer.nativePrices.values()].map((q) => q?.currency).filter((c): c is string => Boolean(c)),
+        await investPerfSpan('4_quote_fx_prefetch', () =>
+          prefetchFxRatesFromQuoteCurrencies(
+            Object.values(multiData.transactionLayers).flatMap((layer) =>
+              [...layer.nativePrices.values()]
+                .map((q) => q?.currency)
+                .filter((c): c is string => Boolean(c)),
+            ),
           ),
         );
         if (runId !== runIdRef.current) return;
@@ -656,6 +826,10 @@ export function useInvestmentPortfolioView(params: {
         setQuotesError(nextQuotesError);
         setQuotesLoading(false);
         setCalcLoading(false);
+        investPerfMark('5_ui_quotes_ready', {
+          entries: multiData.entries.length,
+          quotesHadErrors,
+        });
         persistEntry({
           source: nextSource,
           viewData: nextView,
@@ -684,9 +858,17 @@ export function useInvestmentPortfolioView(params: {
           if (backfillInputs.length > 0) {
             backfillInFlightRef.current = true;
             setHistoryLoading(true);
+            const bfT0 = globalThis.performance?.now?.() ?? Date.now();
             void backfillAllPortfolioSnapshots(backfillInputs)
               .then((res) => {
                 if (runId !== runIdRef.current) return;
+                const ms = Math.round(((globalThis.performance?.now?.() ?? Date.now()) - bfT0) * 10) / 10;
+                if (__DEV__) {
+                  console.log(`[invest-perf] bg_history_backfill ${ms}ms`, {
+                    written: res.totalWritten,
+                    portfolios: backfillInputs.length,
+                  });
+                }
                 if (res.totalWritten > 0) setSnapshotTick((n) => n + 1);
               })
               .finally(() => {
@@ -705,11 +887,43 @@ export function useInvestmentPortfolioView(params: {
       } finally {
         if (runId === runIdRef.current) {
           loadInFlightRef.current = false;
+          investPerfEnd(perfId);
         }
       }
     },
-    [enabled, userId, cacheKey, persistEntry],
+    [enabled, userId, cacheKey, persistEntry, displayCurrency],
   );
+
+  /** Při změně měny zobrazení přepočti historický core (ČNB k datu), ceny nech. */
+  useEffect(() => {
+    if (!viewData || viewData.kind !== 'multi') return;
+    const layers = viewData.data.transactionLayers;
+    const needs = Object.values(layers).some(
+      (l) => l.transactions?.length && l.core.baseCurrency !== displayCurrency,
+    );
+    if (!needs) return;
+
+    let cancelled = false;
+    void (async () => {
+      const nextLayers: Record<string, PortfolioDataLayer> = { ...layers };
+      for (const [id, layer] of Object.entries(layers)) {
+        if (!layer.transactions?.length || layer.core.baseCurrency === displayCurrency) {
+          continue;
+        }
+        nextLayers[id] = await recomputePortfolioCoreForDisplay(layer, displayCurrency);
+      }
+      if (cancelled) return;
+      setViewData({
+        kind: 'multi',
+        data: { ...viewData.data, transactionLayers: nextLayers },
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // viewData identity záměrně ne — jen když se mění display nebo baseCurrency nesedí
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayCurrency-driven recompute
+  }, [displayCurrency, viewData]);
 
   useEffect(() => {
     if (!enabled || !userId || !cacheKey) return;
@@ -720,6 +934,12 @@ export function useInvestmentPortfolioView(params: {
     const cached = useInvestmentPortfolioViewStore.getState().getEntryForKey(cacheKey);
 
     if (cached && !forceRefresh) {
+      if (__DEV__) {
+        console.log('[invest-perf] CACHE_HIT', {
+          ageMs: Date.now() - cached.fetchedAt,
+          fresh: isPortfolioViewCacheFresh(cached),
+        });
+      }
       const applied = applyCacheEntry(cached);
       setSource(applied.source);
       setViewData(applied.viewData);
@@ -766,10 +986,10 @@ export function useInvestmentPortfolioView(params: {
   const refresh = useCallback(async () => {
     if (!enabled || !userId || !cacheKey) return;
     const key = cacheKey;
-    console.log('[invest-cache] clearEntry', key);
+    if (__DEV__) console.log('[invest-cache] clearEntry', key);
     useInvestmentPortfolioViewStore.getState().clearEntry(key);
     await loadPortfolio({ background: false, force: true });
-    console.log('[invest-cache] force reload done', key);
+    if (__DEV__) console.log('[invest-cache] force reload done', key);
   }, [enabled, userId, cacheKey, loadPortfolio]);
 
   const ensureFresh = useCallback(() => {
@@ -797,6 +1017,7 @@ export function useInvestmentPortfolioView(params: {
     isEmpty,
     availableBrokers,
     hasCompleteData,
+    incompleteFx,
     snapshotTick,
     historyLoading,
     refresh,

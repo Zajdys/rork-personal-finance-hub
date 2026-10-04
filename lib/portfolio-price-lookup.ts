@@ -101,6 +101,7 @@ export class PriceDiagnostics {
 
   /** Log: [prices] chybí Yahoo cena opakovaně: TICKER (X dní), fallback použit Y× */
   logSummary(context?: string): void {
+    if (!__DEV__) return;
     const tickers = new Set([...this.missingDays.keys(), ...this.fallbackUses.keys()]);
     if (tickers.size === 0) {
       if (context) console.log(`[prices] ${context}: OK, žádné chybějící Yahoo ceny`);

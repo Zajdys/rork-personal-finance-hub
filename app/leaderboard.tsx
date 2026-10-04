@@ -16,12 +16,12 @@ import {
   TrendingUp,
   Star,
   Crown,
-  ArrowLeft,
 } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
-import { useRouter } from 'expo-router';
+import { useLanguageStore } from '@/store/language-store';
 import { Stack } from 'expo-router';
+import { BackButton } from '@/components/BackButton';
 
 interface LeaderboardUser {
   id: string;
@@ -58,7 +58,7 @@ const mockLeaderboardData: LeaderboardUser[] = [
   },
   {
     id: '3',
-    name: 'Já',
+    name: 'User',
     level: 1,
     points: 45,
     avatar: '🧑‍💼',
@@ -119,23 +119,24 @@ const mockLeaderboardData: LeaderboardUser[] = [
   },
 ];
 
-const achievements = {
-  '💰': { name: 'První kroky', description: 'Začal jsi sledovat finance' },
-  '📈': { name: 'Investor', description: 'Dosáhl jsi 500+ bodů' },
-  '🎯': { name: 'Cílený', description: 'Splnil jsi 5 finančních cílů' },
-  '⭐': { name: 'Expert', description: 'Dosáhl jsi 1000+ bodů' },
-  '👑': { name: 'Král financí', description: 'Dosáhl jsi 2000+ bodů' },
-};
 
 export default function LeaderboardScreen() {
   const { level, points } = useBuddyStore();
   const { isDarkMode } = useSettingsStore();
-  const router = useRouter();
+  const { t } = useLanguageStore();
   const [selectedTab, setSelectedTab] = useState<'weekly' | 'monthly' | 'allTime'>('weekly');
+
+  const achievements: Record<string, { name: string; description: string }> = {
+    '💰': { name: t('leaderboardBadgeFirstSteps'), description: t('leaderboardBadgeFirstStepsDesc') },
+    '📈': { name: t('leaderboardBadgeInvestor'), description: t('leaderboardBadgeInvestorDesc') },
+    '🎯': { name: t('leaderboardBadgeTargeted'), description: t('leaderboardBadgeTargetedDesc') },
+    '⭐': { name: t('leaderboardBadgeExpert'), description: t('leaderboardBadgeExpertDesc') },
+    '👑': { name: t('leaderboardBadgeKing'), description: t('leaderboardBadgeKingDesc') },
+  };
 
   // Update current user data with real data
   const leaderboardData = mockLeaderboardData.map(user => 
-    user.isCurrentUser ? { ...user, level, points } : user
+    user.isCurrentUser ? { ...user, level, points, name: t('leaderboardMe') } : user
   ).sort((a, b) => b.points - a.points).map((user, index) => ({ ...user, rank: index + 1 }));
 
   const currentUser = leaderboardData.find(user => user.isCurrentUser);
@@ -150,19 +151,6 @@ export default function LeaderboardScreen() {
         return <Medal color="#CD7F32" size={24} />;
       default:
         return <Text style={styles.rankNumber}>{rank}</Text>;
-    }
-  };
-
-  const getRankColor = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return ['#FFD700', '#FFA500'];
-      case 2:
-        return ['#C0C0C0', '#A8A8A8'];
-      case 3:
-        return ['#CD7F32', '#B8860B'];
-      default:
-        return ['#667eea', '#764ba2'];
     }
   };
 
@@ -199,7 +187,7 @@ export default function LeaderboardScreen() {
           </Text>
           <Text style={styles.separator}>•</Text>
           <Text style={[styles.userPoints, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            {user.points} bodů
+            {user.points} {t('points')}
           </Text>
         </View>
         <View style={styles.achievementsContainer}>
@@ -222,13 +210,11 @@ export default function LeaderboardScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen 
         options={{
-          title: 'Žebříček',
+          title: t('screenLeaderboard'),
           headerStyle: { backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF' },
           headerTintColor: isDarkMode ? '#FFFFFF' : '#000000',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft color={isDarkMode ? '#FFFFFF' : '#000000'} size={24} />
-            </TouchableOpacity>
+            <BackButton color={isDarkMode ? '#FFFFFF' : '#000000'} size={24} style={styles.backButton} />
           ),
         }}
       />
@@ -246,8 +232,8 @@ export default function LeaderboardScreen() {
               <Text style={styles.currentUserAvatarText}>🧑‍💼</Text>
             </View>
             <View style={styles.currentUserInfo}>
-              <Text style={styles.currentUserTitle}>Tvoje pozice</Text>
-              <Text style={styles.currentUserRank}>#{currentUser?.rank || 8}. místo</Text>
+              <Text style={styles.currentUserTitle}>{t('progress')}</Text>
+              <Text style={styles.currentUserRank}>#{currentUser?.rank || 8}</Text>
               <View style={styles.currentUserStats}>
                 <View style={styles.statItem}>
                   <Award color="white" size={16} />
@@ -255,7 +241,7 @@ export default function LeaderboardScreen() {
                 </View>
                 <View style={styles.statItem}>
                   <Star color="white" size={16} />
-                  <Text style={styles.statText}>{points} bodů</Text>
+                  <Text style={styles.statText}>{points} {t('points')}</Text>
                 </View>
               </View>
             </View>
@@ -277,7 +263,7 @@ export default function LeaderboardScreen() {
               { color: isDarkMode ? '#D1D5DB' : '#6B7280' },
               selectedTab === 'weekly' && styles.activeTabText
             ]}>
-              Týden
+              {t('week')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -293,7 +279,7 @@ export default function LeaderboardScreen() {
               { color: isDarkMode ? '#D1D5DB' : '#6B7280' },
               selectedTab === 'monthly' && styles.activeTabText
             ]}>
-              Měsíc
+              {t('month')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -309,7 +295,7 @@ export default function LeaderboardScreen() {
               { color: isDarkMode ? '#D1D5DB' : '#6B7280' },
               selectedTab === 'allTime' && styles.activeTabText
             ]}>
-              Celkem
+              {t('hhTotal')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -317,7 +303,7 @@ export default function LeaderboardScreen() {
         {/* Top 3 Podium */}
         <View style={styles.podiumContainer}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            🏆 Top 3 finančních expertů
+            🏆 {t('hallOfFameTopPlayers')}
           </Text>
           <View style={styles.podium}>
             {/* 2nd Place */}
@@ -373,19 +359,16 @@ export default function LeaderboardScreen() {
         {/* Full Leaderboard */}
         <View style={styles.leaderboardContainer}>
           <View style={styles.sectionHeader}>
-            <TouchableOpacity
-              onPress={() => router.back()}
+            <BackButton
+              color={isDarkMode ? '#D1D5DB' : '#6B7280'}
+              size={20}
               style={styles.inlineBackButton}
-              accessibilityRole="button"
-              accessibilityLabel="Zpět"
+              accessibilityLabel={t('back')}
               testID="leaderboard-back-inline"
-            >
-              <ArrowLeft color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={20} />
-              <Text style={[styles.inlineBackText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Zpět</Text>
-            </TouchableOpacity>
+            />
             <Users color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={20} />
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Kompletní žebříček
+              {t('screenLeaderboard')}
             </Text>
           </View>
           
@@ -397,7 +380,7 @@ export default function LeaderboardScreen() {
         {/* Achievements Section */}
         <View style={styles.achievementsSection}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            🏅 Dostupná ocenění
+            🏅 {t('achievements')}
           </Text>
           <View style={styles.achievementsList}>
             {Object.entries(achievements).map(([icon, achievement]) => (

@@ -13,6 +13,7 @@ export const INVEST_BROKER_TAB_ORDER: InvestmentBroker[] = [
   'trading212',
   'xtb',
   'anycoin',
+  'revolut',
   'manual',
 ];
 
@@ -43,6 +44,10 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function roundUnits(n: number): number {
+  return Math.round(n * 1e8) / 1e8;
+}
+
 export function brokerTabLabel(broker: InvestmentBroker): string {
   switch (broker) {
     case 'etoro':
@@ -53,6 +58,8 @@ export function brokerTabLabel(broker: InvestmentBroker): string {
       return 'XTB';
     case 'anycoin':
       return 'Anycoin';
+    case 'revolut':
+      return 'Revolut';
     case 'manual':
       return 'Manual';
     default:
@@ -91,6 +98,7 @@ function pickDisplayTicker(a: string, b: string): string {
 function emptySummary(displayCurrency: DisplayCurrency): PortfolioSummaryCalc {
   return {
     total_deposits: 0,
+    total_deposits_gross: 0,
     total_withdrawals: 0,
     net_contributed: 0,
     cash_balance: 0,
@@ -121,6 +129,9 @@ function buildSummaryFromParts(
 
   const depositSource = options?.depositSummaries ?? summaries;
   const totalDeposits = roundMoney(depositSource.reduce((s, x) => s + x.total_deposits, 0));
+  const totalDepositsGross = roundMoney(
+    depositSource.reduce((s, x) => s + x.total_deposits_gross, 0),
+  );
   const totalWithdrawals = roundMoney(
     depositSource.reduce((s, x) => s + x.total_withdrawals, 0),
   );
@@ -141,6 +152,7 @@ function buildSummaryFromParts(
   /**
    * total_deposits v summary je už net (dep − wd).
    * return = NW − netDeposits (= NW + wd − gross).
+   * % jen při kladném net základu (záporný net → null).
    */
   const totalReturn = roundMoney(totalCurrentValue - totalDeposits);
   const totalReturnPct =
@@ -148,6 +160,7 @@ function buildSummaryFromParts(
 
   return {
     total_deposits: totalDeposits,
+    total_deposits_gross: totalDepositsGross,
     total_withdrawals: totalWithdrawals,
     net_contributed: netContributed,
     cash_balance: cashBalance,
@@ -207,7 +220,7 @@ export function mergeTaggedPortfolioResults(
         continue;
       }
 
-      const heldUnits = roundMoney(existing.held_units + pos.held_units);
+      const heldUnits = roundUnits(existing.held_units + pos.held_units);
       const invested = roundMoney(existing.invested + pos.invested);
       const dividends = roundMoney(existing.dividends + pos.dividends);
       const realizedPnl = roundMoney(existing.realized_pnl + pos.realized_pnl);

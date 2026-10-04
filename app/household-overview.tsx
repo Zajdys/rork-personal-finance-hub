@@ -7,30 +7,60 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
+import { safePush } from '@/lib/safe-navigate';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Settings, PiggyBank, ArrowLeft } from 'lucide-react-native';
+import { Users, Settings, PiggyBank, Pencil } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { useHouseholdRenamePrompt } from '@/hooks/use-household-rename-prompt';
+import { BackButton } from '@/components/BackButton';
 
 export default function HouseholdOverviewScreen() {
-  const router = useRouter();
-  const { currentHousehold, dashboard, isInHousehold } = useHousehold();
+  const { currentHousehold, dashboard, isInHousehold, renameHousehold, refetch } = useHousehold();
   const { getCurrentCurrency } = useSettingsStore();
+  const { t } = useLanguageStore();
+  const { promptRename, RenameModal } = useHouseholdRenamePrompt();
   const currency = getCurrentCurrency();
+
+  const getCategoryInfo = (id: string): { name: string; emoji: string } => {
+    const categoryInfo: Record<string, { nameKey: Parameters<typeof t>[0]; emoji: string }> = {
+      'Bydlení': { nameKey: 'housing', emoji: '🏠' },
+      'Jídlo a nápoje': { nameKey: 'hhCatFoodShort', emoji: '🍕' },
+      'Jídlo': { nameKey: 'food', emoji: '🍕' },
+      'Doprava': { nameKey: 'transport', emoji: '🚗' },
+      'Zábava': { nameKey: 'entertainment', emoji: '🎮' },
+      'Energie': { nameKey: 'hhCatUtilities', emoji: '💡' },
+      'Nákupy': { nameKey: 'shopping', emoji: '🛒' },
+      'Zdraví': { nameKey: 'hhCatHealth', emoji: '⚕️' },
+      'Vzdělání': { nameKey: 'education', emoji: '📚' },
+      'Nájem a bydlení': { nameKey: 'hhCatRentHousing', emoji: '🏠' },
+      housing: { nameKey: 'housing', emoji: '🏠' },
+      food: { nameKey: 'food', emoji: '🍕' },
+      transport: { nameKey: 'transport', emoji: '🚗' },
+      entertainment: { nameKey: 'entertainment', emoji: '🎮' },
+      utilities: { nameKey: 'hhCatUtilities', emoji: '💡' },
+      shopping: { nameKey: 'shopping', emoji: '🛒' },
+      health: { nameKey: 'hhCatHealth', emoji: '⚕️' },
+      education: { nameKey: 'education', emoji: '📚' },
+    };
+    const info = categoryInfo[id];
+    return info ? { name: t(info.nameKey), emoji: info.emoji } : { name: id, emoji: '📁' };
+  };
 
   if (!isInHousehold || !currentHousehold || !dashboard) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Přehled domácnosti', headerShown: true }} />
+        <Stack.Screen options={{ title: t('screenHouseholdOverview'), headerShown: true }} />
         <View style={styles.emptyState}>
           <Users size={80} color="#8B5CF6" strokeWidth={1.5} />
-          <Text style={styles.emptyTitle}>Nejste v žádné domácnosti</Text>
+          <Text style={styles.emptyTitle}>{t('hhOverviewNotInHousehold')}</Text>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => router.push('/household')}
+            onPress={() => safePush('/(tabs)/household')}
           >
-            <Text style={styles.settingsButtonText}>Vytvořit domácnost</Text>
+            <Text style={styles.settingsButtonText}>{t('hhOverviewCreateHousehold')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -60,20 +90,30 @@ export default function HouseholdOverviewScreen() {
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.headerContent}>
-            <TouchableOpacity
-              style={styles.headerBackButton}
-              onPress={() => router.back()}
-            >
-              <ArrowLeft color="#FFF" size={24} />
-            </TouchableOpacity>
+            <BackButton color="#FFF" size={24} style={styles.headerBackButton} />
             <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Domácnost</Text>
-              <Text style={styles.headerAmount}>{currentHousehold.name}</Text>
+              <Text style={styles.headerTitle}>{t('household')}</Text>
+              <View style={styles.headerNameRow}>
+                <Text style={styles.headerAmount}>{currentHousehold.name}</Text>
+                <TouchableOpacity
+                  style={styles.headerRenameBtn}
+                  onPress={() =>
+                    promptRename(currentHousehold.id, currentHousehold.name, (newName) => {
+                      renameHousehold(currentHousehold.id, newName);
+                      refetch();
+                    })
+                  }
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={t('hhRenameTitle')}
+                >
+                  <Pencil color="#FFF" size={18} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={styles.headerIcon}>
               <TouchableOpacity
                 style={styles.headerButton}
-                onPress={() => router.push('/household')}
+                onPress={() => safePush('/(tabs)/household')}
               >
                 <Settings size={24} color="#FFF" strokeWidth={2} />
               </TouchableOpacity>
@@ -85,11 +125,11 @@ export default function HouseholdOverviewScreen() {
         <View style={styles.section}>
           <View style={styles.budgetCard}>
             <PiggyBank size={28} color="#8B5CF6" strokeWidth={2} />
-            <Text style={styles.budgetLabel}>Celkový měsíční rozpočet</Text>
+            <Text style={styles.budgetLabel}>{t('hhOverviewTotalBudget')}</Text>
             <Text style={styles.budgetValue}>
               {totalBudget.toLocaleString('cs-CZ')} {currency.symbol}
             </Text>
-            <Text style={styles.budgetSubtext}>Společný rozpočet domácnosti</Text>
+            <Text style={styles.budgetSubtext}>{t('hhOverviewSharedBudget')}</Text>
           </View>
         </View>
 
@@ -98,7 +138,7 @@ export default function HouseholdOverviewScreen() {
         {/* Přehled domácnosti - kategorie */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Přehled domácnosti</Text>
+            <Text style={styles.sectionTitle}>{t('hhOverviewTitle')}</Text>
             <TouchableOpacity
               style={styles.infoButton}
               onPress={() => {}}
@@ -108,30 +148,6 @@ export default function HouseholdOverviewScreen() {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
             {dashboard.categoryBalances.map((catBalance, idx) => {
-              const getCategoryInfo = (id: string): { name: string; emoji: string } => {
-                const categoryInfo: Record<string, { name: string; emoji: string }> = {
-                  'Bydlení': { name: 'Bydlení', emoji: '🏠' },
-                  'Jídlo a nápoje': { name: 'Jídlo', emoji: '🍕' },
-                  'Jídlo': { name: 'Jídlo', emoji: '🍕' },
-                  'Doprava': { name: 'Doprava', emoji: '🚗' },
-                  'Zábava': { name: 'Zábava', emoji: '🎮' },
-                  'Energie': { name: 'Energie', emoji: '💡' },
-                  'Nákupy': { name: 'Nákupy', emoji: '🛒' },
-                  'Zdraví': { name: 'Zdraví', emoji: '⚕️' },
-                  'Vzdělání': { name: 'Vzdělání', emoji: '📚' },
-                  'Nájem a bydlení': { name: 'Bydlení', emoji: '🏠' },
-                  'housing': { name: 'Bydlení', emoji: '🏠' },
-                  'food': { name: 'Jídlo', emoji: '🍕' },
-                  'transport': { name: 'Doprava', emoji: '🚗' },
-                  'entertainment': { name: 'Zábava', emoji: '🎮' },
-                  'utilities': { name: 'Energie', emoji: '💡' },
-                  'shopping': { name: 'Nákupy', emoji: '🛒' },
-                  'health': { name: 'Zdraví', emoji: '⚕️' },
-                  'education': { name: 'Vzdělání', emoji: '📚' },
-                };
-                return categoryInfo[id] || { name: id, emoji: '📁' };
-              };
-
               const myUserId = 'mock_user_1';
               const partnerUserId = 'mock_user_2';
 
@@ -188,7 +204,7 @@ export default function HouseholdOverviewScreen() {
 
         {/* Bilance členů */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bilance členů</Text>
+          <Text style={styles.sectionTitle}>{t('hhOverviewMemberBalances')}</Text>
           <View style={styles.balancesContainer}>
             {dashboard.balances.map(balance => (
               <View key={balance.userId} style={styles.balanceCard}>
@@ -201,7 +217,10 @@ export default function HouseholdOverviewScreen() {
                   <View style={styles.balanceInfo}>
                     <Text style={styles.balanceName}>{balance.userName}</Text>
                     <Text style={styles.balanceDetail}>
-                      Zaplatil {balance.totalPaid.toFixed(0)} {currency.symbol}
+                      {t('hhOverviewPaid', {
+                        amount: balance.totalPaid.toFixed(0),
+                        symbol: currency.symbol,
+                      })}
                     </Text>
                   </View>
                 </View>
@@ -218,10 +237,10 @@ export default function HouseholdOverviewScreen() {
                   </Text>
                   <Text style={styles.balanceStatus}>
                     {Math.abs(balance.balance) <= 100 
-                      ? 'Vyrovnáno' 
+                      ? t('hhOverviewSettled') 
                       : balance.balance > 100 
-                      ? 'Přeplatek' 
-                      : 'Dluh'}
+                      ? t('hhOverviewOverpaid') 
+                      : t('hhOverviewDebt')}
                   </Text>
                 </View>
               </View>
@@ -233,13 +252,14 @@ export default function HouseholdOverviewScreen() {
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.advancedButton}
-            onPress={() => router.push('/household')}
+            onPress={() => safePush('/(tabs)/household')}
           >
             <Settings size={18} color="#8B5CF6" strokeWidth={2} />
-            <Text style={styles.advancedButtonText}>Pokročilé nastavení</Text>
+            <Text style={styles.advancedButtonText}>{t('hhOverviewAdvancedSettings')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+      {RenameModal}
     </SafeAreaView>
   );
 }
@@ -291,6 +311,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold' as const,
     color: 'white',
+    flexShrink: 1,
+  },
+  headerNameRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  headerRenameBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   headerSubtitle: {
     fontSize: 14,

@@ -3,6 +3,30 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { supabase } from '@/lib/supabase';
 
+const TX_PAGE_SIZE = 1000;
+
+async function fetchAllTransactionRowsForExport(
+  userId: string,
+): Promise<{ data: unknown[]; error: string | null }> {
+  const all: unknown[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + TX_PAGE_SIZE - 1);
+    if (error) return { data: [], error: error.message };
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < TX_PAGE_SIZE) break;
+    from += TX_PAGE_SIZE;
+  }
+  return { data: all, error: null };
+}
+
 export type UserDataExportBundle = {
   exportedAt: string;
   /** Řádek z public.users (včetně monthly_income, financial_goals jsonb, …). */
@@ -33,8 +57,8 @@ export async function fetchUserDataExportBundle(userId: string): Promise<{
   const profileRes = await supabase.from('user_profiles').select('*').eq('user_id', userId).maybeSingle();
   if (profileRes.error) errors.push(`user_profiles: ${profileRes.error.message}`);
 
-  const txRes = await supabase.from('transactions').select('*').eq('user_id', userId);
-  if (txRes.error) errors.push(`transactions: ${txRes.error.message}`);
+  const txRes = await fetchAllTransactionRowsForExport(userId);
+  if (txRes.error) errors.push(`transactions: ${txRes.error}`);
 
   const subsRes = await supabase.from('monthly_subscriptions').select('*').eq('user_id', userId);
   if (subsRes.error) errors.push(`monthly_subscriptions: ${subsRes.error.message}`);

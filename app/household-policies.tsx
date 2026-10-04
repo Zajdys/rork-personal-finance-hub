@@ -9,34 +9,32 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
+import { StackHeaderBackButton } from '@/components/BackButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Eye, EyeOff, Hash, Plus, X, Save } from 'lucide-react-native';
+import { Eye, EyeOff, Hash, Plus, X } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
+import { useLanguageStore } from '@/store/language-store';
 import type { Visibility } from '@/types/household';
+import { AsyncButton } from '@/components/AsyncButton';
+import { useAsyncAction } from '@/hooks/use-async-action';
 
 const CATEGORIES = [
-  { id: 'housing', name: 'Bydlení', icon: '🏠' },
-  { id: 'food', name: 'Jídlo', icon: '🍽️' },
-  { id: 'transport', name: 'Doprava', icon: '🚗' },
-  { id: 'entertainment', name: 'Zábava', icon: '🎬' },
-  { id: 'utilities', name: 'Energie', icon: '⚡' },
-  { id: 'shopping', name: 'Nákupy', icon: '🛒' },
-  { id: 'health', name: 'Zdraví', icon: '💊' },
-  { id: 'education', name: 'Vzdělání', icon: '📚' },
-  { id: 'gifts', name: 'Dárky', icon: '🎁' },
-  { id: 'hobbies', name: 'Koníčky', icon: '🎨' },
-];
-
-const VISIBILITY_OPTIONS = [
-  { value: 'SHARED' as Visibility, label: 'Sdílené', icon: Eye, color: '#10B981' },
-  { value: 'SUMMARY_ONLY' as Visibility, label: 'Jen součty', icon: Hash, color: '#F59E0B' },
-  { value: 'PRIVATE' as Visibility, label: 'Soukromé', icon: EyeOff, color: '#6B7280' },
+  { id: 'housing', icon: '🏠', nameKey: 'housing' as const },
+  { id: 'food', icon: '🍽️', nameKey: 'hhCatFood' as const },
+  { id: 'transport', icon: '🚗', nameKey: 'transport' as const },
+  { id: 'entertainment', icon: '🎬', nameKey: 'entertainment' as const },
+  { id: 'utilities', icon: '⚡', nameKey: 'hhCatUtilities' as const },
+  { id: 'shopping', icon: '🛒', nameKey: 'shopping' as const },
+  { id: 'health', icon: '💊', nameKey: 'hhCatHealth' as const },
+  { id: 'education', icon: '📚', nameKey: 'education' as const },
+  { id: 'gifts', icon: '🎁', nameKey: 'hhCatGifts' as const },
+  { id: 'hobbies', icon: '🎨', nameKey: 'hhCatHobbies' as const },
 ];
 
 export default function HouseholdPoliciesScreen() {
-  const router = useRouter();
-  const { currentHousehold, policies, createPolicy } = useHousehold();
+  const { policies, createPolicy } = useHousehold();
+  const { t } = useLanguageStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedVisibility, setSelectedVisibility] = useState<Visibility>('SHARED');
@@ -44,13 +42,19 @@ export default function HouseholdPoliciesScreen() {
   const [scopeType, setScopeType] = useState<'CATEGORY' | 'TAG'>('CATEGORY');
   const [isEditingExisting, setIsEditingExisting] = useState(false);
 
-  const handleAddPolicy = async () => {
+  const visibilityOptions = [
+    { value: 'SHARED' as Visibility, label: t('visibilityShared'), icon: Eye, color: '#10B981' },
+    { value: 'SUMMARY_ONLY' as Visibility, label: t('visibilitySummaryOnly'), icon: Hash, color: '#F59E0B' },
+    { value: 'PRIVATE' as Visibility, label: t('visibilityPrivate'), icon: EyeOff, color: '#6B7280' },
+  ];
+
+  const { run: handleAddPolicy } = useAsyncAction(async () => {
     if (scopeType === 'CATEGORY' && !selectedCategory) {
-      Alert.alert('Chyba', 'Vyberte kategorii');
+      Alert.alert(t('error'), t('hhPolicySelectCategory'));
       return;
     }
     if (scopeType === 'TAG' && !customTag.trim()) {
-      Alert.alert('Chyba', 'Zadejte tag');
+      Alert.alert(t('error'), t('hhPolicyEnterTag'));
       return;
     }
 
@@ -64,10 +68,12 @@ export default function HouseholdPoliciesScreen() {
       
       if (!isEditingExisting) {
         Alert.alert(
-          'Pravidlo přidáno',
-          `${scopeType === 'CATEGORY' ? 'Kategorie' : 'Tag'}: ${
-            scopeType === 'CATEGORY' ? getCategoryLabel(selectedCategory) : customTag
-          } → ${getVisibilityLabel(selectedVisibility)}`
+          t('hhPolicyAdded'),
+          t('hhPolicyAddedDetail', {
+            scope: scopeType === 'CATEGORY' ? t('hhPolicyScopeCategory') : t('hhPolicyScopeTag'),
+            name: scopeType === 'CATEGORY' ? getCategoryLabel(selectedCategory) : customTag,
+            visibility: getVisibilityLabel(selectedVisibility),
+          })
         );
       }
       
@@ -77,10 +83,10 @@ export default function HouseholdPoliciesScreen() {
       setSelectedVisibility('SHARED');
       setIsEditingExisting(false);
     } catch (error) {
-      Alert.alert('Chyba', 'Nepodařilo se přidat pravidlo');
+      Alert.alert(t('error'), t('hhPolicyAddFailed'));
       console.error(error);
     }
-  };
+  });
 
   const getPolicyVisibility = (categoryId: string): Visibility | null => {
     const policy = policies.find(p => p.scope.type === 'CATEGORY' && p.scope.id === categoryId);
@@ -89,17 +95,35 @@ export default function HouseholdPoliciesScreen() {
 
   const getCategoryLabel = (categoryId: string): string => {
     const category = CATEGORIES.find(c => c.id === categoryId);
-    return category ? `${category.icon} ${category.name}` : categoryId;
+    return category ? `${category.icon} ${t(category.nameKey)}` : categoryId;
+  };
+
+  const getCategoryDisplayName = (categoryId: string): string => {
+    const category = CATEGORIES.find(c => c.id === categoryId);
+    return category ? t(category.nameKey) : categoryId;
   };
 
   const getVisibilityLabel = (visibility: Visibility): string => {
     switch (visibility) {
       case 'SHARED':
-        return 'Sdílené';
+        return t('visibilityShared');
       case 'SUMMARY_ONLY':
-        return 'Jen součty';
+        return t('visibilitySummaryOnly');
       case 'PRIVATE':
-        return 'Soukromé';
+        return t('visibilityPrivate');
+      default:
+        return visibility;
+    }
+  };
+
+  const getVisibilityBadgeLabel = (visibility: Visibility): string => {
+    switch (visibility) {
+      case 'SHARED':
+        return t('visibilityShared');
+      case 'SUMMARY_ONLY':
+        return t('hhPolicySummaries');
+      case 'PRIVATE':
+        return t('visibilityPrivate');
       default:
         return visibility;
     }
@@ -109,25 +133,28 @@ export default function HouseholdPoliciesScreen() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Pravidla sdílení',
+          title: t('screenSharingRules'),
           headerShown: true,
+          headerLeft: ({ tintColor }) => (
+            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
+          ),
         }}
       />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>Jak fungují pravidla?</Text>
+          <Text style={styles.infoTitle}>{t('hhPolicyHowTitle')}</Text>
           <Text style={styles.infoText}>
-            • <Text style={styles.bold}>Sdílené</Text>: Partner vidí všechny detaily transakce{'\n'}
-            • <Text style={styles.bold}>Jen součty</Text>: Partner vidí pouze částku a kategorii{'\n'}
-            • <Text style={styles.bold}>Soukromé</Text>: Partner nevidí nic{'\n'}
-            {'\n'}
-            Dárky jsou vždy automaticky soukromé pro zachování překvapení.
+            {t('hhPolicyHowText', {
+              shared: t('visibilityShared'),
+              summary: t('visibilitySummaryOnly'),
+              private: t('visibilityPrivate'),
+            })}
           </Text>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Pravidla podle kategorií</Text>
+            <Text style={styles.sectionTitle}>{t('hhPolicyByCategory')}</Text>
             <TouchableOpacity
               style={styles.addButton}
               onPress={() => {
@@ -162,13 +189,13 @@ export default function HouseholdPoliciesScreen() {
               >
                 <View style={styles.policyLeft}>
                   <Text style={styles.categoryIcon}>{category.icon}</Text>
-                  <Text style={styles.categoryName}>{category.name}</Text>
+                  <Text style={styles.categoryName}>{getCategoryDisplayName(category.id)}</Text>
                 </View>
                 <View style={styles.policyRight}>
                   {isGift && (
                     <View style={[styles.badge, { backgroundColor: '#FEE2E2' }]}>
                       <EyeOff size={14} color="#DC2626" strokeWidth={2} />
-                      <Text style={[styles.badgeText, { color: '#DC2626' }]}>Auto-soukromé</Text>
+                      <Text style={[styles.badgeText, { color: '#DC2626' }]}>{t('hhPolicyAutoPrivate')}</Text>
                     </View>
                   )}
                   {!isGift && visibility && (
@@ -205,17 +232,13 @@ export default function HouseholdPoliciesScreen() {
                           },
                         ]}
                       >
-                        {visibility === 'SHARED'
-                          ? 'Sdílené'
-                          : visibility === 'SUMMARY_ONLY'
-                          ? 'Součty'
-                          : 'Soukromé'}
+                        {getVisibilityBadgeLabel(visibility)}
                       </Text>
                     </View>
                   )}
                   {!isGift && !visibility && (
                     <View style={styles.unsetButton}>
-                      <Text style={styles.noPolicy}>Nenastaveno</Text>
+                      <Text style={styles.noPolicy}>{t('hhPolicyNotSet')}</Text>
                       <Text style={styles.tapHint}>→</Text>
                     </View>
                   )}
@@ -228,7 +251,7 @@ export default function HouseholdPoliciesScreen() {
         {policies.filter(p => p.scope.type === 'TAG').length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Pravidla podle tagů</Text>
+              <Text style={styles.sectionTitle}>{t('hhPolicyByTags')}</Text>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => {
@@ -274,11 +297,7 @@ export default function HouseholdPoliciesScreen() {
                         },
                       ]}
                     >
-                      {policy.visibility === 'SHARED'
-                        ? 'Sdílené'
-                        : policy.visibility === 'SUMMARY_ONLY'
-                        ? 'Součty'
-                        : 'Soukromé'}
+                      {getVisibilityBadgeLabel(policy.visibility)}
                     </Text>
                   </View>
                 </View>
@@ -291,14 +310,14 @@ export default function HouseholdPoliciesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Přidat pravidlo</Text>
+              <Text style={styles.modalTitle}>{t('hhPolicyAddRule')}</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <X size={24} color="#6B7280" strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalBody}>
-              <Text style={styles.label}>Typ pravidla</Text>
+              <Text style={styles.label}>{t('hhPolicyRuleType')}</Text>
               <View style={styles.segmentControl}>
                 <TouchableOpacity
                   style={[
@@ -313,7 +332,7 @@ export default function HouseholdPoliciesScreen() {
                       scopeType === 'CATEGORY' && styles.segmentTextActive,
                     ]}
                   >
-                    Kategorie
+                    {t('hhPolicyCategory')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -329,14 +348,14 @@ export default function HouseholdPoliciesScreen() {
                       scopeType === 'TAG' && styles.segmentTextActive,
                     ]}
                   >
-                    Tag
+                    {t('hhPolicyTag')}
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {scopeType === 'CATEGORY' ? (
                 <>
-                  <Text style={styles.label}>Kategorie</Text>
+                  <Text style={styles.label}>{t('hhPolicyCategory')}</Text>
                   <ScrollView style={styles.categoryList}>
                     {CATEGORIES.map(category => (
                       <TouchableOpacity
@@ -348,17 +367,17 @@ export default function HouseholdPoliciesScreen() {
                         onPress={() => setSelectedCategory(category.id)}
                       >
                         <Text style={styles.categoryIcon}>{category.icon}</Text>
-                        <Text style={styles.categoryOptionText}>{category.name}</Text>
+                        <Text style={styles.categoryOptionText}>{getCategoryDisplayName(category.id)}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
                 </>
               ) : (
                 <>
-                  <Text style={styles.label}>Název tagu</Text>
+                  <Text style={styles.label}>{t('hhPolicyTagName')}</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="např. 'dárek', 'luxus', 'investice'"
+                    placeholder={t('hhPolicyTagPlaceholder')}
                     value={customTag}
                     onChangeText={setCustomTag}
                     autoCapitalize="none"
@@ -366,9 +385,9 @@ export default function HouseholdPoliciesScreen() {
                 </>
               )}
 
-              <Text style={styles.label}>Viditelnost</Text>
+              <Text style={styles.label}>{t('hhPolicyVisibility')}</Text>
               <View style={styles.visibilityOptions}>
-                {VISIBILITY_OPTIONS.map(option => {
+                {visibilityOptions.map(option => {
                   const Icon = option.icon;
                   return (
                     <TouchableOpacity
@@ -401,13 +420,15 @@ export default function HouseholdPoliciesScreen() {
             </View>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.saveButton}
+              <AsyncButton
+                variant="primary"
+                label={t('hhPolicySaveRule')}
+                loadingLabel={t('hhNotifSaving')}
                 onPress={handleAddPolicy}
-              >
-                <Save size={20} color="#FFF" strokeWidth={2} />
-                <Text style={styles.saveButtonText}>Uložit pravidlo</Text>
-              </TouchableOpacity>
+                style={styles.saveButton}
+                contentStyle={{ paddingVertical: 14 }}
+                textStyle={styles.saveButtonText}
+              />
             </View>
           </View>
         </View>

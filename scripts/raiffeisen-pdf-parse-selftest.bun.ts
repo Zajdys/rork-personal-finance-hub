@@ -120,6 +120,22 @@ assert(mar.filter((r) => /Albert/i.test(r.description)).length >= 3, 'Mar multip
 assert(mar.filter((r) => r.type === 'income').length >= 40, 'Mar many incomes');
 assert(mar.filter((r) => r.type === 'expense').length >= 60, 'Mar many expenses');
 
+/** Karta s držitelem „JAN HÁJEK“ v bloku — ani s ownerName nesmí být Převod. */
+console.log('--- Card + holder name must not be Převod ---');
+const marWithOwner = parseRaiffeisenPdfPlainText(marText, 'Jan Hájek', []);
+const albertHolder = marWithOwner.find(
+  (r) => /Albert/i.test(r.description) && approx(Math.abs(r.rawAmount), 132.1),
+);
+assert(!!albertHolder && albertHolder.rawAmount < 0, 'Albert -132.10 with ownerName');
+assert(
+  albertHolder!.category !== 'Převod',
+  `RB card ALBERT+JAN HAJEK must not be Převod, got ${albertHolder!.category}`,
+);
+assert(
+  !albertHolder!.counterpartyAccount,
+  'RB card must have null counterpartyAccount',
+);
+
 /** Kartové vratky (Jednorázová + PK + kladná) — ověřené případy. */
 console.log('--- Card refunds ---');
 function assertRefund(

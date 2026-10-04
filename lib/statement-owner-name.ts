@@ -113,6 +113,41 @@ export function extractOwnerFromAirBankHeader(text: string): string | undefined 
   );
 }
 
+const DATE_LIKE = /^\d{1,2}\.\d{1,2}\.\d{4}$/;
+
+/** MONETA — jméno před „Account information“ / „Informace o účtu“. */
+export function extractOwnerFromMonetaHeader(text: string): string | undefined {
+  const before =
+    text.split(/(?:Account information|Informace o účtu)/i)[0] ?? text;
+  const lines = before
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !/^---PAGE\b/i.test(l));
+  // Hledej od konce bloku nahoru — jméno je těsně před adresou
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]!;
+    if (
+      line.length >= 3 &&
+      line.length <= 80 &&
+      !/\d{2,}\/\d{4}/.test(line) &&
+      !/MONETA|AGBACZPP|http|^\d{3}\s?\d{2}\b|Statement|Výpis|Page:|monthly|měsíčně|Branch|frequency|number:|date:/i.test(
+        line,
+      ) &&
+      !DATE_LIKE.test(line) &&
+      /^[\p{L}][\p{L}\s.'-]+$/u.test(line)
+    ) {
+      const c = cleanOwnerCandidate(line);
+      if (c && c.split(/\s+/).length >= 2) return c;
+    }
+  }
+  return (
+    extractOwnerFromNazevUctu(text) ||
+    extractOwnerFromMajitelUctu(text) ||
+    undefined
+  );
+}
+
 export function extractStatementOwnerName(
   text: string,
   bankType: string,
@@ -129,6 +164,8 @@ export function extractStatementOwnerName(
       return extractOwnerFromMajitelUctu(text);
     case 'airbank':
       return extractOwnerFromAirBankHeader(text);
+    case 'moneta':
+      return extractOwnerFromMonetaHeader(text);
     default:
       return undefined;
   }

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -14,84 +15,193 @@ import {
   BarChart3,
   Plus,
   DollarSign,
-  ArrowLeft,
 } from 'lucide-react-native';
-import { useFinanceStore, INCOME_CATEGORIES } from '@/store/finance-store';
+import { useFocusRefresh } from '@/hooks/useFocusRefresh';
+import { useFinanceStore, INCOME_CATEGORIES, getMonthTransactions, isIncomeForReport, isTransferLikeTransaction, type Transaction } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { appLocale } from '@/lib/app-locale';
+import { formatMoneyWithSymbol } from '@/lib/format-money';
+import { useAuth } from '@/store/auth-store';
 import { useRouter, Stack } from 'expo-router';
+import { filterTransactionsByPeriod, filterTransfersByPeriod } from '@/lib/period-transactions';
+import { BackButton } from '@/components/BackButton';
+import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
+import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
+import { useOverviewFiltersStore } from '@/store/overview-filters-store';
+
+const TRANSFER_CATEGORY = 'Převod';
+const TRANSFER_COLOR = '#9CA3AF';
+const TRANSFER_ICON = '🔄';
+
+function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.getState>['t']): string {
+  const n100 = count % 100;
+  if (count === 1) return t('transactionsWordOne');
+  if (n100 >= 12 && n100 <= 14) return t('transactionsWordMany');
+  const n10 = count % 10;
+  if (n10 >= 2 && n10 <= 4) return t('transactionsWordFew');
+  return t('transactionsWordMany');
+}
 
 export default function IncomeDetailScreen() {
-  const { isDarkMode } = useSettingsStore();
+  const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { t, language } = useLanguageStore();
+  const numberLocale = appLocale(language);
+  const currency = getCurrentCurrency();
+  const { user } = useAuth();
   const pageBg = isDarkMode ? '#0f0f0f' : '#f5f5f5';
   const cardBg = isDarkMode ? '#1c1c1e' : '#ffffff';
   const textMain = isDarkMode ? '#ffffff' : '#1a1a1a';
   const textSec = isDarkMode ? '#ababab' : '#666666';
   const mutedBg = isDarkMode ? '#2c2c2e' : '#f3f4f6';
 
-  const { transactions, totalIncome } = useFinanceStore();
+  const effectiveYm = useOverviewFiltersStore((s) => s.selectedMonth);
+
+  const { y: yearNum, m: monthNum } = useMemo(() => {
+    const [yStr, mStr] = effectiveYm.split('-');
+    const y = parseInt(yStr ?? '', 10);
+    const mo = parseInt(mStr ?? '', 10);
+    return { y, m: mo };
+  }, [effectiveYm]);
+
+  const referenceInMonth = useMemo(() => new Date(yearNum, monthNum - 1, 15), [yearNum, monthNum]);
+
+  const remoteTransactions = useFilteredTransactions();
+  const financeIsLoaded = useFinanceStore((s) => s.isLoaded);
+  const loadTransactionsFromSupabase = useFinanceStore((s) => s.loadTransactionsFromSupabase);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadPending, setLoadPending] = useState(!financeIsLoaded);
+
+  useFocusRefresh(
+    useCallback(async () => {
+      if (!user?.id) {
+        setLoadError(null);
+        setLoadPending(false);
+        return;
+      }
+      setLoadPending(true);
+      setLoadError(null);
+      const result = await loadTransactionsFromSupabase();
+      if (!result.ok) {
+        setLoadError(result.error ?? t('auth.genericError'));
+      }
+      setLoadPending(false);
+    }, [user?.id, loadTransactionsFromSupabase, t]),
+  );
+
+  useEffect(() => {
+    if (financeIsLoaded) setLoadPending(false);
+  }, [financeIsLoaded]);
+
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
 
-  const incomeTransactions = transactions.filter(t => t.type === 'income');
-  const averageIncome = incomeTransactions.length > 0 ? totalIncome / incomeTransactions.length : 0;
-  
-  // Analýza příjmů podle kategorií
-  const getIncomeByCategory = () => {
+  const periodIncomeTransactions = useMemo(() => {
+    let list: Transaction[];
+    if (selectedPeriod === 'month') {
+      list = getMonthTransactions(remoteTransactions, yearNum, monthNum).filter(isIncomeForReport);
+    } else if (selectedPeriod === 'week') {
+      list = filterTransactionsByPeriod(remoteTransactions, 'income', 'week', referenceInMonth);
+    } else {
+      list = filterTransactionsByPeriod(remoteTransactions, 'income', 'year', referenceInMonth);
+    }
+    return list;
+  }, [remoteTransactions, selectedPeriod, yearNum, monthNum, referenceInMonth]);
+
+  const periodTransferIncomes = useMemo(() => {
+    if (selectedPeriod === 'month') {
+      return getMonthTransactions(remoteTransactions, yearNum, monthNum).filter(
+        (t) => isTransferLikeTransaction(t) && t.type === 'income',
+      );
+    }
+    return filterTransfersByPeriod(
+      remoteTransactions,
+      'income',
+      selectedPeriod,
+      referenceInMonth,
+    );
+  }, [remoteTransactions, selectedPeriod, yearNum, monthNum, referenceInMonth]);
+
+  const periodTotalIncome = useMemo(
+    () => periodIncomeTransactions.reduce((s, t) => s + t.amount, 0),
+    [periodIncomeTransactions],
+  );
+
+  const displayTotalIncome = periodTotalIncome;
+
+  const categoryIncomes = useMemo(() => {
     const categoryTotals: { [key: string]: number } = {};
-    
-    incomeTransactions.forEach(transaction => {
+    for (const transaction of periodIncomeTransactions) {
       const category = transaction.category || 'Ostatní';
       categoryTotals[category] = (categoryTotals[category] || 0) + transaction.amount;
-    });
-    
-    return Object.entries(categoryTotals)
+    }
+    const ti = periodTotalIncome;
+    const rows = Object.entries(categoryTotals)
       .map(([category, amount]) => ({
         category,
         amount,
-        percentage: totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0,
+        percentage: ti > 0 ? Math.round((amount / ti) * 100) : 0,
         icon: INCOME_CATEGORIES[category as keyof typeof INCOME_CATEGORIES]?.icon || '💰',
         color: INCOME_CATEGORIES[category as keyof typeof INCOME_CATEGORIES]?.color || '#6B7280',
-        transactions: incomeTransactions.filter(t => t.category === category).length,
+        transactions: periodIncomeTransactions.filter((t) => (t.category || 'Ostatní') === category)
+          .length,
+        excludedFromTotal: false as boolean,
       }))
       .sort((a, b) => b.amount - a.amount);
-  };
 
-  const categoryIncomes = getIncomeByCategory();
+    const transferAmount = periodTransferIncomes.reduce((s, t) => s + t.amount, 0);
+    if (transferAmount > 0.009) {
+      rows.push({
+        category: TRANSFER_CATEGORY,
+        amount: transferAmount,
+        percentage: 0,
+        icon: TRANSFER_ICON,
+        color: TRANSFER_COLOR,
+        transactions: periodTransferIncomes.length,
+        excludedFromTotal: true,
+      });
+    }
+    return rows;
+  }, [periodIncomeTransactions, periodTotalIncome, periodTransferIncomes]);
+
+  const averageIncome =
+    periodIncomeTransactions.length > 0 ? periodTotalIncome / periodIncomeTransactions.length : 0;
 
   // Analýza příjmů
   const getIncomeAnalysis = () => {
+    const ranked = categoryIncomes.filter((c) => !c.excludedFromTotal);
     const analysis = {
-      highestCategory: categoryIncomes[0] || null,
-      totalTransactions: incomeTransactions.length,
+      highestCategory: ranked[0] || null,
+      totalTransactions: periodIncomeTransactions.length,
       averagePerTransaction: averageIncome,
       recommendations: [] as string[],
       insights: [] as string[],
     };
 
     // Doporučení na základě kategorií
-    if (categoryIncomes.length > 0) {
-      const mainCategory = categoryIncomes[0];
+    if (ranked.length > 0) {
+      const mainCategory = ranked[0];
       if (mainCategory.category === 'Mzda' && mainCategory.percentage > 80) {
-        analysis.insights.push('Většina tvých příjmů pochází z mzdy. To je stabilní, ale zvažuj diverzifikaci.');
-        analysis.recommendations.push('Zkus najít vedlejší příjem nebo investovat do pasivních příjmů');
+        analysis.insights.push(t('incomeInsightSalary'));
+        analysis.recommendations.push(t('incomeRecSideIncome'));
       }
       
-      if (categoryIncomes.some(cat => cat.category === 'Investice')) {
-        analysis.insights.push('Skvělé! Už máš příjmy z investic. To je cesta k finanční svobodě.');
+      if (ranked.some(cat => cat.category === 'Investice')) {
+        analysis.insights.push(t('incomeInsightInvestment'));
       } else {
-        analysis.recommendations.push('Zvažuj investování části příjmů pro budoucí pasivní příjmy');
+        analysis.recommendations.push(t('incomeRecInvestPart'));
       }
 
-      if (categoryIncomes.some(cat => cat.category === 'Freelance')) {
-        analysis.insights.push('Freelance příjmy ti dávají flexibilitu a možnost růstu.');
-        analysis.recommendations.push('Zkus si vytvořit stabilnější freelance klientelu');
+      if (ranked.some(cat => cat.category === 'Freelance')) {
+        analysis.insights.push(t('incomeInsightFreelance'));
+        analysis.recommendations.push(t('incomeRecFreelanceClients'));
       }
     }
 
     // Obecná doporučení
     if (analysis.recommendations.length === 0) {
-      analysis.recommendations.push('Sleduj své příjmy pravidelně a hledej možnosti jejich zvýšení');
-      analysis.recommendations.push('Vytvoř si plán pro zvýšení příjmů v příštím roce');
+      analysis.recommendations.push(t('incomeRecTrackIncome'));
+      analysis.recommendations.push(t('incomeRecIncreasePlan'));
     }
 
     return analysis;
@@ -131,51 +241,70 @@ export default function IncomeDetailScreen() {
   );
 
   const CategoryIncomeCard = ({ category }: any) => {
+    const isTransfer = !!category.excludedFromTotal;
     const categoryData = INCOME_CATEGORIES[category.category as keyof typeof INCOME_CATEGORIES];
+    const icon = isTransfer ? TRANSFER_ICON : categoryData?.icon || '💰';
+    const amountColor = isTransfer ? TRANSFER_COLOR : category.color;
 
     return (
       <TouchableOpacity
-        style={[styles.categoryDetailCard, { backgroundColor: cardBg }]}
+        style={[
+          styles.categoryDetailCard,
+          { backgroundColor: cardBg },
+          isTransfer && { opacity: 0.92, borderWidth: 1, borderColor: isDarkMode ? '#3a3a3c' : '#e5e7eb' },
+        ]}
         onPress={() =>
           router.push({
             pathname: '/category-detail',
-            params: { category: category.category, type: 'income' },
+            params: {
+              category: category.category,
+              type: 'income',
+              ...(selectedPeriod === 'month' ? { month: effectiveYm } : { period: selectedPeriod }),
+            },
           })
         }
         activeOpacity={0.85}
       >
         <View style={styles.categoryDetailHeader}>
           <View style={[styles.categoryDetailIconContainer, { backgroundColor: mutedBg }]}>
-            <Text style={styles.categoryDetailIcon}>{categoryData?.icon || '💰'}</Text>
+            <Text style={styles.categoryDetailIcon}>{icon}</Text>
           </View>
           <View style={styles.categoryDetailInfo}>
-            <Text style={[styles.categoryDetailName, { color: textMain }]}>{category.category}</Text>
+            <Text style={[styles.categoryDetailName, { color: isTransfer ? TRANSFER_COLOR : textMain }]}>
+              {category.category}
+            </Text>
             <Text style={[styles.categoryDetailCount, { color: textSec }]}>
-              {category.transactions} transakcí
+              {isTransfer
+                ? t('detailExcludedFromTotal')
+                : `${category.transactions} ${transactionsWord(category.transactions, t)}`}
             </Text>
           </View>
           <View style={styles.categoryDetailAmount}>
-            <Text style={[styles.categoryDetailAmountText, { color: category.color }]}>
-              +{category.amount.toLocaleString('cs-CZ')} Kč
+            <Text style={[styles.categoryDetailAmountText, { color: amountColor }]}>
+              +{formatMoneyWithSymbol(category.amount, numberLocale, currency.symbol)}
             </Text>
-            <Text style={[styles.categoryDetailPercentage, { color: textSec }]}>
-              {category.percentage}% z celku
-            </Text>
+            {!isTransfer ? (
+              <Text style={[styles.categoryDetailPercentage, { color: textSec }]}>
+                {category.percentage}% z celku
+              </Text>
+            ) : null}
           </View>
         </View>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBarBackground, { backgroundColor: mutedBg }]}>
-            <View 
-              style={[
-                styles.progressBar, 
-                { 
-                  width: `${category.percentage}%`, 
-                  backgroundColor: category.color 
-                }
-              ]} 
-            />
+        {!isTransfer ? (
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarBackground, { backgroundColor: mutedBg }]}>
+              <View 
+                style={[
+                  styles.progressBar, 
+                  { 
+                    width: `${category.percentage}%`, 
+                    backgroundColor: category.color 
+                  }
+                ]} 
+              />
+            </View>
           </View>
-        </View>
+        ) : null}
       </TouchableOpacity>
     );
   };
@@ -227,17 +356,15 @@ export default function IncomeDetailScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Celkové příjmy</Text>
+            <Text style={styles.headerTitle}>{t('detailTotalIncome')}</Text>
             <Text style={styles.headerAmount}>
-              +{totalIncome.toLocaleString('cs-CZ')} Kč
+              {loadPending
+                ? '…'
+                : `+${formatMoneyWithSymbol(displayTotalIncome, numberLocale, currency.symbol)}`}
             </Text>
+            <OverviewFilterBadge onAccent style={{ marginTop: 8 }} />
           </View>
           <View style={styles.headerIcon}>
             <TrendingUp color="white" size={28} />
@@ -248,6 +375,16 @@ export default function IncomeDetailScreen() {
         style={[styles.scrollView, { flex: 1, backgroundColor: pageBg }]}
         showsVerticalScrollIndicator={false}
       >
+        {loadError ? (
+          <View style={styles.loadBanner}>
+            <Text style={[styles.loadBannerText, { color: textMain }]}>{loadError}</Text>
+          </View>
+        ) : null}
+        {loadPending ? (
+          <View style={styles.loadCenter}>
+            <ActivityIndicator size="large" color="#10B981" />
+          </View>
+        ) : null}
 
         {/* Add Income Button */}
         <View style={styles.addButtonContainer}>
@@ -256,34 +393,40 @@ export default function IncomeDetailScreen() {
             onPress={() => router.push('/(tabs)/add')}
           >
             <Plus color="white" size={20} />
-            <Text style={styles.addIncomeButtonText}>Přidat příjem</Text>
+            <Text style={styles.addIncomeButtonText}>{t('addIncome')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Period Selection */}
         <View style={styles.periodContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Období</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailPeriod')}</Text>
           <View style={[styles.periodButtons, { backgroundColor: mutedBg }]}>
-            <PeriodButton period="week" label="Týden" />
-            <PeriodButton period="month" label="Měsíc" />
-            <PeriodButton period="year" label="Rok" />
+            <PeriodButton period="week" label={t('week')} />
+            <PeriodButton period="month" label={t('month')} />
+            <PeriodButton period="year" label={t('year')} />
           </View>
         </View>
 
         {/* Statistics */}
         <View style={styles.statsContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Statistiky</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailStatistics')}</Text>
           <View style={styles.statsGrid}>
             <StatCard
-              title="Počet transakcí"
+              title={t('detailTransactionCount')}
               value={analysis.totalTransactions}
               icon={BarChart3}
               color="#6366F1"
-              subtitle="za měsíc"
+              subtitle={
+                selectedPeriod === 'month'
+                  ? t('detailPerMonth')
+                  : selectedPeriod === 'week'
+                    ? t('detailPerWeek')
+                    : t('detailPerYear')
+              }
             />
             <StatCard
-              title="Průměr na transakci"
-              value={`${Math.round(analysis.averagePerTransaction).toLocaleString('cs-CZ')} Kč`}
+              title={t('detailAvgPerTransaction')}
+              value={formatMoneyWithSymbol(analysis.averagePerTransaction, numberLocale, currency.symbol)}
               icon={Target}
               color="#8B5CF6"
             />
@@ -292,7 +435,7 @@ export default function IncomeDetailScreen() {
 
         {/* Categories Breakdown */}
         <View style={styles.categoriesContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Příjmy podle kategorií</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailIncomeByCategory')}</Text>
           {categoryIncomes.length > 0 ? (
             categoryIncomes.map((category, index) => (
               <CategoryIncomeCard key={index} category={category} />
@@ -300,16 +443,16 @@ export default function IncomeDetailScreen() {
           ) : (
             <View style={styles.emptyState}>
               <DollarSign color={textSec} size={48} />
-              <Text style={[styles.emptyStateText, { color: textSec }]}>Zatím žádné příjmy</Text>
+              <Text style={[styles.emptyStateText, { color: textSec }]}>{t('noTransactionsYet')}</Text>
               <Text style={[styles.emptyStateSubtext, { color: textSec }]}>
-                Začni přidáváním svých příjmů
+                {t('startAddingTransactions')}
               </Text>
               <TouchableOpacity 
                 style={styles.addButton}
                 onPress={() => router.push('/add')}
               >
                 <Plus color="white" size={20} />
-                <Text style={styles.addButtonText}>Přidat příjem</Text>
+                <Text style={styles.addButtonText}>{t('addIncome')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -318,14 +461,14 @@ export default function IncomeDetailScreen() {
         {/* Analysis & Recommendations */}
         {categoryIncomes.length > 0 && (
           <View style={styles.analysisContainer}>
-            <Text style={[styles.sectionTitle, { color: textMain }]}>Analýza a doporučení</Text>
+            <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailAnalysisRecommendations')}</Text>
             
             {/* Insights */}
             {analysis.insights.map((insight, index) => (
               <RecommendationCard
                 key={`insight-${index}`}
                 type="insight"
-                title="Pozorování"
+                title={t('detailObservations')}
                 description={insight}
                 icon={DollarSign}
               />
@@ -336,7 +479,7 @@ export default function IncomeDetailScreen() {
               <RecommendationCard
                 key={`tip-${index}`}
                 type="tip"
-                title="Tip na zvýšení příjmů"
+                title={t('detailIncomeTip')}
                 description={recommendation}
                 icon={Lightbulb}
               />
@@ -352,21 +495,21 @@ export default function IncomeDetailScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.insightsTitle}>💡 Tip:</Text>
+            <Text style={styles.insightsTitle}>{t('detailTipLabel')}</Text>
             <Text style={styles.insightsText}>
               {analysis.highestCategory 
-                ? `Tvůj hlavní zdroj příjmů je ${analysis.highestCategory.category.toLowerCase()} (${analysis.highestCategory.percentage}%). ${
+                ? `${analysis.highestCategory.category.toLowerCase()} (${analysis.highestCategory.percentage}%). ${
                     analysis.highestCategory.percentage > 90 
-                      ? 'Zvažuj diverzifikaci příjmů pro větší finanční bezpečnost.'
-                      : 'Máš dobře diverzifikované příjmy, to je skvělé!'
+                      ? t('detailIncomeTipDiversify')
+                      : t('detailIncomeTipGood')
                   }`
-                : 'Naimportuj výpis z banky a sleduj příjmy společně s výdaji v jedné aplikaci.'}
+                : t('detailIncomeTipEmpty')}
             </Text>
             <TouchableOpacity 
               style={styles.chatButton}
               onPress={() => router.push('/bank-import')}
             >
-              <Text style={styles.chatButtonText}>Importovat bankovní výpis</Text>
+              <Text style={styles.chatButtonText}>{t('detailImportBankStatement')}</Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -378,6 +521,20 @@ export default function IncomeDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+  },
+  loadBannerText: {
+    fontSize: 14,
+  },
+  loadCenter: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,

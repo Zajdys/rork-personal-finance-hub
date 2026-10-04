@@ -11,7 +11,6 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   Home,
   Car,
   DollarSign,
@@ -22,17 +21,22 @@ import {
   CreditCard,
   Trash2,
   Lock,
-  Unlock,
   Edit3,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { getLoanTypeLabel, loanYearLabel } from '@/lib/loan-type-labels';
+import { formatCsCurrencyRounded, formatCsPercent2, formatCsRemainingMonthsWithYears, computeLoanDetailOverview, formatDateCs } from '@/lib/loan-math';
+import { safeGoBack } from '@/lib/safe-back';
+import { BackButton } from '@/components/BackButton';
 
 export default function LoanDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { loans, deleteLoan, getLoanProgress } = useFinanceStore();
+  const { loans, deleteLoan, undoLastLoanPayment } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { t } = useLanguageStore();
 
   const loan = loans.find((l) => l.id === id);
   const currentCurrency = getCurrentCurrency();
@@ -43,20 +47,21 @@ export default function LoanDetailScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Závazek nenalezen
+            {t('loanNotFound')}
           </Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack()}
           >
-            <Text style={styles.backButtonText}>Zpět</Text>
+            <Text style={styles.backButtonText}>{t('back')}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const progress = getLoanProgress(loan.id);
+  const overview = computeLoanDetailOverview(loan);
+  const canUndoPayment = (loan.paymentsMade ?? 0) > 0;
 
   const getLoanTypeIcon = (type: LoanType) => {
     switch (type) {
@@ -73,52 +78,35 @@ export default function LoanDetailScreen() {
     }
   };
 
-  const getLoanTypeLabel = (type: LoanType) => {
-    switch (type) {
-      case 'mortgage':
-        return 'Hypotéka';
-      case 'car':
-        return 'Úvěr na auto';
-      case 'personal':
-        return 'Osobní úvěr';
-      case 'student':
-        return 'Studentský úvěr';
-      case 'other':
-        return 'Jiný úvěr';
-      default:
-        return 'Úvěr';
-    }
-  };
-
   const handleDelete = () => {
     console.log('Delete button pressed for loan:', loan.id);
     if (Platform.OS === 'web') {
-      if (window.confirm('Opravdu chcete smazat tento závazek?')) {
+      if (window.confirm(t('loanDeleteConfirmGeneric'))) {
         console.log('Deleting loan:', loan.id);
         deleteLoan(loan.id);
         console.log('Loan deleted, navigating back');
-        router.back();
+        safeGoBack();
       } else {
         console.log('Delete cancelled');
       }
     } else {
       Alert.alert(
-        'Smazat závazek',
-        'Opravdu chcete smazat tento závazek?',
+        t('loanDeleteTitle'),
+        t('loanDeleteConfirmGeneric'),
         [
           {
-            text: 'Zrušit',
+            text: t('cancel'),
             style: 'cancel',
             onPress: () => console.log('Delete cancelled'),
           },
           {
-            text: 'Smazat',
+            text: t('delete'),
             style: 'destructive',
             onPress: () => {
               console.log('Deleting loan:', loan.id);
               deleteLoan(loan.id);
               console.log('Loan deleted, navigating back');
-              router.back();
+              safeGoBack();
             },
           },
         ],
@@ -140,17 +128,12 @@ export default function LoanDetailScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.headerBackButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.headerBackButton} />
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>
               {loan.name || getLoanTypeLabel(loan.loanType)}
             </Text>
-            <Text style={styles.headerSubtitle}>Detail závazku</Text>
+            <Text style={styles.headerSubtitle}>{t('loanDetailSubtitle')}</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -196,44 +179,64 @@ export default function LoanDetailScreen() {
 
           <View style={[styles.progressCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Průběh splácení
+              {t('loanRepaymentProgress')}
             </Text>
             <View style={styles.progressBarContainer}>
               <View style={[styles.progressBarBackground, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
                 <LinearGradient
                   colors={['#10B981', '#059669']}
-                  style={[styles.progressBar, { width: `${progress.percentage}%` }]}
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: `${Math.min(100, overview.principalPercentPaid)}%`,
+                    },
+                  ]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 />
               </View>
               <Text style={[styles.progressText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                {progress.percentage}% splaceno
+                {t('loanPaidPrincipal', { percent: formatCsPercent2(overview.principalPercentPaid) })}
               </Text>
             </View>
-            <View style={styles.progressStats}>
-              <View style={styles.progressStat}>
-                <Text style={[styles.progressStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Splaceno měsíců
-                </Text>
-                <Text style={[styles.progressStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {progress.paidMonths} / {progress.totalMonths}
-                </Text>
-              </View>
-              <View style={styles.progressStat}>
-                <Text style={[styles.progressStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Zbývá měsíců
-                </Text>
-                <Text style={[styles.progressStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {loan.remainingMonths}
-                </Text>
-              </View>
+            <View style={styles.progressStatsColumn}>
+              <Text style={[styles.progressLine, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                {t('loanInstallmentOf', { paid: overview.paidMonths, total: overview.totalMonths })}
+              </Text>
+              <Text style={[styles.progressLineGreen, { color: '#10B981' }]}>
+                {t('loanPaid')}: {formatCsCurrencyRounded(overview.principalPaid, currentCurrency.symbol)}
+              </Text>
+              <Text style={[styles.progressLine, { color: isDarkMode ? '#F9FAFB' : '#1F2937' }]}>
+                {t('loanRemaining')}: {formatCsCurrencyRounded(overview.remainingPrincipal, currentCurrency.symbol)}
+              </Text>
+              <Text style={[styles.progressInterestLine, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {t('loanMonthsLeft')}:{' '}
+                {formatCsRemainingMonthsWithYears(
+                  Math.max(0, overview.totalMonths - overview.paidMonths),
+                )}
+              </Text>
             </View>
+            {canUndoPayment && (
+              <TouchableOpacity
+                style={[styles.undoPaymentBtn, { borderColor: isDarkMode ? '#4B5563' : '#E5E7EB' }]}
+                onPress={() => {
+                  Alert.alert(t('loanUndoPaymentTitle'), t('loanUndoPaymentConfirm'), [
+                    { text: t('loanNo'), style: 'cancel' },
+                    { text: t('loanYes'), onPress: () => undoLastLoanPayment(loan.id) },
+                  ]);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.undoPaymentText, { color: isDarkMode ? '#FBBF24' : '#D97706' }]}>
+                  {t('loanUndoLastPayment')}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={[styles.detailsCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Finanční údaje
+              {t('loanFinancialDetails')}
             </Text>
 
             <View style={styles.detailRow}>
@@ -241,11 +244,19 @@ export default function LoanDetailScreen() {
                 <DollarSign color="#667eea" size={20} />
               </View>
               <View style={styles.detailContent}>
-                <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Výše úvěru
+                <Text
+                  style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}
+                  numberOfLines={2}
+                >
+                  {t('loanAmount')}
                 </Text>
-                <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {loan.loanAmount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                <Text
+                  style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatCsCurrencyRounded(loan.loanAmount, currentCurrency.symbol)}
                 </Text>
               </View>
             </View>
@@ -256,38 +267,38 @@ export default function LoanDetailScreen() {
               </View>
               <View style={styles.detailContent}>
                 <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Úroková sazba
+                  {t('loanInterestRate')}
                 </Text>
                 <View style={styles.interestRateRow}>
                   <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    {loan.interestRate}% p.a.
+                    {formatCsPercent2(loan.interestRate)} %
                   </Text>
                   {loan.isFixed && (
                     <View style={styles.fixedBadge}>
                       <Lock color="#10B981" size={12} />
-                      <Text style={styles.fixedBadgeText}>Fixováno</Text>
+                      <Text style={styles.fixedBadgeText}>{t('loanFixed')}</Text>
                     </View>
                   )}
                 </View>
               </View>
             </View>
 
-            {loan.isFixed && loan.fixedEndDate && (
+            {loan.isFixed && loan.fixedEndDate ? (
               <View style={styles.detailRow}>
                 <View style={styles.detailIconContainer}>
                   <Lock color="#667eea" size={20} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Fixace do
+                    {t('loanFixedUntil')}
                   </Text>
                   <Text style={[styles.detailValue, { color: '#10B981' }]}>
-                    {new Date(loan.fixedEndDate).toLocaleDateString('cs-CZ')}
-                    {loan.fixedYears && ` (${loan.fixedYears} ${loan.fixedYears === 1 ? 'rok' : loan.fixedYears < 5 ? 'roky' : 'let'})`}
+                    {formatDateCs(new Date(loan.fixedEndDate))}
+                    {loan.fixedYears ? ` (${loan.fixedYears} ${loanYearLabel(loan.fixedYears)})` : ''}
                   </Text>
                 </View>
               </View>
-            )}
+            ) : null}
 
             <View style={styles.detailRow}>
               <View style={styles.detailIconContainer}>
@@ -295,10 +306,10 @@ export default function LoanDetailScreen() {
               </View>
               <View style={styles.detailContent}>
                 <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Měsíční splátka
+                  {t('loanMonthlyPayment')}
                 </Text>
                 <Text style={[styles.detailValue, { color: '#EF4444' }]}>
-                  {loan.monthlyPayment.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                  {formatCsCurrencyRounded(loan.monthlyPayment, currentCurrency.symbol)}
                 </Text>
               </View>
             </View>
@@ -309,10 +320,10 @@ export default function LoanDetailScreen() {
               </View>
               <View style={styles.detailContent}>
                 <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Datum zahájení
+                  {t('loanStartDate')}
                 </Text>
                 <Text style={[styles.detailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  {new Date(loan.startDate).toLocaleDateString('cs-CZ')}
+                  {formatDateCs(new Date(loan.startDate))}
                 </Text>
               </View>
             </View>
@@ -322,11 +333,19 @@ export default function LoanDetailScreen() {
                 <TrendingDown color="#667eea" size={20} />
               </View>
               <View style={styles.detailContent}>
-                <Text style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Zbývající dluh
+                <Text
+                  style={[styles.detailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}
+                  numberOfLines={2}
+                >
+                  {t('loanRemainingDebt')}
                 </Text>
-                <Text style={[styles.detailValue, { color: '#EF4444' }]}>
-                  {progress.remainingAmount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                <Text
+                  style={[styles.detailValue, { color: '#EF4444' }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatCsCurrencyRounded(overview.remainingPrincipal, currentCurrency.symbol)}
                 </Text>
               </View>
             </View>
@@ -334,33 +353,88 @@ export default function LoanDetailScreen() {
 
           <View style={[styles.summaryCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
             <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Celkový přehled
+              {t('loanTotalOverview')}
             </Text>
-            
+
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Celkem zaplaceno
+              <Text
+                style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}
+                numberOfLines={2}
+              >
+                {t('loanPaidTotalCash')}
               </Text>
               <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-                {progress.totalPaid.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                {formatCsCurrencyRounded(overview.paidTotalCash, currentCurrency.symbol)}
+              </Text>
+            </View>
+            <View style={styles.summarySubRow}>
+              <Text style={[styles.summarySubLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {t('loanOfWhichPrincipal')}
+              </Text>
+              <Text style={[styles.summarySubValue, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
+                {formatCsCurrencyRounded(overview.principalPaid, currentCurrency.symbol)}
+              </Text>
+            </View>
+            <View style={styles.summarySubRow}>
+              <Text style={[styles.summarySubLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {t('loanOfWhichInterest')}
+              </Text>
+              <Text style={[styles.summarySubValue, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
+                {formatCsCurrencyRounded(overview.interestPaid, currentCurrency.symbol)}
               </Text>
             </View>
 
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Zbývá zaplatit
+              <Text
+                style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}
+                numberOfLines={2}
+              >
+                {t('loanRemainingPrincipal')}
               </Text>
               <Text style={[styles.summaryValue, { color: '#EF4444' }]}>
-                {progress.remainingAmount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                {formatCsCurrencyRounded(overview.remainingPrincipal, currentCurrency.symbol)}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text
+                style={[styles.summaryLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}
+                numberOfLines={2}
+              >
+                {t('loanLifetimeTotal')}
+              </Text>
+              <Text
+                style={[styles.summaryValue, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {formatCsCurrencyRounded(overview.lifetimeTotal, currentCurrency.symbol)}
               </Text>
             </View>
 
             <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-              <Text style={[styles.summaryLabel, styles.summaryLabelTotal, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Celková částka k zaplacení
+              <Text
+                style={[
+                  styles.summaryLabel,
+                  styles.summaryLabelTotal,
+                  { color: isDarkMode ? 'white' : '#1F2937' },
+                ]}
+                numberOfLines={2}
+              >
+                {t('loanLifetimeInterest')}
               </Text>
-              <Text style={[styles.summaryValue, styles.summaryValueTotal, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                {(progress.totalPaid + progress.remainingAmount).toLocaleString('cs-CZ')} {currentCurrency.symbol}
+              <Text
+                style={[
+                  styles.summaryValue,
+                  styles.summaryValueTotal,
+                  { color: isDarkMode ? 'white' : '#1F2937' },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {formatCsCurrencyRounded(overview.lifetimeInterest, currentCurrency.symbol)}
               </Text>
             </View>
           </View>
@@ -531,6 +605,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  progressStatsColumn: {
+    marginTop: 8,
+    gap: 6,
+  },
+  progressLine: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  progressLineGreen: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  progressInterestLine: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  undoPaymentBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  undoPaymentText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -549,10 +650,12 @@ const styles = StyleSheet.create({
   },
   detailContent: {
     flex: 1,
+    minWidth: 0,
   },
   detailLabel: {
     fontSize: 12,
     marginBottom: 2,
+    flexShrink: 1,
   },
   detailValue: {
     fontSize: 16,
@@ -561,10 +664,29 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  summarySubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  summarySubLabel: {
+    fontSize: 12,
+    flex: 1,
+    flexShrink: 1,
+  },
+  summarySubValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 0,
   },
   summaryRowTotal: {
     borderBottomWidth: 0,
@@ -575,6 +697,9 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
+    flex: 1,
+    flexShrink: 1,
+    paddingRight: 8,
   },
   summaryLabelTotal: {
     fontSize: 16,
@@ -583,6 +708,13 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 16,
     fontWeight: 'bold',
+    flexShrink: 0,
+    maxWidth: '48%',
+    textAlign: 'right',
+  },
+  summaryInterestValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   summaryValueTotal: {
     fontSize: 18,

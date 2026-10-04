@@ -1,0 +1,23 @@
+# Supabase CLI — https://supabase.com/docs/guides/cli/config
+
+[functions.parse-bank-pdf-v2]
+enabled = true
+verify_jwt = true
+import_map = "./functions/parse-bank-pdf-v2/deno.json"
+entrypoint = "./functions/parse-bank-pdf-v2/index.ts"
+
+[functions.delete-account]
+enabled = true
+verify_jwt = true
+import_map = "./functions/delete-account/deno.json"
+entrypoint = "./functions/delete-account/index.ts"
+
+[functions.fio-sync]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/fio-sync/index.ts"
+
+[functions.sync-transactions]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/sync-transactions/index.ts"

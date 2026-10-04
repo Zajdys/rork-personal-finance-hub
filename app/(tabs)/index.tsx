@@ -6,15 +6,23 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  Switch,
   Platform,
   Alert,
   Modal,
   Pressable,
   RefreshControl,
 } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { BlurView } from 'expo-blur';
 import {
   PlusCircle,
   TrendingUp,
@@ -35,7 +43,6 @@ import { useDraggableList } from '@/lib/use-draggable-list';
 import {
   useFinanceStore,
   CategoryExpense,
-  SubscriptionItem,
   EXPENSE_CATEGORIES,
   computeMonthlyReportFromTransactions,
   computeCategoryExpensesForTransactionsMonth,
@@ -47,7 +54,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 import { useLanguageStore } from '@/store/language-store';
-import { useRouter } from 'expo-router';
+import { safePush } from '@/lib/safe-navigate';
 import { LifeEventModeIndicator } from '@/components/LifeEventModeIndicator';
 import { SwipeableTransactionRow } from '@/components/SwipeableTransactionRow';
 import { EmptyState } from '@/components/EmptyState';
@@ -61,45 +68,50 @@ import { isSessionLostError } from '@/lib/supabase-session';
 import { useBuddyStore } from '@/store/buddy-store';
 import DailyTipArticleModal from '@/components/DailyTipArticleModal';
 import { getDailyTipArticle } from '@/constants/daily-tip-articles';
-import { BrandIcon } from '@/components/BrandIcon';
+import { SwipeableSubscriptionRow } from '@/components/SwipeableSubscriptionRow';
+import { DetectedSubscriptionSuggestions } from '@/components/DetectedSubscriptionSuggestions';
 
 import {
-  daysUntilNextPayment,
-  getSubscriptionUiState,
   subscriptionCountsInTotal,
 } from '@/lib/subscription-helpers';
-import {
-  detectRegularPayments,
-  groupRegularPaymentsByCategory,
-} from '@/lib/regular-payments';
 import {
   addMonthsToYyyyMm,
   compareTxDateDesc,
   transactionDateYmd,
   yyyyMmLocalToday,
-  toYyyyMmDd,
 } from '@/lib/transaction-date';
-import { fetchTransactionsRemote, fetchTransactionSourcesRemote } from '@/lib/supabase-transactions';
 import { bankLabelForImportSource } from '@/lib/import-batches';
 import type { ThemeColors } from '@/constants/theme-colors';
 import { appLocale, formatYyyyMmTitle } from '@/lib/app-locale';
+import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
+import { useOverviewFiltersStore } from '@/store/overview-filters-store';
+import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
+import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 
 const { width } = Dimensions.get('window');
 /** Šířka slajdu = obrazovka minus `warningsContainer` okraje 16+16. */
 const ALERT_CAROUSEL_WIDTH = width - 32;
 const SUBSCRIPTION_ORDER_KEY = 'subscription_order';
 const SOURCE_FILTER_ACCENT = '#a855f7';
+/** Výška obsahu collapsed lišty (bez safe area). */
+const HEADER_COLLAPSED_BODY = 44;
+/** Výška expanded greeting bloku (bez safe area). */
+const HEADER_EXPANDED_BODY = 64;
+
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 const OVERVIEW_SOURCE_ORDER = [
   'raiffeisenbank',
   'rb',
   'kb',
   'csob',
   'fio',
+  'airbank',
   'bank_import',
   'cs',
   'csas',
   'moneta',
   'mbank',
+  'revolut',
 ] as const;
 
 function sortOverviewSources(sources: string[]): string[] {
@@ -112,8 +124,8 @@ function sortOverviewSources(sources: string[]): string[] {
   });
 }
 
-function overviewSourceLabel(source: string, t: (key: string) => string): string {
-  if (source === 'manual') return t('dashboardSourceManual');
+function overviewSourceLabel(source: string, manualLabel: string): string {
+  if (source === 'manual') return manualLabel;
   return bankLabelForImportSource(source);
 }
 
@@ -254,6 +266,29 @@ function greetingGivenName(
   return raw.split(/\s+/)[0] ?? '';
 }
 
+function timeOfDayGreetingKey(
+  hour: number,
+): 'greetingMorning' | 'greetingAfternoon' | 'greetingEvening' {
+  if (hour < 11) return 'greetingMorning';
+  if (hour < 18) return 'greetingAfternoon';
+  return 'greetingEvening';
+}
+
+function profileInitials(firstName: string, lastName: string): string {
+  const a = firstName.trim().charAt(0);
+  const b = lastName.trim().charAt(0);
+  const s = `${a}${b}`.toUpperCase();
+  return s || '?';
+}
+
+function formatDashboardTodayDate(locale: string): string {
+  return new Date().toLocaleDateString(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const finance = useFinanceStore();
@@ -265,6 +300,7 @@ export default function DashboardScreen() {
     loans = [],
     subscriptions = [],
     customCategories = [],
+    getLoanProgress,
   } = finance ?? {};
   const { getCurrentCurrency, notifications, userProfile, setUserProfile } = useSettingsStore();
   const { colors, isDark: isDarkMode } = useTheme();
@@ -284,11 +320,22 @@ export default function DashboardScreen() {
   const dailyTip = useBuddyStore((s) => s.dailyTip);
   const dailyTipKey = useBuddyStore((s) => s.dailyTipKey);
   const refreshDailyTip = useBuddyStore((s) => s.refreshDailyTip);
-  const dismissDetectedSuggestion = useFinanceStore((s) => s.dismissDetectedSubscriptionSuggestion);
   const dashboardTxRevision = useFinanceStore((s) => s.dashboardTxRevision);
+  const loadTransactionsFromSupabase = useFinanceStore((s) => s.loadTransactionsFromSupabase);
+  const allStoreTransactions = useFinanceStore((s) => s.transactions);
+  const financeIsLoaded = useFinanceStore((s) => s.isLoaded);
+  const remoteDashboardTransactions = useFilteredTransactions();
+  const selectedSourceFilters = useOverviewFiltersStore((s) => s.selectedSourceFilters);
+  const setSelectedSourceFilters = useOverviewFiltersStore((s) => s.setSelectedSourceFilters);
+  const selectedMonth = useOverviewFiltersStore((s) => s.selectedMonth);
+  const setSelectedMonth = useOverviewFiltersStore((s) => s.setSelectedMonth);
 
   useEffect(() => {
-    refreshDailyTip();
+    try {
+      refreshDailyTip();
+    } catch (e) {
+      console.warn('[dashboard] refreshDailyTip', e);
+    }
   }, [language, updateCounter, refreshDailyTip]);
 
   const [householdRecurringSummary, setHouseholdRecurringSummary] = useState<
@@ -308,21 +355,27 @@ export default function DashboardScreen() {
         setHouseholdRecurringSummary(null);
         return;
       }
-      setRemoteLoadError(logAndGetUserFacingError('dashboard-household-recurring', e));
-      setHouseholdRecurringSummary(null);
+      // Síťová chyba — nechat stávající data, bez red boxu
+      console.warn('[dashboard] household-recurring', e);
     }
   }, [user?.id]);
 
-  const [remoteDashboardTransactions, setRemoteDashboardTransactions] = useState<Transaction[]>([]);
   /** true dokud neproběhne první (nebo aktuální) remote fetch transakcí. */
   const [remoteTxLoading, setRemoteTxLoading] = useState(true);
   const [remoteLoadError, setRemoteLoadError] = useState<string | null>(null);
-  const [availableTransactionSources, setAvailableTransactionSources] = useState<string[]>([]);
-  const [selectedSourceFilters, setSelectedSourceFilters] = useState<Set<string>>(() => new Set());
   const [sourceFilterModalOpen, setSourceFilterModalOpen] = useState(false);
   const [draftSourceFilters, setDraftSourceFilters] = useState<Set<string>>(() => new Set());
-  const isAllSourcesSelected = selectedSourceFilters.size === 0;
+  const isAllSourcesSelected = selectedSourceFilters.length === 0;
   const isDraftAllSourcesSelected = draftSourceFilters.size === 0;
+
+  const availableTransactionSources = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of allStoreTransactions) {
+      const s = (t.source ?? '').trim();
+      if (s) set.add(s);
+    }
+    return [...set];
+  }, [allStoreTransactions]);
 
   const bankSourceFilters = useMemo(
     () => sortOverviewSources(availableTransactionSources.filter((s) => s !== 'manual')),
@@ -330,31 +383,12 @@ export default function DashboardScreen() {
   );
   const hasManualSource = availableTransactionSources.includes('manual');
 
-  const loadAvailableSources = useCallback(async () => {
-    if (!user?.id) {
-      setAvailableTransactionSources([]);
-      return;
-    }
-    const { sources, error } = await fetchTransactionSourcesRemote(user.id);
-    if (error) {
-      if (isSessionLostError(error)) {
-        setAvailableTransactionSources([]);
-        return;
-      }
-      setRemoteLoadError(logAndGetUserFacingError('dashboard-sources', error));
-      setAvailableTransactionSources([]);
-      return;
-    }
-    setAvailableTransactionSources(sources);
-  }, [user?.id]);
-
   /** Generation token — starší in-flight fetch nesmí přepsat novější výsledek. */
   const dashboardFetchGenRef = useRef(0);
 
-  const loadDashboardTransactions = useCallback(async () => {
+  const reloadStoreTransactions = useCallback(async () => {
     const uid = user?.id;
     if (!uid) {
-      setRemoteDashboardTransactions([]);
       setRemoteLoadError(null);
       setRemoteTxLoading(false);
       return;
@@ -362,39 +396,28 @@ export default function DashboardScreen() {
     const gen = ++dashboardFetchGenRef.current;
     setRemoteTxLoading(true);
     try {
-      const sourceFilter = isAllSourcesSelected ? undefined : [...selectedSourceFilters];
-      const { transactions, error } = await fetchTransactionsRemote(uid, {
-        sources: sourceFilter,
-      });
-      // Zastaralá odpověď (novější fetch už běží / doběhl) — zahodit
-      if (gen !== dashboardFetchGenRef.current) {
-        console.log('[dashboard] fetchTransactionsRemote stale gen', gen, 'current', dashboardFetchGenRef.current);
-        return;
-      }
-      if (error) {
-        setRemoteLoadError(logAndGetUserFacingError('dashboard-transactions', error));
+      const result = await loadTransactionsFromSupabase();
+      if (gen !== dashboardFetchGenRef.current) return;
+      if (!result.ok) {
+        // Soft chyba — data ve store necháme; jen zalogujeme (bez red boxu).
+        console.warn('[dashboard] loadTransactionsFromSupabase', result.error);
       } else {
         setRemoteLoadError(null);
       }
-      const list = transactions ?? [];
       console.log(
-        '[dashboard] fetchTransactionsRemote hotovo, raw count:',
-        list.length,
-        sourceFilter?.length ? `| source filter: ${sourceFilter.join(',')}` : '| source filter: (vše)',
-        error ? '(error — viz raw výše)' : '',
+        '[dashboard] loadTransactionsFromSupabase',
+        result.ok ? 'ok' : result.error,
         `| gen ${gen}`,
       );
-      setRemoteDashboardTransactions(list);
-      // Detekce předplatného musí číst tentýž remote zdroj jako dashboard
-      if (!error && isAllSourcesSelected) {
-        useFinanceStore.getState().replaceTransactionsFromRemote(list);
-      }
+    } catch (e) {
+      if (gen !== dashboardFetchGenRef.current) return;
+      console.warn('[dashboard] loadTransactionsFromSupabase threw', e);
     } finally {
       if (gen === dashboardFetchGenRef.current) {
         setRemoteTxLoading(false);
       }
     }
-  }, [user?.id, isAllSourcesSelected, selectedSourceFilters]);
+  }, [user?.id, loadTransactionsFromSupabase]);
 
   const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
 
@@ -402,21 +425,28 @@ export default function DashboardScreen() {
   const refreshDashboardData = useCallback(async () => {
     console.log('[dashboard] refreshDashboardData');
     await loadHouseholdRecurringSummary();
-    await loadAvailableSources();
-    await loadDashboardTransactions();
-  }, [loadHouseholdRecurringSummary, loadAvailableSources, loadDashboardTransactions]);
+    await reloadStoreTransactions();
+  }, [loadHouseholdRecurringSummary, reloadStoreTransactions]);
 
   const loadDashboardOnFocus = useCallback(async () => {
     console.log('[dashboard] focus/refresh — načítám data');
-    await refreshDashboardData();
+    try {
+      await refreshDashboardData();
+    } catch (e) {
+      console.warn('[dashboard] refreshDashboardData', e);
+    }
     if (!user?.id) return;
-    const row = await fetchUserProfileFromSupabase(user.id);
-    if (!row) return;
-    setUserProfile({
-      firstName: row.first_name ?? '',
-      lastName: row.last_name ?? '',
-      avatarUrl: row.avatar_url ?? null,
-    });
+    try {
+      const row = await fetchUserProfileFromSupabase(user.id);
+      if (!row) return;
+      setUserProfile({
+        firstName: row.first_name ?? '',
+        lastName: row.last_name ?? '',
+        avatarUrl: row.avatar_url ?? null,
+      });
+    } catch (e) {
+      console.warn('[dashboard] profile fetch', e);
+    }
   }, [refreshDashboardData, user?.id, setUserProfile]);
 
   const { refresh: refreshDashboard } = useFocusRefresh(loadDashboardOnFocus);
@@ -427,6 +457,8 @@ export default function DashboardScreen() {
     const startedAt = Date.now();
     try {
       await refreshDashboard({ force: true });
+    } catch (e) {
+      console.warn('[pull] onRefresh', e);
     } finally {
       // Ať je spinner vidět i při rychlém fetchi
       const MIN_SPINNER_MS = 450;
@@ -440,17 +472,24 @@ export default function DashboardScreen() {
   }, [refreshDashboard]);
 
   useEffect(() => {
-    void loadDashboardTransactions();
-  }, [loadDashboardTransactions]);
+    if (financeIsLoaded && !user?.id) {
+      setRemoteTxLoading(false);
+      return;
+    }
+    if (financeIsLoaded && allStoreTransactions.length > 0) {
+      setRemoteTxLoading(false);
+    }
+  }, [financeIsLoaded, allStoreTransactions.length, user?.id]);
 
-  // Krok 1 konzistence: po mutaci tx (až po mirror/.finally) bump → Přehled refetchne remote.
-  // Závislost JEN na revision — ne na loadDashboardTransactions (jinak by filtr spustil dvojitý fetch).
-  const loadDashboardTransactionsRef = useRef(loadDashboardTransactions);
-  loadDashboardTransactionsRef.current = loadDashboardTransactions;
+  // Po mutaci tx (až po mirror/.finally) bump → Přehled znovu načte z DB.
+  const reloadStoreTransactionsRef = useRef(reloadStoreTransactions);
+  reloadStoreTransactionsRef.current = reloadStoreTransactions;
   useEffect(() => {
     if (dashboardTxRevision === 0) return;
     console.log('[dashboard] dashboardTxRevision', dashboardTxRevision, '→ refetch');
-    void loadDashboardTransactionsRef.current();
+    void reloadStoreTransactionsRef.current().catch((e) => {
+      console.warn('[dashboard] dashboardTxRevision refetch', e);
+    });
   }, [dashboardTxRevision]);
 
   const openSourceFilterModal = useCallback(() => {
@@ -463,9 +502,9 @@ export default function DashboardScreen() {
   }, []);
 
   const applySourceFilterModal = useCallback(() => {
-    setSelectedSourceFilters(new Set(draftSourceFilters));
+    setSelectedSourceFilters([...draftSourceFilters]);
     setSourceFilterModalOpen(false);
-  }, [draftSourceFilters]);
+  }, [draftSourceFilters, setSelectedSourceFilters]);
 
   const selectAllDraftSourceFilters = useCallback(() => {
     setDraftSourceFilters(new Set());
@@ -480,7 +519,6 @@ export default function DashboardScreen() {
     });
   }, []);
 
-  const router = useRouter();
   const [showAllCategories, setShowAllCategories] = useState<boolean>(false);
   const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(() => new Set());
   const [alertPageIndex, setAlertPageIndex] = useState(0);
@@ -488,15 +526,84 @@ export default function DashboardScreen() {
   const [tipArticleOpen, setTipArticleOpen] = useState(false);
   const [txSelectionMode, setTxSelectionMode] = useState(false);
   const [txSelectedIds, setTxSelectedIds] = useState<Set<string>>(() => new Set());
-  const [selectedMonth, setSelectedMonth] = useState(yyyyMmLocalToday());
   const insets = useSafeAreaInsets();
   const { isDesktop, contentMaxWidth } = useResponsiveLayout();
+
+  const headerMin = insets.top + HEADER_COLLAPSED_BODY;
+  const headerMax = insets.top + HEADER_EXPANDED_BODY;
+  const scrollDistance = Math.max(1, headerMax - headerMin);
+  const isIOS = Platform.OS === 'ios';
+  /** iOS contentInset: contentOffset.y startuje na −headerMax; Android scrollY od 0. */
+  const scrollYInsetOffset = isIOS ? headerMax : 0;
+  const scrollY = useSharedValue(isIOS ? -headerMax : 0);
+  const onDashboardScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.value = e.contentOffset.y;
+    },
+  });
+  const collapsingHeaderStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      height: interpolate(y, [0, scrollDistance], [headerMax, headerMin], Extrapolation.CLAMP),
+    };
+  });
+  const headerGradientFadeStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(y, [0, scrollDistance], [1, 0], Extrapolation.CLAMP),
+    };
+  });
+  const headerHairlineStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(
+        y,
+        [scrollDistance * 0.65, scrollDistance],
+        [0, 1],
+        Extrapolation.CLAMP,
+      ),
+    };
+  });
+  const largeGreetingStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(y, [0, scrollDistance * 0.55], [1, 0], Extrapolation.CLAMP),
+      transform: [
+        {
+          translateY: interpolate(y, [0, scrollDistance], [0, -12], Extrapolation.CLAMP),
+        },
+      ],
+    };
+  });
+  const compactTitleStyle = useAnimatedStyle(() => {
+    const y = scrollY.value + scrollYInsetOffset;
+    return {
+      opacity: interpolate(
+        y,
+        [scrollDistance * 0.4, scrollDistance * 0.85],
+        [0, 1],
+        Extrapolation.CLAMP,
+      ),
+    };
+  });
 
   const tipArticle = useMemo(
     () => getDailyTipArticle(dailyTipKey),
     [dailyTipKey]
   );
   const currentCurrency = getCurrentCurrency();
+
+  const liabilitiesCardAmount = useMemo(() => {
+    const monthly = (loans ?? []).reduce((sum, loan) => {
+      const progress = getLoanProgress?.(loan.id);
+      if (!progress || progress.remainingAmount <= 0.5) return sum;
+      return sum + (Number(loan.monthlyPayment) || 0);
+    }, 0);
+    if (monthly <= 0) return t('dashboardAddLiability');
+    return t('dashboardLiabilitiesPerMonth', {
+      amount: formatMoneyWithSymbol(monthly, numberLocale, currentCurrency.symbol),
+    });
+  }, [loans, getLoanProgress, t, numberLocale, currentCurrency.symbol]);
 
   const todayYm = yyyyMmLocalToday();
   const canGoNextMonth = selectedMonth < todayYm;
@@ -538,6 +645,37 @@ export default function DashboardScreen() {
   const totalIncome = dashboardReport.totalIncome;
   const totalExpenses = dashboardReport.totalExpenses;
   const balance = dashboardReport.balance;
+
+  const previousMonthYm = useMemo(() => addMonthsToYyyyMm(selectedMonth, -1), [selectedMonth]);
+  const previousMonthReport = useMemo(
+    () =>
+      computeMonthlyReportFromTransactions(
+        remoteDashboardTransactions,
+        previousMonthYm,
+        getAllCategories('expense'),
+      ),
+    [remoteDashboardTransactions, previousMonthYm, getAllCategories],
+  );
+
+  /** MoM % ze stejných filtrovaných dat; null = předchozí měsíc bez dat / bez báze. */
+  const incomeTrend = useMemo(() => {
+    if (previousMonthReport.transactionCount === 0 || previousMonthReport.totalIncome <= 0) {
+      return null;
+    }
+    return Math.round(
+      ((totalIncome - previousMonthReport.totalIncome) / previousMonthReport.totalIncome) * 100,
+    );
+  }, [totalIncome, previousMonthReport]);
+
+  const expenseTrend = useMemo(() => {
+    if (previousMonthReport.transactionCount === 0 || previousMonthReport.totalExpenses <= 0) {
+      return null;
+    }
+    return Math.round(
+      ((totalExpenses - previousMonthReport.totalExpenses) / previousMonthReport.totalExpenses) *
+        100,
+    );
+  }, [totalExpenses, previousMonthReport]);
 
   useEffect(() => {
     const [yStr, mStr] = selectedMonth.split('-');
@@ -585,14 +723,14 @@ export default function DashboardScreen() {
       icon: string;
     }[] = [];
     if (notifications.budgetWarnings !== false) {
-      if (currentMonthReport.balance < 0) {
+      if (isAllSourcesSelected && currentMonthReport.balance < 0) {
         slides.push({
           id: 'alert-balance',
           sortKey: 100,
           variant: 'danger',
           title: t('dashboardNegativeBalanceTitle'),
           message: t('dashboardNegativeBalanceMessage', {
-            amount: Math.abs(currentMonthReport.balance).toLocaleString(numberLocale),
+            amount: formatMoney(Math.abs(currentMonthReport.balance), numberLocale),
           }),
           icon: '🚨',
         });
@@ -606,12 +744,16 @@ export default function DashboardScreen() {
           title: t('dashboardLimitExceededTitle'),
           message: t('dashboardLimitExceededMessage', {
             title: goal.title,
-            amount: (spent - goal.targetAmount).toLocaleString(numberLocale),
+            amount: formatMoney(spent - goal.targetAmount, numberLocale),
           }),
           icon: '🎯',
         });
       });
-      if (currentMonthReport.savingsRate < 10 && currentMonthReport.totalIncome > 0) {
+      if (
+        isAllSourcesSelected &&
+        currentMonthReport.savingsRate < 10 &&
+        currentMonthReport.totalIncome > 0
+      ) {
         slides.push({
           id: 'alert-savings',
           sortKey: 300,
@@ -621,16 +763,29 @@ export default function DashboardScreen() {
           icon: '⚠️',
         });
       }
-      const topCategory = currentMonthReport.categoryBreakdown[0];
-      if (topCategory && topCategory.percentage > 40) {
+      // Podíl jen z „variabilních“ výdajů — bez fixních Splátky úvěrů / Bydlení.
+      const highCategoryExcluded = new Set(['Splátky úvěrů', 'Bydlení']);
+      const variableCategories = currentMonthReport.categoryBreakdown.filter(
+        (c) => !highCategoryExcluded.has(c.category),
+      );
+      const variableTotal = variableCategories.reduce((sum, c) => sum + c.amount, 0);
+      const topVariable =
+        variableTotal > 0
+          ? [...variableCategories].sort((a, b) => b.amount - a.amount)[0]
+          : undefined;
+      const topVariablePct =
+        topVariable && variableTotal > 0
+          ? Math.round((topVariable.amount / variableTotal) * 100)
+          : 0;
+      if (topVariable && topVariablePct > 40 && topVariable.amount >= 2000) {
         slides.push({
           id: 'alert-category',
           sortKey: 400,
           variant: 'info',
           title: t('dashboardHighCategoryTitle'),
           message: t('dashboardHighCategoryMessage', {
-            category: topCategory.category,
-            percentage: topCategory.percentage,
+            category: topVariable.category,
+            percentage: topVariablePct,
           }),
           icon: '💡',
         });
@@ -653,6 +808,7 @@ export default function DashboardScreen() {
     numberLocale,
     t,
     dailyTip,
+    isAllSourcesSelected,
   ]);
 
   const activeAlertSlides = useMemo(() => {
@@ -694,30 +850,59 @@ export default function DashboardScreen() {
     </TouchableOpacity>
   );
 
-  const FinanceCard = ({ title, amount, trend, color, emoji }: any) => (
+  const FinanceCard = ({
+    title,
+    amount,
+    trend,
+    color,
+    emoji,
+    /** true = výdaje: ↗ červená, ↘ zelená; false/undefined = příjem: ↗ zelená, ↘ červená */
+    trendInvertColors,
+  }: any) => {
+    const trendUp = typeof trend === 'number' && trend > 0;
+    const trendColor = trendInvertColors
+      ? trendUp
+        ? '#EF4444'
+        : '#10B981'
+      : trendUp
+        ? '#10B981'
+        : '#EF4444';
+    return (
     <View style={[styles.financeCard, { backgroundColor: colors.card }, isDesktop && styles.financeCardDesktop]}>
       <View style={styles.financeCardHeader}>
         <Text style={styles.financeCardEmoji}>{emoji}</Text>
         <Text style={[styles.financeCardTitle, { color: colors.textSecondary }]}>{title}</Text>
       </View>
       <Text style={[styles.financeCardAmount, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-        {typeof amount === 'number' ? amount.toLocaleString(numberLocale) : amount}
-        {title === liabilitiesLabel || title === householdLabel ? '' : ` ${currentCurrency.symbol}`}
+        {typeof amount === 'number'
+          ? title === liabilitiesLabel || title === householdLabel
+            ? String(amount)
+            : formatMoney(amount, numberLocale)
+          : amount}
+        {title === liabilitiesLabel || title === householdLabel || typeof amount !== 'number'
+          ? ''
+          : ` ${currentCurrency.symbol}`}
       </Text>
-      {trend !== null && (
+      {trend !== null && trend !== undefined && (
         <View style={styles.trendContainer}>
-          {trend > 0 ? (
-            <TrendingUp color="#10B981" size={14} />
+          {trendUp ? (
+            <TrendingUp color={trendColor} size={14} />
           ) : (
-            <TrendingDown color="#EF4444" size={14} />
+            <TrendingDown color={trendColor} size={14} />
           )}
-          <Text style={[styles.trendText, { color: trend > 0 ? '#10B981' : '#EF4444' }]}>
+          <Text style={[styles.trendText, { color: trendColor }]}>
             {Math.abs(trend)}%
           </Text>
+          {selectedMonth === todayYm ? (
+            <Text style={[styles.trendSoFarText, { color: colors.textSecondary }]}>
+              {t('dashboardTrendSoFar')}
+            </Text>
+          ) : null}
         </View>
       )}
     </View>
-  );
+    );
+  };
 
   const domacnostDashboardCard = useMemo(() => {
     if (householdRecurringSummary === false) {
@@ -740,7 +925,7 @@ export default function DashboardScreen() {
     <TouchableOpacity 
       style={[styles.categoryCard, { backgroundColor: colors.card }]}
       onPress={() =>
-        router.push({
+        safePush({
           pathname: '/category-detail',
           params: { category: category.category, type: 'expense', month: selectedMonth },
         })
@@ -753,7 +938,7 @@ export default function DashboardScreen() {
         <View style={styles.categoryInfo}>
           <Text style={[styles.categoryName, { color: colors.text }]}>{category.category}</Text>
           <Text style={styles.categoryAmount}>
-            {category.amount.toLocaleString(numberLocale)} {currentCurrency.symbol}
+            {formatMoneyWithSymbol(category.amount, numberLocale, currentCurrency.symbol)}
           </Text>
         </View>
         <View style={styles.categoryPercentage}>
@@ -780,19 +965,9 @@ export default function DashboardScreen() {
 
   const detectedSubscriptions = finance?.getDetectedSubscriptions?.() ?? [];
 
-  const regularPaymentsGrouped = useMemo(() => {
-    const now = new Date();
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-    const items = detectRegularPayments(remoteDashboardTransactions, {
-      sinceYmd: toYyyyMmDd(sixMonthsAgo),
-    });
-    return groupRegularPaymentsByCategory(items);
-  }, [remoteDashboardTransactions]);
-
   const handleDeleteDashboardTransaction = useCallback(
     (tid: string) => {
       deleteTransaction?.(tid);
-      setRemoteDashboardTransactions((prev) => prev.filter((t) => t.id !== tid));
     },
     [deleteTransaction],
   );
@@ -801,10 +976,6 @@ export default function DashboardScreen() {
     [subscriptions],
   );
   const totalYearlySubs = useMemo(() => totalActiveSubs * 12, [totalActiveSubs]);
-
-  const confirmDetected = useCallback((sub: SubscriptionItem) => {
-    finance?.addSubscription?.({ ...sub, id: `${sub.id}-${Date.now()}`, paused: false });
-  }, [finance]);
 
   const setSubSwitch = useCallback(
     (id: string, on: boolean) => {
@@ -823,7 +994,9 @@ export default function DashboardScreen() {
   } = useDraggableList(subscriptions, SUBSCRIPTION_ORDER_KEY);
 
   useEffect(() => {
-    void loadSubscriptionOrder();
+    void loadSubscriptionOrder().catch((e) => {
+      console.warn('[dashboard] loadSubscriptionOrder', e);
+    });
   }, [loadSubscriptionOrder]);
 
   const toggleTxSelect = useCallback((id: string) => {
@@ -857,7 +1030,6 @@ export default function DashboardScreen() {
           style: 'destructive',
           onPress: () => {
             deleteTransactions(ids);
-            setRemoteDashboardTransactions((prev) => prev.filter((t) => !ids.includes(t.id)));
             exitTxSelection();
           },
         },
@@ -871,7 +1043,7 @@ export default function DashboardScreen() {
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('financialGoals')}</Text>
           <TouchableOpacity
-            onPress={() => router.push('/financial-goals')}
+            onPress={() => safePush('/financial-goals')}
             style={styles.showMoreButton}
           >
             <Text style={styles.showMoreText}>{t('viewAll')}</Text>
@@ -905,7 +1077,7 @@ export default function DashboardScreen() {
             <TouchableOpacity
               key={goal.id}
               style={[styles.goalCard, { backgroundColor: colors.card }]}
-              onPress={() => router.push('/financial-goals')}
+              onPress={() => safePush('/financial-goals')}
             >
               <View style={styles.goalCardHeader}>
                 <View style={styles.goalCardInfo}>
@@ -917,10 +1089,11 @@ export default function DashboardScreen() {
                 </View>
                 <View style={styles.goalCardAmounts}>
                   <Text style={[styles.goalCurrentAmount, { color }]}>
-                    {displayAmount.toLocaleString(numberLocale)} {currentCurrency.symbol}
+                    {formatMoneyWithSymbol(displayAmount, numberLocale, currentCurrency.symbol)}
                   </Text>
                   <Text style={[styles.goalTargetAmount, { color: colors.textSecondary }]}>
-                    {t('dashboardGoalOf')} {goal.targetAmount.toLocaleString(numberLocale)} {currentCurrency.symbol}
+                    {t('dashboardGoalOf')}{' '}
+                    {formatMoneyWithSymbol(goal.targetAmount, numberLocale, currentCurrency.symbol)}
                   </Text>
                 </View>
               </View>
@@ -948,7 +1121,7 @@ export default function DashboardScreen() {
         {financialGoals.length === 0 && (
           <TouchableOpacity
             style={[styles.emptyGoalsCard, { backgroundColor: colors.card }]}
-            onPress={() => router.push('/financial-goals')}
+            onPress={() => safePush('/financial-goals')}
           >
             <Target color="#9CA3AF" size={32} />
             <Text style={[styles.emptyGoalsText, { color: colors.textSecondary }]}>
@@ -982,7 +1155,7 @@ export default function DashboardScreen() {
 
         <TouchableOpacity
           style={styles.addExpenseButtonContainer}
-          onPress={() => router.push({ pathname: '/add', params: { type: 'expense' } })}
+          onPress={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
         >
           <LinearGradient
             colors={['#EF4444', '#DC2626']}
@@ -997,51 +1170,97 @@ export default function DashboardScreen() {
       </View>
     ) : null;
 
-  const greetingName = greetingGivenName(userProfile.firstName, user?.name, user?.email);
+  const timeGreeting = t(timeOfDayGreetingKey(new Date().getHours()));
+  const todayDateLabel = useMemo(
+    () => formatDashboardTodayDate(numberLocale),
+    [numberLocale, updateCounter],
+  );
+  const avatarInitials = profileInitials(userProfile.firstName, userProfile.lastName);
 
   return (
     <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
-      {/* Header MIMO ScrollView — jinak UIRefreshControl spinner mizí za fialovým gradientem
-          (Investice má stejný pattern a spinner tam funguje). */}
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTextCol}>
-            {greetingName ? (
-              <>
-                <Text style={styles.greetingHello}>{t('hello')} 👋</Text>
-                <Text style={styles.greetingName} numberOfLines={1} ellipsizeMode="tail">
-                  {greetingName}
+      <StatusBar style="light" />
+      <Animated.View style={[styles.collapsingHeader, collapsingHeaderStyle]}>
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: colors.background, opacity: 0.75 },
+          ]}
+        />
+        <BlurView tint="dark" intensity={64} style={StyleSheet.absoluteFillObject} />
+        <AnimatedLinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          style={[StyleSheet.absoluteFillObject, headerGradientFadeStyle]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          pointerEvents="none"
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.headerHairline,
+            { backgroundColor: colors.border },
+            headerHairlineStyle,
+          ]}
+        />
+        <View style={[styles.collapsingHeaderInner, { paddingTop: insets.top }]}>
+          <View style={styles.collapsingHeaderBar}>
+            <Animated.View
+              style={[styles.compactTitleWrap, compactTitleStyle]}
+              pointerEvents="none"
+            >
+              <Text style={styles.compactTitle}>{t('overview')}</Text>
+            </Animated.View>
+            <Animated.View style={[styles.largeGreetingWrap, largeGreetingStyle]}>
+              <View style={styles.largeGreetingTextCol}>
+                <Text style={styles.greetingTimeLine} numberOfLines={1}>
+                  {timeGreeting} 👋
                 </Text>
-              </>
-            ) : (
-              <Text style={styles.greetingName} numberOfLines={1} ellipsizeMode="tail">
-                {t('hello')}! 👋
-              </Text>
-            )}
+                <Text style={styles.greetingDateLine} numberOfLines={1}>
+                  {todayDateLabel}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.headerAvatar}
+                onPress={() => safePush('/(tabs)/profile')}
+                accessibilityRole="button"
+                accessibilityLabel={t('profile')}
+                hitSlop={8}
+              >
+                <Text style={styles.headerAvatarText}>{avatarInitials}</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
-      </LinearGradient>
+      </Animated.View>
 
-    <ScrollView
+    <Animated.ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
       bounces
-      contentContainerStyle={{ paddingBottom: txSelectionMode ? 100 + insets.bottom : 0 }}
+      onScroll={onDashboardScroll}
+      scrollEventThrottle={16}
+      contentInset={isIOS ? { top: headerMax } : undefined}
+      contentOffset={isIOS ? { x: 0, y: -headerMax } : undefined}
+      scrollIndicatorInsets={isIOS ? { top: headerMax } : undefined}
+      contentInsetAdjustmentBehavior={isIOS ? 'never' : undefined}
+      contentContainerStyle={{
+        paddingTop: isIOS ? 0 : headerMin,
+        paddingBottom: txSelectionMode ? 100 + insets.bottom : 0,
+      }}
       refreshControl={
         <RefreshControl
           refreshing={dashboardRefreshing}
           onRefresh={onDashboardPullRefresh}
-          tintColor={colors.primary}
-          colors={[colors.primary]}
-          progressBackgroundColor={colors.card}
+          tintColor="#FFFFFF"
+          colors={['#FFFFFF', colors.primary]}
+          progressBackgroundColor={colors.primary}
+          progressViewOffset={Platform.OS === 'android' ? headerMax : undefined}
         />
       }
     >
+      {!isIOS ? <View style={{ height: scrollDistance }} collapsable={false} /> : null}
       <View style={{ maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }}>
       <LifeEventModeIndicator />
 
@@ -1229,7 +1448,7 @@ export default function DashboardScreen() {
           >
             <Text style={styles.balanceLabel}>{t('totalBalance')}</Text>
             <Text style={styles.balanceAmount}>
-              {balance.toLocaleString(numberLocale)} {currentCurrency.symbol}
+              {formatMoneyWithSymbol(balance, numberLocale, currentCurrency.symbol)}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -1242,7 +1461,7 @@ export default function DashboardScreen() {
         ]}
       >
         <TouchableOpacity
-          onPress={() => setSelectedMonth((m) => addMonthsToYyyyMm(m, -1))}
+          onPress={() => setSelectedMonth(addMonthsToYyyyMm(selectedMonth, -1))}
           style={styles.monthNavHit}
           hitSlop={8}
           accessibilityRole="button"
@@ -1255,7 +1474,7 @@ export default function DashboardScreen() {
         </Text>
         <TouchableOpacity
           onPress={() => {
-            if (canGoNextMonth) setSelectedMonth((m) => addMonthsToYyyyMm(m, 1));
+            if (canGoNextMonth) setSelectedMonth(addMonthsToYyyyMm(selectedMonth, 1));
           }}
           style={[styles.monthNavHit, !canGoNextMonth && styles.monthNavHitDisabled]}
           hitSlop={8}
@@ -1267,41 +1486,44 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
+      <OverviewFilterBadge style={{ marginHorizontal: 16, marginBottom: 8 }} />
+
       <View style={[styles.financeGrid, isDesktop && styles.financeGridDesktop]}>
         <TouchableOpacity
-          onPress={() => router.push({ pathname: '/income-detail', params: { month: selectedMonth } })}
+          onPress={() => safePush({ pathname: '/income-detail', params: { month: selectedMonth } })}
           style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}
         >
           <FinanceCard
             title={t('income')}
             amount={totalIncome}
             emoji="💰"
-            trend={12}
+            trend={incomeTrend}
             color="#10B981"
           />
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => router.push({ pathname: '/expense-detail', params: { month: selectedMonth } })}
+          onPress={() => safePush({ pathname: '/expense-detail', params: { month: selectedMonth } })}
           style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}
         >
           <FinanceCard
             title={t('expense')}
             amount={totalExpenses}
             emoji="💸"
-            trend={-8}
+            trend={expenseTrend}
+            trendInvertColors
             color="#EF4444"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/loans')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
+        <TouchableOpacity onPress={() => safePush('/loans')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
           <FinanceCard
             title={liabilitiesLabel}
-            amount={loans.length}
+            amount={liabilitiesCardAmount}
             emoji="💳"
             trend={null}
             color="#8B5CF6"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/household')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
+        <TouchableOpacity onPress={() => safePush('/(tabs)/household')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
           <FinanceCard
             title={householdLabel}
             amount={domacnostDashboardCard.amount}
@@ -1323,28 +1545,28 @@ export default function DashboardScreen() {
             icon={PlusCircle}
             title={t('addTransaction')}
             color={['#10B981', '#059669']}
-            onPress={() => router.push('/add')}
+            onPress={() => safePush('/add')}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
           <QuickActionCard
             icon={Calendar}
             title={t('monthlyReport')}
             color={['#F59E0B', '#D97706']}
-            onPress={() => router.push('/monthly-report')}
+            onPress={() => safePush('/monthly-report')}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
           <QuickActionCard
             icon={UsersRound}
             title={t('splitGroups')}
             color={['#06B6D4', '#0891B2']}
-            onPress={() => router.push('/split-groups')}
+            onPress={() => safePush('/split-groups')}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
           <QuickActionCard
             icon={PiggyBank}
             title={t('piggyBankFeature')}
             color={['#EC4899', '#BE185D']}
-            onPress={() => router.push('/save')}
+            onPress={() => safePush('/save')}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
         </View>
@@ -1376,7 +1598,7 @@ export default function DashboardScreen() {
             ]}
           >
             {t('dashboardSubsActive', {
-              amount: `${Math.round(totalActiveSubs).toLocaleString(numberLocale)} ${currentCurrency.symbol}`,
+              amount: `${formatMoney(totalActiveSubs, numberLocale)} ${currentCurrency.symbol}`,
             })}
           </Text>
           <Text
@@ -1386,13 +1608,11 @@ export default function DashboardScreen() {
             ]}
           >
             {t('dashboardSubsYearly', {
-              amount: `${Math.round(totalYearlySubs).toLocaleString(numberLocale)} ${currentCurrency.symbol}`,
+              amount: `${formatMoney(totalYearlySubs, numberLocale)} ${currentCurrency.symbol}`,
             })}
           </Text>
         </View>
-        {subscriptions.length === 0 &&
-        detectedSubscriptions.length === 0 &&
-        regularPaymentsGrouped.groups.length === 0 ? (
+        {subscriptions.length === 0 && detectedSubscriptions.length === 0 ? (
           <Text
             style={[styles.subsEmpty, { color: colors.textSecondary }]}
             testID="subs-empty"
@@ -1401,252 +1621,32 @@ export default function DashboardScreen() {
           </Text>
         ) : (
           <>
-            {orderedSubscriptions.map((s) => {
-              const ui = getSubscriptionUiState(s);
-              const dimmed = ui !== 'on';
-              const pill = categoryPillPastel(s.category, isDarkMode);
-              const daysLeft = daysUntilNextPayment(s.dayOfMonth);
-              const daysLabel = formatDaysLeft(daysLeft);
-              const amountColor = ui === 'on' ? colors.text : colors.textSecondary;
-              return (
-                <View
-                  key={s.id}
-                  style={[
-                    styles.subItemCard,
-                    {
-                      backgroundColor: colors.surface,
-                      shadowOpacity: isDarkMode ? 0.35 : 0.06,
-                    },
-                  ]}
-                  testID={`sub-${s.id}`}
-                  delayLongPress={500}
-                  onLongPress={() => showSubscriptionReorderAlert(s.id)}
-                >
-                  <TouchableOpacity
-                    style={styles.subItemMainTouch}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/subscription',
-                        params: { id: s.id },
-                      })
-                    }
-                    activeOpacity={0.7}
-                  >
-                    <BrandIcon merchantKey={s.name} size={48} isDimmed={dimmed} />
-                    <View style={styles.subMain}>
-                      <Text
-                        style={[
-                          styles.subName,
-                          { color: colors.text },
-                          dimmed && styles.subTextMuted,
-                        ]}
-                      >
-                        {s.name}
-                      </Text>
-                      {ui === 'paused' ? (
-                        <Text
-                          style={[
-                            styles.subPausedLabel,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {t('dashboardPaused')}
-                        </Text>
-                      ) : null}
-                      <View style={styles.subMetaRow}>
-                        <View style={[styles.categoryPillSoft, { backgroundColor: pill.bg }]}>
-                          <Text
-                            style={[styles.categoryPillSoftText, { color: pill.fg }]}
-                            numberOfLines={1}
-                          >
-                            {s.category}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[
-                            styles.subDaysSoft,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {daysLabel}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.subRightColumn}>
-                    <Text style={[styles.subAmountLarge, { color: amountColor }]}>
-                      {Math.round(s.amount).toLocaleString(numberLocale)} {currentCurrency.symbol}
-                    </Text>
-                    <Switch
-                      value={ui === 'on'}
-                      onValueChange={(v) => setSubSwitch(s.id, v)}
-                      testID={`toggle-sub-${s.id}`}
-                      trackColor={{
-                        false: colors.muted,
-                        true: colors.success,
-                      }}
-                      thumbColor={
-                        Platform.OS === 'android'
-                          ? ui === 'on'
-                            ? colors.onPrimary
-                            : colors.muted
-                          : undefined
-                      }
-                      ios_backgroundColor={colors.muted}
-                    />
-                  </View>
-                </View>
-              );
-            })}
-            {regularPaymentsGrouped.groups.length > 0 && (
-              <View
-                style={[
-                  styles.detectedSectionShell,
-                  {
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.muted,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.detectedSectionHeader}>
-                  <Text style={[styles.detectedSectionTitle, { color: colors.text }]}>
-                    {t('dashboardDetectedFromStatements')}
-                  </Text>
-                  <Text style={[styles.detectedSectionHint, { color: colors.textSecondary }]}>
-                    {t('dashboardDetectedHint')}
-                  </Text>
-                  <Text style={[styles.subAmountLarge, { color: colors.text, marginTop: 8 }]}>
-                    {Math.round(regularPaymentsGrouped.total).toLocaleString(numberLocale)}{' '}
-                    {currentCurrency.symbol}
-                  </Text>
-                </View>
-                <View style={[styles.detectedSectionDivider, { backgroundColor: colors.border }]} />
-                {regularPaymentsGrouped.groups.map((g) => (
-                  <View key={g.category} style={{ marginBottom: 12 }}>
-                    <Text style={[styles.subName, { color: colors.text, marginBottom: 6 }]}>
-                      {g.category} — {Math.round(g.total).toLocaleString(numberLocale)}{' '}
-                      {currentCurrency.symbol}
-                    </Text>
-                    {g.items.map((it) => (
-                      <View
-                        key={it.id}
-                        style={[
-                          styles.subItemCard,
-                          {
-                            backgroundColor: colors.surface,
-                            shadowOpacity: isDarkMode ? 0.35 : 0.06,
-                            marginBottom: 6,
-                          },
-                        ]}
-                      >
-                        <View style={styles.subItemMainTouch}>
-                          <BrandIcon merchantKey={it.name} size={40} />
-                          <View style={styles.subMain}>
-                            <Text style={[styles.subName, { color: colors.text }]} numberOfLines={2}>
-                              {it.name}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={[styles.subAmountLarge, { color: colors.text }]}>
-                          {Math.round(it.amount).toLocaleString(numberLocale)} {currentCurrency.symbol}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            )}
-            {detectedSubscriptions.length > 0 && regularPaymentsGrouped.groups.length === 0 && (
-              <View
-                style={[
-                  styles.detectedSectionShell,
-                  {
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.muted,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.detectedSectionHeader}>
-                  <Text style={[styles.detectedSectionTitle, { color: colors.text }]}>
-                    {t('dashboardDetectedFromStatements')}
-                  </Text>
-                  <Text style={[styles.detectedSectionHint, { color: colors.textSecondary }]}>
-                    {t('dashboardDetectedHint')}
-                  </Text>
-                </View>
-                <View style={[styles.detectedSectionDivider, { backgroundColor: colors.border }]} />
-                {detectedSubscriptions.slice(0, 5).map((s) => {
-                  const pill = categoryPillPastel(s.category, isDarkMode);
-                  const daysLeft = daysUntilNextPayment(s.dayOfMonth);
-                  const daysLabel = formatDaysLeft(daysLeft);
-                  return (
-                    <View
-                      key={s.id}
-                      style={[
-                        styles.subItemCard,
-                        {
-                          backgroundColor: colors.surface,
-                          shadowOpacity: isDarkMode ? 0.35 : 0.06,
-                        },
-                      ]}
-                      testID={`detected-${s.id}`}
-                    >
-                      <View style={styles.subItemMainTouch}>
-                        <BrandIcon merchantKey={s.name} size={48} />
-                        <View style={styles.subMain}>
-                          <Text style={[styles.subName, { color: colors.text }]} numberOfLines={2}>
-                            {s.name}
-                          </Text>
-                          <View style={styles.subMetaRow}>
-                            <View style={[styles.categoryPillSoft, { backgroundColor: pill.bg }]}>
-                              <Text
-                                style={[styles.categoryPillSoftText, { color: pill.fg }]}
-                                numberOfLines={1}
-                              >
-                                {s.category}
-                              </Text>
-                            </View>
-                            <Text style={[styles.subDaysSoft, { color: colors.textSecondary }]}>
-                              {daysLabel}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                      <View style={styles.subRightColumn}>
-                        <Text style={[styles.subAmountLarge, { color: colors.text }]}>
-                          {Math.round(s.amount).toLocaleString(numberLocale)} {currentCurrency.symbol}
-                        </Text>
-                        <View style={styles.detectedActionsRow}>
-                          <TouchableOpacity
-                            style={[
-                              styles.dismissSuggestionBtn,
-                              {
-                                borderColor: colors.border,
-                                backgroundColor: colors.background,
-                              },
-                            ]}
-                            onPress={() => dismissDetectedSuggestion(s.id)}
-                            accessibilityLabel={t('dashboardIgnoreSuggestionA11y', { name: s.name })}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Text style={[styles.dismissSuggestionBtnText, { color: colors.textSecondary }]}>
-                              {t('dashboardIgnore')}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => confirmDetected(s)}
-                            style={styles.addBtn}
-                            accessibilityLabel={`add-${s.id}`}
-                          >
-                            <Text style={styles.addBtnText}>{t('addAction')}</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            {orderedSubscriptions.map((s) => (
+              <SwipeableSubscriptionRow
+                key={s.id}
+                subscription={s}
+                currencySymbol={currentCurrency.symbol}
+                categoryPill={categoryPillPastel(s.category, isDarkMode)}
+                formatDaysLeft={formatDaysLeft}
+                onPress={() =>
+                  safePush({
+                    pathname: '/subscription',
+                    params: { id: s.id },
+                  })
+                }
+                onToggle={(v) => setSubSwitch(s.id, v)}
+                onLongPress={() => showSubscriptionReorderAlert(s.id)}
+                onDelete={async ({ hideSuggestion }) => {
+                  await finance?.deleteSubscription?.(s.id, { hideSuggestion });
+                }}
+              />
+            ))}
+            <DetectedSubscriptionSuggestions
+              items={detectedSubscriptions}
+              currencySymbol={currentCurrency.symbol}
+              categoryPillPastel={categoryPillPastel}
+              formatDaysLeft={formatDaysLeft}
+            />
           </>
         )}
         <TouchableOpacity
@@ -1654,7 +1654,7 @@ export default function DashboardScreen() {
             styles.addSubscriptionFullButton,
             { backgroundColor: colors.muted },
           ]}
-          onPress={() => router.push('/add-subscription')}
+          onPress={() => safePush('/add-subscription')}
           activeOpacity={0.85}
         >
           <Text
@@ -1701,7 +1701,7 @@ export default function DashboardScreen() {
             description={t('startAddingTransactions')}
             icon={<DollarSign color={colors.textSecondary} size={48} />}
             actionLabel={t('addTransaction')}
-            onAction={() => router.push('/add')}
+            onAction={() => safePush('/add')}
           />
         ) : (
           recentTransactions.map((transaction) => (
@@ -1747,7 +1747,7 @@ export default function DashboardScreen() {
             ]}
           >
             {t('dashboardSubsActive', {
-              amount: `${Math.round(totalActiveSubs).toLocaleString(numberLocale)} ${currentCurrency.symbol}`,
+              amount: `${formatMoney(totalActiveSubs, numberLocale)} ${currentCurrency.symbol}`,
             })}
           </Text>
           <Text
@@ -1757,13 +1757,11 @@ export default function DashboardScreen() {
             ]}
           >
             {t('dashboardSubsYearly', {
-              amount: `${Math.round(totalYearlySubs).toLocaleString(numberLocale)} ${currentCurrency.symbol}`,
+              amount: `${formatMoney(totalYearlySubs, numberLocale)} ${currentCurrency.symbol}`,
             })}
           </Text>
         </View>
-        {subscriptions.length === 0 &&
-        detectedSubscriptions.length === 0 &&
-        regularPaymentsGrouped.groups.length === 0 ? (
+        {subscriptions.length === 0 && detectedSubscriptions.length === 0 ? (
           <Text
             style={[styles.subsEmpty, { color: colors.textSecondary }]}
             testID="subs-empty"
@@ -1772,252 +1770,32 @@ export default function DashboardScreen() {
           </Text>
         ) : (
           <>
-            {orderedSubscriptions.map((s) => {
-              const ui = getSubscriptionUiState(s);
-              const dimmed = ui !== 'on';
-              const pill = categoryPillPastel(s.category, isDarkMode);
-              const daysLeft = daysUntilNextPayment(s.dayOfMonth);
-              const daysLabel = formatDaysLeft(daysLeft);
-              const amountColor = ui === 'on' ? colors.text : colors.textSecondary;
-              return (
-                <View
-                  key={s.id}
-                  style={[
-                    styles.subItemCard,
-                    {
-                      backgroundColor: colors.surface,
-                      shadowOpacity: isDarkMode ? 0.35 : 0.06,
-                    },
-                  ]}
-                  testID={`sub-${s.id}`}
-                  delayLongPress={500}
-                  onLongPress={() => showSubscriptionReorderAlert(s.id)}
-                >
-                  <TouchableOpacity
-                    style={styles.subItemMainTouch}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/subscription',
-                        params: { id: s.id },
-                      })
-                    }
-                    activeOpacity={0.7}
-                  >
-                    <BrandIcon merchantKey={s.name} size={48} isDimmed={dimmed} />
-                    <View style={styles.subMain}>
-                      <Text
-                        style={[
-                          styles.subName,
-                          { color: colors.text },
-                          dimmed && styles.subTextMuted,
-                        ]}
-                      >
-                        {s.name}
-                      </Text>
-                      {ui === 'paused' ? (
-                        <Text
-                          style={[
-                            styles.subPausedLabel,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {t('dashboardPaused')}
-                        </Text>
-                      ) : null}
-                      <View style={styles.subMetaRow}>
-                        <View style={[styles.categoryPillSoft, { backgroundColor: pill.bg }]}>
-                          <Text
-                            style={[styles.categoryPillSoftText, { color: pill.fg }]}
-                            numberOfLines={1}
-                          >
-                            {s.category}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[
-                            styles.subDaysSoft,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {daysLabel}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.subRightColumn}>
-                    <Text style={[styles.subAmountLarge, { color: amountColor }]}>
-                      {Math.round(s.amount).toLocaleString(numberLocale)} {currentCurrency.symbol}
-                    </Text>
-                    <Switch
-                      value={ui === 'on'}
-                      onValueChange={(v) => setSubSwitch(s.id, v)}
-                      testID={`toggle-sub-${s.id}`}
-                      trackColor={{
-                        false: colors.muted,
-                        true: colors.success,
-                      }}
-                      thumbColor={
-                        Platform.OS === 'android'
-                          ? ui === 'on'
-                            ? colors.onPrimary
-                            : colors.muted
-                          : undefined
-                      }
-                      ios_backgroundColor={colors.muted}
-                    />
-                  </View>
-                </View>
-              );
-            })}
-            {regularPaymentsGrouped.groups.length > 0 && (
-              <View
-                style={[
-                  styles.detectedSectionShell,
-                  {
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.muted,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.detectedSectionHeader}>
-                  <Text style={[styles.detectedSectionTitle, { color: colors.text }]}>
-                    {t('dashboardDetectedFromStatements')}
-                  </Text>
-                  <Text style={[styles.detectedSectionHint, { color: colors.textSecondary }]}>
-                    {t('dashboardDetectedHint')}
-                  </Text>
-                  <Text style={[styles.subAmountLarge, { color: colors.text, marginTop: 8 }]}>
-                    {Math.round(regularPaymentsGrouped.total).toLocaleString(numberLocale)}{' '}
-                    {currentCurrency.symbol}
-                  </Text>
-                </View>
-                <View style={[styles.detectedSectionDivider, { backgroundColor: colors.border }]} />
-                {regularPaymentsGrouped.groups.map((g) => (
-                  <View key={g.category} style={{ marginBottom: 12 }}>
-                    <Text style={[styles.subName, { color: colors.text, marginBottom: 6 }]}>
-                      {g.category} — {Math.round(g.total).toLocaleString(numberLocale)}{' '}
-                      {currentCurrency.symbol}
-                    </Text>
-                    {g.items.map((it) => (
-                      <View
-                        key={it.id}
-                        style={[
-                          styles.subItemCard,
-                          {
-                            backgroundColor: colors.surface,
-                            shadowOpacity: isDarkMode ? 0.35 : 0.06,
-                            marginBottom: 6,
-                          },
-                        ]}
-                      >
-                        <View style={styles.subItemMainTouch}>
-                          <BrandIcon merchantKey={it.name} size={40} />
-                          <View style={styles.subMain}>
-                            <Text style={[styles.subName, { color: colors.text }]} numberOfLines={2}>
-                              {it.name}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={[styles.subAmountLarge, { color: colors.text }]}>
-                          {Math.round(it.amount).toLocaleString(numberLocale)} {currentCurrency.symbol}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            )}
-            {detectedSubscriptions.length > 0 && regularPaymentsGrouped.groups.length === 0 && (
-              <View
-                style={[
-                  styles.detectedSectionShell,
-                  {
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.muted,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.detectedSectionHeader}>
-                  <Text style={[styles.detectedSectionTitle, { color: colors.text }]}>
-                    {t('dashboardDetectedFromStatements')}
-                  </Text>
-                  <Text style={[styles.detectedSectionHint, { color: colors.textSecondary }]}>
-                    {t('dashboardDetectedHint')}
-                  </Text>
-                </View>
-                <View style={[styles.detectedSectionDivider, { backgroundColor: colors.border }]} />
-                {detectedSubscriptions.slice(0, 5).map((s) => {
-                  const pill = categoryPillPastel(s.category, isDarkMode);
-                  const daysLeft = daysUntilNextPayment(s.dayOfMonth);
-                  const daysLabel = formatDaysLeft(daysLeft);
-                  return (
-                    <View
-                      key={s.id}
-                      style={[
-                        styles.subItemCard,
-                        {
-                          backgroundColor: colors.surface,
-                          shadowOpacity: isDarkMode ? 0.35 : 0.06,
-                        },
-                      ]}
-                      testID={`detected-${s.id}`}
-                    >
-                      <View style={styles.subItemMainTouch}>
-                        <BrandIcon merchantKey={s.name} size={48} />
-                        <View style={styles.subMain}>
-                          <Text style={[styles.subName, { color: colors.text }]} numberOfLines={2}>
-                            {s.name}
-                          </Text>
-                          <View style={styles.subMetaRow}>
-                            <View style={[styles.categoryPillSoft, { backgroundColor: pill.bg }]}>
-                              <Text
-                                style={[styles.categoryPillSoftText, { color: pill.fg }]}
-                                numberOfLines={1}
-                              >
-                                {s.category}
-                              </Text>
-                            </View>
-                            <Text style={[styles.subDaysSoft, { color: colors.textSecondary }]}>
-                              {daysLabel}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                      <View style={styles.subRightColumn}>
-                        <Text style={[styles.subAmountLarge, { color: colors.text }]}>
-                          {Math.round(s.amount).toLocaleString(numberLocale)} {currentCurrency.symbol}
-                        </Text>
-                        <View style={styles.detectedActionsRow}>
-                          <TouchableOpacity
-                            style={[
-                              styles.dismissSuggestionBtn,
-                              {
-                                borderColor: colors.border,
-                                backgroundColor: colors.background,
-                              },
-                            ]}
-                            onPress={() => dismissDetectedSuggestion(s.id)}
-                            accessibilityLabel={t('dashboardIgnoreSuggestionA11y', { name: s.name })}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Text style={[styles.dismissSuggestionBtnText, { color: colors.textSecondary }]}>
-                              {t('dashboardIgnore')}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => confirmDetected(s)}
-                            style={styles.addBtn}
-                            accessibilityLabel={`add-${s.id}`}
-                          >
-                            <Text style={styles.addBtnText}>{t('addAction')}</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            {orderedSubscriptions.map((s) => (
+              <SwipeableSubscriptionRow
+                key={s.id}
+                subscription={s}
+                currencySymbol={currentCurrency.symbol}
+                categoryPill={categoryPillPastel(s.category, isDarkMode)}
+                formatDaysLeft={formatDaysLeft}
+                onPress={() =>
+                  safePush({
+                    pathname: '/subscription',
+                    params: { id: s.id },
+                  })
+                }
+                onToggle={(v) => setSubSwitch(s.id, v)}
+                onLongPress={() => showSubscriptionReorderAlert(s.id)}
+                onDelete={async ({ hideSuggestion }) => {
+                  await finance?.deleteSubscription?.(s.id, { hideSuggestion });
+                }}
+              />
+            ))}
+            <DetectedSubscriptionSuggestions
+              items={detectedSubscriptions}
+              currencySymbol={currentCurrency.symbol}
+              categoryPillPastel={categoryPillPastel}
+              formatDaysLeft={formatDaysLeft}
+            />
           </>
         )}
         <TouchableOpacity
@@ -2025,7 +1803,7 @@ export default function DashboardScreen() {
             styles.addSubscriptionFullButton,
             { backgroundColor: colors.muted },
           ]}
-          onPress={() => router.push('/add-subscription')}
+          onPress={() => safePush('/add-subscription')}
           activeOpacity={0.85}
         >
           <Text
@@ -2074,7 +1852,7 @@ export default function DashboardScreen() {
             description={t('startAddingTransactions')}
             icon={<DollarSign color={colors.textSecondary} size={48} />}
             actionLabel={t('addTransaction')}
-            onAction={() => router.push('/add')}
+            onAction={() => safePush('/add')}
           />
         ) : (
           recentTransactions.map((transaction) => (
@@ -2095,7 +1873,7 @@ export default function DashboardScreen() {
       )}
 
       </View>
-    </ScrollView>
+    </Animated.ScrollView>
     {txSelectionMode && (
       <View
         style={[
@@ -2169,7 +1947,7 @@ export default function DashboardScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.sourceFilterOptionLabel, { color: colors.text }]}>
-                    {overviewSourceLabel(source, t)}
+                    {overviewSourceLabel(source, t('dashboardSourceManual'))}
                   </Text>
                   <View
                     style={[
@@ -2290,6 +2068,75 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
+  },
+  collapsingHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    overflow: 'hidden',
+  },
+  headerHairline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    zIndex: 2,
+  },
+  collapsingHeaderInner: {
+    flex: 1,
+    zIndex: 1,
+  },
+  collapsingHeaderBar: {
+    flex: 1,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+    paddingBottom: 8,
+  },
+  compactTitleWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  compactTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: 'white',
+  },
+  largeGreetingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  largeGreetingTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  greetingTimeLine: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'white',
+  },
+  greetingDateLine: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
+  },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatarText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
   },
   headerContent: {
     flexDirection: 'row',
@@ -2577,6 +2424,11 @@ const styles = StyleSheet.create({
   trendText: {
     fontSize: 10,
     fontWeight: '600',
+    marginLeft: 4,
+  },
+  trendSoFarText: {
+    fontSize: 10,
+    fontWeight: '400',
     marginLeft: 4,
   },
   quickActionsContainer: {

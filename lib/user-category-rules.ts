@@ -1,11 +1,15 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { normalizeMerchantKey } from '@/lib/normalize-merchant-key';
 
 export type UserCategoryRulesMap = Map<string, string>;
 
-export async function fetchUserCategoryRules(userId: string): Promise<UserCategoryRulesMap> {
+export async function fetchUserCategoryRules(
+  userId: string,
+  client: SupabaseClient = supabase,
+): Promise<UserCategoryRulesMap> {
   const map: UserCategoryRulesMap = new Map();
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('user_category_rules')
     .select('merchant_key, category')
     .eq('user_id', userId);
@@ -13,7 +17,7 @@ export async function fetchUserCategoryRules(userId: string): Promise<UserCatego
   if (error) {
     // Fallback na legacy tabulku, dokud migrace neproběhne všude
     console.warn('[user_category_rules] fetch failed, trying legacy:', error.message);
-    const legacy = await supabase
+    const legacy = await client
       .from('user_merchant_categories')
       .select('merchant_key, category_id')
       .eq('user_id', userId);

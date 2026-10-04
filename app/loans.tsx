@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useDraggableList } from '@/lib/use-draggable-list';
 import {
   View,
   Text,
@@ -7,11 +8,12 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
+import { safePush } from '@/lib/safe-navigate';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   Plus,
   Home,
   Car,
@@ -19,142 +21,80 @@ import {
   GraduationCap,
   CreditCard,
   Trash2,
-  Sparkles,
-  TrendingDown,
-  AlertCircle,
-  CheckCircle,
   ChevronDown,
   ChevronUp,
-  Search,
+  Calculator,
 } from 'lucide-react-native';
 import { useFinanceStore, LoanType } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { useTheme } from '@/hooks/use-theme';
+import { getLoanTypeLabel, loanCountLabel } from '@/lib/loan-type-labels';
+import { BackButton } from '@/components/BackButton';
+import { EmptyState } from '@/components/EmptyState';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { parseDecimalInput } from '@/lib/parse-money-input';
+import {
+  loanRefinanceParams,
+  refinanceMonthlyPayment,
+  formatCsCurrencyRounded,
+  formatCsPercent2,
+  formatCsRemainingMonthsWithYears,
+} from '@/lib/loan-math';
+
+const LOAN_ORDER_KEY = 'loan_order';
 
 export default function LoansScreen() {
-  const router = useRouter();
-  const { loans, getLoanProgress, deleteLoan } = useFinanceStore();
+  const { loans, getLoanProgress, deleteLoan, isLoaded: financeLoaded } = useFinanceStore();
+  const loansLoading = !financeLoaded;
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
+  const { t } = useLanguageStore();
+  const { colors } = useTheme();
   const currentCurrency = getCurrentCurrency();
-  const [analyzingLoans, setAnalyzingLoans] = React.useState(false);
-  const [isAnalysisExpanded, setIsAnalysisExpanded] = React.useState(false);
-  const [loanAnalysis, setLoanAnalysis] = React.useState<Record<string, {
-    currentRate: number;
-    bestRate: number;
-    bestProvider: string;
-    potentialSavings: number;
-    recommendation: string;
-    status: 'good' | 'average' | 'poor';
-  }>>({});
 
-  const analyzeLoan = async (loan: any) => {
-    const bestOffers: Record<string, Array<{ provider: string; rate: number }>> = {
-      mortgage: [
-        { provider: 'Česká spořitelna', rate: 4.49 },
-        { provider: 'Raiffeisenbank', rate: 4.59 },
-        { provider: 'ČSOB', rate: 4.69 },
-        { provider: 'Komerční banka', rate: 4.79 },
-        { provider: 'mBank', rate: 4.89 },
-      ],
-      car: [
-        { provider: 'Raiffeisenbank', rate: 5.99 },
-        { provider: 'ČSOB', rate: 6.49 },
-        { provider: 'Česká spořitelna', rate: 6.79 },
-        { provider: 'UniCredit Bank', rate: 6.99 },
-        { provider: 'Komerční banka', rate: 7.29 },
-      ],
-      personal: [
-        { provider: 'Air Bank', rate: 7.90 },
-        { provider: 'mBank', rate: 8.20 },
-        { provider: 'Raiffeisenbank', rate: 8.49 },
-        { provider: 'ČSOB', rate: 8.99 },
-        { provider: 'Česká spořitelna', rate: 9.49 },
-      ],
-      student: [
-        { provider: 'ČSOB', rate: 3.49 },
-        { provider: 'Česká spořitelna', rate: 3.79 },
-        { provider: 'Komerční banka', rate: 3.99 },
-        { provider: 'Raiffeisenbank', rate: 4.29 },
-      ],
-      other: [
-        { provider: 'Air Bank', rate: 6.90 },
-        { provider: 'mBank', rate: 7.20 },
-        { provider: 'Raiffeisenbank', rate: 7.49 },
-        { provider: 'ČSOB', rate: 7.99 },
-      ],
-    };
+  const [refiExpanded, setRefiExpanded] = useState(false);
+  const [newRateInput, setNewRateInput] = useState('');
+  const [refiCalculated, setRefiCalculated] = useState(false);
 
-    const offers = bestOffers[loan.loanType] || bestOffers.other;
-    const bestOffer = offers[0];
-    const currentRate = loan.interestRate;
-    const bestRate = bestOffer.rate;
-    const bestProvider = bestOffer.provider;
-    
-    let status: 'good' | 'average' | 'poor';
-    let recommendation: string;
-    
-    if (currentRate <= bestRate + 0.3) {
-      status = 'good';
-      recommendation = `Máte výbornou sazbu! Aktuálně nejlepší nabídka je ${bestRate}% u ${bestProvider}.`;
-    } else if (currentRate <= bestRate + 1.0) {
-      status = 'average';
-      recommendation = `Můžete ušetřit! ${bestProvider} nabízí ${bestRate}%. Zvažte refinancování.`;
-    } else {
-      status = 'poor';
-      recommendation = `Přeplácíte! ${bestProvider} nabízí ${bestRate}%. Refinancování se vyplatí!`;
+  const {
+    orderedItems: orderedLoans,
+    loadOrder: loadLoanOrder,
+    showReorderAlert: showLoanReorderAlert,
+  } = useDraggableList(loans, LOAN_ORDER_KEY);
+
+  useEffect(() => {
+    void loadLoanOrder();
+  }, [loadLoanOrder]);
+
+  const primary = isDarkMode ? '#F9FAFB' : '#1F2937';
+  const subtle = isDarkMode ? '#9CA3AF' : '#6B7280';
+  const cardBg = isDarkMode ? '#374151' : 'white';
+  const inputBg = isDarkMode ? '#1F2937' : '#F8FAFC';
+
+  const runRefinanceCalc = useCallback(() => {
+    const rate = parseDecimalInput(newRateInput, 4);
+    if (newRateInput.trim() === '' || rate == null || rate < 0) {
+      Alert.alert(t('error'), t('loanInvalidRate'));
+      return;
     }
-    
-    const progress = getLoanProgress(loan.id);
-    const remainingMonths = loan.remainingMonths;
-    const monthlyPaymentDiff = (currentRate - bestRate) / 100 / 12 * progress.remainingAmount;
-    const potentialSavings = Math.max(0, monthlyPaymentDiff * remainingMonths);
-    
-    return {
-      currentRate,
-      bestRate,
-      bestProvider,
-      potentialSavings: Math.round(potentialSavings),
-      recommendation,
-      status,
-    };
-  };
-
-  const analyzeAllLoans = async () => {
-    if (loans.length === 0) return;
-    
-    setAnalyzingLoans(true);
-    const analysis: Record<string, any> = {};
-    
-    for (const loan of loans) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      analysis[loan.id] = await analyzeLoan(loan);
-    }
-    
-    setLoanAnalysis(analysis);
-    setAnalyzingLoans(false);
-  };
-
-  React.useEffect(() => {
-    if (loans.length > 0 && Object.keys(loanAnalysis).length === 0) {
-      analyzeAllLoans();
-    }
-  }, [loans]);
-
+    setRefiCalculated(true);
+  }, [newRateInput, t]);
   const handleDeleteLoan = (loanId: string, loanName: string) => {
     if (Platform.OS === 'web') {
-      if (window.confirm(`Opravdu chcete smazat závazek "${loanName}"?`)) {
+      if (window.confirm(t('loanDeleteConfirm', { name: loanName }))) {
         deleteLoan(loanId);
       }
     } else {
       Alert.alert(
-        'Smazat závazek',
-        `Opravdu chcete smazat závazek "${loanName}"?`,
+        t('loanDeleteTitle'),
+        t('loanDeleteConfirm', { name: loanName }),
         [
           {
-            text: 'Zrušit',
+            text: t('cancel'),
             style: 'cancel',
           },
           {
-            text: 'Smazat',
+            text: t('delete'),
             style: 'destructive',
             onPress: () => {
               deleteLoan(loanId);
@@ -180,23 +120,6 @@ export default function LoansScreen() {
     }
   };
 
-  const getLoanTypeLabel = (type: LoanType) => {
-    switch (type) {
-      case 'mortgage':
-        return 'Hypotéka';
-      case 'car':
-        return 'Úvěr na auto';
-      case 'personal':
-        return 'Osobní úvěr';
-      case 'student':
-        return 'Studentský úvěr';
-      case 'other':
-        return 'Jiný úvěr';
-      default:
-        return 'Úvěr';
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -208,21 +131,16 @@ export default function LoansScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.headerBackButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.headerBackButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Moje závazky</Text>
+            <Text style={styles.headerTitle}>{t('profileMyLiabilities')}</Text>
             <Text style={styles.headerSubtitle}>
-              {loans.length} {loans.length === 1 ? 'závazek' : loans.length < 5 ? 'závazky' : 'závazků'}
+              {loans.length} {loanCountLabel(loans.length)}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push('/add-loan')}
+            onPress={() => safePush('/add-loan')}
           >
             <Plus color="white" size={24} />
           </TouchableOpacity>
@@ -231,179 +149,171 @@ export default function LoansScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <TouchableOpacity
-            style={styles.finderButton}
-            onPress={() => router.push('/loan-finder')}
-          >
-            <LinearGradient
-              colors={['#F59E0B', '#D97706']}
-              style={styles.finderButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.finderButtonContent}>
-                <View style={styles.finderButtonLeft}>
-                  <View style={styles.finderIconContainer}>
-                    <Search color="white" size={24} />
-                  </View>
-                  <View style={styles.finderButtonText}>
-                    <Text style={styles.finderButtonTitle}>Hledat nejlepší půjčku</Text>
-                    <Text style={styles.finderButtonSubtitle}>AI najde pro vás ty nejlepší nabídky</Text>
-                  </View>
-                </View>
-                <Sparkles color="white" size={20} />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
           {loans.length > 0 && (
-            <View style={[styles.aiCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <TouchableOpacity 
-                style={styles.aiHeader}
-                onPress={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
-                activeOpacity={0.7}
+            <View style={[styles.refiCard, { backgroundColor: cardBg }]}>
+              <TouchableOpacity
+                style={styles.refiHeaderRow}
+                onPress={() => setRefiExpanded((e) => !e)}
+                activeOpacity={0.85}
               >
-                <View style={styles.aiIconContainer}>
-                  <Sparkles color="#F59E0B" size={24} />
-                </View>
-                <View style={styles.aiHeaderText}>
-                  <Text style={[styles.aiTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                    AI Analýza úvěrů
-                  </Text>
-                  <Text style={[styles.aiSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                    Najdeme pro vás nejlepší nabídky na trhu
-                  </Text>
-                </View>
-                <View style={styles.aiHeaderActions}>
-                  <TouchableOpacity
-                    style={styles.refreshButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      analyzeAllLoans();
-                    }}
-                    disabled={analyzingLoans}
-                  >
-                    <Text style={styles.refreshButtonText}>
-                      {analyzingLoans ? '...' : '🔄'}
-                    </Text>
-                  </TouchableOpacity>
-                  {isAnalysisExpanded ? (
-                    <ChevronUp color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={24} />
-                  ) : (
-                    <ChevronDown color={isDarkMode ? '#D1D5DB' : '#6B7280'} size={24} />
-                  )}
-                </View>
-              </TouchableOpacity>
-              
-              {isAnalysisExpanded && (
-                analyzingLoans ? (
-                  <View style={styles.analyzingContainer}>
-                    <Text style={[styles.analyzingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      Analyzuji vaše úvěry...
-                    </Text>
+                <View style={styles.refiHeaderLeft}>
+                  <View style={[styles.refiIconWrap, { backgroundColor: isDarkMode ? '#4B5563' : '#EEF2FF' }]}>
+                    <Calculator color="#667eea" size={22} />
                   </View>
+                  <Text style={[styles.refiTitle, { color: primary }]}>{t('loanRefiCalculator')}</Text>
+                </View>
+                {refiExpanded ? (
+                  <ChevronUp color={subtle} size={22} />
                 ) : (
-                  <View style={styles.aiContent}>
-                    {loans.map((loan) => {
-                      const analysis = loanAnalysis[loan.id];
-                      if (!analysis) return null;
-                      
-                      const StatusIcon = analysis.status === 'good' ? CheckCircle : 
-                                       analysis.status === 'average' ? AlertCircle : TrendingDown;
-                      const statusColor = analysis.status === 'good' ? '#10B981' : 
-                                        analysis.status === 'average' ? '#F59E0B' : '#EF4444';
-                      
+                  <ChevronDown color={subtle} size={22} />
+                )}
+              </TouchableOpacity>
+
+              {refiExpanded && (
+                <View style={styles.refiBody}>
+                  <Text style={[styles.refiIntro, { color: subtle }]}>
+                    {t('loanRefiIntro')}
+                  </Text>
+                  <Text style={[styles.refiLabel, { color: primary }]}>{t('loanNewRateLabel')}</Text>
+                  <TextInput
+                    style={[
+                      styles.refiInput,
+                      { backgroundColor: inputBg, color: primary, borderColor: isDarkMode ? '#4B5563' : '#E2E8F0' },
+                    ]}
+                    value={newRateInput}
+                    onChangeText={(t) => {
+                      setNewRateInput(t);
+                      setRefiCalculated(false);
+                    }}
+                    placeholder={t('loanRatePlaceholder')}
+                    placeholderTextColor={subtle}
+                    keyboardType="decimal-pad"
+                  />
+                  <TouchableOpacity style={styles.refiCalcButton} onPress={runRefinanceCalc} activeOpacity={0.9}>
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2']}
+                      style={styles.refiCalcGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.refiCalcButtonText}>{t('loanCalculate')}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  {refiCalculated &&
+                    (() => {
+                      const parsedRate = parseDecimalInput(newRateInput, 4);
+                      if (parsedRate == null || parsedRate < 0) return null;
                       return (
-                        <View key={loan.id} style={[styles.analysisItem, { borderLeftColor: statusColor }]}>
-                          <View style={styles.analysisHeader}>
-                            <Text style={[styles.analysisLoanName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                              {loan.name || getLoanTypeLabel(loan.loanType)}
-                            </Text>
-                            <StatusIcon color={statusColor} size={20} />
-                          </View>
-                          <View style={styles.analysisStats}>
-                            <View style={styles.analysisStat}>
-                              <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                                Vaše sazba
-                              </Text>
-                              <Text style={[styles.analysisStatValue, { color: statusColor }]}>
-                                {analysis.currentRate}%
-                              </Text>
-                            </View>
-                            <View style={styles.analysisStat}>
-                              <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                                Nejlepší nabídka
-                              </Text>
-                              <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
-                                {analysis.bestRate}%
-                              </Text>
-                            </View>
-                            {analysis.potentialSavings > 0 && (
-                              <View style={styles.analysisStat}>
-                                <Text style={[styles.analysisStatLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                                  Možná úspora
+                        <View style={styles.refiResults}>
+                          {loans.map((loan, idx) => {
+                            const loanName = loan.name || getLoanTypeLabel(loan.loanType);
+                            const sep = idx > 0
+                              ? { borderTopWidth: 1, borderTopColor: isDarkMode ? '#4B5563' : '#E5E7EB', paddingTop: 16, marginTop: 16 }
+                              : { paddingTop: 4 };
+                            const params = loanRefinanceParams({
+                              loanAmount: loan.loanAmount,
+                              interestRate: loan.interestRate,
+                              termMonths: loan.termMonths,
+                              remainingMonths: loan.remainingMonths,
+                              startDate: loan.startDate,
+                              currentBalance: loan.currentBalance,
+                            });
+                            if (!params || params.monthsLeft <= 0 || params.balance <= 0) {
+                              return (
+                                <View key={loan.id} style={sep}>
+                                  <Text style={[styles.refiLoanName, { color: primary }]}>{loanName}</Text>
+                                  <Text style={[styles.refiMuted, { color: subtle }]}>
+                                    {t('loanRefiCannotCalc')}
+                                  </Text>
+                                </View>
+                              );
+                            }
+                            const { balance, monthsLeft } = params;
+                            const newMonthly = refinanceMonthlyPayment(balance, parsedRate, monthsLeft);
+                            const roundedNew = Math.round(newMonthly * 100) / 100;
+                            const currentMonthly = loan.monthlyPayment;
+                            const monthlySave = Math.round((currentMonthly - roundedNew) * 100) / 100;
+                            const totalSave = Math.round(monthlySave * monthsLeft * 100) / 100;
+                            const newRateHigher = parsedRate > loan.interestRate;
+
+                            return (
+                              <View key={loan.id} style={sep}>
+                                <Text style={[styles.refiLoanName, { color: primary }]}>{loanName}</Text>
+                                <Text style={[styles.refiResultLine, { color: subtle }]}>
+                                  {t('loanNewMonthlyPayment')}{' '}
+                                  <Text style={[styles.refiResultEm, { color: primary }]}>
+                                    {formatCsCurrencyRounded(roundedNew, currentCurrency.symbol)}
+                                  </Text>
                                 </Text>
-                                <Text style={[styles.analysisStatValue, { color: '#10B981' }]}>
-                                  {analysis.potentialSavings.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                                <Text style={[styles.refiResultLine, { color: subtle }]}>
+                                  {t('loanMonthlySavings')}{' '}
+                                  <Text style={[styles.refiResultEm, { color: primary }]}>
+                                    {formatCsCurrencyRounded(monthlySave, currentCurrency.symbol)}
+                                  </Text>
                                 </Text>
+                                <Text style={[styles.refiResultLine, { color: subtle }]}>
+                                  {t('loanTotalSavings')}{' '}
+                                  <Text style={[styles.refiResultEm, { color: primary }]}>
+                                    {formatCsCurrencyRounded(totalSave, currentCurrency.symbol)}
+                                  </Text>
+                                </Text>
+                                {newRateHigher && (
+                                  <Text style={[styles.refiThumbs, { color: subtle }]}>
+                                    {t('loanCurrentRateBetter')}
+                                  </Text>
+                                )}
+                                {!newRateHigher && monthlySave > 0 && (
+                                  <Text style={styles.refiWin}>
+                                    {t('loanRefiWorthIt', { amount: formatCsCurrencyRounded(totalSave, currentCurrency.symbol) })}
+                                  </Text>
+                                )}
                               </View>
-                            )}
-                          </View>
-                          <View style={styles.bestProviderContainer}>
-                            <Text style={[styles.bestProviderLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                              💡 Nejlepší nabídka:
-                            </Text>
-                            <Text style={[styles.bestProviderValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                              {analysis.bestProvider}
-                            </Text>
-                          </View>
-                          <Text style={[styles.analysisRecommendation, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                            {analysis.recommendation}
-                          </Text>
+                            );
+                          })}
                         </View>
                       );
-                    })}
-                  </View>
-                )
+                    })()}
+                </View>
               )}
             </View>
           )}
-          {loans.length === 0 ? (
-            <View style={[styles.emptyCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-              <CreditCard color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={64} />
-              <Text style={[styles.emptyTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Zatím nemáte žádné závazky
-              </Text>
-              <Text style={[styles.emptySubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Přidejte svou hypotéku, úvěr nebo půjčku a sledujte průběh splácení
-              </Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={() => router.push('/add-loan')}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  style={styles.emptyButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Plus color="white" size={20} />
-                  <Text style={styles.emptyButtonText}>Přidat první závazek</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+
+          {loansLoading && loans.length === 0 ? (
+            <LoadingSkeleton loading variant="cards" />
+          ) : !loansLoading && loans.length === 0 ? (
+            <EmptyState
+              title={t('loanEmptyTitle')}
+              description={t('loanEmptySubtitle')}
+              icon={<CreditCard color={colors.textSecondary} size={48} />}
+              actionLabel={t('loanAddFirst')}
+              actionIcon={<Plus color={colors.onPrimary} size={20} />}
+              onAction={() => safePush('/add-loan')}
+            />
           ) : (
-            loans.map((loan) => {
+            orderedLoans.map((loan) => {
               const progress = getLoanProgress(loan.id);
+              const trackPayments = progress.totalInterestPaid != null;
+              const barPct = Math.min(
+                100,
+                trackPayments ? (progress.principalPercentPaid ?? progress.percentage) : progress.percentage,
+              );
+              const monthsLeft = Math.max(0, progress.totalMonths - progress.paidMonths);
               const LoanIcon = getLoanIcon(loan.loanType);
               const loanName = loan.name || getLoanTypeLabel(loan.loanType);
-              
+
               return (
-                <View key={loan.id} style={[styles.loanCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+                <View
+                  key={loan.id}
+                  style={[styles.loanCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+                  delayLongPress={500}
+                  onLongPress={() => showLoanReorderAlert(loan.id)}
+                >
                   <View style={styles.loanCardContent}>
                     <View style={styles.loanHeader}>
                       <TouchableOpacity
                         style={styles.loanHeaderTouchable}
-                        onPress={() => router.push(`/loan-detail?id=${loan.id}`)}
+                        onPress={() => safePush(`/loan-detail?id=${loan.id}`)}
                       >
                         <View style={[
                           styles.loanIconContainer,
@@ -435,34 +345,34 @@ export default function LoansScreen() {
                   <View style={styles.loanDetails}>
                     <View style={styles.loanDetailRow}>
                       <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Výše úvěru
+                        {t('loanAmount')}
                       </Text>
                       <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {loan.loanAmount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                        {formatCsCurrencyRounded(loan.loanAmount, currentCurrency.symbol)}
                       </Text>
                     </View>
                     <View style={styles.loanDetailRow}>
                       <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Měsíční splátka
+                        {t('loanMonthlyPayment')}
                       </Text>
                       <Text style={[styles.loanDetailValue, { color: '#EF4444' }]}>
-                        {loan.monthlyPayment.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                        {formatCsCurrencyRounded(loan.monthlyPayment, currentCurrency.symbol)}
                       </Text>
                     </View>
                     <View style={styles.loanDetailRow}>
                       <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Úroková sazba
+                        {t('loanInterestRate')}
                       </Text>
                       <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {loan.interestRate}% p.a.
+                        {formatCsPercent2(loan.interestRate)} %
                       </Text>
                     </View>
                     <View style={styles.loanDetailRow}>
                       <Text style={[styles.loanDetailLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Zbývá měsíců
+                        {t('loanMonthsRemaining')}
                       </Text>
                       <Text style={[styles.loanDetailValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {loan.remainingMonths}
+                        {formatCsRemainingMonthsWithYears(monthsLeft)}
                       </Text>
                     </View>
                   </View>
@@ -470,28 +380,41 @@ export default function LoansScreen() {
                   <View style={styles.progressContainer}>
                     <View style={styles.progressHeader}>
                       <Text style={[styles.progressLabel, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Průběh splácení
+                        {t('loanRepaymentProgress')}
                       </Text>
                       <Text style={[styles.progressPercentage, { color: '#10B981' }]}>
-                        {progress.percentage}%
+                        {trackPayments && progress.principalPercentPaid != null
+                          ? `${formatCsPercent2(progress.principalPercentPaid)}%`
+                          : `${formatCsPercent2(progress.percentage)}%`}
                       </Text>
                     </View>
                     <View style={[styles.progressBarBackground, { backgroundColor: isDarkMode ? '#4B5563' : '#F3F4F6' }]}>
                       <LinearGradient
                         colors={['#10B981', '#059669']}
-                        style={[styles.progressBar, { width: `${progress.percentage}%` }]}
+                        style={[styles.progressBar, { width: `${barPct}%` }]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                       />
                     </View>
+                    <Text style={[styles.progressInstallmentHint, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                      {t('loanInstallmentOf', { paid: progress.paidMonths, total: progress.totalMonths })}
+                      {trackPayments && progress.principalPercentPaid != null
+                        ? ` · ${formatCsPercent2(progress.principalPercentPaid)} %`
+                        : ''}
+                    </Text>
                     <View style={styles.progressStats}>
                       <Text style={[styles.progressStat, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Splaceno: {progress.totalPaid.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                        {t('loanPaid')}: {formatCsCurrencyRounded(progress.totalPaid, currentCurrency.symbol)}
                       </Text>
                       <Text style={[styles.progressStat, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                        Zbývá: {progress.remainingAmount.toLocaleString('cs-CZ')} {currentCurrency.symbol}
+                        {t('loanRemaining')}: {formatCsCurrencyRounded(progress.remainingAmount, currentCurrency.symbol)}
                       </Text>
                     </View>
+                    {trackPayments && progress.totalInterestPaid != null && (
+                      <Text style={[styles.progressInterestHint, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                        {t('loanInterestPaid')}: {formatCsCurrencyRounded(progress.totalInterestPaid, currentCurrency.symbol)}
+                      </Text>
+                    )}
                   </View>
                   </View>
                 </View>
@@ -682,6 +605,14 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 5,
   },
+  progressInstallmentHint: {
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  progressInterestHint: {
+    fontSize: 11,
+    marginTop: 6,
+  },
   progressStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -701,166 +632,101 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-  aiCard: {
+  refiCard: {
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    marginBottom: 16,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  aiHeader: {
+  refiHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  aiIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  refiHeaderLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  aiHeaderText: {
     flex: 1,
+    gap: 12,
   },
-  aiTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  aiSubtitle: {
-    fontSize: 13,
-  },
-  aiHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  refreshButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  refiIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  refreshButtonText: {
-    fontSize: 18,
+  refiTitle: {
+    fontSize: 17,
+    fontWeight: '700',
   },
-  analyzingContainer: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  analyzingText: {
-    fontSize: 14,
-  },
-  aiContent: {
-    gap: 12,
+  refiBody: {
     marginTop: 16,
   },
-  analysisItem: {
-    padding: 16,
+  refiIntro: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  refiLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  refiInput: {
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
-    borderLeftWidth: 4,
-  },
-  analysisHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  analysisLoanName: {
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    fontWeight: 'bold',
   },
-  analysisStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    gap: 8,
+  refiCalcButton: {
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  analysisStat: {
-    flex: 1,
+  refiCalcGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
   },
-  analysisStatLabel: {
-    fontSize: 11,
+  refiCalcButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  refiResults: {
+    marginTop: 8,
+  },
+  refiLoanName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  refiResultLine: {
+    fontSize: 14,
+    lineHeight: 22,
     marginBottom: 4,
   },
-  analysisStatValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  refiResultEm: {
+    fontWeight: '700',
   },
-  analysisRecommendation: {
+  refiMuted: {
     fontSize: 13,
     lineHeight: 18,
-    fontStyle: 'italic' as const,
   },
-  bestProviderContainer: {
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.05)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bestProviderLabel: {
-    fontSize: 13,
+  refiThumbs: {
+    fontSize: 14,
+    marginTop: 10,
     fontWeight: '600',
   },
-  bestProviderValue: {
+  refiWin: {
     fontSize: 14,
-    fontWeight: 'bold',
-  },
-  finderButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  finderButtonGradient: {
-    padding: 20,
-  },
-  finderButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  finderButtonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  finderIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  finderButtonText: {
-    flex: 1,
-  },
-  finderButtonTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 2,
-  },
-  finderButtonSubtitle: {
-    fontSize: 13,
-    color: 'white',
-    opacity: 0.9,
+    fontWeight: '700',
+    marginTop: 10,
+    color: '#10B981',
   },
 });

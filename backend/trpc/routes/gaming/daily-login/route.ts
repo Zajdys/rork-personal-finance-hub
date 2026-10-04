@@ -74,7 +74,7 @@ export const dailyLoginProcedure = protectedProcedure
         totalXp: existing.totalXp,
         level: existing.level,
         streakBonus: 0,
-        message: 'Dnes už jste dostali odměnu!'
+        message: 'Dnešní odměnu už máš!'
       };
     }
 

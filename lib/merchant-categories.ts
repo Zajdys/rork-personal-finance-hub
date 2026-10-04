@@ -1,11 +1,14 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 export type MerchantCategoriesMap = Map<string, string>;
 
 /** Globální crowd cache merchant_key → category (jen source='crowd'). */
-export async function fetchMerchantCategoriesMap(): Promise<MerchantCategoriesMap> {
+export async function fetchMerchantCategoriesMap(
+  client: SupabaseClient = supabase,
+): Promise<MerchantCategoriesMap> {
   const map: MerchantCategoriesMap = new Map();
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('merchant_categories')
     .select('merchant_key, category')
     .eq('source', 'crowd')

@@ -1,3 +1,55 @@
-Data operacji,Kwota,Opis operacji
-13.08.2026,"-89,90",Zakupy Biedronka
-14.08.2026,"2000,00",Wynagrodzenie
+mBank S.A., organizační složka
+Pernerova 691/42, 186 00 Praha 8
+www.mBank.cz;
+mLinka: 844 777 000;
+#Klient;
+JAN HÁJEK;
+KOMENSKÉHO 481;
+332 03 ŠŤÁHLAVY;
+ČESKÁ REPUBLIKA;
+
+
+VÝPIS Z ÚČTU ZA ZVOLENÉ OBDOBÍ;
+
+#Za období;
+01.06.2026;31.08.2026;
+#Vyhotoveno:;
+24.09.2026;
+#Způsob zasílání:;
+elektronicky;
+
+#Typ účtu:;
+MKONTO;
+#Měna účtu:;
+CZK;
+#Číslo účtu:;
+670100-2231759259/6210;
+#Procentní sazba na účtu:;
+0,00%;
+
+#Přehled obratů na účtu za zvolené obdobi;#Počet operací;#Částka;
+Kreditní položky;3;1 000,00 CZK;
+Debetní položky;7;635,30 CZK;
+Součet;10;364,70 CZK;
+
+;;;;;;#Počáteční zůstatek:;0,00 CZK;
+
+#Datum zaúčtování transakce;#Datum uskutečnění transakce;#Popis transakce;#Zpráva pro příjemce;#Plátce/Příjemce;#Číslo účtu plátce/příjemce;#KS;#VS;#SS;#Částka transakce;#Účetní zůstatek po transakci;
+20-07-2026;20-07-2026;ZŘÍZENÍ ÚČTU;"";"  ";'';;;;0,00;0,00;
+20-07-2026;20-07-2026;PŘÍCHOZÍ OKAMŽITÁ PLATBA;"PLATBA QR KÓDEM";"JAN HÁJEK  ";'000000-0767628004/5500';;;;500,00;500,00;
+22-07-2026;22-07-2026;PLATBA KARTOU;"Trafika Kaufland   /PLZEN - JI                                        DATUM PROVEDENÍ TRANSAKCE: 2026-07-21";"  ";'';;;;-160,00;340,00;
+22-07-2026;22-07-2026;PLATBA KARTOU;"RADKA STEFLOVA     /Sedlec                                            DATUM PROVEDENÍ TRANSAKCE: 2026-07-21";"  ";'';;;;-115,00;225,00;
+22-07-2026;22-07-2026;PLATBA KARTOU;"KAUFLAND CZ  1510  /PLZEN BORY                                        DATUM PROVEDENÍ TRANSAKCE: 2026-07-21";"  ";'';;;;-11,80;213,20;
+23-07-2026;23-07-2026;PLATBA KARTOU;"RADKA STEFLOVA     /Sedlec                                            DATUM PROVEDENÍ TRANSAKCE: 2026-07-22";"  ";'';;;;-115,00;98,20;
+24-07-2026;24-07-2026;PLATBA KARTOU;"RADKA STEFLOVA     /Sedlec                                            DATUM PROVEDENÍ TRANSAKCE: 2026-07-23";"  ";'';;;;-49,00;49,20;
+09-08-2026;09-08-2026;PLATBA KARTOU;"Lidl dekuje za naku/Plzen                                             DATUM PROVEDENÍ TRANSAKCE: 2026-08-08";"  ";'';;;;-24,70;24,50;
+29-08-2026;29-08-2026;PŘÍCHOZÍ OKAMŽITÁ PLATBA;"";"JAN HÁJEK  ";'000000-0767628004/5500';;;;500,00;524,50;
+31-08-2026;31-08-2026;PLATBA KARTOU;"GLOBUS VAM DEKUJE  /PRAHA 5                                           DATUM PROVEDENÍ TRANSAKCE: 2026-08-30";"  ";'';;;;-159,80;364,70;
+
+
+;;;;;;#Konečný zůstatek:;364,70 CZK;
+
+Prosíme Vás o kontrolu uvedených údajů. V případě jakýchkoliv nesrovnalostí nás kontaktujte.
+
+mBank S.A., pobočka zahraniční banky je účastníkem polského systému pojištění vkladů a vklad na tomto účtu je chráněný prostřednictvím polského Bankovního garančního fondu - Bankowy Fundusz Gwarancyjny. 
+Bližší informace naleznete v Informačním formuláři pro vkladatele na https://www.mbank.cz/informace-k-produktum/ochrana-vkladu/

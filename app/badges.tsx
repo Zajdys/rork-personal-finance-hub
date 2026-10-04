@@ -7,20 +7,20 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, X, Award, Lock } from 'lucide-react-native';
+import { X, Award, Lock } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { ALL_BADGES } from '@/constants/badges';
 import { Badge } from '@/types/gaming';
+import { BackButton } from '@/components/BackButton';
 
 export default function BadgesScreen() {
-  const router = useRouter();
   const { gamingStats } = useBuddyStore();
   const { isDarkMode } = useSettingsStore();
-  const { language } = useLanguageStore();
+  const { t } = useLanguageStore();
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
   const [filter, setFilter] = useState<'all' | 'standard' | 'epic' | 'legacy' | 'meta'>('all');
 
@@ -46,20 +46,20 @@ export default function BadgesScreen() {
 
   const getRarityLabel = (rarity: string) => {
     switch (rarity) {
-      case 'common': return language === 'cs' ? 'Běžný' : 'Common';
-      case 'rare': return language === 'cs' ? 'Vzácný' : 'Rare';
-      case 'epic': return language === 'cs' ? 'Epický' : 'Epic';
-      case 'legendary': return language === 'cs' ? 'Legendární' : 'Legendary';
+      case 'common': return t('badgeRarityCommon');
+      case 'rare': return t('badgeRarityRare');
+      case 'epic': return t('badgeRarityEpic');
+      case 'legendary': return t('badgeRarityLegendary');
       default: return rarity;
     }
   };
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case 'standard': return language === 'cs' ? 'Standardní' : 'Standard';
-      case 'epic': return language === 'cs' ? 'Epický' : 'Epic';
-      case 'legacy': return language === 'cs' ? 'Legacy' : 'Legacy';
-      case 'meta': return language === 'cs' ? 'Meta' : 'Meta';
+      case 'standard': return t('badgeTypeStandard');
+      case 'epic': return t('badgeTypeEpic');
+      case 'legacy': return t('badgeTypeLegacy');
+      case 'meta': return t('badgeTypeMeta');
       default: return type;
     }
   };
@@ -133,15 +133,13 @@ export default function BadgesScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: language === 'cs' ? 'Odznaky' : 'Badges',
+          title: t('screenBadges'),
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : 'white',
           },
           headerTintColor: isDarkMode ? 'white' : '#1F2937',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={24} />
-            </TouchableOpacity>
+            <BackButton color={isDarkMode ? 'white' : '#1F2937'} size={24} style={styles.backButton} />
           ),
         }}
       />
@@ -158,17 +156,17 @@ export default function BadgesScreen() {
             {earnedCount} / {totalCount}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {language === 'cs' ? 'Odemčených odznaků' : 'Unlocked badges'}
+            {t('badgesUnlocked')}
           </Text>
         </LinearGradient>
 
         <View style={styles.filterContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <FilterButton type="all" label={language === 'cs' ? 'Vše' : 'All'} />
-            <FilterButton type="standard" label={language === 'cs' ? 'Standardní' : 'Standard'} />
-            <FilterButton type="epic" label={language === 'cs' ? 'Epické' : 'Epic'} />
-            <FilterButton type="legacy" label="Legacy" />
-            <FilterButton type="meta" label="Meta" />
+            <FilterButton type="all" label={t('badgeFilterAll')} />
+            <FilterButton type="standard" label={t('badgeTypeStandard')} />
+            <FilterButton type="epic" label={t('badgeFilterEpic')} />
+            <FilterButton type="legacy" label={t('badgeTypeLegacy')} />
+            <FilterButton type="meta" label={t('badgeTypeMeta')} />
           </ScrollView>
         </View>
 
@@ -215,7 +213,7 @@ export default function BadgesScreen() {
                 <View style={styles.modalStats}>
                   <View style={styles.modalStatItem}>
                     <Text style={[styles.modalStatLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {language === 'cs' ? 'Typ' : 'Type'}
+                      {t('type')}
                     </Text>
                     <Text style={[styles.modalStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                       {getTypeLabel(selectedBadge.type)}
@@ -224,7 +222,7 @@ export default function BadgesScreen() {
 
                   <View style={styles.modalStatItem}>
                     <Text style={[styles.modalStatLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {language === 'cs' ? 'Odměna XP' : 'XP Reward'}
+                      {t('badgeXpReward')}
                     </Text>
                     <Text style={[styles.modalStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                       +{selectedBadge.rewardXp} XP
@@ -233,17 +231,17 @@ export default function BadgesScreen() {
 
                   <View style={styles.modalStatItem}>
                     <Text style={[styles.modalStatLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {language === 'cs' ? 'Odměna Kešáků' : 'Coins Reward'}
+                      {t('badgeCoinsReward')}
                     </Text>
                     <Text style={[styles.modalStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      +{selectedBadge.rewardCoins} {language === 'cs' ? 'Kešáků' : 'Coins'}
+                      +{selectedBadge.rewardCoins} {t('badgeCoins')}
                     </Text>
                   </View>
 
                   {selectedBadge.passiveBonus > 0 && (
                     <View style={styles.modalStatItem}>
                       <Text style={[styles.modalStatLabel, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                        {language === 'cs' ? 'Pasivní bonus' : 'Passive Bonus'}
+                        {t('badgePassiveBonus')}
                       </Text>
                       <Text style={[styles.modalStatValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
                         +{(selectedBadge.passiveBonus * 100).toFixed(0)}% XP
@@ -256,7 +254,7 @@ export default function BadgesScreen() {
                   <View style={styles.earnedBanner}>
                     <Award color="#10B981" size={20} />
                     <Text style={styles.earnedBannerText}>
-                      {language === 'cs' ? 'Odemčeno!' : 'Unlocked!'}
+                      {t('badgeUnlocked')}
                     </Text>
                   </View>
                 )}

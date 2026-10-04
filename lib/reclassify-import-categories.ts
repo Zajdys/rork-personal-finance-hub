@@ -5,8 +5,9 @@
  * 2) Ostatní / dictionary / keyword / crowd / import — classifyImportRow
  * NESMÍ: Převod, Splátky úvěrů
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { mapClassifySourceToCategorySource } from '@/lib/categorization';
-import { supabase } from '@/lib/supabase';
+import { supabase as defaultSupabase } from '@/lib/supabase';
 import { normalizeMerchantKey } from '@/lib/normalize-merchant-key';
 import { lookupMerchantDictionary } from '@/lib/merchant-dictionary';
 import {
@@ -18,10 +19,13 @@ import {
 import { fetchUserCategoryRules } from '@/lib/user-category-rules';
 import { fetchMerchantCategoriesMap } from '@/lib/merchant-categories';
 import { LOAN_PAYMENT_CATEGORY } from '@/lib/loan-payment-detect';
+import { isSubscriptionFeeLabel } from '@/lib/subscription-detect';
 
 export type ReclassifyResult = {
   scanned: number;
   updated: number;
+  /** Počet řádků, kde se změnila právě `category` (ne jen source/merchant_key). */
+  categoryChanged: number;
   nameBackfilled: number;
   predplatneBefore: number;
   predplatneAfter: number;
@@ -61,8 +65,11 @@ const RECLASSIFIABLE_SOURCES = new Set([
 function mayReclassify(r: TxRow): boolean {
   if (r.category === 'Převod') return false;
   if (r.category === LOAN_PAYMENT_CATEGORY) return false;
+  if (r.category === 'Bankovní poplatky') return false;
   if (r.category_source === 'user') return false;
   if (r.category_source === 'transfer') return false;
+  const label = (r.description || r.counterparty_name || '').trim();
+  if (isSubscriptionFeeLabel(label)) return false;
   if (r.category === 'Ostatní' || !r.category) return true;
   if (r.category_source && RECLASSIFIABLE_SOURCES.has(r.category_source)) return true;
   // Legacy bez category_source: jen Ostatní (už pokryto) nebo dict shoda níže
@@ -71,10 +78,12 @@ function mayReclassify(r: TxRow): boolean {
 
 export async function reclassifyExistingImportTransactions(
   userId: string,
+  client: SupabaseClient = defaultSupabase,
 ): Promise<ReclassifyResult> {
   const empty: ReclassifyResult = {
     scanned: 0,
     updated: 0,
+    categoryChanged: 0,
     nameBackfilled: 0,
     predplatneBefore: 0,
     predplatneAfter: 0,
@@ -87,7 +96,7 @@ export async function reclassifyExistingImportTransactions(
     let from = 0;
     const page = 1000;
     for (;;) {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('transactions')
         .select(
           'id, type, category, category_source, merchant_key, description, amount, date, booking_date, counterparty_account, counterparty_name, is_refund',
@@ -111,8 +120,8 @@ export async function reclassifyExistingImportTransactions(
   const predplatneBefore = rows.filter((r) => r.category === 'Předplatné').length;
 
   const [userRules, globalCache] = await Promise.all([
-    fetchUserCategoryRules(userId),
-    fetchMerchantCategoriesMap(),
+    fetchUserCategoryRules(userId, client),
+    fetchMerchantCategoriesMap(client),
   ]);
 
   const namesByAccount = buildCounterpartyNameByAccount(
@@ -214,6 +223,7 @@ export async function reclassifyExistingImportTransactions(
     id: string;
     category: string;
     category_source: string;
+    categoryChanged: boolean;
     merchant_key?: string | null;
     title?: string;
     description?: string;
@@ -223,8 +233,9 @@ export async function reclassifyExistingImportTransactions(
   for (const [id, next] of classified) {
     const r = rows.find((x) => x.id === id);
     if (!r) continue;
+    const categoryChanged = next.category !== r.category;
     const changed =
-      next.category !== r.category ||
+      categoryChanged ||
       next.category_source !== r.category_source ||
       (next.merchant_key != null && next.merchant_key !== r.merchant_key) ||
       (next.counterparty_name != null && next.counterparty_name !== r.counterparty_name) ||
@@ -234,6 +245,7 @@ export async function reclassifyExistingImportTransactions(
       id,
       category: next.category,
       category_source: next.category_source,
+      categoryChanged,
       ...(next.merchant_key !== undefined ? { merchant_key: next.merchant_key } : {}),
       ...(next.title != null ? { title: next.title } : {}),
       ...(next.description != null ? { description: next.description } : {}),
@@ -242,12 +254,13 @@ export async function reclassifyExistingImportTransactions(
   }
 
   let updated = 0;
+  let categoryChanged = 0;
   const localPatches: ReclassifyResult['localPatches'] = [];
   for (let i = 0; i < updates.length; i += 50) {
     const chunk = updates.slice(i, i + 50);
     await Promise.all(
       chunk.map(async (u) => {
-        const { error: updErr } = await supabase
+        const { error: updErr } = await client
           .from('transactions')
           .update({
             category: u.category,
@@ -260,6 +273,7 @@ export async function reclassifyExistingImportTransactions(
           .eq('user_id', userId);
         if (!updErr) {
           updated += 1;
+          if (u.categoryChanged) categoryChanged += 1;
           localPatches.push({
             id: u.id,
             category: u.category,
@@ -283,6 +297,7 @@ export async function reclassifyExistingImportTransactions(
   console.log('[reclassify] done', {
     scanned: rows.length,
     updated,
+    categoryChanged,
     nameBackfilled,
     predplatneBefore,
     predplatneAfter,
@@ -290,6 +305,7 @@ export async function reclassifyExistingImportTransactions(
   return {
     scanned: rows.length,
     updated,
+    categoryChanged,
     nameBackfilled,
     predplatneBefore,
     predplatneAfter,

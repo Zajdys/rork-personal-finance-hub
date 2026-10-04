@@ -238,7 +238,7 @@ export async function fetchHistoricalFxToUsd(
   const seriesList = await mapPool(uniq, 5, async (ccy) => {
     const pair = FX_PAIRS_TO_USD[ccy];
     if (!pair) {
-      console.warn(`[backfill] FX ${ccy}→USD: no pair mapping`);
+      if (__DEV__) console.warn(`[backfill] FX ${ccy}→USD: no pair mapping`);
       return { ccy, series: null as DailySeries | null, inverted: false };
     }
 
@@ -256,7 +256,7 @@ export async function fetchHistoricalFxToUsd(
 
   for (const { ccy, series, inverted } of seriesList) {
     if (!series) {
-      console.log(`[backfill] FX ${ccy} FAIL no data`);
+      if (__DEV__) console.log(`[backfill] FX ${ccy} FAIL no data`);
       continue;
     }
     const sparse = new Map<string, number>();
@@ -266,7 +266,7 @@ export async function fetchHistoricalFxToUsd(
     }
     const filled = forwardFillDailyMap(sparse, fromIso, toIso);
     result.set(ccy, filled);
-    console.log(`[backfill] FX ${ccy}USD pts=${series.pointCount}${inverted ? ' (inverse)' : ''}`);
+    if (__DEV__) console.log(`[backfill] FX ${ccy}USD pts=${series.pointCount}${inverted ? ' (inverse)' : ''}`);
   }
 
   return result;

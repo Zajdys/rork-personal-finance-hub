@@ -10,39 +10,112 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft,
   Calendar,
   DollarSign,
   Tag,
   Check,
-  Trash2,
 } from 'lucide-react-native';
 import { useFinanceStore, EXPENSE_CATEGORIES } from '@/store/finance-store';
-import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
+import { getSubscriptionUiState } from '@/lib/subscription-helpers';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+import { safeGoBack } from '@/lib/safe-back';
+import { BackButton } from '@/components/BackButton';
+import { BrandIcon } from '@/components/BrandIcon';
+import { parseMoneyInput } from '@/lib/parse-money-input';
+import { AsyncButton } from '@/components/AsyncButton';
+import { useAsyncAction } from '@/hooks/use-async-action';
+import { SUBSCRIPTION_CATEGORY } from '@/lib/subscription-brands';
 
 export default function EditSubscriptionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { subscriptions, updateSubscription, deleteSubscription } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
-  const router = useRouter();
+  const { t } = useLanguageStore();
   const currentCurrency = getCurrentCurrency();
 
   const subscription = subscriptions.find((s) => s.id === id);
 
   const [name, setName] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Služby');
+  const [currency, setCurrency] = useState<string>('CZK');
+  const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
+  const [selectedCategory, setSelectedCategory] = useState<string>(SUBSCRIPTION_CATEGORY);
   const [dayOfMonth, setDayOfMonth] = useState<string>('1');
+  const [active, setActive] = useState(true);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     if (subscription) {
       setName(subscription.name);
-      setAmount(subscription.amount.toString());
+      setAmount(String(subscription.amount));
+      setCurrency((subscription.currency || currentCurrency.code || 'CZK').toUpperCase());
+      setFrequency(subscription.frequency === 'yearly' ? 'yearly' : 'monthly');
       setSelectedCategory(subscription.category);
       setDayOfMonth(subscription.dayOfMonth.toString());
+      setActive(subscription.active !== false);
+      setPaused(Boolean(subscription.paused));
     }
-  }, [subscription]);
+  }, [subscription, currentCurrency.code]);
+
+  const { run: handleSave } = useAsyncAction(async () => {
+    if (!subscription) return;
+    if (!name.trim()) {
+      Alert.alert(t('error'), t('subscription.enterName'));
+      return;
+    }
+
+    const parsedAmount = parseMoneyInput(amount);
+    if (parsedAmount == null || parsedAmount <= 0) {
+      Alert.alert(t('error'), t('subscription.enterValidAmount'));
+      return;
+    }
+
+    const parsedDay = parseInt(dayOfMonth, 10);
+    if (isNaN(parsedDay) || parsedDay < 1 || parsedDay > 31) {
+      Alert.alert(t('error'), t('subscription.enterValidDay'));
+      return;
+    }
+
+    updateSubscription(id!, {
+      name: name.trim(),
+      amount: parsedAmount,
+      currency: currency.trim().toUpperCase() || 'CZK',
+      frequency,
+      category: selectedCategory,
+      dayOfMonth: parsedDay,
+      active,
+      paused,
+    });
+
+    Alert.alert(t('done'), t('subscription.updated'), [
+      {
+        text: 'OK',
+        onPress: () => safeGoBack(),
+      },
+    ]);
+  });
+
+  const handleDelete = () => {
+    Alert.alert(t('subscription.deleteTitle'), t('subscription.deleteHidePrompt'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('subscription.deleteKeepSuggestion'),
+        style: 'destructive',
+        onPress: () => {
+          void deleteSubscription(id!, { hideSuggestion: false }).then(() => safeGoBack());
+        },
+      },
+      {
+        text: t('subscription.deleteAndHide'),
+        style: 'destructive',
+        onPress: () => {
+          void deleteSubscription(id!, { hideSuggestion: true }).then(() => safeGoBack());
+        },
+      },
+    ]);
+  };
 
   if (!subscription) {
     return (
@@ -50,76 +123,23 @@ export default function EditSubscriptionScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Předplatné nenalezeno
+            {t('subscription.notFound')}
           </Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButtonError}>
-            <Text style={styles.backButtonErrorText}>Zpět</Text>
+          <TouchableOpacity onPress={() => safeGoBack()} style={styles.backButtonError}>
+            <Text style={styles.backButtonErrorText}>{t('back')}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert('Chyba', 'Zadej název předplatného');
-      return;
-    }
-
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Chyba', 'Zadej platnou částku');
-      return;
-    }
-
-    const parsedDay = parseInt(dayOfMonth);
-    if (isNaN(parsedDay) || parsedDay < 1 || parsedDay > 31) {
-      Alert.alert('Chyba', 'Zadej platný den v měsíci (1-31)');
-      return;
-    }
-
-    updateSubscription(id!, {
-      name: name.trim(),
-      amount: parsedAmount,
-      category: selectedCategory,
-      dayOfMonth: parsedDay,
-    });
-
-    Alert.alert('Hotovo', 'Předplatné bylo aktualizováno', [
-      {
-        text: 'OK',
-        onPress: () => router.back(),
-      },
-    ]);
-  };
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Smazat předplatné',
-      'Opravdu chceš smazat toto předplatné?',
-      [
-        {
-          text: 'Zrušit',
-          style: 'cancel',
-        },
-        {
-          text: 'Smazat',
-          style: 'destructive',
-          onPress: () => {
-            deleteSubscription(id!);
-            router.back();
-          },
-        },
-      ]
-    );
-  };
-
   const categories = Object.keys(EXPENSE_CATEGORIES);
+  const statusUi = getSubscriptionUiState({ active, paused });
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={styles.headerGradient}
@@ -127,36 +147,42 @@ export default function EditSubscriptionScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
+          <BackButton color="white" size={24} style={styles.backButton} />
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Upravit předplatné</Text>
+            <Text style={styles.headerTitle}>{t('subscription.editTitle')}</Text>
           </View>
         </View>
       </LinearGradient>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <View style={styles.brandPreview}>
+            <BrandIcon
+              merchantKey={name.trim() || subscription.name}
+              size={64}
+              isDimmed={statusUi !== 'on'}
+            />
+          </View>
+
           <View style={[styles.card, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
             <View style={styles.inputGroup}>
               <View style={styles.inputLabel}>
                 <Tag color="#667eea" size={20} />
                 <Text style={[styles.labelText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  Název
+                  {t('subscription.name')}
                 </Text>
               </View>
               <TextInput
-                style={[styles.input, { 
-                  backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
-                  color: isDarkMode ? 'white' : '#1F2937'
-                }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+                    color: isDarkMode ? 'white' : '#1F2937',
+                  },
+                ]}
                 value={name}
                 onChangeText={setName}
-                placeholder="např. Netflix, Spotify..."
+                placeholder={t('subscription.namePlaceholder')}
                 placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
               />
             </View>
@@ -165,25 +191,73 @@ export default function EditSubscriptionScreen() {
               <View style={styles.inputLabel}>
                 <DollarSign color="#667eea" size={20} />
                 <Text style={[styles.labelText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  Měsíční částka
+                  {t('subscription.amount')}
                 </Text>
               </View>
               <View style={styles.amountInputContainer}>
                 <TextInput
-                  style={[styles.input, { 
-                    backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
-                    color: isDarkMode ? 'white' : '#1F2937',
-                    flex: 1
-                  }]}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+                      color: isDarkMode ? 'white' : '#1F2937',
+                      flex: 1,
+                    },
+                  ]}
                   value={amount}
                   onChangeText={setAmount}
                   placeholder="0"
                   placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
                   keyboardType="numeric"
                 />
-                <Text style={[styles.currencyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  {currentCurrency.symbol}
-                </Text>
+                <TextInput
+                  style={[
+                    styles.currencyInput,
+                    {
+                      backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+                      color: isDarkMode ? 'white' : '#1F2937',
+                    },
+                  ]}
+                  value={currency}
+                  onChangeText={(v) => setCurrency(v.toUpperCase())}
+                  autoCapitalize="characters"
+                  maxLength={3}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text
+                style={[
+                  styles.labelText,
+                  { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 8 },
+                ]}
+              >
+                {t('subscription.frequency')}
+              </Text>
+              <View style={styles.freqRow}>
+                {(['monthly', 'yearly'] as const).map((f) => (
+                  <TouchableOpacity
+                    key={f}
+                    style={[
+                      styles.freqChip,
+                      {
+                        backgroundColor:
+                          frequency === f ? '#667eea' : isDarkMode ? '#374151' : '#F3F4F6',
+                      },
+                    ]}
+                    onPress={() => setFrequency(f)}
+                  >
+                    <Text
+                      style={{
+                        color: frequency === f ? 'white' : isDarkMode ? '#D1D5DB' : '#374151',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {f === 'monthly' ? t('subscription.freqMonthly') : t('subscription.freqYearly')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
@@ -191,14 +265,17 @@ export default function EditSubscriptionScreen() {
               <View style={styles.inputLabel}>
                 <Calendar color="#667eea" size={20} />
                 <Text style={[styles.labelText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                  Den platby v měsíci
+                  {t('subscription.paymentDay')}
                 </Text>
               </View>
               <TextInput
-                style={[styles.input, { 
-                  backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
-                  color: isDarkMode ? 'white' : '#1F2937'
-                }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+                    color: isDarkMode ? 'white' : '#1F2937',
+                  },
+                ]}
                 value={dayOfMonth}
                 onChangeText={setDayOfMonth}
                 placeholder="1-31"
@@ -209,69 +286,145 @@ export default function EditSubscriptionScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
+            <Text style={[styles.labelText, { color: isDarkMode ? 'white' : '#1F2937', marginBottom: 12 }]}>
+              {t('subscription.status')}
+            </Text>
+            <View style={styles.statusRow}>
+              <TouchableOpacity
+                style={[
+                  styles.statusChip,
+                  {
+                    backgroundColor:
+                      statusUi === 'on' ? '#10B981' : isDarkMode ? '#374151' : '#F3F4F6',
+                  },
+                ]}
+                onPress={() => {
+                  setActive(true);
+                  setPaused(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    { color: statusUi === 'on' ? 'white' : isDarkMode ? '#D1D5DB' : '#374151' },
+                  ]}
+                >
+                  {t('account.active')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.statusChip,
+                  {
+                    backgroundColor:
+                      statusUi === 'paused' ? '#F59E0B' : isDarkMode ? '#374151' : '#F3F4F6',
+                  },
+                ]}
+                onPress={() => {
+                  setActive(true);
+                  setPaused(true);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    {
+                      color: statusUi === 'paused' ? 'white' : isDarkMode ? '#D1D5DB' : '#374151',
+                    },
+                  ]}
+                >
+                  {t('subscription.paused')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.statusChip,
+                  {
+                    backgroundColor:
+                      statusUi === 'off' ? '#6B7280' : isDarkMode ? '#374151' : '#F3F4F6',
+                  },
+                ]}
+                onPress={() => {
+                  setActive(false);
+                  setPaused(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    { color: statusUi === 'off' ? 'white' : isDarkMode ? '#D1D5DB' : '#374151' },
+                  ]}
+                >
+                  {t('subscription.off')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
             <View style={styles.inputLabel}>
               <Tag color="#667eea" size={20} />
               <Text style={[styles.labelText, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                Kategorie
+                {t('subscription.category')}
               </Text>
             </View>
-            
+
             <View style={styles.categoriesGrid}>
               {categories.map((category) => {
                 const categoryInfo = EXPENSE_CATEGORIES[category as keyof typeof EXPENSE_CATEGORIES];
                 const isSelected = selectedCategory === category;
-                
+
                 return (
                   <TouchableOpacity
                     key={category}
                     style={[
                       styles.categoryButton,
                       {
-                        backgroundColor: isSelected 
-                          ? '#667eea' 
-                          : isDarkMode ? '#374151' : '#F3F4F6',
-                      }
+                        backgroundColor: isSelected
+                          ? '#667eea'
+                          : isDarkMode
+                            ? '#374151'
+                            : '#F3F4F6',
+                      },
                     ]}
                     onPress={() => setSelectedCategory(category)}
                   >
                     <Text style={styles.categoryEmoji}>{categoryInfo.icon}</Text>
-                    <Text style={[
-                      styles.categoryText,
-                      { color: isSelected ? 'white' : isDarkMode ? '#D1D5DB' : '#1F2937' }
-                    ]}>
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        { color: isSelected ? 'white' : isDarkMode ? '#D1D5DB' : '#1F2937' },
+                      ]}
+                    >
                       {category}
                     </Text>
-                    {isSelected && (
-                      <Check color="white" size={16} style={styles.checkIcon} />
-                    )}
+                    {isSelected && <Check color="white" size={16} style={styles.checkIcon} />}
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.saveButton}
+          <AsyncButton
+            variant="success"
+            label={t('subscription.saveChanges')}
+            loadingLabel={t('hhNotifSaving')}
             onPress={handleSave}
-          >
-            <LinearGradient
-              colors={['#10B981', '#059669']}
-              style={styles.saveButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Check color="white" size={20} />
-              <Text style={styles.saveButtonText}>Uložit změny</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            style={styles.saveButton}
+            contentStyle={styles.saveButtonGradient}
+            textStyle={styles.saveButtonText}
+          />
 
-          <TouchableOpacity
+          <AsyncButton
+            variant="danger"
+            label={t('subscription.delete')}
+            loadingLabel="…"
+            onPress={async () => {
+              handleDelete();
+            }}
             style={styles.deleteButton}
-            onPress={handleDelete}
-          >
-            <Trash2 color="#EF4444" size={20} />
-            <Text style={styles.deleteButtonText}>Smazat předplatné</Text>
-          </TouchableOpacity>
+            textStyle={styles.deleteButtonText}
+          />
         </View>
       </ScrollView>
     </View>
@@ -279,160 +432,63 @@ export default function EditSubscriptionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  scrollView: { flex: 1 },
   headerGradient: {
     paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleContainer: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  content: {
-    padding: 20,
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
-  },
-  labelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  input: {
-    backgroundColor: '#F3F4F6',
+  headerContent: { flexDirection: 'row', alignItems: 'center' },
+  backButton: { marginRight: 12 },
+  headerTitleContainer: { flex: 1 },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: 'white' },
+  content: { padding: 20, paddingBottom: 40 },
+  brandPreview: { alignItems: 'center', marginBottom: 16 },
+  card: { borderRadius: 16, padding: 16, marginBottom: 16 },
+  inputGroup: { marginBottom: 16 },
+  inputLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  labelText: { fontSize: 15, fontWeight: '600' },
+  input: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
+  amountInputContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  currencyInput: {
+    width: 64,
     borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  currencyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  categoryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  categoryEmoji: {
-    fontSize: 16,
-  },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  checkIcon: {
-    marginLeft: 4,
-  },
-  saveButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-  saveButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#EF4444',
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#EF4444',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  backButtonError: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 10,
     paddingVertical: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  freqRow: { flexDirection: 'row', gap: 8 },
+  freqChip: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  statusRow: { flexDirection: 'row', gap: 8 },
+  statusChip: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  statusChipText: { fontWeight: '600', fontSize: 13 },
+  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  categoryButton: {
+    width: '47%',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryEmoji: { fontSize: 18 },
+  categoryText: { flex: 1, fontSize: 13, fontWeight: '600' },
+  checkIcon: { marginLeft: 4 },
+  saveButton: { marginTop: 4 },
+  saveButtonGradient: { borderRadius: 14, paddingVertical: 14 },
+  saveButtonText: { fontSize: 16, fontWeight: '700', color: 'white' },
+  deleteButton: { marginTop: 12 },
+  deleteButtonText: { fontSize: 16, fontWeight: '700' },
+  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorText: { fontSize: 16, marginBottom: 16 },
+  backButtonError: {
     backgroundColor: '#667eea',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 12,
   },
-  backButtonErrorText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
+  backButtonErrorText: { color: 'white', fontWeight: '600' },
 });

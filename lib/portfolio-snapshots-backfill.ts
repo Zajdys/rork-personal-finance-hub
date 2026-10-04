@@ -129,10 +129,12 @@ function applyTxToCashAndHoldings(
   switch (ev.type) {
     case 'deposit':
     case 'promo':
+    case 'interest':
       return cashUsd + amtUsd;
     case 'withdrawal':
       return cashUsd - amtUsd;
     case 'fee':
+    case 'tax':
       return cashUsd - amtUsd;
     case 'dividend':
       return cashUsd + amtUsd - feeUsd;
@@ -176,7 +178,7 @@ async function loadPriceBooks(
       // Snapshoty jsou v USD — historie BTC rovnou v USD (bez FX).
       const series = await fetchCoingeckoDailySeriesRange(brokerTicker, 'usd', fromIso, toIso);
       if (!series) {
-        console.log(`[backfill] crypto ${brokerTicker} FAIL no CoinGecko USD history`);
+        if (__DEV__) console.log(`[backfill] crypto ${brokerTicker} FAIL no CoinGecko USD history`);
         return [brokerTicker, null] as const;
       }
       return [
@@ -192,14 +194,18 @@ async function loadPriceBooks(
     const yahoo = toYahooSymbol(meta.ticker, meta.isin);
     const series = await fetchYahooDailySeries(yahoo, period1, period2);
     if (!series) {
-      console.log(
-        `[backfill] ticker ${brokerTicker}→${yahoo} FAIL no data (isin=${meta.isin ?? 'n/a'})`,
-      );
+      if (__DEV__) {
+        console.log(
+          `[backfill] ticker ${brokerTicker}→${yahoo} FAIL no data (isin=${meta.isin ?? 'n/a'})`,
+        );
+      }
       return [brokerTicker, null] as const;
     }
-    console.log(
-      `[backfill] ticker ${brokerTicker}→${yahoo} ccy=${series.currency} div100=${series.dividedBy100} pts=${series.pointCount}`,
-    );
+    if (__DEV__) {
+      console.log(
+        `[backfill] ticker ${brokerTicker}→${yahoo} ccy=${series.currency} div100=${series.dividedBy100} pts=${series.pointCount}`,
+      );
+    }
     return [
       brokerTicker,
       {
@@ -237,15 +243,19 @@ export async function backfillPortfolioSnapshots(
 
   const writable = findWritableSnapshotDates(start, end, existing);
   if (writable.length === 0) {
-    console.log(
-      `[backfill] start portfolio=${broker} od ${start} writable 0 dnů (vše locked/kompletní)`,
-    );
+    if (__DEV__) {
+      console.log(
+        `[backfill] start portfolio=${broker} od ${start} writable 0 dnů (vše locked/kompletní)`,
+      );
+    }
     return { written: 0, missing: 0, error: null };
   }
 
-  console.log(
-    `[backfill] start portfolio=${broker} od ${start} writable ${writable.length} dnů (locked přeskočeny)`,
-  );
+  if (__DEV__) {
+    console.log(
+      `[backfill] start portfolio=${broker} od ${start} writable ${writable.length} dnů (locked přeskočeny)`,
+    );
+  }
 
   const events = toEvents(transactions);
   const writableSet = new Set(writable);
@@ -340,10 +350,12 @@ export async function backfillPortfolioSnapshots(
     if (missingTickers.length > 0) {
       const first = missingTickers[0]!;
       const others = missingTickers.length - 1;
-      console.log(
-        `[backfill] SKIP den ${day}: chybí cena pro ${first}` +
-          (others > 0 ? ` (a ${others} dalších)` : ''),
-      );
+      if (__DEV__) {
+        console.log(
+          `[backfill] SKIP den ${day}: chybí cena pro ${first}` +
+            (others > 0 ? ` (a ${others} dalších)` : ''),
+        );
+      }
       continue;
     }
 
@@ -355,11 +367,13 @@ export async function backfillPortfolioSnapshots(
     dayLogCounter += 1;
     if (dayLogCounter === 1 || dayLogCounter % 30 === 0 || day === end) {
       if (broker === 'anycoin' || btcUnits > 0) {
-        console.log(
-          `[backfill-anycoin] den ${day} btc_drzeno=${btcUnits.toFixed(8)} cena_usd=${btcPriceUsd?.toFixed(2) ?? 'n/a'} hodnota_usd=${total}`,
-        );
+        if (__DEV__) {
+          console.log(
+            `[backfill-anycoin] den ${day} btc_drzeno=${btcUnits.toFixed(8)} cena_usd=${btcPriceUsd?.toFixed(2) ?? 'n/a'} hodnota_usd=${total}`,
+          );
+        }
       } else {
-        console.log(`[backfill] den ${day} value_usd=${total} locked=${locked}`);
+        if (__DEV__) console.log(`[backfill] den ${day} value_usd=${total} locked=${locked}`);
       }
     }
   }
@@ -367,9 +381,11 @@ export async function backfillPortfolioSnapshots(
   diagnostics.logSummary(broker);
 
   const { upserted, error } = await upsertPortfolioSnapshotsBulk(toWrite);
-  console.log(
-    `[backfill] hotovo portfolio=${broker} zapsáno ${upserted}/${writable.length} writable (locked historie zmrazená)`,
-  );
+  if (__DEV__) {
+    console.log(
+      `[backfill] hotovo portfolio=${broker} zapsáno ${upserted}/${writable.length} writable (locked historie zmrazená)`,
+    );
+  }
   return { written: upserted, missing: writable.length, error };
 }
 
@@ -392,7 +408,7 @@ export async function backfillAllPortfolioSnapshots(
       }
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
-      console.warn('[backfill] portfolio failed', pf.broker, err.message);
+      if (__DEV__) console.warn('[backfill] portfolio failed', pf.broker, err.message);
       onProgress?.({ status: 'error', message: err.message });
       return { totalWritten, error: err };
     }

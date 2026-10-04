@@ -8,14 +8,36 @@ import {
   TouchableOpacity as RNTouchableOpacity,
 } from 'react-native';
 import { Swipeable, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
-
-const RowTouchable = Platform.OS === 'web' ? RNTouchableOpacity : GHTouchableOpacity;
 import { useRouter } from 'expo-router';
 import type { Transaction } from '@/store/finance-store';
 import { useTheme } from '@/hooks/use-theme';
+import { useLanguageStore } from '@/store/language-store';
 import { TransactionSelectionCheckbox } from '@/components/TransactionSelectionCheckbox';
-import { formatTransactionDateCs } from '@/lib/transaction-date';
+import { formatTransactionDate, appLocale } from '@/lib/app-locale';
+import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { getTransactionDisplayTitle } from '@/lib/transaction-display';
+
+const RowTouchable = Platform.OS === 'web' ? RNTouchableOpacity : GHTouchableOpacity;
+
+const SOURCE_PILL: Record<
+  string,
+  { label: string; bg: string; fg: string }
+> = {
+  raiffeisenbank: { label: 'RB', bg: '#EAB308', fg: '#1C1917' },
+  csob: { label: 'ČSOB', bg: '#2563EB', fg: '#FFFFFF' },
+  kb: { label: 'KB', bg: '#DC2626', fg: '#FFFFFF' },
+  fio: { label: 'Fio', bg: '#8DC63F', fg: '#1C1917' },
+  airbank: { label: 'Air', bg: '#78BE20', fg: '#1C1917' },
+  cs: { label: 'ČS', bg: '#E87722', fg: '#FFFFFF' },
+  csas: { label: 'ČS', bg: '#E87722', fg: '#FFFFFF' },
+};
+
+function sourcePillFor(
+  source: string | undefined,
+): { label: string; bg: string; fg: string } | null {
+  if (!source || source === 'manual' || source === 'bank_import') return null;
+  return SOURCE_PILL[source] ?? null;
+}
 
 type Props = {
   transaction: Transaction;
@@ -44,23 +66,26 @@ export function SwipeableTransactionRow({
   onToggleSelection,
 }: Props) {
   const { colors } = useTheme();
+  const { t, language } = useLanguageStore();
+  const numberLocale = appLocale(language);
   const isGoalDetail = variant === 'goalDetail';
+  const sourcePill = sourcePillFor(transaction.source);
   const displayTitle = getTransactionDisplayTitle(transaction);
   const router = useRouter();
   const swipeRef = useRef<Swipeable>(null);
 
   const confirmDelete = useCallback(() => {
     Alert.alert(
-      'Smazat transakci?',
-      `Opravdu chcete smazat „${displayTitle}“?`,
+      t('transactionDeleteTitle'),
+      t('transactionDeleteConfirm', { title: displayTitle }),
       [
         {
-          text: 'Zrušit',
+          text: t('cancel'),
           style: 'cancel',
           onPress: () => swipeRef.current?.close(),
         },
         {
-          text: 'Smazat',
+          text: t('delete'),
           style: 'destructive',
           onPress: () => {
             onDelete(transaction.id);
@@ -69,7 +94,7 @@ export function SwipeableTransactionRow({
         },
       ],
     );
-  }, [transaction.id, displayTitle, onDelete]);
+  }, [t, transaction.id, displayTitle, onDelete]);
 
   const openDetail = useCallback(() => {
     router.push({
@@ -93,10 +118,10 @@ export function SwipeableTransactionRow({
         activeOpacity={0.85}
         onPress={confirmDelete}
       >
-        <Text style={styles.deleteActionText}>Smazat</Text>
+        <Text style={styles.deleteActionText}>{t('delete')}</Text>
       </GHTouchableOpacity>
     ),
-    [confirmDelete],
+    [confirmDelete, t],
   );
 
   const rowInner = isGoalDetail ? (
@@ -132,7 +157,7 @@ export function SwipeableTransactionRow({
           ellipsizeMode="tail"
           style={[styles.goalDetailDate, { color: colors.textSecondary }]}
         >
-          {formatTransactionDateCs(transaction.date)}
+          {formatTransactionDate(transaction.date, numberLocale)}
         </Text>
       </View>
       <View style={{ flexShrink: 0, alignItems: 'flex-end' }}>
@@ -144,10 +169,35 @@ export function SwipeableTransactionRow({
             flexShrink: 0,
           }}
         >
-          {`${transaction.type === 'expense' ? '-' : '+'}${Math.round(transaction.amount)} Kč${
+          {`${transaction.type === 'expense' ? '-' : '+'}${formatMoney(transaction.amount, numberLocale)} ${currencySymbol}${
             transaction.receiptUrl ? '  📷' : ''
           }`}
         </Text>
+        {transaction.originalCurrency &&
+        transaction.originalAmount != null &&
+        transaction.originalCurrency !== 'CZK' ? (
+          <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+            {formatMoney(transaction.originalAmount, numberLocale)}{' '}
+            {transaction.originalCurrency}
+          </Text>
+        ) : null}
+        <View style={{ flexShrink: 0, alignItems: 'flex-end', marginTop: 4, gap: 4 }}>
+          {transaction.isRefund ? (
+            <View style={[styles.refundPill, { backgroundColor: '#FEF3C7' }]}>
+              <Text style={[styles.refundPillText, { color: '#92400E' }]}>
+                {t('transactionRefundBadge')}
+              </Text>
+            </View>
+          ) : null}
+          {sourcePill ? (
+            <View
+              style={[styles.sourcePill, { backgroundColor: sourcePill.bg }]}
+              accessibilityLabel={t('transactionSourceA11y', { label: sourcePill.label })}
+            >
+              <Text style={[styles.sourcePillText, { color: sourcePill.fg }]}>{sourcePill.label}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </RowTouchable>
   ) : (
@@ -180,9 +230,37 @@ export function SwipeableTransactionRow({
             style={[styles.amount, { color: transaction.type === 'income' ? colors.success : colors.error }]}
           >
             {transaction.type === 'income' ? '+' : '-'}
-            {transaction.amount.toLocaleString('cs-CZ')} {currencySymbol}
+            {formatMoneyWithSymbol(transaction.amount, numberLocale, currencySymbol)}
           </Text>
+          {transaction.originalCurrency &&
+          transaction.originalAmount != null &&
+          transaction.originalCurrency !== 'CZK' ? (
+            <Text style={[styles.originalAmount, { color: colors.textSecondary }]}>
+              {formatMoney(transaction.originalAmount, numberLocale)}{' '}
+              {transaction.originalCurrency}
+            </Text>
+          ) : null}
           {transaction.receiptUrl ? <Text style={styles.receiptListIcon}>📷</Text> : null}
+          <View style={styles.pillRow}>
+            {transaction.isRefund ? (
+              <View
+                style={[styles.refundPill, { backgroundColor: '#FEF3C7' }]}
+                accessibilityLabel={t('transactionRefundBadge')}
+              >
+                <Text style={[styles.refundPillText, { color: '#92400E' }]}>
+                  {t('transactionRefundBadge')}
+                </Text>
+              </View>
+            ) : null}
+            {sourcePill ? (
+              <View
+                style={[styles.sourcePill, { backgroundColor: sourcePill.bg }]}
+                accessibilityLabel={t('transactionSourceA11y', { label: sourcePill.label })}
+              >
+                <Text style={[styles.sourcePillText, { color: sourcePill.fg }]}>{sourcePill.label}</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </RowTouchable>
     </>
@@ -301,9 +379,43 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     flexShrink: 0,
   },
+  originalAmount: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'right',
+  },
   receiptListIcon: {
     fontSize: 14,
     lineHeight: 18,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  refundPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  refundPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  sourcePill: {
+    marginTop: 2,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sourcePillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   deleteAction: {
     backgroundColor: '#EF4444',

@@ -19,16 +19,16 @@ import {
   Check,
   Trash2,
   ChevronRight,
-  ArrowLeft,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useFriendsStore } from '@/store/friends-store';
 import { trpc, trpcClient } from '@/lib/trpc';
+import { BackButton } from '@/components/BackButton';
 
 export default function FriendsScreen() {
   const { isDarkMode } = useSettingsStore();
-  const { language } = useLanguageStore();
+  const { t } = useLanguageStore();
   const router = useRouter();
   const friendsStore = useFriendsStore();
   
@@ -74,8 +74,8 @@ export default function FriendsScreen() {
     } catch (error) {
       console.error('Search error:', error);
       Alert.alert(
-        language === 'cs' ? 'Chyba' : 'Error',
-        language === 'cs' ? 'Nepodařilo se vyhledat uživatele' : 'Failed to search users'
+        t('error'),
+        t('friendsSearchFailed')
       );
     } finally {
       setIsSearching(false);
@@ -86,15 +86,15 @@ export default function FriendsScreen() {
     try {
       await trpcClient.friends.sendRequest.mutate({ userId: currentUserId, friendId });
       Alert.alert(
-        language === 'cs' ? 'Úspěch' : 'Success',
-        language === 'cs' ? 'Žádost o přátelství odeslána' : 'Friend request sent'
+        t('success'),
+        t('friendsRequestSent')
       );
       pendingQuery.refetch();
     } catch (error) {
       console.error('Send request error:', error);
       Alert.alert(
-        language === 'cs' ? 'Chyba' : 'Error',
-        language === 'cs' ? 'Nepodařilo se odeslat žádost' : 'Failed to send request'
+        t('error'),
+        t('friendsSendFailed')
       );
     }
   };
@@ -107,8 +107,8 @@ export default function FriendsScreen() {
     } catch (error) {
       console.error('Accept request error:', error);
       Alert.alert(
-        language === 'cs' ? 'Chyba' : 'Error',
-        language === 'cs' ? 'Nepodařilo se přijmout žádost' : 'Failed to accept request'
+        t('error'),
+        t('friendsAcceptFailed')
       );
     }
   };
@@ -120,20 +120,20 @@ export default function FriendsScreen() {
     } catch (error) {
       console.error('Reject request error:', error);
       Alert.alert(
-        language === 'cs' ? 'Chyba' : 'Error',
-        language === 'cs' ? 'Nepodařilo se odmítnout žádost' : 'Failed to reject request'
+        t('error'),
+        t('friendsRejectFailed')
       );
     }
   };
 
   const handleRemoveFriend = async (friendId: string) => {
     Alert.alert(
-      language === 'cs' ? 'Odebrat přítele' : 'Remove Friend',
-      language === 'cs' ? 'Opravdu chcete odebrat tohoto přítele?' : 'Are you sure you want to remove this friend?',
+      t('friendsRemoveTitle'),
+      t('friendsRemoveConfirm'),
       [
-        { text: language === 'cs' ? 'Zrušit' : 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: language === 'cs' ? 'Odebrat' : 'Remove',
+          text: t('hhBudgetRemove'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -142,8 +142,8 @@ export default function FriendsScreen() {
             } catch (error) {
               console.error('Remove friend error:', error);
               Alert.alert(
-                language === 'cs' ? 'Chyba' : 'Error',
-                language === 'cs' ? 'Nepodařilo se odebrat přítele' : 'Failed to remove friend'
+                t('error'),
+                t('friendsRemoveFailed')
               );
             }
           },
@@ -215,7 +215,7 @@ export default function FriendsScreen() {
         </View>
       ) : (
         <Text style={[styles.pendingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-          {language === 'cs' ? 'Čeká' : 'Pending'}
+          {t('friendsPending')}
         </Text>
       )}
     </View>
@@ -242,11 +242,11 @@ export default function FriendsScreen() {
         </View>
         {isFriend ? (
           <Text style={[styles.friendBadge, { color: '#10B981' }]}>
-            {language === 'cs' ? 'Přítel' : 'Friend'}
+            {t('friendsFriend')}
           </Text>
         ) : hasPendingRequest ? (
           <Text style={[styles.pendingText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            {language === 'cs' ? 'Čeká' : 'Pending'}
+            {t('friendsPending')}
           </Text>
         ) : (
           <TouchableOpacity
@@ -264,18 +264,13 @@ export default function FriendsScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen
         options={{
-          title: language === 'cs' ? 'Přátelé' : 'Friends',
+          title: t('screenFriends'),
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : 'white',
           },
           headerTintColor: isDarkMode ? 'white' : '#1F2937',
           headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ marginLeft: 16 }}
-            >
-              <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={24} />
-            </TouchableOpacity>
+            <BackButton color={isDarkMode ? 'white' : '#1F2937'} size={24} style={{ marginLeft: 16 }} />
           ),
         }}
       />
@@ -285,7 +280,7 @@ export default function FriendsScreen() {
           <Search color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={20} />
           <TextInput
             style={[styles.searchInput, { color: isDarkMode ? 'white' : '#1F2937' }]}
-            placeholder={language === 'cs' ? 'Hledat uživatele...' : 'Search users...'}
+            placeholder={t('friendsSearchPlaceholder')}
             placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -313,7 +308,7 @@ export default function FriendsScreen() {
               { color: activeTab === 'friends' ? '#667eea' : (isDarkMode ? '#9CA3AF' : '#6B7280') },
             ]}
           >
-            {language === 'cs' ? 'Přátelé' : 'Friends'} ({friendsStore.totalFriends})
+            {t('screenFriends')} ({friendsStore.totalFriends})
           </Text>
         </TouchableOpacity>
 
@@ -334,7 +329,7 @@ export default function FriendsScreen() {
               { color: activeTab === 'requests' ? '#667eea' : (isDarkMode ? '#9CA3AF' : '#6B7280') },
             ]}
           >
-            {language === 'cs' ? 'Žádosti' : 'Requests'} ({friendsStore.totalIncomingRequests})
+            {t('friendsRequests')} ({friendsStore.totalIncomingRequests})
           </Text>
         </TouchableOpacity>
 
@@ -356,7 +351,7 @@ export default function FriendsScreen() {
                 { color: activeTab === 'search' ? '#667eea' : (isDarkMode ? '#9CA3AF' : '#6B7280') },
               ]}
             >
-              {language === 'cs' ? 'Výsledky' : 'Results'}
+              {t('friendsResults')}
             </Text>
           </TouchableOpacity>
         )}
@@ -371,10 +366,10 @@ export default function FriendsScreen() {
               <View style={styles.emptyState}>
                 <Users color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={48} />
                 <Text style={[styles.emptyStateText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                  {language === 'cs' ? 'Zatím nemáte žádné přátele' : 'No friends yet'}
+                  {t('friendsNoFriends')}
                 </Text>
                 <Text style={[styles.emptyStateSubtext, { color: isDarkMode ? '#6B7280' : '#9CA3AF' }]}>
-                  {language === 'cs' ? 'Vyhledejte uživatele a přidejte si je' : 'Search for users and add them'}
+                  {t('friendsSearchHint')}
                 </Text>
               </View>
             ) : (
@@ -394,7 +389,7 @@ export default function FriendsScreen() {
                 {friendsStore.incomingRequests.length > 0 && (
                   <View style={styles.subsection}>
                     <Text style={[styles.subsectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      {language === 'cs' ? 'Příchozí žádosti' : 'Incoming Requests'}
+                      {t('friendsIncomingRequests')}
                     </Text>
                     {friendsStore.incomingRequests.map((request) => (
                       <RequestCard key={request.id} request={request} type="incoming" />
@@ -405,7 +400,7 @@ export default function FriendsScreen() {
                 {friendsStore.outgoingRequests.length > 0 && (
                   <View style={styles.subsection}>
                     <Text style={[styles.subsectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      {language === 'cs' ? 'Odeslané žádosti' : 'Sent Requests'}
+                      {t('friendsSentRequests')}
                     </Text>
                     {friendsStore.outgoingRequests.map((request) => (
                       <RequestCard key={request.id} request={request} type="outgoing" />
@@ -417,7 +412,7 @@ export default function FriendsScreen() {
                   <View style={styles.emptyState}>
                     <UserPlus color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={48} />
                     <Text style={[styles.emptyStateText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {language === 'cs' ? 'Žádné žádosti o přátelství' : 'No friend requests'}
+                      {t('friendsNoRequests')}
                     </Text>
                   </View>
                 )}
@@ -432,7 +427,7 @@ export default function FriendsScreen() {
               <View style={styles.emptyState}>
                 <Search color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={48} />
                 <Text style={[styles.emptyStateText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                  {language === 'cs' ? 'Žádné výsledky' : 'No results'}
+                  {t('friendsNoResults')}
                 </Text>
               </View>
             ) : (

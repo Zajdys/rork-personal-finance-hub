@@ -24,6 +24,7 @@ import {
   type ManualTransactionFormKind,
 } from '@/lib/investment-transactions';
 import { fetchHistoricalPrice } from '@/lib/historical-price';
+import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
 
 const CRYPTO_ASSETS = ['BTC', 'ETH'] as const;
 const FIAT = ['CZK', 'EUR', 'USD'] as const;
@@ -62,13 +63,8 @@ function formatDateCs(iso: string): string {
   return `${d}.${m}.${y}`;
 }
 
-function parseNum(raw: string): number | null {
-  const n = Number(String(raw).trim().replace(',', '.').replace(/\s/g, ''));
-  return Number.isFinite(n) ? n : null;
-}
-
 function formatPriceForInput(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n == null || n <= 0) return '';
   if (n >= 1000) return (Math.round(n * 100) / 100).toFixed(2);
   if (n >= 1) return String(Math.round(n * 1e4) / 1e4);
   return String(Math.round(n * 1e8) / 1e8);
@@ -319,9 +315,9 @@ export function AddInvestmentTransactionSheet({
         kind,
         ticker: showAsset ? ticker : null,
         isin: showIsin ? isin || null : null,
-        units: showUnits ? parseNum(units) : null,
-        pricePerUnit: showPrice ? parseNum(pricePerUnit) : null,
-        amount: showAmount ? parseNum(amount) : null,
+        units: showUnits ? parseDecimalInput(units, 8) : null,
+        pricePerUnit: showPrice ? parseDecimalInput(pricePerUnit, 6) : null,
+        amount: showAmount ? parseMoneyInput(amount) : null,
         currency,
         date,
         note: note || null,

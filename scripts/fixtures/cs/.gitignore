@@ -1,0 +1,5 @@
+# skutečné bankovní výpisy – nikdy do gitu
+*.pdf
+*.txt
+*.raw.txt
+*.pdfjs.txt

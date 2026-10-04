@@ -6,19 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Target, CheckCircle, Clock, Trophy } from 'lucide-react-native';
+import { Target, CheckCircle, Clock, Trophy } from 'lucide-react-native';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { Quest } from '@/types/gaming';
+import { BackButton } from '@/components/BackButton';
 
 export default function QuestsScreen() {
-  const router = useRouter();
-  const { gamingStats, completeQuest } = useBuddyStore();
+  const { gamingStats } = useBuddyStore();
   const { isDarkMode } = useSettingsStore();
-  const { language } = useLanguageStore();
+  const { t } = useLanguageStore();
 
   const dailyQuests = gamingStats.quests.filter(q => q.type === 'daily');
   const weeklyQuests = gamingStats.quests.filter(q => q.type === 'weekly');
@@ -78,7 +78,7 @@ export default function QuestsScreen() {
               <Text style={styles.rewardText}>+{quest.rewardXp} XP</Text>
             </View>
             <View style={styles.rewardItem}>
-              <Text style={styles.rewardText}>+{quest.rewardCoins} {language === 'cs' ? 'Kešáků' : 'Coins'}</Text>
+              <Text style={styles.rewardText}>+{quest.rewardCoins} {t('badgeCoins')}</Text>
             </View>
             {quest.expiresAt && (
               <View style={styles.expiryItem}>
@@ -114,15 +114,13 @@ export default function QuestsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: language === 'cs' ? 'Questy' : 'Quests',
+          title: t('screenQuests'),
           headerStyle: {
             backgroundColor: isDarkMode ? '#1F2937' : 'white',
           },
           headerTintColor: isDarkMode ? 'white' : '#1F2937',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft color={isDarkMode ? 'white' : '#1F2937'} size={24} />
-            </TouchableOpacity>
+            <BackButton color={isDarkMode ? 'white' : '#1F2937'} size={24} style={styles.backButton} />
           ),
         }}
       />
@@ -139,7 +137,7 @@ export default function QuestsScreen() {
             {completedCount} / {totalCount}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {language === 'cs' ? 'Splněných questů' : 'Completed quests'}
+            {t('questsCompleted')}
           </Text>
         </LinearGradient>
 
@@ -147,30 +145,28 @@ export default function QuestsScreen() {
           <View style={styles.emptyState}>
             <Trophy color="#9CA3AF" size={64} />
             <Text style={[styles.emptyStateTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              {language === 'cs' ? 'Žádné questy' : 'No quests'}
+              {t('questsNone')}
             </Text>
             <Text style={[styles.emptyStateText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {language === 'cs'
-                ? 'Questy se objeví automaticky na základě tvé aktivity'
-                : 'Quests will appear automatically based on your activity'}
+              {t('questsAutoHint')}
             </Text>
           </View>
         ) : (
           <>
             <QuestSection
-              title={language === 'cs' ? 'Denní questy' : 'Daily Quests'}
+              title={t('questsDaily')}
               quests={dailyQuests}
             />
             <QuestSection
-              title={language === 'cs' ? 'Týdenní questy' : 'Weekly Quests'}
+              title={t('questsWeekly')}
               quests={weeklyQuests}
             />
             <QuestSection
-              title={language === 'cs' ? 'Měsíční questy' : 'Monthly Quests'}
+              title={t('questsMonthly')}
               quests={monthlyQuests}
             />
             <QuestSection
-              title={language === 'cs' ? 'Sezónní questy' : 'Seasonal Quests'}
+              title={t('questsSeasonal')}
               quests={seasonalQuests}
             />
           </>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,102 +6,197 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  Modal,
-  Alert,
+  Image,
+  Linking,
+  PixelRatio,
+  type ImageSourcePropType,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  TrendingUp,
-  Shield,
-  Star,
   ArrowRight,
-  CheckCircle,
-  Smartphone,
   BarChart3,
-  Brain,
+  CheckCircle,
+  FileText,
+  Home,
   Target,
-  X,
-  Sparkles,
+  type LucideIcon,
 } from 'lucide-react-native';
-import { useSettingsStore } from '@/store/settings-store';
 import { useRouter } from 'expo-router';
+import { useLanguageStore } from '@/store/language-store';
+import BrandLogo from '@/components/BrandLogo';
+import { TERMS_OF_USE_URL } from '@/constants/legal-urls';
 
 const { width } = Dimensions.get('window');
 
+const PAGE_BG = '#0a0a0a';
+/** Left inset of the horizontal gallery. */
+const GALLERY_SIDE_PADDING = 20;
+/** Gap between screenshot tiles. */
+const GALLERY_GAP = 12;
+/** Peek of the next tile — max 10 % of screen width. */
+const GALLERY_PEEK = Math.round(width * 0.1);
+/** Full screenshot visible; only a thin strip of the next item peeks. */
+const GALLERY_CARD_WIDTH = width - GALLERY_SIDE_PADDING - GALLERY_PEEK;
+const GALLERY_CARD_HEIGHT = Math.round(GALLERY_CARD_WIDTH * (19.5 / 9));
+const GALLERY_SNAP = GALLERY_CARD_WIDTH + GALLERY_GAP;
+
 interface Feature {
   id: string;
+  Icon: LucideIcon;
   title: string;
   description: string;
-  icon: any;
-  color: string;
+  gradient: [string, string];
 }
 
-const FEATURES: Feature[] = [
-  {
-    id: 'tracking',
-    title: 'Sledování financí',
-    description: 'Automatické kategorizování příjmů a výdajů s pokročilými analýzami',
-    icon: BarChart3,
-    color: '#3B82F6',
-  },
-  {
-    id: 'ai',
-    title: 'AI Asistent',
-    description: 'Personalizované finanční rady založené na vašich datech',
-    icon: Brain,
-    color: '#8B5CF6',
-  },
-  {
-    id: 'investments',
-    title: 'Investiční tracking',
-    description: 'Sledování portfolia a výkonnosti investic v reálném čase',
-    icon: TrendingUp,
-    color: '#10B981',
-  },
-  {
-    id: 'goals',
-    title: 'Finanční cíle',
-    description: 'Nastavte si cíle a sledujte pokrok k finanční svobodě',
-    icon: Target,
-    color: '#F59E0B',
-  },
-];
+interface GalleryItem {
+  id: string;
+  label: string;
+  source: ImageSourcePropType;
+}
 
+/** Renders a screenshot at most at its natural (pixel / PixelRatio) size — never upscales. */
+function GalleryScreenshot({
+  source,
+  label,
+}: {
+  source: ImageSourcePropType;
+  label: string;
+}) {
+  const [natural, setNatural] = React.useState<{ w: number; h: number } | null>(() => {
+    const resolved = Image.resolveAssetSource(source);
+    if (!resolved?.width || !resolved?.height) return null;
+    return { w: resolved.width, h: resolved.height };
+  });
 
+  React.useEffect(() => {
+    const resolved = Image.resolveAssetSource(source);
+    if (!resolved?.uri) return;
+    let cancelled = false;
+    Image.getSize(
+      resolved.uri,
+      (pw, ph) => {
+        if (cancelled || pw <= 0 || ph <= 0) return;
+        const ratio = PixelRatio.get();
+        setNatural({ w: pw / ratio, h: ph / ratio });
+      },
+      () => {
+        // keep resolveAssetSource fallback
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [source]);
+
+  const naturalW = natural?.w ?? GALLERY_CARD_WIDTH;
+  const naturalH = natural?.h ?? GALLERY_CARD_HEIGHT;
+  // Never enlarge past natural size (upscaling → soft/blurry result).
+  const fit = Math.min(1, GALLERY_CARD_WIDTH / naturalW, GALLERY_CARD_HEIGHT / naturalH);
+  const displayW = Math.round(naturalW * fit);
+  const displayH = Math.round(naturalH * fit);
+
+  return (
+    <View style={styles.galleryImageFrame}>
+      <Image
+        source={source}
+        style={{ width: displayW, height: displayH }}
+        resizeMode="contain"
+        accessibilityLabel={label}
+      />
+    </View>
+  );
+}
 
 export default function LandingScreen() {
-  const { isDarkMode } = useSettingsStore();
   const router = useRouter();
-  const [showPricingModal, setShowPricingModal] = useState(false);
+  const { t } = useLanguageStore();
+  const scrollRef = useRef<ScrollView>(null);
+  const featuresOffsetY = useRef(0);
 
-  console.log('Landing screen render, showPricingModal:', showPricingModal);
+  const features = useMemo<Feature[]>(
+    () => [
+      {
+        id: 'import',
+        Icon: FileText,
+        title: t('landingFeatureImport'),
+        description: t('landingFeatureImportDesc'),
+        gradient: ['#10B981', '#059669'],
+      },
+      {
+        id: 'reports',
+        Icon: BarChart3,
+        title: t('landingFeatureReports'),
+        description: t('landingFeatureReportsDesc'),
+        gradient: ['#F59E0B', '#D97706'],
+      },
+      {
+        id: 'household',
+        Icon: Home,
+        title: t('landingFeatureHousehold'),
+        description: t('landingFeatureHouseholdDesc'),
+        gradient: ['#8B5CF6', '#7C3AED'],
+      },
+      {
+        id: 'goals',
+        Icon: Target,
+        title: t('landingFeatureGoals'),
+        description: t('landingFeatureGoalsDesc'),
+        gradient: ['#EC4899', '#DB2777'],
+      },
+    ],
+    [t],
+  );
+
+  // TODO: doplnit screenshot Rozdělení výdajů → assets/images/landing/rozdeleni.png (+ @2x/@3x)
+  const galleryItems = useMemo<GalleryItem[]>(
+    () => [
+      {
+        id: 'overview',
+        label: t('landingGalleryOverview'),
+        source: require('@/assets/images/landing/prehled.png'),
+      },
+      {
+        id: 'household',
+        label: t('landingGalleryHousehold'),
+        source: require('@/assets/images/landing/domacnost.png'),
+      },
+      {
+        id: 'investments',
+        label: t('landingGalleryInvestments'),
+        source: require('@/assets/images/landing/investice.png'),
+      },
+    ],
+    [t],
+  );
+
+  const scrollToFeatures = () => {
+    scrollRef.current?.scrollTo({ y: featuresOffsetY.current, animated: true });
+  };
 
   const FeatureCard = ({ feature }: { feature: Feature }) => {
-    const Icon = feature.icon;
-    
+    const Icon = feature.Icon;
     return (
-      <View style={[styles.featureCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-        <View style={[styles.featureIcon, { backgroundColor: feature.color + '20' }]}>
-          <Icon color={feature.color} size={24} />
+      <LinearGradient
+        colors={feature.gradient}
+        style={styles.featureCard}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.featureIconWrap}>
+          <Icon color="#FFFFFF" size={28} strokeWidth={2.2} />
         </View>
-        <Text style={[styles.featureTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-          {feature.title}
-        </Text>
-        <Text style={[styles.featureDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-          {feature.description}
-        </Text>
-      </View>
+        <Text style={styles.featureTitle}>{feature.title}</Text>
+        <Text style={styles.featureDescription}>{feature.description}</Text>
+      </LinearGradient>
     );
   };
 
-
-
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]} 
+    <ScrollView
+      ref={scrollRef}
+      style={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero Section */}
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={styles.hero}
@@ -110,434 +205,117 @@ export default function LandingScreen() {
       >
         <View style={styles.heroContent}>
           <View style={styles.heroHeader}>
-            <View style={styles.logoContainer}>
-              <Smartphone color="white" size={32} />
+            <BrandLogo theme="dark" size={44} />
+            <Text style={styles.heroSubtitle}>{t('landingHeroSubtitle')}</Text>
+            <Text style={styles.heroDescription}>{t('landingHeroDescription')}</Text>
+            <View style={styles.betaBadge}>
+              <Text style={styles.betaBadgeText}>{t('landingBetaBadge')}</Text>
             </View>
-            <Text style={styles.heroTitle}>MoneyBuddy</Text>
-            <Text style={styles.heroSubtitle}>
-              Vaš osobní finanční asistent s umělou inteligencí
-            </Text>
-            <Text style={styles.heroDescription}>
-              Získejte kontrolu nad svými financemi, investujte chytře a dosáhněte finanční svobody s pomocí AI.
-            </Text>
           </View>
 
           <View style={styles.heroActions}>
-            <TouchableOpacity 
-              style={styles.primaryButton}
-              onPress={() => router.push('/auth')}
-            >
+            <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/auth')}>
               <View style={styles.primaryButtonContent}>
-                <Text style={styles.primaryButtonText}>Vyzkoušet zdarma</Text>
-                <ArrowRight color="white" size={20} />
+                <Text style={styles.primaryButtonText}>{t('landingGetStarted')}</Text>
+                <ArrowRight color="#667eea" size={20} />
               </View>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.secondaryButton}
-              onPress={() => {
-                console.log('Button clicked - opening pricing modal');
-                setShowPricingModal(true);
-                console.log('State set to true');
-              }}
-            >
-              <Text style={styles.secondaryButtonText}>Zobrazit ceny</Text>
+
+            <TouchableOpacity style={styles.secondaryButton} onPress={scrollToFeatures}>
+              <Text style={styles.secondaryButtonText}>{t('landingLearnMore')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </LinearGradient>
 
-      {/* Features Section */}
-      <View style={styles.featuresSection}>
+      <View
+        style={styles.featuresSection}
+        onLayout={(e) => {
+          featuresOffsetY.current = e.nativeEvent.layout.y;
+        }}
+      >
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Proč si vybrat MoneyBuddy?
-          </Text>
-          <Text style={[styles.sectionSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            Moderní nástroje pro správu vašich financí
-          </Text>
+          <Text style={styles.sectionTitle}>{t('landingFeaturesTitle')}</Text>
+          <Text style={styles.sectionSubtitle}>{t('landingSectionSubtitle')}</Text>
         </View>
 
         <View style={styles.featuresGrid}>
-          {FEATURES.map((feature) => (
+          {features.map((feature) => (
             <FeatureCard key={feature.id} feature={feature} />
           ))}
         </View>
       </View>
 
-      {/* Benefits Section */}
-      <View style={styles.benefitsSection}>
-        <LinearGradient
-          colors={isDarkMode ? ['#374151', '#4B5563'] : ['#F8FAFC', '#E2E8F0']}
-          style={styles.benefitsContainer}
+      <View style={styles.gallerySection}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{t('landingGalleryTitle')}</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.galleryScroll}
+          decelerationRate="fast"
+          snapToInterval={GALLERY_SNAP}
+          snapToAlignment="start"
+          disableIntervalMomentum
         >
-          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            Výhody předplatného
-          </Text>
-          
-          <View style={styles.benefitsList}>
-            <View style={styles.benefitItem}>
-              <CheckCircle color="#10B981" size={20} />
-              <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Neomezené transakce a kategorie
-              </Text>
+          {galleryItems.map((item) => (
+            <View key={item.id} style={styles.galleryCard}>
+              <GalleryScreenshot source={item.source} label={item.label} />
+              <Text style={styles.galleryLabel}>{item.label}</Text>
             </View>
-            
-            <View style={styles.benefitItem}>
-              <CheckCircle color="#10B981" size={20} />
-              <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                AI finanční poradce dostupný 24/7
-              </Text>
-            </View>
-            
-            <View style={styles.benefitItem}>
-              <CheckCircle color="#10B981" size={20} />
-              <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Režim domácnost - propojte 2 lidi a spravujte finance dohromady
-              </Text>
-            </View>
-            
-            <View style={styles.benefitItem}>
-              <CheckCircle color="#10B981" size={20} />
-              <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Export dat pro daňové účely
-              </Text>
-            </View>
-            
-            <View style={styles.benefitItem}>
-              <CheckCircle color="#10B981" size={20} />
-              <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                Prioritní zákaznická podpora
-              </Text>
-            </View>
-            
-            <View style={styles.benefitItem}>
-              <CheckCircle color="#10B981" size={20} />
-              <Text style={[styles.benefitText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                30denní záruka vrácení peněz
-              </Text>
-            </View>
-          </View>
-        </LinearGradient>
+          ))}
+        </ScrollView>
       </View>
 
-
-
-      {/* Security Section */}
       <View style={styles.securitySection}>
-        <View style={[styles.securityCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-          <View style={styles.securityIcon}>
-            <Shield color="#10B981" size={32} />
-          </View>
-          <View style={styles.securityContent}>
-            <Text style={[styles.securityTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              Bezpečnost na prvním místě
-            </Text>
-            <Text style={[styles.securityDescription, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              Vaše data jsou chráněna šifrováním na bankovní úrovni. Nikdy nesdílíme vaše osobní informace s třetími stranami.
-            </Text>
-            <View style={styles.securityFeatures}>
-              <View style={styles.securityFeature}>
-                <CheckCircle color="#10B981" size={16} />
-                <Text style={[styles.securityFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  256-bit SSL šifrování
-                </Text>
-              </View>
-              <View style={styles.securityFeature}>
-                <CheckCircle color="#10B981" size={16} />
-                <Text style={[styles.securityFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  GDPR compliance
-                </Text>
-              </View>
-              <View style={styles.securityFeature}>
-                <CheckCircle color="#10B981" size={16} />
-                <Text style={[styles.securityFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  Pravidelné bezpečnostní audity
-                </Text>
-              </View>
+        <View style={styles.securityCard}>
+          <View style={styles.securityFeature}>
+            <CheckCircle color="#10B981" size={18} />
+            <View style={styles.securityTextWrap}>
+              <Text style={styles.securityText}>{t('landingSecurityTitle')}</Text>
+              <Text style={styles.securityText}>{t('landingSecurityBody')}</Text>
             </View>
           </View>
         </View>
       </View>
 
-      {/* CTA Section */}
       <View style={styles.ctaSection}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.ctaContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.ctaTitle}>Připraveni začít?</Text>
-          <Text style={styles.ctaSubtitle}>
-            Připojte se k tisícům uživatelů, kteří už kontrolují své finance s MoneyBuddy
-          </Text>
-          
+        <View style={styles.ctaContainer}>
+          <Text style={styles.ctaTitle}>{t('landingCtaTitle')}</Text>
+          <Text style={styles.ctaSubtitle}>{t('landingCtaSubtitle')}</Text>
+
           <View style={styles.ctaActions}>
-            <TouchableOpacity 
-              style={styles.ctaPrimaryButton}
-              onPress={() => router.push('/auth')}
-            >
-              <Text style={styles.ctaPrimaryButtonText}>Začít zdarma</Text>
+            <TouchableOpacity style={styles.ctaPrimaryButton} onPress={() => router.push('/auth')}>
+              <Text style={styles.ctaPrimaryButtonText}>{t('landingGetStarted')}</Text>
               <ArrowRight color="#667eea" size={20} />
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.ctaSecondaryButton}
-              onPress={() => {
-                console.log('CTA button clicked - opening pricing modal');
-                setShowPricingModal(true);
-                console.log('State set to true');
-              }}
+              onPress={() => router.push('/redeem-code')}
             >
-              <Text style={styles.ctaSecondaryButtonText}>Zobrazit plány</Text>
+              <Text style={styles.ctaSecondaryButtonText}>{t('auth.haveCode')}</Text>
             </TouchableOpacity>
           </View>
-        </LinearGradient>
-      </View>
 
-      {/* Pricing Modal */}
-      <Modal
-        visible={showPricingModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          console.log('Closing pricing modal');
-          setShowPricingModal(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
-              {/* Close Button */}
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => setShowPricingModal(false)}
-              >
-                <X color={isDarkMode ? 'white' : '#1F2937'} size={24} />
-              </TouchableOpacity>
-
-              {/* Header */}
-              <View style={styles.pricingHeader}>
-                <Text style={[styles.pricingTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>Vyberte si předplatné</Text>
-                <Text style={[styles.pricingSubtitle, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>30denní záruka vrácení peněz</Text>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} style={styles.pricingScroll}>
-                {/* Redeem Code Button */}
-                <TouchableOpacity 
-                  style={[styles.redeemCodeButton, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC', borderColor: '#667eea' }]}
-                  onPress={() => {
-                    setShowPricingModal(false);
-                    router.push('/redeem-code');
-                  }}
-                >
-                  <Text style={[styles.redeemCodeText, { color: '#667eea' }]}>Mám slevový kód</Text>
-                </TouchableOpacity>
-                {/* Monthly Plan */}
-                <View style={[styles.pricingCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
-                  <View style={styles.pricingCardHeader}>
-                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>Měsíční</Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>199 Kč</Text>
-                    <Text style={[styles.pricePeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>/měsíc</Text>
-                  </View>
-                  <View style={styles.pricingFeatures}>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Všechny funkce</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>AI asistent</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Prioritní podpora</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.pricingButton}
-                    onPress={() => {
-                      Alert.alert(
-                        'Potvrdit předplatné',
-                        'Chcete aktivovat měsíční předplatné za 199 Kč/měsíc?',
-                        [
-                          {
-                            text: 'Zrušit',
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Potvrdit',
-                            onPress: () => {
-                              setShowPricingModal(false);
-                              Alert.alert(
-                                'Úspěch!',
-                                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
-                                [
-                                  {
-                                    text: 'OK',
-                                    onPress: () => router.push('/(tabs)'),
-                                  },
-                                ]
-                              );
-                            },
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text style={styles.pricingButtonText}>Vybrat plán</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* 3 Months Plan - Popular */}
-                <View style={[styles.pricingCard, styles.popularCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
-                  <View style={styles.popularBadge}>
-                    <Sparkles color="white" size={14} />
-                    <Text style={styles.popularBadgeText}>Nejoblíbenější</Text>
-                  </View>
-                  <View style={styles.pricingCardHeader}>
-                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>3 měsíce</Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>399 Kč</Text>
-                    <Text style={[styles.pricePeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>/3 měsíce</Text>
-                  </View>
-                  <View style={styles.savingsBadge}>
-                    <Text style={[styles.savingsText, { color: isDarkMode ? '#34D399' : '#10B981' }]}>Ušetříte 198 Kč</Text>
-                  </View>
-                  <View style={styles.pricingFeatures}>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Všechny funkce</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>AI asistent</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Prioritní podpora</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>133 Kč/měsíc</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity 
-                    style={[styles.pricingButton, styles.popularButton]}
-                    onPress={() => {
-                      Alert.alert(
-                        'Potvrdit předplatné',
-                        'Chcete aktivovat předplatné na 3 měsíce za 399 Kč?',
-                        [
-                          {
-                            text: 'Zrušit',
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Potvrdit',
-                            onPress: () => {
-                              setShowPricingModal(false);
-                              Alert.alert(
-                                'Úspěch!',
-                                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
-                                [
-                                  {
-                                    text: 'OK',
-                                    onPress: () => router.push('/(tabs)'),
-                                  },
-                                ]
-                              );
-                            },
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text style={styles.pricingButtonText}>Vybrat plán</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Yearly Plan - Best Value */}
-                <View style={[styles.pricingCard, { backgroundColor: isDarkMode ? '#374151' : '#F8FAFC' }]}>
-                  <View style={[styles.popularBadge, { backgroundColor: '#F59E0B' }]}>
-                    <Star color="white" size={14} fill="white" />
-                    <Text style={styles.popularBadgeText}>Nejlepší hodnota</Text>
-                  </View>
-                  <View style={styles.pricingCardHeader}>
-                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>Roční</Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>1 299 Kč</Text>
-                    <Text style={[styles.pricePeriod, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>/rok</Text>
-                  </View>
-                  <View style={styles.savingsBadge}>
-                    <Text style={[styles.savingsText, { color: isDarkMode ? '#34D399' : '#10B981' }]}>Ušetříte 1 089 Kč</Text>
-                  </View>
-                  <View style={styles.pricingFeatures}>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Všechny funkce</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>AI asistent</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>Prioritní podpora</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>108 Kč/měsíc</Text>
-                    </View>
-                    <View style={styles.pricingFeature}>
-                      <CheckCircle color="#10B981" size={16} />
-                      <Text style={[styles.pricingFeatureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>45% sleva</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.pricingButton}
-                    onPress={() => {
-                      Alert.alert(
-                        'Potvrdit předplatné',
-                        'Chcete aktivovat roční předplatné za 1 299 Kč?',
-                        [
-                          {
-                            text: 'Zrušit',
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Potvrdit',
-                            onPress: () => {
-                              setShowPricingModal(false);
-                              Alert.alert(
-                                'Úspěch!',
-                                'Předplatné bylo aktivováno. Nyní máte přístup ke všem funkcím!',
-                                [
-                                  {
-                                    text: 'OK',
-                                    onPress: () => router.push('/(tabs)'),
-                                  },
-                                ]
-                              );
-                            },
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text style={styles.pricingButtonText}>Vybrat plán</Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            </View>
+          <View style={styles.legalRow}>
+            <TouchableOpacity
+              onPress={() => router.push('/privacy-policy')}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            >
+              <Text style={styles.legalLink}>{t('privacyPolicyGdpr')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSeparator}> · </Text>
+            <TouchableOpacity
+              onPress={() => void Linking.openURL(TERMS_OF_USE_URL)}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            >
+              <Text style={styles.legalLink}>{t('termsOfUse')}</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </View>
     </ScrollView>
   );
 }
@@ -545,7 +323,7 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: PAGE_BG,
   },
   hero: {
     paddingTop: 60,
@@ -558,22 +336,7 @@ const styles = StyleSheet.create({
   heroHeader: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  heroTitle: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 12,
-    textAlign: 'center',
+    gap: 16,
   },
   heroSubtitle: {
     fontSize: 20,
@@ -585,14 +348,27 @@ const styles = StyleSheet.create({
   heroDescription: {
     fontSize: 16,
     color: 'white',
-    opacity: 0.8,
+    opacity: 0.85,
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 320,
   },
+  betaBadge: {
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  betaBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+  },
   heroActions: {
     gap: 12,
-    marginBottom: 40,
     width: '100%',
     maxWidth: 280,
   },
@@ -631,169 +407,144 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
   },
-
   featuresSection: {
     paddingHorizontal: 20,
     paddingVertical: 40,
+    backgroundColor: PAGE_BG,
   },
   sectionHeader: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
   sectionTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: '#FFFFFF',
     marginBottom: 8,
     textAlign: 'center',
   },
   sectionSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: 'rgba(255, 255, 255, 0.55)',
     textAlign: 'center',
-    maxWidth: 280,
+    maxWidth: 300,
   },
   featuresGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 14,
     justifyContent: 'center',
   },
   featureCard: {
-    width: (width - 56) / 2,
-    backgroundColor: 'white',
+    width: (width - 54) / 2,
     borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    padding: 20,
+    minHeight: 168,
+    overflow: 'hidden',
   },
-  featureIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  featureIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   featureTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 8,
-    textAlign: 'center',
   },
   featureDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.78)',
+    lineHeight: 18,
   },
-  benefitsSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+  gallerySection: {
+    paddingBottom: 32,
+    backgroundColor: PAGE_BG,
   },
-  benefitsContainer: {
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
+  galleryScroll: {
+    paddingLeft: GALLERY_SIDE_PADDING,
+    paddingRight: GALLERY_PEEK,
+    gap: GALLERY_GAP,
   },
-  benefitsList: {
-    gap: 16,
-    marginTop: 24,
-    width: '100%',
-    maxWidth: 320,
+  galleryCard: {
+    width: GALLERY_CARD_WIDTH,
   },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  benefitText: {
-    fontSize: 16,
-    color: '#6B7280',
-    flex: 1,
-  },
-
-  securitySection: {
-    paddingHorizontal: 20,
-    paddingVertical: 40,
-  },
-  securityCard: {
-    backgroundColor: 'white',
-    borderRadius: 24,
-    padding: 32,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  securityIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F0FDF4',
+  galleryImageFrame: {
+    width: GALLERY_CARD_WIDTH,
+    height: GALLERY_CARD_HEIGHT,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#161616',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  securityContent: {
-    flex: 1,
-  },
-  securityTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  securityDescription: {
+  galleryLabel: {
+    marginTop: 10,
     fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
   },
-  securityFeatures: {
-    gap: 8,
+  securitySection: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    backgroundColor: PAGE_BG,
+  },
+  securityCard: {
+    backgroundColor: '#161616',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   securityFeature: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 10,
   },
-  securityFeatureText: {
+  securityTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  securityText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: 'rgba(255, 255, 255, 0.75)',
+    lineHeight: 20,
   },
   ctaSection: {
     paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingBottom: 48,
+    backgroundColor: PAGE_BG,
   },
   ctaContainer: {
     borderRadius: 24,
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
+    backgroundColor: '#161616',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   ctaTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 12,
+    color: '#FFFFFF',
+    marginBottom: 10,
     textAlign: 'center',
   },
   ctaSubtitle: {
-    fontSize: 16,
-    color: 'white',
-    opacity: 0.9,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.65)',
     textAlign: 'center',
-    marginBottom: 32,
-    maxWidth: 280,
-    lineHeight: 24,
+    marginBottom: 28,
+    maxWidth: 300,
+    lineHeight: 22,
   },
   ctaActions: {
     gap: 12,
@@ -809,11 +560,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
   },
   ctaPrimaryButtonText: {
     fontSize: 18,
@@ -821,8 +567,8 @@ const styles = StyleSheet.create({
     color: '#667eea',
   },
   ctaSecondaryButton: {
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -830,181 +576,24 @@ const styles = StyleSheet.create({
   ctaSecondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingTop: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    height: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
+  legalRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  pricingHeader: {
     alignItems: 'center',
-    marginBottom: 24,
-    paddingTop: 8,
+    marginTop: 24,
+    paddingHorizontal: 8,
   },
-  pricingTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  pricingSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  pricingScroll: {
-    flex: 1,
-  },
-  pricingCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  popularCard: {
-    borderColor: '#667eea',
-    shadowColor: '#667eea',
-    shadowOpacity: 0.2,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -12,
-    alignSelf: 'center',
-    backgroundColor: '#667eea',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  popularBadgeText: {
+  legalLink: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.45)',
+    textDecorationLine: 'underline',
   },
-  pricingCardHeader: {
-    marginBottom: 12,
-  },
-  planName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 8,
-  },
-  price: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  pricePeriod: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginLeft: 4,
-  },
-  savingsBadge: {
-    backgroundColor: '#D1FAE5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  savingsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#10B981',
-  },
-  pricingFeatures: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  pricingFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  pricingFeatureText: {
-    fontSize: 15,
-    color: '#6B7280',
-  },
-  pricingButton: {
-    backgroundColor: '#667eea',
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  popularButton: {
-    backgroundColor: '#667eea',
-  },
-  pricingButtonText: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  redeemCodeButton: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#667eea',
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  redeemCodeText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#667eea',
+  legalSeparator: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.35)',
   },
 });
