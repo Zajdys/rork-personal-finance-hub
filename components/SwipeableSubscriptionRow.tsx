@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Alert,
   Platform,
-  Switch,
   TouchableOpacity as RNTouchableOpacity,
 } from 'react-native';
 import { Swipeable, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
@@ -27,10 +26,8 @@ type Props = {
   subscription: SubscriptionItem;
   currencySymbol: string;
   onPress: () => void;
-  onToggle: (on: boolean) => void;
   onDelete: (opts: { hideSuggestion: boolean }) => void | Promise<void>;
   onLongPress?: () => void;
-  categoryPill: { bg: string; fg: string };
   formatDaysLeft: (days: number) => string;
 };
 
@@ -38,10 +35,8 @@ export function SwipeableSubscriptionRow({
   subscription,
   currencySymbol,
   onPress,
-  onToggle,
   onDelete,
   onLongPress,
-  categoryPill,
   formatDaysLeft,
 }: Props) {
   const { colors, isDark } = useTheme();
@@ -49,10 +44,17 @@ export function SwipeableSubscriptionRow({
   const numberLocale = appLocale(language);
   const swipeRef = useRef<Swipeable>(null);
   const ui = getSubscriptionUiState(subscription);
+  const paused = ui === 'paused';
   const dimmed = ui !== 'on';
   const daysLeft = daysUntilNextPayment(subscription.dayOfMonth);
-  const daysLabel = formatDaysLeft(daysLeft);
-  const amountColor = ui === 'on' ? colors.text : colors.textSecondary;
+  const freqLabel =
+    subscription.frequency === 'yearly'
+      ? t('subscription.freqYearly')
+      : t('subscription.freqMonthly');
+  const subtitle = paused
+    ? t('dashboardPaused')
+    : `${formatDaysLeft(daysLeft)} · ${freqLabel.toLowerCase()}`;
+  const amountColor = dimmed ? colors.textSecondary : colors.text;
 
   const confirmDelete = useCallback(() => {
     swipeRef.current?.close();
@@ -86,6 +88,7 @@ export function SwipeableSubscriptionRow({
             confirmDelete();
           }}
           style={styles.deleteActionBtn}
+          contentStyle={styles.deleteActionContent}
           textStyle={styles.deleteActionText}
         />
       </View>
@@ -99,127 +102,81 @@ export function SwipeableSubscriptionRow({
       overshootRight={false}
       friction={2}
     >
-      <View
+      <RowTouchable
         style={[
-          styles.subItemCard,
+          styles.row,
           {
             backgroundColor: colors.surface,
-            shadowOpacity: isDark ? 0.35 : 0.06,
+            borderColor: colors.border,
+            shadowOpacity: isDark ? 0.25 : 0.04,
           },
+          dimmed && styles.rowDimmed,
         ]}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={500}
+        activeOpacity={0.7}
         testID={`sub-${subscription.id}`}
       >
-        <RowTouchable
-          style={styles.subItemMainTouch}
-          onPress={onPress}
-          onLongPress={onLongPress}
-          delayLongPress={500}
-          activeOpacity={0.7}
-        >
-          <BrandIcon merchantKey={subscription.name} size={48} isDimmed={dimmed} />
-          <View style={styles.subMain}>
-            <Text
-              style={[styles.subName, { color: colors.text }, dimmed && styles.subTextMuted]}
-              numberOfLines={2}
-            >
-              {subscription.name}
-            </Text>
-            {ui === 'paused' ? (
-              <Text style={[styles.subPausedLabel, { color: colors.textSecondary }]}>
-                {t('dashboardPaused')}
-              </Text>
-            ) : null}
-            <View style={styles.subMetaRow}>
-              <View style={[styles.categoryPillSoft, { backgroundColor: categoryPill.bg }]}>
-                <Text
-                  style={[styles.categoryPillSoftText, { color: categoryPill.fg }]}
-                  numberOfLines={1}
-                >
-                  {subscription.category}
-                </Text>
-              </View>
-              <Text style={[styles.subDaysSoft, { color: colors.textSecondary }]}>
-                {daysLabel}
-              </Text>
-            </View>
-          </View>
-        </RowTouchable>
-        <View style={styles.subRightColumn}>
-          <Text style={[styles.subAmountLarge, { color: amountColor }]}>
-            {formatMoney(subscription.amount, numberLocale)} {currencySymbol}
+        <BrandIcon merchantKey={subscription.name} size={40} isDimmed={dimmed} />
+        <View style={styles.meta}>
+          <Text
+            style={[styles.name, { color: colors.text }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {subscription.name}
           </Text>
-          <Switch
-            value={ui === 'on'}
-            onValueChange={onToggle}
-            testID={`toggle-sub-${subscription.id}`}
-            trackColor={{
-              false: colors.muted,
-              true: colors.success,
-            }}
-            thumbColor={
-              Platform.OS === 'android'
-                ? ui === 'on'
-                  ? colors.onPrimary
-                  : colors.muted
-                : undefined
-            }
-            ios_backgroundColor={colors.muted}
-          />
+          <Text
+            style={[styles.subtitle, { color: colors.textSecondary }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {subtitle}
+          </Text>
         </View>
-      </View>
+        <Text style={[styles.amount, { color: amountColor }]} numberOfLines={1}>
+          {formatMoney(subscription.amount, numberLocale)} {currencySymbol}
+        </Text>
+      </RowTouchable>
     </Swipeable>
   );
 }
 
 const styles = StyleSheet.create({
-  subItemCard: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  subItemMainTouch: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    minHeight: 64,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: 12,
-    minWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+    elevation: 1,
   },
-  subMain: { flex: 1, minWidth: 0 },
-  subName: { fontSize: 16, fontWeight: '600' },
-  subTextMuted: { opacity: 0.55 },
-  subPausedLabel: { fontSize: 12, marginTop: 2 },
-  subMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-    flexWrap: 'wrap',
-  },
-  categoryPillSoft: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  categoryPillSoftText: { fontSize: 11, fontWeight: '600' },
-  subDaysSoft: { fontSize: 12 },
-  subRightColumn: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
-  subAmountLarge: { fontSize: 16, fontWeight: '700' },
+  rowDimmed: { opacity: 0.5 },
+  meta: { flex: 1, minWidth: 0 },
+  name: { fontSize: 16, fontWeight: '600' },
+  subtitle: { fontSize: 13, marginTop: 2 },
+  amount: { fontSize: 16, fontWeight: '600', flexShrink: 0 },
   deleteActionWrap: {
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     marginLeft: 8,
   },
   deleteActionBtn: {
-    minWidth: 88,
-    height: '100%',
-    borderRadius: 16,
+    minWidth: 84,
+    borderRadius: 14,
     justifyContent: 'center',
+  },
+  deleteActionContent: {
+    paddingVertical: 18,
+    paddingHorizontal: 14,
   },
   deleteActionText: { fontSize: 14, fontWeight: '700' },
 });

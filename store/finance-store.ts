@@ -42,8 +42,6 @@ import {
 import {
   deleteIgnoredSuggestionRemote,
   deleteSubscriptionRemote,
-  FINANCE_SUBSCRIPTIONS_KEY,
-  IGNORED_DETECTED_SUBSCRIPTIONS_KEY,
   isIgnoredSuggestionMatch,
   loadSubscriptionsWithLocalMigration,
   matchesExistingSubscription,
@@ -1570,6 +1568,32 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
       queueSubscriptionNotificationSync();
       console.log('Finance data loaded successfully');
 
+      // Předplatná PŘED loadTransactionsFromSupabase — ten volá saveData(),
+      // které dřív mazalo finance_subscriptions ještě před migrací.
+      try {
+        const subsResult = await get().loadSubscriptionsFromSupabase();
+        if (!subsResult.ok) {
+          console.warn('[finance] Supabase subscriptions (částečně):', subsResult.error);
+        }
+        // Normalizuj i při chybě migrace — může běžet lokální fallback
+        const st = get();
+        if (st.subscriptions.length > 0) {
+          const next = st.subscriptions.map((s) =>
+            normalizeStoredSubscription(s, st.transactions),
+          );
+          if (subscriptionsChanged(st.subscriptions, next)) {
+            set({ subscriptions: next });
+            const userId = await getAuthUserId();
+            if (userId) {
+              void upsertSubscriptionsRemote(next, userId);
+            }
+            queueSubscriptionNotificationSync();
+          }
+        }
+      } catch (e) {
+        console.warn('[finance] subscriptions sync po načtení:', e);
+      }
+
       try {
         const remoteResult = await get().loadTransactionsFromSupabase();
         if (!remoteResult.ok) {
@@ -1595,28 +1619,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
         }
       } catch (e) {
         console.warn('[finance] Supabase sync po načtení lokálních dat:', e);
-      }
-
-      try {
-        const subsResult = await get().loadSubscriptionsFromSupabase();
-        if (!subsResult.ok) {
-          console.warn('[finance] Supabase subscriptions přeskočeny:', subsResult.error);
-        } else {
-          const st = get();
-          const next = st.subscriptions.map((s) =>
-            normalizeStoredSubscription(s, st.transactions),
-          );
-          if (subscriptionsChanged(st.subscriptions, next)) {
-            set({ subscriptions: next });
-            const userId = await getAuthUserId();
-            if (userId) {
-              void upsertSubscriptionsRemote(next, userId);
-            }
-            queueSubscriptionNotificationSync();
-          }
-        }
-      } catch (e) {
-        console.warn('[finance] subscriptions sync po načtení:', e);
       }
 
       try {
@@ -1650,10 +1652,11 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
         AsyncStorage.setItem('finance_goals', JSON.stringify(state.financialGoals)),
         AsyncStorage.setItem('finance_reports', JSON.stringify(state.monthlyReports)),
         AsyncStorage.setItem('finance_custom_categories', JSON.stringify(state.customCategories)),
-        // loans / předplatná: zdroj pravdy = Supabase (ne AsyncStorage)
+        // loans: zdroj pravdy = Supabase
         AsyncStorage.removeItem(FINANCE_LOANS_KEY),
-        AsyncStorage.removeItem(FINANCE_SUBSCRIPTIONS_KEY),
-        AsyncStorage.removeItem(IGNORED_DETECTED_SUBSCRIPTIONS_KEY),
+        // finance_subscriptions / ignored_detected_subscriptions NEMAZAT zde —
+        // maže je jen úspěšná migrace v loadSubscriptionsWithLocalMigration.
+        // Dřívější removeItem tady smazal klíč ještě před migrací (race s loadTransactions).
       ]);
       console.log('Finance data saved successfully');
     } catch (error) {

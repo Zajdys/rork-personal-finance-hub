@@ -977,16 +977,6 @@ export default function DashboardScreen() {
   );
   const totalYearlySubs = useMemo(() => totalActiveSubs * 12, [totalActiveSubs]);
 
-  const setSubSwitch = useCallback(
-    (id: string, on: boolean) => {
-      finance?.updateSubscription?.(
-        id,
-        on ? { active: true, paused: false } : { active: false, paused: false },
-      );
-    },
-    [finance],
-  );
-
   const {
     orderedItems: orderedSubscriptions,
     loadOrder: loadSubscriptionOrder,
@@ -1591,25 +1581,17 @@ export default function DashboardScreen() {
             { backgroundColor: colors.muted },
           ]}
         >
-          <Text
-            style={[
-              styles.subsSummaryActive,
-              { color: colors.text },
-            ]}
-          >
-            {t('dashboardSubsActive', {
-              amount: `${formatMoney(totalActiveSubs, numberLocale)} ${currentCurrency.symbol}`,
-            })}
-          </Text>
-          <Text
-            style={[
-              styles.subsSummaryYearly,
-              { color: colors.textSecondary },
-            ]}
-          >
-            {t('dashboardSubsYearly', {
-              amount: `${formatMoney(totalYearlySubs, numberLocale)} ${currentCurrency.symbol}`,
-            })}
+          <Text style={[styles.subsSummaryLine, { color: colors.text }]} numberOfLines={1}>
+            <Text style={styles.subsSummaryActive}>
+              {t('dashboardSubsActive', {
+                amount: `${formatMoney(totalActiveSubs, numberLocale)} ${currentCurrency.symbol}`,
+              })}
+            </Text>
+            <Text style={[styles.subsSummaryYearly, { color: colors.textSecondary }]}>
+              {`  ${t('dashboardSubsYearly', {
+                amount: `${formatMoney(totalYearlySubs, numberLocale)} ${currentCurrency.symbol}`,
+              })}`}
+            </Text>
           </Text>
         </View>
         {subscriptions.length === 0 && detectedSubscriptions.length === 0 ? (
@@ -1626,7 +1608,6 @@ export default function DashboardScreen() {
                 key={s.id}
                 subscription={s}
                 currencySymbol={currentCurrency.symbol}
-                categoryPill={categoryPillPastel(s.category, isDarkMode)}
                 formatDaysLeft={formatDaysLeft}
                 onPress={() =>
                   safePush({
@@ -1634,7 +1615,6 @@ export default function DashboardScreen() {
                     params: { id: s.id },
                   })
                 }
-                onToggle={(v) => setSubSwitch(s.id, v)}
                 onLongPress={() => showSubscriptionReorderAlert(s.id)}
                 onDelete={async ({ hideSuggestion }) => {
                   await finance?.deleteSubscription?.(s.id, { hideSuggestion });
@@ -1644,7 +1624,6 @@ export default function DashboardScreen() {
             <DetectedSubscriptionSuggestions
               items={detectedSubscriptions}
               currencySymbol={currentCurrency.symbol}
-              categoryPillPastel={categoryPillPastel}
               formatDaysLeft={formatDaysLeft}
             />
           </>
@@ -1740,25 +1719,17 @@ export default function DashboardScreen() {
             { backgroundColor: colors.muted },
           ]}
         >
-          <Text
-            style={[
-              styles.subsSummaryActive,
-              { color: colors.text },
-            ]}
-          >
-            {t('dashboardSubsActive', {
-              amount: `${formatMoney(totalActiveSubs, numberLocale)} ${currentCurrency.symbol}`,
-            })}
-          </Text>
-          <Text
-            style={[
-              styles.subsSummaryYearly,
-              { color: colors.textSecondary },
-            ]}
-          >
-            {t('dashboardSubsYearly', {
-              amount: `${formatMoney(totalYearlySubs, numberLocale)} ${currentCurrency.symbol}`,
-            })}
+          <Text style={[styles.subsSummaryLine, { color: colors.text }]} numberOfLines={1}>
+            <Text style={styles.subsSummaryActive}>
+              {t('dashboardSubsActive', {
+                amount: `${formatMoney(totalActiveSubs, numberLocale)} ${currentCurrency.symbol}`,
+              })}
+            </Text>
+            <Text style={[styles.subsSummaryYearly, { color: colors.textSecondary }]}>
+              {`  ${t('dashboardSubsYearly', {
+                amount: `${formatMoney(totalYearlySubs, numberLocale)} ${currentCurrency.symbol}`,
+              })}`}
+            </Text>
           </Text>
         </View>
         {subscriptions.length === 0 && detectedSubscriptions.length === 0 ? (
@@ -1775,7 +1746,6 @@ export default function DashboardScreen() {
                 key={s.id}
                 subscription={s}
                 currencySymbol={currentCurrency.symbol}
-                categoryPill={categoryPillPastel(s.category, isDarkMode)}
                 formatDaysLeft={formatDaysLeft}
                 onPress={() =>
                   safePush({
@@ -1783,7 +1753,6 @@ export default function DashboardScreen() {
                     params: { id: s.id },
                   })
                 }
-                onToggle={(v) => setSubSwitch(s.id, v)}
                 onLongPress={() => showSubscriptionReorderAlert(s.id)}
                 onDelete={async ({ hideSuggestion }) => {
                   await finance?.deleteSubscription?.(s.id, { hideSuggestion });
@@ -1793,7 +1762,6 @@ export default function DashboardScreen() {
             <DetectedSubscriptionSuggestions
               items={detectedSubscriptions}
               currencySymbol={currentCurrency.symbol}
-              categoryPillPastel={categoryPillPastel}
               formatDaysLeft={formatDaysLeft}
             />
           </>
@@ -2497,18 +2465,22 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   subsSummaryBox: {
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  subsSummaryLine: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
   },
   subsSummaryActive: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   subsSummaryYearly: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
-    marginTop: 4,
   },
   subsEmpty: {
     paddingHorizontal: 4,

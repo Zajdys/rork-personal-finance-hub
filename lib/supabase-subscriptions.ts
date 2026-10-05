@@ -148,6 +148,7 @@ export type ParseLocalResult<T> =
   | { ok: true; items: T[] }
   | { ok: false; items: T[]; error: string };
 
+/** Parsuje lokální JSON bez junk filtru (amount > 0). */
 export function parseLocalSubscriptionsJson(
   raw: string | null,
 ): ParseLocalResult<SubscriptionItem> {
@@ -180,7 +181,7 @@ export function parseLocalSubscriptionsJson(
           paused: Boolean(s.paused),
         } satisfies SubscriptionItem;
       })
-      .filter((s) => s.amount > 0 && !isNonDigitalSubscriptionJunk(s.name));
+      .filter((s) => s.amount > 0);
     return { ok: true, items };
   } catch (e) {
     return {
@@ -189,6 +190,12 @@ export function parseLocalSubscriptionsJson(
       error: e instanceof Error ? e.message : 'parse failed',
     };
   }
+}
+
+export function filterDigitalSubscriptionsForMigrate(
+  items: SubscriptionItem[],
+): SubscriptionItem[] {
+  return items.filter((s) => !isNonDigitalSubscriptionJunk(s.name));
 }
 
 /** Legacy AsyncStorage: `detected-${key}` / `detected-${key}-${amount}`. */
@@ -363,8 +370,9 @@ export function matchesExistingSubscription(
 
 /**
  * Jednorázová migrace AsyncStorage → DB, pak načti z DB.
- * Klíče se smažou JEN po úspěšném insertu bez erroru a
- * `upsertedCount === localCount`. Jinak klíče zůstanou na další start.
+ * Klíč `finance_subscriptions` se maže JEN po úspěšném upsertu
+ * (`upsertedCount === filteredCount`). Při chybě / mismatch klíč zůstane.
+ * Pozor: `saveData()` nesmí klíč mazat dřív, než proběhne tato migrace.
  */
 export async function loadSubscriptionsWithLocalMigration(
   userId: string,
@@ -387,35 +395,79 @@ export async function loadSubscriptionsWithLocalMigration(
   let localSubsFallback: SubscriptionItem[] | null = null;
 
   const parsedSubs = parseLocalSubscriptionsJson(subsRaw);
-  if (subsRaw != null && parsedSubs.ok && parsedSubs.items.length > 0) {
-    const withIds = parsedSubs.items.map((s) => {
-      const looksUuid =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          s.id,
-        );
-      return looksUuid ? s : { ...s, id: cryptoRandomUuid() };
-    });
-    const { error: upErr, upsertedCount } = await upsertSubscriptionsRemote(
-      withIds,
-      userId,
+  const localN = parsedSubs.ok ? parsedSubs.items.length : -1;
+  const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+  if (isDev) {
+    console.log(
+      '[subscriptions] AsyncStorage finance_subscriptions',
+      subsRaw == null ? 'MISSING' : `present rawLen=${subsRaw.length} localN=${localN}`,
     );
-    if (upErr || upsertedCount !== withIds.length) {
-      const msg =
-        upErr?.message ||
-        `upsert count mismatch: got ${upsertedCount}, expected ${withIds.length}`;
-      console.warn('[subscriptions] local→supabase migrate failed — keeping AsyncStorage key', msg);
-      migrateError = new Error(msg);
-      localSubsFallback = withIds;
-      // klíč finance_subscriptions NESMAZAT
-    } else {
-      migratedSubs = upsertedCount;
+  }
+
+  if (subsRaw != null && parsedSubs.ok) {
+    const localAll = parsedSubs.items;
+    const filtered = filterDigitalSubscriptionsForMigrate(localAll);
+    const localM = filtered.length;
+
+    if (localM > 0) {
+      const withIds = filtered.map((s) => {
+        const looksUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            s.id,
+          );
+        return looksUuid ? s : { ...s, id: cryptoRandomUuid() };
+      });
+      const { error: upErr, upsertedCount } = await upsertSubscriptionsRemote(
+        withIds,
+        userId,
+      );
+      const insertedK = upsertedCount;
+      const errX = upErr?.message ?? null;
+      if (isDev) {
+        console.log(
+          `[subscriptions] migrate: lokálně N=${localAll.length}, po filtru M=${localM}, vloženo K=${insertedK}, chyba X=${errX ?? 'null'}`,
+        );
+      }
+      // Porovnávej počet AŽ po filtru (M), ne před ním (N)
+      if (upErr || insertedK !== localM) {
+        const msg =
+          upErr?.message ||
+          `upsert count mismatch: got ${insertedK}, expected ${localM} (after junk filter; localN=${localAll.length})`;
+        console.warn(
+          '[subscriptions] local→supabase migrate failed — keeping AsyncStorage key',
+          msg,
+        );
+        migrateError = new Error(msg);
+        localSubsFallback = withIds;
+        // klíč finance_subscriptions NESMAZAT — „migrace hotová“ jen po úspěchu
+      } else {
+        migratedSubs = insertedK;
+        await AsyncStorage.removeItem(FINANCE_SUBSCRIPTIONS_KEY);
+        console.log('[subscriptions] migrated local → supabase', migratedSubs);
+      }
+    } else if (localAll.length === 0) {
+      // Skutečně prázdné pole `[]` — není co migrovat
+      if (isDev) {
+        console.log(
+          `[subscriptions] migrate: lokálně N=0, po filtru M=0, vloženo K=0, chyba X=null (empty key)`,
+        );
+      }
       await AsyncStorage.removeItem(FINANCE_SUBSCRIPTIONS_KEY);
-      console.log('[subscriptions] migrated local → supabase', migratedSubs);
+    } else {
+      // N > 0, M = 0 — jen junk (muj.cez…). Klíč smaž až teď (úspěšná „prázdná“ migrace).
+      if (isDev) {
+        console.log(
+          `[subscriptions] migrate: lokálně N=${localAll.length}, po filtru M=0, vloženo K=0, chyba X=null (all junk)`,
+        );
+      }
+      await AsyncStorage.removeItem(FINANCE_SUBSCRIPTIONS_KEY);
     }
-  } else if (subsRaw != null && parsedSubs.ok && parsedSubs.items.length === 0) {
-    // Prázdné pole `[]` — není co migrovat, klíč lze smazat.
-    await AsyncStorage.removeItem(FINANCE_SUBSCRIPTIONS_KEY);
   } else if (subsRaw != null && !parsedSubs.ok) {
+    if (isDev) {
+      console.log(
+        `[subscriptions] migrate: lokálně N=?, po filtru M=?, vloženo K=0, chyba X=${parsedSubs.error}`,
+      );
+    }
     console.warn(
       '[subscriptions] local JSON parse failed — keeping AsyncStorage key',
       parsedSubs.error,

@@ -50,7 +50,7 @@ export function BrandIcon({ merchantKey, size = 48, isDimmed }: Props) {
     ? normalizeHex(resolved.brand.brandColor)
     : undefined;
 
-  const radius = 12;
+  const radius = size <= 40 ? 10 : 12;
   const pad = size * 0.22;
   const iconSize = Math.max(1, size - pad * 2);
 

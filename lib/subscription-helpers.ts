@@ -1,14 +1,27 @@
-/** Další N dat plateb předplatného (den v měsíci), vždy po `from`. */
+/** Den v měsíci 1–31 (neplatné → 1). */
+function clampDueDay(dayOfMonth: number): number {
+  const n = Math.floor(Number(dayOfMonth));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(31, n);
+}
+
+/**
+ * Další N dat plateb předplatného (den v měsíci).
+ * due_day 31 v měsíci s 30 dny / únoru → poslední den měsíce (ne přeskočení).
+ * Porovnání podle kalendářního dne (≥ dnes), ne podle hodin.
+ */
 export function nextBillingDatesAfter(from: Date, dayOfMonth: number, count: number): Date[] {
   const out: Date[] = [];
+  const dueDay = clampDueDay(dayOfMonth);
   let y = from.getFullYear();
   let mo = from.getMonth();
+  const fromDayStart = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
   for (let step = 0; step < 48 && out.length < count; step++) {
     const lastDay = new Date(y, mo + 1, 0).getDate();
-    const d = Math.min(dayOfMonth, lastDay);
-    const pay = new Date(y, mo, d, 12, 0, 0, 0);
-    if (pay.getTime() > from.getTime()) {
-      out.push(pay);
+    const d = Math.min(dueDay, lastDay);
+    const payDayStart = new Date(y, mo, d).getTime();
+    if (payDayStart >= fromDayStart) {
+      out.push(new Date(y, mo, d, 12, 0, 0, 0));
     }
     mo += 1;
     if (mo > 11) {
