@@ -3,6 +3,7 @@
  * Run: bun scripts/xtb-parser-selftest.bun.ts
  */
 // @ts-nocheck — bun selftest; .ts imports a Buffer typy mimo app tsc rozpočet
+import './selftest-mocks.ts';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as XLSX from 'xlsx';
@@ -24,6 +25,16 @@ import {
 } from '../lib/xtb-transactions-parser.ts';
 import { detectBrokerFromXlsxWorkbook } from '../lib/broker-import-detect.ts';
 import { INVESTMENT_TX_INTEREST_TAX_ENABLED } from '../constants/feature-flags.ts';
+import { parseBrokerPositionIdFromNote } from '../lib/broker-position-id.ts';
+
+// AsyncStorage / Supabase init (yahoo-ticker → supabase) nesmí shodit process
+(globalThis as { window?: unknown }).window ??= {
+  localStorage: {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  },
+};
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);
@@ -314,28 +325,44 @@ console.log('--- Lot cost basis + UI deposits (computePortfolioCore) ---');
 const { buildPortfolioResult, computePortfolioCore } = await import(
   '../lib/investment-portfolio-calc.ts'
 );
-const { parseBrokerPositionIdFromNote } = await import('../lib/broker-position-id.ts');
 
-const calcTxs = real.transactions.map((t) => ({
-  type: t.type,
-  ticker: t.ticker,
-  isin: t.isin,
-  units: t.units,
-  amount: Math.abs(t.amount),
-  fee: t.fee,
-  original_currency: t.original_currency,
-  date: t.date,
-  position_id: t.position_id ?? parseBrokerPositionIdFromNote(t.note),
-}));
+const calcTxs = real.transactions.map((t) => {
+  const lotId = t.position_id ?? parseBrokerPositionIdFromNote(t.note);
+  return {
+    type: t.type,
+    ticker: t.ticker,
+    isin: t.isin,
+    units: t.units,
+    amount: Math.abs(t.amount),
+    fee: t.fee,
+    original_currency: t.original_currency,
+    date: t.date,
+    // Simulace DB: lot_id ze Position ID (upsert plní sloupec)
+    lot_id: lotId,
+    position_id: lotId,
+  };
+});
 
 assert(
-  calcTxs.some((t) => t.type === 'buy' && t.position_id),
-  'buy txs musí mít position_id (lot)',
+  calcTxs.filter((t) => t.type === 'buy' && t.lot_id).length === real.summary.buy.count,
+  'každý buy musí mít lot_id (Position ID)',
+);
+assert(
+  calcTxs.filter((t) => t.type === 'sell' && t.lot_id).length === real.summary.sell.count,
+  'každý sell musí mít lot_id (Position ID)',
 );
 
 const identityFx = (amount: number, _from: string, _date: string) => amount;
-const core = await computePortfolioCore(calcTxs, 'EUR', { convertOverride: identityFx });
-const calc = buildPortfolioResult(core, new Map());
+const core = await computePortfolioCore(calcTxs, 'EUR', {
+  convertOverride: identityFx,
+});
+// Ceny z Open Positions listu (report generation) — VVSM ~+100 % vs lot open 50.06
+const openPrices = new Map<string, number>([
+  ['VVSM.DE', 100.62],
+  ['VUAA.UK', 149.26],
+  ['VWCE.DE', 168.84],
+]);
+const calc = buildPortfolioResult(core, openPrices);
 
 assert(approx(calc.summary.total_realized_pnl, 745.95, 0.05), `realized ${calc.summary.total_realized_pnl}`);
 assert(approx(calc.summary.total_deposits_gross, 4207.69, 0.05), `gross dep ${calc.summary.total_deposits_gross}`);
@@ -347,7 +374,27 @@ assert(calc.positions.some((p) => p.ticker === 'VWCE.DE'), 'VWCE.DE v otevřený
 const vvsm = calc.positions.find((p) => p.ticker === 'VVSM.DE');
 assert(vvsm != null, 'VVSM.DE open');
 const vvsmBuy = vvsm!.invested / vvsm!.held_units;
-assert(approx(vvsmBuy, 50.06, 0.15), `VVSM nákup ${vvsmBuy} (lot, ne průměr)`);
+assert(approx(vvsmBuy, 50.06, 0.15), `VVSM nákup ${vvsmBuy} (lot, ne průměr ~38)`);
+assert(
+  vvsm!.unrealized_pnl_pct != null && vvsm!.unrealized_pnl_pct >= 70 && vvsm!.unrealized_pnl_pct <= 120,
+  `VVSM nerealizovaný ~+80–100 % (got ${vvsm!.unrealized_pnl_pct?.toFixed(1)} %)`,
+);
+
+// Bez lot_id by zbývající VVSM měla průměr ~38 → výrazně vyšší %
+const avgCore = await computePortfolioCore(
+  calcTxs.map((t) => ({ ...t, lot_id: null, position_id: null })),
+  'EUR',
+  { convertOverride: identityFx },
+);
+const avgCalc = buildPortfolioResult(avgCore, openPrices);
+const vvsmAvg = avgCalc.positions.find((p) => p.ticker === 'VVSM.DE');
+assert(vvsmAvg != null, 'VVSM avg path');
+const avgBuy = vvsmAvg!.invested / vvsmAvg!.held_units;
+assert(avgBuy < 45, `bez lotů průměrná nákupní ${avgBuy} (očekávám ≪ 50)`);
+assert(
+  (vvsmAvg!.unrealized_pnl_pct ?? 0) > (vvsm!.unrealized_pnl_pct ?? 0) + 30,
+  'průměr přes ticker nadhodnocuje nerealizovaný zisk vs lot',
+);
 
 const vuaaOpenBuy = real.transactions.find(
   (t) =>
@@ -363,3 +410,4 @@ assert(
 );
 
 console.log('xtb-parser-selftest: OK');
+process.exit(0);

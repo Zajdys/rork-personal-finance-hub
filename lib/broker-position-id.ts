@@ -1,5 +1,6 @@
 /**
- * Broker Position ID v `investment_transactions.note` (bez DB migrace).
+ * Broker Position ID — legacy tag v `investment_transactions.note`.
+ * Primárně ukládej do sloupce `lot_id`; note tag zůstává jako fallback.
  * Formát: `[xtb-pos:123456]` / `[etoro-pos:…]` na začátku note.
  */
 const POSITION_NOTE_RE = /^\[(xtb|etoro)-pos:([^\]]+)\]\s*/i;

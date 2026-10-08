@@ -1,0 +1,22 @@
+[Unit]
+Description=MoneyBuddy Kontomatik bank bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/home/deploy/moneybuddy-bank
+EnvironmentFile=/home/deploy/moneybuddy-bank/.env
+ExecStart=/home/deploy/.bun/bin/bun run src/index.ts
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/deploy/moneybuddy-bank
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

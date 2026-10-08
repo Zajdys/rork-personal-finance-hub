@@ -1,0 +1,16 @@
+[Unit]
+Description=MoneyBuddy Kontomatik daily sync
+After=network-online.target moneybuddy-bank.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/home/deploy/moneybuddy-bank
+EnvironmentFile=/home/deploy/moneybuddy-bank/.env
+ExecStart=/home/deploy/.bun/bin/bun run scripts/run-daily-sync.bun.ts
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/deploy/moneybuddy-bank
+PrivateTmp=true

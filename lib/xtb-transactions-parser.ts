@@ -22,6 +22,7 @@ import { readXlsxWorkbook } from '@/lib/xlsx-read';
 const UNITS_EPS = 1e-8;
 
 export type XtbParsedTransaction = ParsedEtoroTransaction & {
+  /** Position ID / Order ID z xlsx → `investment_transactions.lot_id`. */
   position_id?: string | null;
   raw_type: string;
 };
@@ -221,6 +222,8 @@ function mapCashColumns(headerRow: unknown[]): CashColMap | null {
   const id = find('id');
   const time = find('time', 'čas', 'cas', 'date', 'datum');
   if (type < 0 || amount < 0 || id < 0 || time < 0) return null;
+  // Position ID (nový export) / Order ID (starší) → lot_id v DB
+  const positionId = find('position id', 'order id', 'position', 'pozice', 'order');
   return {
     type,
     ticker: find('ticker', 'symbol', 'symbol instrumentu'),
@@ -228,7 +231,7 @@ function mapCashColumns(headerRow: unknown[]): CashColMap | null {
     amount,
     id,
     comment: find('comment', 'komentář', 'komentar', 'popis'),
-    positionId: find('position id', 'position', 'pozice'),
+    positionId,
   };
 }
 

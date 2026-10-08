@@ -74,9 +74,15 @@ export type InvestmentTransactionRow = {
   external_id: string | null;
   source?: 'import' | 'manual';
   note?: string | null;
+  /** Broker Position/Order ID — lot cost basis (XTB / eToro). */
+  lot_id?: string | null;
 };
 
 export function mapTransactionRowToCalc(row: InvestmentTransactionRow): InvestmentTransactionForCalc {
+  const lotId =
+    (row.lot_id != null && String(row.lot_id).trim()) ||
+    parseBrokerPositionIdFromNote(row.note) ||
+    null;
   return {
     type: row.type,
     ticker: row.ticker,
@@ -87,7 +93,8 @@ export function mapTransactionRowToCalc(row: InvestmentTransactionRow): Investme
     original_currency: row.original_currency,
     date: row.date,
     external_id: row.external_id ?? undefined,
-    position_id: parseBrokerPositionIdFromNote(row.note),
+    lot_id: lotId,
+    position_id: lotId,
   };
 }
 
@@ -104,7 +111,7 @@ export async function fetchInvestmentTransactionsRemote(
       let query = client
         .from('investment_transactions')
         .select(
-          'id, portfolio_id, type, ticker, isin, units, price_per_unit, amount, fee, original_currency, date, external_id, source, note',
+          'id, portfolio_id, type, ticker, isin, units, price_per_unit, amount, fee, original_currency, date, external_id, source, note, lot_id',
         )
         .order('date', { ascending: true })
         .order('id', { ascending: true })
@@ -471,10 +478,15 @@ export async function upsertInvestmentTransactionsRemote(
   const deduped = dedupeInvestmentTransactionsByExternalId(transactions);
   const batchId = importBatchId ?? randomUUID();
   const rows = deduped.map((tx) => {
-    // Parsery (XTB/eToro) už ukládají `[xtb-pos:…]` / `[etoro-pos:…]` do note.
+    const rawPid = String(tx.position_id ?? '').trim();
+    const lotId =
+      (rawPid && rawPid !== '-' ? rawPid : null) ||
+      parseBrokerPositionIdFromNote(tx.note) ||
+      null;
+    // Note tag zůstává jako fallback pro starší klienty.
     const tagged =
       (tx.note != null && String(tx.note).trim()) ||
-      encodeBrokerPositionNote(null, tx.position_id ?? null, 'xtb') ||
+      encodeBrokerPositionNote(null, lotId, 'xtb') ||
       null;
     return {
       portfolio_id: portfolioId,
@@ -490,6 +502,7 @@ export async function upsertInvestmentTransactionsRemote(
       external_id: tx.external_id,
       import_batch_id: batchId,
       source: tx.source ?? 'import',
+      lot_id: lotId,
       ...(tagged ? { note: tagged } : {}),
     };
   });

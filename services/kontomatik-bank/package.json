@@ -1,0 +1,18 @@
+{
+  "name": "moneybuddy-kontomatik-bank",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "selftest": "bun run scripts/selftest-kontomatik.bun.ts",
+    "daily-sync": "bun run scripts/run-daily-sync.bun.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.86.0",
+    "fast-xml-parser": "^5.11.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

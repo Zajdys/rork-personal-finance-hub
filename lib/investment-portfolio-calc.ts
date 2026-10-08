@@ -57,7 +57,12 @@ export type InvestmentTransactionForCalc = {
   /** eToro „Změna realizovaného kapitálu“ — pokud je k dispozici, použije se pro realized P/L. */
   realized_capital_change?: number | null;
   external_id?: string;
-  /** Broker Position ID (XTB / eToro) — lot cost basis místo průměru přes ticker. */
+  /**
+   * Broker lot / Position ID (XTB / eToro) — náklad po lotu místo průměru přes ticker.
+   * Preferuj `lot_id` (DB sloupec); `position_id` je alias (note / legacy).
+   */
+  lot_id?: string | null;
+  /** @deprecated Preferuj lot_id — zůstává kvůli parserům / note tagu. */
   position_id?: string | null;
 };
 
@@ -545,7 +550,8 @@ function processTickerStates(
     }
     if (!state.isin && tx.isin) state.isin = tx.isin;
 
-    const positionId = String(tx.position_id ?? '').trim();
+    // lot_id (DB) má přednost; position_id = parser / note fallback
+    const positionId = String(tx.lot_id ?? tx.position_id ?? '').trim();
 
     if (tx.type === 'buy') {
       const units = tx.units ?? 0;

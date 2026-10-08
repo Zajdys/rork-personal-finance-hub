@@ -1,0 +1,4 @@
+# After DNS: bank.moneybuddy.cz → 178.105.145.147
+bank.moneybuddy.cz {
+	reverse_proxy 127.0.0.1:8787
+}
