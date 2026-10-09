@@ -26,3 +26,9 @@ export function includeInvestmentsInAppTotals(): boolean {
  */
 export const INVESTMENT_TX_INTEREST_TAX_ENABLED = true;
 
+/**
+ * Automatické napojení bank přes Kontomatik (AIS).
+ * Produkční release build: false (`__DEV__`). Pro vynucení v release nastav true.
+ */
+export const BANK_SYNC_ENABLED = __DEV__;
+

@@ -5,12 +5,12 @@ After=network-online.target moneybuddy-bank.service
 [Service]
 Type=oneshot
 User=deploy
-WorkingDirectory=/home/deploy/moneybuddy-bank
-EnvironmentFile=/home/deploy/moneybuddy-bank/.env
+WorkingDirectory=/home/deploy/moneybuddy/services/kontomatik-bank
+EnvironmentFile=/home/deploy/moneybuddy/services/kontomatik-bank/.env
 ExecStart=/home/deploy/.bun/bin/bun run scripts/run-daily-sync.bun.ts
 
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/deploy/moneybuddy-bank
+ReadWritePaths=/home/deploy/moneybuddy
 PrivateTmp=true

@@ -31,7 +31,18 @@ Poslouchá jen `HOST` (default `127.0.0.1`).
 
 ## Deploy (Hetzner)
 
-1. Bun linux-arm64, zkopíruj službu do `/home/deploy/moneybuddy-bank`
-2. `.env` chmod 600 (ne `.env.local` v gitu)
-3. `deploy/moneybuddy-bank.service` + sync timer
-4. Až DNS: Caddyfile → reverse_proxy `127.0.0.1:8787`, ufw 22+443(+80)
+Služba importuje sdílené `lib/` + `utils/` z kořene monorepa (klasifikace stejná jako PDF/CSV).
+Na VPS drž stejnou strukturu cest:
+
+```
+/home/deploy/moneybuddy/
+  lib/
+  utils/
+  services/kontomatik-bank/   # WorkingDirectory + .env
+```
+
+1. Bun linux-arm64
+2. rsync `lib/`, `utils/`, `services/kontomatik-bank/` (bez `.env.local`)
+3. `.env` chmod 600 v `services/kontomatik-bank/`
+4. `deploy/moneybuddy-bank.service` + sync timer
+5. Caddyfile → reverse_proxy `127.0.0.1:8787`, ufw 22+443(+80)

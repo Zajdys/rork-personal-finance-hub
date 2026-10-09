@@ -50,6 +50,22 @@ import {
 } from '@/lib/import-batches';
 import { pluralTransakce, pluralPrevod } from '@/lib/plural-cs';
 import { getAuthUserId, reclassifyOwnAccountTransfersRemote } from '@/lib/supabase-transactions';
+import { BANK_SYNC_ENABLED } from '@/constants/feature-flags';
+import * as WebBrowser from 'expo-web-browser';
+import {
+  bankComplete,
+  bankConnectionDisplayName,
+  bankDisconnect,
+  bankLink,
+  bankSync,
+  daysUntilConsentExpiry,
+  fetchBankConnections,
+  KONTOMATIK_AUTH_RETURN_URL,
+  parseRedirectionIdFromReturnUrl,
+  type BankConnectionRow,
+} from '@/lib/kontomatik-bank-api';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type AccountModalMode = 'add' | 'edit';
 
@@ -107,6 +123,10 @@ export default function BankAccountsScreen() {
   const [importBatches, setImportBatches] = useState<ImportBatchSummary[]>([]);
   const [importBatchesLoading, setImportBatchesLoading] = useState(true);
   const [deletingImportKey, setDeletingImportKey] = useState<string | null>(null);
+  const [bankConnections, setBankConnections] = useState<BankConnectionRow[]>([]);
+  const [bankConnectionsLoading, setBankConnectionsLoading] = useState(false);
+  const [bankSyncBusyId, setBankSyncBusyId] = useState<string | null>(null);
+  const [bankConnectBusy, setBankConnectBusy] = useState(false);
 
   const ownerNames = useMemo(
     () =>
@@ -145,6 +165,19 @@ export default function BankAccountsScreen() {
     setImportBatchesLoading(false);
   }, [monthLocale, t]);
 
+  const loadBankConnections = useCallback(async () => {
+    if (!BANK_SYNC_ENABLED) return;
+    setBankConnectionsLoading(true);
+    const { connections, error } = await fetchBankConnections();
+    if (error) {
+      console.warn('[bank-accounts] bank_connections', error.message);
+      setBankConnections([]);
+    } else {
+      setBankConnections(connections.filter((c) => c.status !== 'revoked'));
+    }
+    setBankConnectionsLoading(false);
+  }, []);
+
   useEffect(() => {
     setOwnerBanks(storeOwnerBanks);
   }, [storeOwnerBanks]);
@@ -153,8 +186,118 @@ export default function BankAccountsScreen() {
     useCallback(async () => {
       await loadOwnerBanksFromSupabase();
       await loadImportBatches();
-    }, [loadImportBatches, loadOwnerBanksFromSupabase]),
+      await loadBankConnections();
+    }, [loadImportBatches, loadOwnerBanksFromSupabase, loadBankConnections]),
   );
+
+  const statusLabel = useCallback(
+    (status: string) => {
+      switch (status) {
+        case 'active':
+          return t('bankSyncStatusActive');
+        case 'pending':
+          return t('bankSyncStatusPending');
+        case 'error':
+          return t('bankSyncStatusError');
+        case 'expired':
+          return t('bankSyncStatusExpired');
+        case 'revoked':
+          return t('bankSyncStatusRevoked');
+        default:
+          return status;
+      }
+    },
+    [t],
+  );
+
+  const { run: runConnectBank } = useAsyncAction(async () => {
+    setBankConnectBusy(true);
+    try {
+      const { url, redirectionId: linkId } = await bankLink();
+      const authResult = await WebBrowser.openAuthSessionAsync(
+        url,
+        KONTOMATIK_AUTH_RETURN_URL,
+      );
+      if (authResult.type !== 'success') {
+        Alert.alert(t('error'), t('bankSyncAuthCancelled'));
+        return;
+      }
+      const redirectionId =
+        parseRedirectionIdFromReturnUrl(authResult.url) || linkId;
+      if (!redirectionId) {
+        Alert.alert(t('error'), t('bankSyncMissingRedirectionId'));
+        return;
+      }
+      const result = await bankComplete(redirectionId);
+      showToast(
+        t('bankSyncConnectSuccess', {
+          inserted: result.inserted,
+          enriched: result.enriched,
+        }),
+      );
+      await loadBankConnections();
+      void loadTransactionsFromSupabase();
+    } finally {
+      setBankConnectBusy(false);
+    }
+  }, {
+    onError: (e) => {
+      Alert.alert(t('error'), e instanceof Error ? e.message : String(e));
+    },
+  });
+
+  const { run: runSyncConnection } = useAsyncAction(async (connectionId: string) => {
+    setBankSyncBusyId(connectionId);
+    try {
+      const result = await bankSync(connectionId);
+      showToast(
+        t('bankSyncSyncSuccess', {
+          inserted: result.inserted,
+          enriched: result.enriched,
+        }),
+      );
+      await loadBankConnections();
+      void loadTransactionsFromSupabase();
+    } finally {
+      setBankSyncBusyId(null);
+    }
+  }, {
+    onError: (e) => {
+      Alert.alert(t('error'), e instanceof Error ? e.message : String(e));
+      void loadBankConnections();
+    },
+  });
+
+  const { run: runDisconnectConnection } = useAsyncAction(async (connectionId: string) => {
+    setBankSyncBusyId(connectionId);
+    try {
+      await bankDisconnect(connectionId);
+      await loadBankConnections();
+    } finally {
+      setBankSyncBusyId(null);
+    }
+  }, {
+    onError: (e) => {
+      Alert.alert(t('error'), e instanceof Error ? e.message : String(e));
+    },
+  });
+
+  const confirmDisconnect = (row: BankConnectionRow) => {
+    Alert.alert(
+      t('bankSyncDisconnect'),
+      t('bankSyncDisconnectConfirm', { bank: bankConnectionDisplayName(row) }),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('bankSyncDisconnect'),
+          style: 'destructive',
+          onPress: () => {
+            void runDisconnectConnection(row.id);
+          },
+        },
+      ],
+    );
+  };
 
   const showToast = (message: string) => {
     if (Platform.OS === 'android') {
@@ -415,6 +558,134 @@ export default function BankAccountsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {BANK_SYNC_ENABLED ? (
+            <>
+              <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
+              <Text style={[styles.sectionTitle, styles.importsSectionTitle, { color: colors.text }]}>
+                {t('bankSyncSectionTitle')}
+              </Text>
+              <View
+                style={[
+                  styles.accountsCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                {bankConnectionsLoading ? (
+                  <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
+                ) : bankConnections.length === 0 ? (
+                  <Text
+                    style={[
+                      styles.settingSubtitle,
+                      { color: colors.textSecondary, marginBottom: 12 },
+                    ]}
+                  >
+                    {t('bankSyncEmpty')}
+                  </Text>
+                ) : (
+                  bankConnections.map((conn, idx) => {
+                    const days = daysUntilConsentExpiry(conn.consent_expires_at);
+                    const busy = bankSyncBusyId === conn.id;
+                    return (
+                      <View
+                        key={conn.id}
+                        style={idx > 0 ? { marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : undefined}
+                      >
+                        <Text style={[styles.bankTitle, { color: colors.text }]}>
+                          {bankConnectionDisplayName(conn)}
+                        </Text>
+                        <Text style={[styles.importMeta, { color: colors.textSecondary }]}>
+                          {t('bankSyncStatus', { status: statusLabel(conn.status) })}
+                        </Text>
+                        <Text style={[styles.importMeta, { color: colors.textSecondary }]}>
+                          {conn.last_sync_at
+                            ? t('bankSyncLastSync', { date: formatImportedAt(conn.last_sync_at) })
+                            : t('bankSyncLastSyncNever')}
+                        </Text>
+                        {days != null ? (
+                          <Text
+                            style={[
+                              styles.importMeta,
+                              {
+                                color:
+                                  days <= 14
+                                    ? '#DC2626'
+                                    : colors.textSecondary,
+                              },
+                            ]}
+                          >
+                            {days < 0
+                              ? t('bankSyncConsentExpired')
+                              : days <= 14
+                                ? t('bankSyncConsentSoon', { days })
+                                : t('bankSyncConsentDays', { days })}
+                          </Text>
+                        ) : null}
+                        {conn.last_error_message ? (
+                          <Text style={[styles.importMeta, { color: '#DC2626' }]}>
+                            {conn.last_error_message}
+                          </Text>
+                        ) : null}
+                        <View style={styles.bankSyncActions}>
+                          <TouchableOpacity
+                            style={[
+                              styles.addInlineBtn,
+                              styles.bankSyncActionBtn,
+                              { borderColor: colors.primary, opacity: busy ? 0.6 : 1 },
+                            ]}
+                            onPress={() => void runSyncConnection(conn.id)}
+                            disabled={busy || bankConnectBusy || conn.status !== 'active'}
+                            activeOpacity={0.85}
+                          >
+                            {busy ? (
+                              <ActivityIndicator color={colors.primary} size="small" />
+                            ) : (
+                              <Text style={[styles.addInlineBtnText, { color: colors.primary }]}>
+                                {t('bankSyncButton')}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.dangerBtn,
+                              styles.bankSyncActionBtn,
+                              { backgroundColor: '#DC2626', opacity: busy ? 0.6 : 1 },
+                            ]}
+                            onPress={() => confirmDisconnect(conn)}
+                            disabled={busy || bankConnectBusy}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.dangerBtnText}>{t('bankSyncDisconnect')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+                <TouchableOpacity
+                  style={[
+                    styles.addInlineBtn,
+                    {
+                      borderColor: colors.primary,
+                      marginTop: bankConnections.length ? 16 : 0,
+                      opacity: bankConnectBusy ? 0.7 : 1,
+                    },
+                  ]}
+                  onPress={() => void runConnectBank()}
+                  disabled={bankConnectBusy || bankSyncBusyId != null}
+                  activeOpacity={0.85}
+                >
+                  {bankConnectBusy ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <Text style={[styles.addInlineBtnText, { color: colors.primary }]}>
+                      {t('bankSyncConnect')}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : null}
 
           <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
 
@@ -792,5 +1063,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700' as const,
     fontSize: 14,
+  },
+  bankSyncActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
+  },
+  bankSyncActionBtn: {
+    marginTop: 0,
+    paddingHorizontal: 14,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

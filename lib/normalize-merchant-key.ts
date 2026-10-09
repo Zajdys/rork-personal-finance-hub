@@ -346,6 +346,34 @@ export function merchantNameLetterCount(raw: string): number {
   return merchantNameCoreBeforeSemicolon(raw).replace(/[^A-Z]/g, '').length;
 }
 
+/**
+ * Generický platební popisek (AIS „Platba“, kind TRANSFER/CARD) — nepoužívat jako merchant.
+ * Po normalizeMerchantKey: prázdný klíč nebo holé PLATBA/PREVOD/TRANSFER/…
+ */
+export function isGenericPaymentLabel(raw: string | null | undefined): boolean {
+  const s = String(raw ?? '').trim();
+  if (!s) return true;
+  const folded = s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toUpperCase()
+    .replace(/\s*[·•]\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (
+    /^(PLATBA|PREVOD|UHRADA|ODCHOZI|PRICHOZI|ODCHOZI UHRADA|PRICHOZI UHRADA|TRANSFER|CARD|BEZ NAZVU)(\s|$)/.test(
+      folded,
+    )
+  ) {
+    return true;
+  }
+  const key = normalizeMerchantKey(s);
+  if (!key) return true;
+  return /^(PLATBA|PREVOD|UHRADA|ODCHOZI|PRICHOZI|ODCHOZI UHRADA|PRICHOZI UHRADA|TRANSFER|CARD|BEZ NAZVU)$/.test(
+    key,
+  );
+}
+
 /** Z řádku merchantu vytáhne město za středníkem (pro „Neznámý obchodník (Plzeň)“). */
 export function extractMerchantCityHint(raw: string): string | null {
   const parts = String(raw ?? '')

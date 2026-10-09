@@ -36,7 +36,7 @@ export function loadServiceEnv(): ServiceEnv {
     port: Number(process.env.PORT || 8787),
     host: process.env.HOST?.trim() || '127.0.0.1',
     redirectUri: required('REDIRECT_URI'),
-    appDeepLink: process.env.APP_DEEP_LINK?.trim() || 'myapp://bank/kontomatik',
+    appDeepLink: process.env.APP_DEEP_LINK?.trim() || 'moneybuddy://bank/kontomatik',
     internalServiceSecret: process.env.INTERNAL_SERVICE_SECRET?.trim() || '',
   };
 }

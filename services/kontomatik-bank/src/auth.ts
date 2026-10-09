@@ -1,5 +1,10 @@
 import { timingSafeEqual } from 'crypto';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import {
+  OutboundTimeoutError,
+  errorMessage,
+  withTimeout,
+} from './http';
 
 export async function requireUser(
   anon: SupabaseClient,
@@ -12,11 +17,23 @@ export async function requireUser(
   const jwt = auth.slice(7).trim();
   if (!jwt) return Response.json({ error: 'missing_bearer' }, { status: 401 });
 
-  const { data, error } = await anon.auth.getUser(jwt);
-  if (error || !data.user) {
-    return Response.json({ error: 'invalid_token' }, { status: 401 });
+  try {
+    const { data, error } = await withTimeout(
+      'supabase.auth.getUser',
+      anon.auth.getUser(jwt),
+    );
+    if (error || !data.user) {
+      return Response.json({ error: 'invalid_token' }, { status: 401 });
+    }
+    return { user: data.user };
+  } catch (e) {
+    if (e instanceof OutboundTimeoutError) {
+      console.error('auth', e.step, 0, errorMessage(e));
+      return Response.json({ error: 'upstream_timeout' }, { status: 504 });
+    }
+    console.error('auth', 'supabase.auth.getUser', 0, errorMessage(e));
+    return Response.json({ error: 'internal' }, { status: 500 });
   }
-  return { user: data.user };
 }
 
 function secretsEqual(a: string, b: string): boolean {

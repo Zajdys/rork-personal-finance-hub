@@ -1,6 +1,7 @@
 import { loadServiceEnv } from './env';
 import { requireInternalSecret, requireUser } from './auth';
 import { createAnonClient, createServiceClient } from './supabase';
+import { errorMessage } from './http';
 import {
   handleComplete,
   handleDisconnect,
@@ -42,84 +43,101 @@ function returnHtml(redirectionId: string, deepLinkBase: string): Response {
   });
 }
 
+async function dispatch(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const path = url.pathname;
+
+  if (req.method === 'GET' && path === '/health') {
+    return Response.json({ ok: true, service: 'kontomatik-bank' });
+  }
+
+  if (req.method === 'GET' && (path === '/return' || path === '/bank/return')) {
+    const redirectionId = url.searchParams.get('redirectionId') || '';
+    if (!redirectionId) {
+      return new Response('Missing redirectionId', { status: 400 });
+    }
+    return returnHtml(redirectionId, env.appDeepLink);
+  }
+
+  if (req.method === 'POST' && path === '/internal/revoke-all') {
+    const gate = requireInternalSecret(req, env.internalServiceSecret);
+    if (gate !== true) return gate;
+    const body = await readJson(req);
+    return handleRevokeAll({
+      env,
+      service,
+      kt,
+      body: { userId: String(body.userId ?? '') },
+    });
+  }
+
+  const auth = await requireUser(anon, req);
+  if (auth instanceof Response) return auth;
+  const { user } = auth;
+
+  if (req.method === 'POST' && path === '/bank/link') {
+    return handleLink({ env, service, user, kt });
+  }
+  if (req.method === 'POST' && path === '/bank/complete') {
+    const body = await readJson(req);
+    return handleComplete({
+      env,
+      service,
+      user,
+      kt,
+      body: { redirectionId: String(body.redirectionId ?? '') },
+    });
+  }
+  if (req.method === 'POST' && path === '/bank/sync') {
+    const body = await readJson(req);
+    return handleSync({
+      env,
+      service,
+      user,
+      kt,
+      body: { connectionId: String(body.connectionId ?? '') },
+    });
+  }
+  if (req.method === 'POST' && path === '/bank/disconnect') {
+    const body = await readJson(req);
+    return handleDisconnect({
+      env,
+      service,
+      user,
+      kt,
+      body: { connectionId: String(body.connectionId ?? '') },
+    });
+  }
+  if (req.method === 'POST' && path === '/bank/dismiss-error') {
+    const body = await readJson(req);
+    return handleDismissError({
+      service,
+      user,
+      body: { connectionId: String(body.connectionId ?? '') },
+    });
+  }
+
+  return Response.json({ error: 'not_found' }, { status: 404 });
+}
+
 const server = Bun.serve({
   hostname: env.host,
   port: env.port,
+  idleTimeout: 30,
   async fetch(req) {
     const url = new URL(req.url);
-    const path = url.pathname;
-
-    if (req.method === 'GET' && path === '/health') {
-      return Response.json({ ok: true, service: 'kontomatik-bank' });
+    const t0 = performance.now();
+    let res: Response;
+    try {
+      res = await dispatch(req);
+    } catch (e) {
+      const ms = Math.round(performance.now() - t0);
+      console.error(req.method, url.pathname, 'dispatch', ms, errorMessage(e));
+      res = Response.json({ error: 'internal' }, { status: 500 });
     }
-
-    if (req.method === 'GET' && (path === '/return' || path === '/bank/return')) {
-      const redirectionId = url.searchParams.get('redirectionId') || '';
-      if (!redirectionId) {
-        return new Response('Missing redirectionId', { status: 400 });
-      }
-      return returnHtml(redirectionId, env.appDeepLink);
-    }
-
-    if (req.method === 'POST' && path === '/internal/revoke-all') {
-      const gate = requireInternalSecret(req, env.internalServiceSecret);
-      if (gate !== true) return gate;
-      const body = await readJson(req);
-      return handleRevokeAll({
-        env,
-        service,
-        kt,
-        body: { userId: String(body.userId ?? '') },
-      });
-    }
-
-    const auth = await requireUser(anon, req);
-    if (auth instanceof Response) return auth;
-    const { user } = auth;
-
-    if (req.method === 'POST' && path === '/bank/link') {
-      return handleLink({ env, service, user, kt });
-    }
-    if (req.method === 'POST' && path === '/bank/complete') {
-      const body = await readJson(req);
-      return handleComplete({
-        env,
-        service,
-        user,
-        kt,
-        body: { redirectionId: String(body.redirectionId ?? '') },
-      });
-    }
-    if (req.method === 'POST' && path === '/bank/sync') {
-      const body = await readJson(req);
-      return handleSync({
-        env,
-        service,
-        user,
-        kt,
-        body: { connectionId: String(body.connectionId ?? '') },
-      });
-    }
-    if (req.method === 'POST' && path === '/bank/disconnect') {
-      const body = await readJson(req);
-      return handleDisconnect({
-        env,
-        service,
-        user,
-        kt,
-        body: { connectionId: String(body.connectionId ?? '') },
-      });
-    }
-    if (req.method === 'POST' && path === '/bank/dismiss-error') {
-      const body = await readJson(req);
-      return handleDismissError({
-        service,
-        user,
-        body: { connectionId: String(body.connectionId ?? '') },
-      });
-    }
-
-    return Response.json({ error: 'not_found' }, { status: 404 });
+    const ms = Math.round(performance.now() - t0);
+    console.log(req.method, url.pathname, res.status, `${ms}ms`);
+    return res;
   },
 });
 

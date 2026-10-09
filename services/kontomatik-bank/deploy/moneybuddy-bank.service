@@ -6,8 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=deploy
-WorkingDirectory=/home/deploy/moneybuddy-bank
-EnvironmentFile=/home/deploy/moneybuddy-bank/.env
+# Monorepo slice: lib/ + utils/ + services/kontomatik-bank (sdílená klasifikace)
+WorkingDirectory=/home/deploy/moneybuddy/services/kontomatik-bank
+EnvironmentFile=/home/deploy/moneybuddy/services/kontomatik-bank/.env
 ExecStart=/home/deploy/.bun/bin/bun run src/index.ts
 Restart=on-failure
 RestartSec=5
@@ -15,7 +16,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/deploy/moneybuddy-bank
+ReadWritePaths=/home/deploy/moneybuddy
 PrivateTmp=true
 
 [Install]
