@@ -8,6 +8,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Pressable,
+  Linking,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -22,12 +25,14 @@ import {
   PiggyBank,
   Landmark,
   Sparkles,
+  Check,
 } from 'lucide-react-native';
 import { useAuth } from '@/store/auth-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import BrandLogo from '@/components/BrandLogo';
 import { useAsyncAction } from '@/hooks/use-async-action';
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
 
 const GRADIENT_BG: [string, string, string] = ['#1a0533', '#120a3d', '#0d1b4b'];
 const TEXT_PRIMARY = '#FFFFFF';
@@ -117,11 +122,15 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [ageOk, setAgeOk] = useState(false);
+  const [termsOk, setTermsOk] = useState(false);
 
   const { login, register } = useAuth();
   const { t } = useLanguageStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const registerBlocked = !isLogin && (!ageOk || !termsOk);
 
   const { run: handleSubmit, isRunning: loading } = useAsyncAction(async () => {
     if (!email || !password || (!isLogin && !name)) {
@@ -139,6 +148,11 @@ export default function AuthScreen() {
       return;
     }
 
+    if (!isLogin && (!ageOk || !termsOk)) {
+      setError(t('auth.consentRequired'));
+      return;
+    }
+
     setError('');
 
     try {
@@ -147,7 +161,7 @@ export default function AuthScreen() {
         if (!result.success) {
           setError(result.error || t('auth.invalidCredentials'));
         }
-        // Po úspěšném loginu NEnavigovat — root _layout gate rozhodne (welcome-tour / Přehled / onboarding).
+        // Po úspěšném loginu NEnavigovat — root _layout gate rozhodne.
       } else {
         const result = await register(email, password, name);
         if (result.success) {
@@ -193,13 +207,14 @@ export default function AuthScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View
-          style={[
+        <ScrollView
+          contentContainerStyle={[
             styles.scrollContent,
             { paddingTop: Math.max(insets.top, 20), paddingBottom: Math.max(insets.bottom, 28) },
           ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Logo */}
           <View style={styles.hero}>
             <BrandLogo theme="dark" size={48} />
             <Text style={styles.tagline}>{t('auth.tagline')}</Text>
@@ -240,18 +255,54 @@ export default function AuthScreen() {
               autoCorrect={false}
             />
 
+            {!isLogin && (
+              <View style={styles.consentBlock}>
+                <Pressable style={styles.checkRow} onPress={() => setAgeOk((v) => !v)}>
+                  <View style={[styles.checkbox, ageOk && styles.checkboxOn]}>
+                    {ageOk ? <Check color="#fff" size={14} strokeWidth={3} /> : null}
+                  </View>
+                  <Text style={styles.checkLabel}>{t('auth.ageConfirm')}</Text>
+                </Pressable>
+                <Pressable style={styles.checkRow} onPress={() => setTermsOk((v) => !v)}>
+                  <View style={[styles.checkbox, termsOk && styles.checkboxOn]}>
+                    {termsOk ? <Check color="#fff" size={14} strokeWidth={3} /> : null}
+                  </View>
+                  <Text style={styles.checkLabel}>
+                    {t('auth.termsPrefix')}
+                    <Text
+                      style={styles.legalLink}
+                      onPress={() => void Linking.openURL(TERMS_OF_USE_URL)}
+                    >
+                      {t('auth.termsLink')}
+                    </Text>
+                    {t('auth.termsAnd')}
+                    <Text
+                      style={styles.legalLink}
+                      onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+                    >
+                      {t('auth.privacyLink')}
+                    </Text>
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
               onPress={() => {
                 void handleSubmit();
               }}
-              disabled={loading}
+              disabled={loading || registerBlocked}
               activeOpacity={0.9}
-              style={styles.primaryBtnWrap}
+              style={[styles.primaryBtnWrap, registerBlocked && styles.primaryBtnDisabled]}
             >
               <LinearGradient
-                colors={['#a855f7', '#7c3aed', '#6d28d9']}
+                colors={
+                  registerBlocked
+                    ? ['#6b7280', '#4b5563', '#374151']
+                    : ['#a855f7', '#7c3aed', '#6d28d9']
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.primaryBtn}
@@ -287,7 +338,7 @@ export default function AuthScreen() {
               <Text style={styles.codeButtonText}>{t('auth.haveCode')}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -304,6 +355,43 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
+  },
+  consentBlock: {
+    gap: 12,
+    marginBottom: 4,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxOn: {
+    backgroundColor: '#a855f7',
+    borderColor: '#a855f7',
+  },
+  checkLabel: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  legalLink: {
+    color: '#c4b5fd',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  primaryBtnDisabled: {
+    opacity: 0.7,
   },
   gridOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -143,6 +143,12 @@ function RootLayoutNav() {
     }
     hasRedirectedToAuth.current = false;
 
+    if (user && user.termsAccepted !== true) {
+      console.log('[nav] gate → /accept-terms');
+      router.replace('/accept-terms');
+      return;
+    }
+
     if (!hasActiveSubscription) {
       console.log('[nav] gate → /choose-subscription (no active subscription)');
       router.replace('/choose-subscription');
@@ -179,6 +185,7 @@ function RootLayoutNav() {
     isAuthenticated,
     hasActiveSubscription,
     user,
+    user?.termsAccepted,
     user?.onboardingCompleted,
     user?.welcomeTourCompleted,
   ]);
@@ -195,6 +202,16 @@ function RootLayoutNav() {
         <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
         <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
         <Stack.Screen name="redeem-code" options={{ title: t('screenRedeemCode') }} />
+        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
+      </Stack>
+    );
+  }
+
+  if (isAuthenticated && user && user.termsAccepted !== true) {
+    return (
+      <Stack initialRouteName="accept-terms" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
+        <Stack.Screen name="accept-terms" options={{ headerShown: false }} />
+        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
       </Stack>
     );
   }
@@ -206,6 +223,7 @@ function RootLayoutNav() {
         <Stack.Screen name="account" options={{ title: t('profileMyAccount') }} />
         <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
         <Stack.Screen name="redeem-code" options={{ title: t('screenRedeemCode') }} />
+        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
       </Stack>
     );
   }

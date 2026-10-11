@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Linking,
+  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -20,6 +22,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BackButton } from '@/components/BackButton';
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
 import { 
   getOfferings, 
   purchasePackage, 
@@ -239,6 +242,15 @@ export default function ChooseSubscriptionScreen() {
                       )}
                     </LinearGradient>
                   </TouchableOpacity>
+
+                  <Text style={[styles.autoRenewText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                    {t('chooseSubscription.autoRenew', {
+                      price: pkg.product.priceString,
+                      period: details.isAnnual
+                        ? t('chooseSubscription.perYear')
+                        : t('chooseSubscription.perMonth'),
+                    })}
+                  </Text>
                 </View>
               );
             })
@@ -261,13 +273,18 @@ export default function ChooseSubscriptionScreen() {
             )}
           </TouchableOpacity>
 
-          <View style={[styles.guaranteeCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
-            <Text style={[styles.guaranteeTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-              {t('chooseSubscription.guaranteeTitle')}
-            </Text>
-            <Text style={[styles.guaranteeText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              {t('chooseSubscription.guaranteeText')}
-            </Text>
+          <View style={styles.legalLinksRow}>
+            <Pressable onPress={() => void Linking.openURL(TERMS_OF_USE_URL)}>
+              <Text style={[styles.legalLink, { color: '#667eea' }]}>
+                {t('chooseSubscription.termsLink')}
+              </Text>
+            </Pressable>
+            <Text style={{ color: isDarkMode ? '#6B7280' : '#9CA3AF' }}>·</Text>
+            <Pressable onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}>
+              <Text style={[styles.legalLink, { color: '#667eea' }]}>
+                {t('chooseSubscription.privacyLink')}
+              </Text>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
@@ -454,26 +471,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500' as const,
   },
-  guaranteeCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  autoRenewText: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 14,
+    textAlign: 'center',
   },
-  guaranteeTitle: {
-    fontSize: 18,
-    fontWeight: 'bold' as const,
-    color: '#1F2937',
-    marginBottom: 8,
+  legalLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 32,
   },
-  guaranteeText: {
+  legalLink: {
     fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
+    fontWeight: '600' as const,
+    textDecorationLine: 'underline',
   },
 });

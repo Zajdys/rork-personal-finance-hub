@@ -71,7 +71,9 @@ export default function PrivacyPolicyScreen() {
       >
         <Text style={[styles.mainTitle, { color: colors.text }]}>{t('privacyPolicyModalTitle')}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>MoneyBuddy – Czech Finance</Text>
-        <Text style={[styles.updated, { color: colors.textSecondary }]}>{t('privacyPolicyLastUpdated')}</Text>
+        <Text style={[styles.updated, { color: colors.textSecondary }]}>
+          Poslední aktualizace: 9. 10. 2026
+        </Text>
 
         <Pressable onPress={() => openUrl(PRIVACY_POLICY_URL)} style={styles.webLink}>
           <Text style={[styles.webLinkText, { color: colors.primary }]}>{PRIVACY_POLICY_URL}</Text>
@@ -98,12 +100,20 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>
             <Text style={styles.bold}>Technické údaje:</Text> typ zařízení, verze OS, anonymní identifikátor
           </Bullet>
+          <Bullet colors={colors}>
+            <Text style={styles.bold}>Předplatné:</Text> stav nákupu přes App Store / Google Play (RevenueCat)
+          </Bullet>
+          <Bullet colors={colors}>
+            <Text style={styles.bold}>Notifikace:</Text> push token zařízení (Expo)
+          </Bullet>
         </Section>
 
         <Section title="3. Proč údaje zpracováváme" colors={colors}>
           <Bullet colors={colors}>Poskytování služeb aplikace (správa financí, synchronizace)</Bullet>
           <Bullet colors={colors}>Sdílení dat v rámci domácnosti (pokud tuto funkci využíváte)</Bullet>
+          <Bullet colors={colors}>Správa předplatného a obnovení nákupů</Bullet>
           <Bullet colors={colors}>Technická podpora a oprava chyb</Bullet>
+          <Bullet colors={colors}>Připomínky splatností a předplatného (pokud je povolíte)</Bullet>
         </Section>
 
         <Section title="4. Kde data ukládáme" colors={colors}>
@@ -116,36 +126,61 @@ export default function PrivacyPolicyScreen() {
           </Body>
         </Section>
 
-        <Section title="5. Sdílení dat" colors={colors}>
+        <Section title="5. Sdílení dat / zpracovatelé" colors={colors}>
           <Body colors={colors}>
             Vaše data NESDÍLÍME s třetími stranami za účelem reklamy.{'\n'}
-            Data mohou být zpřístupněna pouze:
+            Zpracovatelé v rozsahu nutném pro provoz:
           </Body>
-          <Bullet colors={colors}>Supabase (poskytovatel infrastruktury)</Bullet>
-          <Bullet colors={colors}>Apple (technické údaje pro App Store)</Bullet>
+          <Bullet colors={colors}>Supabase (infrastruktura, databáze, autentizace) — EU</Bullet>
+          <Bullet colors={colors}>RevenueCat (předplatné a ověření nákupů App Store / Google Play)</Bullet>
+          <Bullet colors={colors}>Expo (doručování push notifikací)</Bullet>
+          <Bullet colors={colors}>ČNB (veřejné kurzy měn; neodesíláme osobní údaje)</Bullet>
+          <Bullet colors={colors}>Yahoo Finance (tržní ceny; neodesíláme osobní údaje)</Bullet>
+          <Bullet colors={colors}>Apple / Google (technické údaje a platby přes obchod s aplikacemi)</Bullet>
         </Section>
 
-        <Section title="6. Vaše práva" colors={colors}>
+        <Section title="6. Automatické napojení banky (pokud ho zapnete)" colors={colors}>
+          <Body colors={colors}>
+            Pokud zapnete automatické napojení bankovního účtu (AIS):
+          </Body>
+          <Bullet colors={colors}>
+            Kontomatik sp. z o.o. (Polsko) — licencovaný poskytovatel AIS (PSD2); zprostředkuje přihlášení
+            k bance a stažení zůstatků a transakcí
+          </Bullet>
+          <Bullet colors={colors}>
+            Hetzner Online GmbH (Německo) — mostový server bank.moneybuddy.cz s pevnou IP a šifrovanými
+            přístupovými údaji pro synchronizaci
+          </Bullet>
+          <Body colors={colors}>
+            {'\n'}
+            Přístup odpojíte v aplikaci. Při smazání účtu se snažíme zrušit i přístup u Kontomatiku. Bez
+            vašeho aktivního souhlasu bankovní data nestahujeme.
+          </Body>
+        </Section>
+
+        <Section title="7. Vaše práva" colors={colors}>
           <Body colors={colors}>Máte právo na:</Body>
-          <Bullet colors={colors}>Přístup ke svým datům (export v sekci Profil → Exportovat data)</Bullet>
-          <Bullet colors={colors}>Smazání účtu a všech dat (Profil → Smazat účet)</Bullet>
+          <Bullet colors={colors}>Přístup ke svým datům (Profil → Správa dat)</Bullet>
+          <Bullet colors={colors}>Smazání účtu a všech dat (Profil → Správa dat → Smazat účet)</Bullet>
           <Bullet colors={colors}>Opravu nesprávných údajů</Bullet>
+          <Bullet colors={colors}>Odvolání souhlasu s napojením banky</Bullet>
         </Section>
 
-        <Section title="7. Bankovní výpisy" colors={colors}>
+        <Section title="8. Bankovní výpisy (PDF / CSV)" colors={colors}>
           <Body colors={colors}>
-            PDF výpisy nahrané do aplikace jsou zpracovány na našich serverech (Supabase Edge Function) pouze za
-            účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.
+            PDF a CSV výpisy jsou zpracovány na našich serverech (Supabase Edge Function) nebo na zařízení
+            pouze za účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.
           </Body>
         </Section>
 
-        <Section title="8. Investiční data" colors={colors}>
+        <Section title="9. Investiční data" colors={colors}>
           <Body colors={colors}>
-            Ceny akcií jsou načítány z Yahoo Finance API. Do Yahoo Finance nejsou odesílána žádná vaše osobní data.
+            Ceny akcií: Yahoo Finance API. Kurzy měn: veřejné API České národní banky (ČNB). Do těchto
+            služeb neodesíláme osobní údaje.
           </Body>
         </Section>
 
-        <Section title="9. Kontakt" colors={colors}>
+        <Section title="10. Kontakt" colors={colors}>
           <Pressable onPress={() => openUrl('mailto:privacy@moneybuddy.cz')}>
             <Text style={[styles.contact, { color: colors.primary }]}>privacy@moneybuddy.cz</Text>
           </Pressable>

@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { flushPendingOnboardingProfileSync } from '@/lib/onboarding-completion';
 import { clearLocalStorageAfterAccountDeletion, invokeDeleteAccountEdge } from '@/lib/account-deletion';
+import { fetchTermsAccepted, upsertTermsConsent } from '@/lib/terms-consent';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -18,6 +19,8 @@ export interface User {
   onboardingCompleted: boolean;
   /** Loaded from Supabase `users.welcome_tour_completed`; false → show short welcome tour after onboarding. */
   welcomeTourCompleted: boolean;
+  /** true = user_profiles.terms_accepted_at je nastaveno. */
+  termsAccepted: boolean;
   subscription: {
     active: boolean;
     plan: 'monthly' | 'quarterly' | 'yearly' | null;
@@ -102,6 +105,7 @@ export async function syncLocalFinanceDataForAuthUser(userId: string | null): Pr
 async function readUserGateFlagsFromSupabase(userId: string): Promise<{
   onboardingCompleted: boolean;
   welcomeTourCompleted: boolean;
+  termsAccepted: boolean;
 }> {
   const legacy = await storage.getItem('onboarding_completed');
 
@@ -133,10 +137,15 @@ async function readUserGateFlagsFromSupabase(userId: string): Promise<{
 
   // Jen explicitní true v DB = tour hotový. false / null / chybějící sloupec → ukázat tour.
   const welcomeTourCompleted = data?.welcome_tour_completed === true;
+  const termsAccepted = await fetchTermsAccepted(userId);
 
-  console.log('[auth] gate flags computed', { onboardingCompleted, welcomeTourCompleted });
+  console.log('[auth] gate flags computed', {
+    onboardingCompleted,
+    welcomeTourCompleted,
+    termsAccepted,
+  });
 
-  return { onboardingCompleted, welcomeTourCompleted };
+  return { onboardingCompleted, welcomeTourCompleted, termsAccepted };
 }
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -261,10 +270,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       let onboardingCompleted = false;
       let welcomeTourCompleted = false;
+      let termsAccepted = false;
       try {
         const flags = await readUserGateFlagsFromSupabase(userId);
         onboardingCompleted = flags.onboardingCompleted;
         welcomeTourCompleted = flags.welcomeTourCompleted;
+        termsAccepted = flags.termsAccepted;
       } catch (e) {
         console.error('[auth] readUserGateFlagsFromSupabase failed (login continues)', e);
       }
@@ -275,6 +286,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         registrationDate: createdAt,
         onboardingCompleted,
         welcomeTourCompleted,
+        termsAccepted,
         subscription: {
           active: true,
           plan: null,
@@ -357,6 +369,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       const userId = authUser.id;
       const createdAt = authUser.created_at ?? new Date().toISOString();
 
+      const consent = await upsertTermsConsent(userId);
+      if (!consent.ok) {
+        console.error('[auth] terms consent upsert failed', consent.message);
+        Alert.alert('Chyba registrace', `Souhlas se nepodařilo uložit: ${consent.message}`);
+      }
+
       const newUser: User = {
         id: userId,
         email: safeEmail,
@@ -364,6 +382,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         registrationDate: createdAt,
         onboardingCompleted: false,
         welcomeTourCompleted: false,
+        termsAccepted: consent.ok,
         subscription: {
           active: true,
           plan: null,
@@ -444,6 +463,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       ...user,
       onboardingCompleted: user.onboardingCompleted ?? false,
       welcomeTourCompleted: user.welcomeTourCompleted ?? false,
+      termsAccepted: user.termsAccepted ?? false,
       subscription: {
         active: true,
         plan,
@@ -498,6 +518,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           registrationDate: sessionUser.created_at ?? new Date().toISOString(),
           onboardingCompleted: flags.onboardingCompleted,
           welcomeTourCompleted: flags.welcomeTourCompleted,
+          termsAccepted: flags.termsAccepted,
           subscription: {
             active: true,
             plan: null,
@@ -608,6 +629,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return { success: true };
   }, [logout]);
 
+  const acceptTermsConsent = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (!user?.id) return { success: false, error: 'Nejsi přihlášen' };
+    const res = await upsertTermsConsent(user.id);
+    if (!res.ok) return { success: false, error: res.message };
+    const updated: User = { ...user, termsAccepted: true };
+    setUser(updated);
+    await storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        user: updated,
+        isAuthenticated: true,
+        hasActiveSubscription,
+      }),
+    );
+    return { success: true };
+  }, [user, hasActiveSubscription]);
+
   return useMemo(() => ({
     user,
     isAuthenticated,
@@ -617,6 +655,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     register,
     logout,
     deleteAccount,
+    acceptTermsConsent,
     activateSubscription,
     loadAuthState,
     checkSubscriptionStatus,
@@ -631,6 +670,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     register,
     logout,
     deleteAccount,
+    acceptTermsConsent,
     activateSubscription,
     loadAuthState,
     checkSubscriptionStatus,

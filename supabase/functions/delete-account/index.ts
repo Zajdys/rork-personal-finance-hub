@@ -111,7 +111,35 @@ Deno.serve(async (req) => {
       return json({ error: `Storage cleanup failed: ${msg}` }, 500);
     }
 
-    // 2) Připrava DB (předání domácností, payment_mode, …)
+    // 2) Revoke Kontomatik Multiple Access (best-effort — účet smažeme i při chybě)
+    try {
+      const internalSecret = Deno.env.get("INTERNAL_SERVICE_SECRET");
+      if (internalSecret) {
+        const revokeRes = await fetch("https://bank.moneybuddy.cz/internal/revoke-all", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-secret": internalSecret,
+          },
+          body: JSON.stringify({ userId }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!revokeRes.ok) {
+          const body = await revokeRes.text().catch(() => "");
+          console.error(
+            "[delete-account] kontomatik revoke-all failed",
+            revokeRes.status,
+            body.slice(0, 200),
+          );
+        }
+      } else {
+        console.error("[delete-account] INTERNAL_SERVICE_SECRET missing — skip revoke-all");
+      }
+    } catch (revokeErr) {
+      console.error("[delete-account] kontomatik revoke-all error", revokeErr);
+    }
+
+    // 3) Připrava DB (předání domácností, payment_mode, …)
     const { error: prepError } = await adminClient.rpc("prepare_user_account_deletion", {
       target_user: userId,
     });
@@ -122,7 +150,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3) Auth uživatel (CASCADE na public.users a dál)
+    // 4) Auth uživatel (CASCADE na public.users a dál)
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteError) {
       return json({ error: deleteError.message }, 500);
