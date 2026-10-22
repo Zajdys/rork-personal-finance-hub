@@ -171,6 +171,7 @@ async function fetchOrCreateUserProfileForMigration(userId: string): Promise<{
     notification_time: '09:00',
   };
   const { error: insErr } = await supabase.from('user_profiles').insert({
+    id: userId,
     user_id: userId,
     ...defaults,
   });

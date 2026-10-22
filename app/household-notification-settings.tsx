@@ -101,6 +101,7 @@ export default function HouseholdNotificationSettingsScreen() {
     setSaving(true);
     try {
       const payload = {
+        id: user.id,
         user_id: user.id,
         recurring_expense_notifications_enabled: next.recurring_expense_notifications_enabled ?? enabled,
         notification_days_before: next.notification_days_before ?? daysBefore,

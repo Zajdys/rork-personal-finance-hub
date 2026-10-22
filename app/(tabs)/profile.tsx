@@ -38,7 +38,6 @@ import {
   Lock,
   FileText,
   Pencil,
-  EyeOff,
 } from 'lucide-react-native';
 
 import { useSettingsStore } from '@/store/settings-store';
@@ -431,13 +430,6 @@ export default function ProfileScreen() {
             title={t('notifications')}
             subtitle={t('profileNotificationsSubtitle')}
             onPress={() => router.push('/notifications-settings')}
-          />
-
-          <MenuButton
-            icon={EyeOff}
-            title={t('hiddenSubsTitle')}
-            subtitle={t('dashboardDetectedHint')}
-            onPress={() => router.push('/hidden-subscription-suggestions')}
           />
 
           <MenuButton

@@ -152,6 +152,7 @@ async function main() {
 
   const { error: profileErr } = await admin.from('user_profiles').upsert(
     {
+      id: userId,
       user_id: userId,
       first_name: 'Apple',
       last_name: 'Review',

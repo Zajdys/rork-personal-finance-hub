@@ -964,6 +964,8 @@ export default function DashboardScreen() {
   );
 
   const detectedSubscriptions = finance?.getDetectedSubscriptions?.() ?? [];
+  const ignoredSubSuggestions = useFinanceStore((s) => s.ignoredSubscriptionSuggestions);
+  const hiddenSubsCount = ignoredSubSuggestions?.length ?? 0;
 
   const handleDeleteDashboardTransaction = useCallback(
     (tid: string) => {
@@ -1628,6 +1630,17 @@ export default function DashboardScreen() {
             />
           </>
         )}
+        {hiddenSubsCount > 0 ? (
+          <TouchableOpacity
+            onPress={() => safePush('/hidden-subscription-suggestions')}
+            style={{ paddingVertical: 10, alignSelf: 'flex-start' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
+              {t('hiddenSubsLink', { count: hiddenSubsCount })}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={[
             styles.addSubscriptionFullButton,
@@ -1766,6 +1779,17 @@ export default function DashboardScreen() {
             />
           </>
         )}
+        {hiddenSubsCount > 0 ? (
+          <TouchableOpacity
+            onPress={() => safePush('/hidden-subscription-suggestions')}
+            style={{ paddingVertical: 10, alignSelf: 'flex-start' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
+              {t('hiddenSubsLink', { count: hiddenSubsCount })}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={[
             styles.addSubscriptionFullButton,

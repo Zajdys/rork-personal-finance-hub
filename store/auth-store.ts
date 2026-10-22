@@ -5,10 +5,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { flushPendingOnboardingProfileSync } from '@/lib/onboarding-completion';
 import { clearLocalStorageAfterAccountDeletion, invokeDeleteAccountEdge } from '@/lib/account-deletion';
+import { authErrorI18nKey, classifyAuthError } from '@/lib/auth-errors';
 import { fetchTermsAccepted, upsertTermsConsent } from '@/lib/terms-consent';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useLanguageStore } from '@/store/language-store';
+
+function translateAuthError(error: unknown): string {
+  const key = authErrorI18nKey(classifyAuthError(error));
+  return useLanguageStore.getState().t(key as 'auth.errorGeneric');
+}
 
 export interface User {
   id: string;
@@ -145,7 +152,10 @@ async function readUserGateFlagsFromSupabase(userId: string): Promise<{
     termsAccepted,
   });
 
-  return { onboardingCompleted, welcomeTourCompleted, termsAccepted };
+  // Dotazník je vyřazený z flow → pro gate (AppLock apod.) bereme onboarding vždy jako hotový.
+  // Řeší i závod, kdy SIGNED_IN přečte flags dřív, než registrace zapíše řádek do `users`.
+  void onboardingCompleted;
+  return { onboardingCompleted: true, welcomeTourCompleted, termsAccepted };
 }
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -246,7 +256,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           code: (error as { code?: string }).code,
           raw: error,
         });
-        return { success: false, error: error.message || 'Přihlášení selhalo' };
+        return { success: false, error: translateAuthError(error) };
       }
 
       if (!data.user) {
@@ -316,10 +326,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       return { success: true, onboardingCompleted, welcomeTourCompleted };
     } catch (error) {
       console.error('[auth] login unexpected error', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Nastala chyba při přihlášení',
-      };
+      return { success: false, error: translateAuthError(error) };
     }
   }, []);
 
@@ -347,13 +354,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         },
       });
       if (error) {
-        const errorMsg = error.message || 'Registrace selhala';
         console.error('[auth] register failed', error);
-        return { success: false, error: errorMsg };
+        return { success: false, error: translateAuthError(error) };
       }
       const authUser = data.user;
       if (!authUser) {
-        return { success: false, error: 'Uživatel nebyl vytvořen' };
+        return {
+          success: false,
+          error: useLanguageStore.getState().t('auth.errorGeneric' as 'auth.errorGeneric'),
+        };
       }
 
       console.log('[auth] register signUp ok', {
@@ -372,15 +381,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       const consent = await upsertTermsConsent(userId);
       if (!consent.ok) {
         console.error('[auth] terms consent upsert failed', consent.message);
-        Alert.alert('Chyba registrace', `Souhlas se nepodařilo uložit: ${consent.message}`);
+        Alert.alert(
+          useLanguageStore.getState().t('error'),
+          useLanguageStore.getState().t('auth.consentSaveFailed' as 'auth.errorGeneric'),
+        );
       }
 
+      // Onboarding dotazník je vyřazený z flow — rovnou welcome-tour.
       const newUser: User = {
         id: userId,
         email: safeEmail,
         name: safeName,
         registrationDate: createdAt,
-        onboardingCompleted: false,
+        onboardingCompleted: true,
         welcomeTourCompleted: false,
         termsAccepted: consent.ok,
         subscription: {
@@ -394,12 +407,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         id: userId,
         email: safeEmail,
         display_name: safeName,
-        onboarding_completed: false,
+        onboarding_completed: true,
         welcome_tour_completed: false,
       });
       if (profileError) {
         console.error('[auth] profile upsert failed', profileError);
-        Alert.alert('Chyba registrace', `Profil se nepodařilo uložit: ${profileError.message}`);
+        Alert.alert(
+          useLanguageStore.getState().t('error'),
+          useLanguageStore.getState().t('auth.consentSaveFailed' as 'auth.errorGeneric'),
+        );
       }
 
       setUser(newUser);
@@ -432,8 +448,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       return { success: true };
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Nelze spojit se serverem';
-      return { success: false, error: errorMsg };
+      return { success: false, error: translateAuthError(error) };
     }
   }, []);
 
@@ -588,12 +603,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     if (!user) return;
     const { error } = await supabase
       .from('users')
-      .update({ welcome_tour_completed: true })
+      .update({ welcome_tour_completed: true, onboarding_completed: true })
       .eq('id', user.id);
     if (error) {
       console.warn('[auth] welcome_tour_completed update', error.message);
     }
-    const updatedUser: User = { ...user, welcomeTourCompleted: true };
+    const updatedUser: User = {
+      ...user,
+      welcomeTourCompleted: true,
+      onboardingCompleted: true,
+    };
     setUser(updatedUser);
     await storage.setItem(
       STORAGE_KEY,

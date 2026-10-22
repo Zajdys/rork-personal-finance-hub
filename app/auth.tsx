@@ -165,7 +165,8 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          router.replace('/onboarding');
+          // Gate → welcome-tour (onboarding dotazník je mimo flow)
+          router.replace('/welcome-tour');
         } else {
           setError(result.error || t('auth.registrationFailed'));
         }

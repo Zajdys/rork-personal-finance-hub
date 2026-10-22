@@ -17,10 +17,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useNavigation, useRouter } from 'expo-router';
 import {
   CreditCard,
+  FileUp,
   Home,
   Landmark,
   PiggyBank,
-  Smartphone,
+  Sparkles,
   TrendingUp,
   UsersRound,
   Wallet,
@@ -28,6 +29,7 @@ import {
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import BrandLogo from '@/components/BrandLogo';
+import { BANK_SYNC_ENABLED } from '@/constants/feature-flags';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -293,7 +295,7 @@ export default function WelcomeTourScreen() {
   );
 
   const finishAndGo = useCallback(
-    async (href: '/(tabs)' | '/(tabs)/add' | '/bank-import') => {
+    async (href: '/(tabs)' | '/(tabs)/add' | '/bank-import' | '/bank-accounts') => {
       if (busy) return;
       setBusy(true);
       try {
@@ -363,9 +365,11 @@ export default function WelcomeTourScreen() {
       },
       {
         key: 'import' as const,
-        title: t('welcomeTourGridImportTitle'),
-        body: t('welcomeTourImport'),
-        icon: Landmark,
+        title: BANK_SYNC_ENABLED
+          ? t('welcomeTourGridImportTitle')
+          : t('welcomeTourGridImportTitlePdf'),
+        body: BANK_SYNC_ENABLED ? t('welcomeTourImport') : t('welcomeTourImportPdf'),
+        icon: BANK_SYNC_ENABLED ? Landmark : FileUp,
         iconColor: '#BBF7D0',
         cardStyle: styles.featureCardImport,
         iconStyle: styles.featureIconImport,
@@ -446,7 +450,7 @@ export default function WelcomeTourScreen() {
         <View style={styles.slide}>
           <View style={styles.slideCenter}>
             <HeroGlowIcon size={88}>
-              <Smartphone color="white" size={40} />
+              <Sparkles color="white" size={40} />
             </HeroGlowIcon>
             <Text style={styles.title}>{t('welcomeTourCtaTitle')}</Text>
             <Text style={styles.body}>{t('welcomeTourCtaBody')}</Text>
@@ -464,13 +468,21 @@ export default function WelcomeTourScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.ctaBtnHalf, styles.ctaSecondary]}
-                onPress={() => void finishAndGo('/bank-import')}
+                onPress={() =>
+                  void finishAndGo(BANK_SYNC_ENABLED ? '/bank-accounts' : '/bank-import')
+                }
                 disabled={busy}
                 activeOpacity={0.9}
               >
-                <Landmark color="#E9D5FF" size={22} />
+                {BANK_SYNC_ENABLED ? (
+                  <Landmark color="#E9D5FF" size={22} />
+                ) : (
+                  <FileUp color="#E9D5FF" size={22} />
+                )}
                 <Text style={[styles.ctaBtnText, { color: '#E9D5FF' }]}>
-                  {t('welcomeTourConnectBank')}
+                  {BANK_SYNC_ENABLED
+                    ? t('welcomeTourConnectBank')
+                    : t('welcomeTourUploadStatement')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -544,12 +556,12 @@ export default function WelcomeTourScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={styles.nextBtnMuted}
+                style={styles.nextBtnSolid}
                 onPress={() => void finishAndGo('/(tabs)')}
                 disabled={busy}
                 activeOpacity={0.9}
               >
-                <Text style={styles.nextBtnMutedText}>{t('welcomeTourGoOverview')}</Text>
+                <Text style={styles.nextBtnText}>{t('welcomeTourGoOverview')}</Text>
               </TouchableOpacity>
             )}
           </View>

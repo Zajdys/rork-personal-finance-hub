@@ -68,9 +68,18 @@ export default function AccountScreen() {
       case 'monthly': return t('account.planMonthly');
       case 'quarterly': return t('account.planQuarterly');
       case 'yearly': return t('account.planYearly');
-      default: return t('account.planUnknown');
+      default: return t('account.planFree');
     }
   };
+
+  /** Dev/beta: hasActiveSubscription=true i bez nákupu (plan null) → zobraz „Zdarma“. */
+  const hasPaidPlan =
+    user?.subscription?.plan === 'monthly' ||
+    user?.subscription?.plan === 'quarterly' ||
+    user?.subscription?.plan === 'yearly';
+  const subscriptionLabel = hasPaidPlan
+    ? `${getSubscriptionPlanName(user!.subscription.plan)} · ${t('account.active')}`
+    : t('account.planFree');
 
   const AccountInfoCard = () => (
     <View style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
@@ -124,27 +133,20 @@ export default function AccountScreen() {
             {t('account.subscription')}
           </Text>
           <Text style={[styles.subscriptionSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {user?.subscription ? (
-              <>
-                {getSubscriptionPlanName(user.subscription.plan)} • 
-                {user.subscription.active ? ` ${t('account.active')}` : ` ${t('account.inactive')}`}
-              </>
-            ) : (
-              t('account.noActiveSubscription')
-            )}
+            {subscriptionLabel}
           </Text>
         </View>
         <View style={[
           styles.subscriptionBadge,
-          { backgroundColor: hasActiveSubscription ? '#10B981' : '#EF4444' }
+          { backgroundColor: hasPaidPlan ? '#10B981' : '#6B7280' }
         ]}>
           <Text style={styles.subscriptionBadgeText}>
-            {hasActiveSubscription ? t('account.active') : t('account.inactive')}
+            {hasPaidPlan ? t('account.active') : t('account.planFree')}
           </Text>
         </View>
       </View>
 
-      {hasActiveSubscription && user?.subscription?.expiresAt && (
+      {hasPaidPlan && user?.subscription?.expiresAt && (
         <View style={styles.subscriptionDetails}>
           <View style={styles.subscriptionDetail}>
             <CheckCircle color="#10B981" size={16} />

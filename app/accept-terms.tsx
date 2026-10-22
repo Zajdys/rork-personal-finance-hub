@@ -34,7 +34,7 @@ export default function AcceptTermsScreen() {
     try {
       const res = await acceptTermsConsent();
       if (!res.success) {
-        Alert.alert(t('error'), res.error ?? t('auth.genericError'));
+        Alert.alert(t('error'), t('auth.consentSaveFailed'));
       }
       // Gate v _layout po termsAccepted=true přesměruje dál.
     } finally {

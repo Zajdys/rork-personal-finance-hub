@@ -26,6 +26,7 @@ export async function upsertTermsConsent(
   const now = new Date().toISOString();
   const { error } = await client.from('user_profiles').upsert(
     {
+      id: userId,
       user_id: userId,
       terms_accepted_at: now,
       age_confirmed_at: now,
@@ -34,7 +35,8 @@ export async function upsertTermsConsent(
     { onConflict: 'user_id' },
   );
   if (error) {
-    return { ok: false, message: error.message };
+    console.error('[terms] upsert failed', error.message);
+    return { ok: false, message: 'consent_save_failed' };
   }
   return { ok: true };
 }

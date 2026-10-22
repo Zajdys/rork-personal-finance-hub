@@ -37,6 +37,7 @@ export async function fetchOrCreateUserNotificationProfile(
   }
 
   const { error: insErr } = await supabase.from('user_profiles').insert({
+    id: userId,
     user_id: userId,
     recurring_expense_notifications_enabled: DEFAULT_PROFILE.recurring_expense_notifications_enabled,
     notification_days_before: DEFAULT_PROFILE.notification_days_before,

@@ -744,9 +744,6 @@ export default function InvesticeTabScreen() {
       >
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerTitle}>{t('investments')}</Text>
-          <View style={styles.betaBadge}>
-            <Text style={styles.betaBadgeText}>{t('investBetaBadge')}</Text>
-          </View>
         </View>
         <Text style={styles.headerSubtitle}>{t('investTrackPortfolio')}</Text>
       </LinearGradient>
@@ -939,6 +936,9 @@ export default function InvesticeTabScreen() {
                     large
                     muted={!marketValueReady}
                   />
+                  <Text style={[styles.pricesDelayedHint, { color: colors.textSecondary }]}>
+                    {t('investValuesDisclaimer')}
+                  </Text>
                   {marketValueReady && pricesUpdatedLabel ? (
                     <Text style={[styles.pricesDelayedHint, { color: colors.textSecondary }]}>
                       {t('investPricesDelayedHint', { time: pricesUpdatedLabel })}

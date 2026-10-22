@@ -155,16 +155,9 @@ function RootLayoutNav() {
       return;
     }
 
-    if (user && user.onboardingCompleted !== true) {
-      console.log('[nav] gate → /onboarding (replace)', {
-        onboardingCompleted: user.onboardingCompleted,
-        welcomeTourCompleted: user.welcomeTourCompleted,
-      });
-      router.replace('/onboarding');
-      return;
-    }
+    // Dotazník (onboarding) je vyřazený z flow — žádná gate na onboardingCompleted.
 
-    if (user && user.onboardingCompleted === true && user.welcomeTourCompleted === false) {
+    if (user && user.welcomeTourCompleted === false) {
       console.log('[nav] gate → /welcome-tour (replace)', {
         onboardingCompleted: user.onboardingCompleted,
         welcomeTourCompleted: user.welcomeTourCompleted,
@@ -228,24 +221,10 @@ function RootLayoutNav() {
     );
   }
   
-  // Show onboarding if user has subscription but hasn't completed onboarding (Supabase `users.onboarding_completed`)
-  if (isAuthenticated && hasActiveSubscription && user && !user.onboardingCompleted) {
-    console.log('[nav] render → onboarding stack', {
-      onboardingCompleted: user.onboardingCompleted,
-      welcomeTourCompleted: user.welcomeTourCompleted,
-    });
-    return (
-      <Stack initialRouteName="onboarding" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="onboarding" options={{ title: t('screenProfileSetup') }} />
-      </Stack>
-    );
-  }
+  // Onboarding dotazník je vyřazený z post-register flow (soubor onboarding.tsx zůstává).
+  // Noví uživatelé mají onboarding_completed=true z registrace; legacy bez tour → welcome-tour.
 
-  // Obecná kontrola při každém přihlášení (ne jen po dokončení wizardu)
-  const showWelcomeTour =
-    !!user &&
-    user.onboardingCompleted === true &&
-    user.welcomeTourCompleted === false;
+  const showWelcomeTour = !!user && user.welcomeTourCompleted === false;
 
   console.log('[nav] welcome tour gate', {
     isAuthenticated,
