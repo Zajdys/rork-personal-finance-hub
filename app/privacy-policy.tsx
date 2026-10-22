@@ -160,8 +160,8 @@ export default function PrivacyPolicyScreen() {
 
         <Section title="7. Vaše práva" colors={colors}>
           <Body colors={colors}>Máte právo na:</Body>
-          <Bullet colors={colors}>Přístup ke svým datům (Profil → Správa dat)</Bullet>
-          <Bullet colors={colors}>Smazání účtu a všech dat (Profil → Správa dat → Smazat účet)</Bullet>
+          <Bullet colors={colors}>Přístup ke svým datům (Profil → Soukromí a bezpečnost → Správa dat)</Bullet>
+          <Bullet colors={colors}>Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)</Bullet>
           <Bullet colors={colors}>Opravu nesprávných údajů</Bullet>
           <Bullet colors={colors}>Odvolání souhlasu s napojením banky</Bullet>
         </Section>

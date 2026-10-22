@@ -72,6 +72,8 @@ export default function HiddenSubscriptionSuggestionsScreen() {
                   await onRestore(item.id, item.displayName || item.merchantKey);
                 }}
                 style={styles.restoreBtn}
+                contentStyle={styles.restoreBtnContent}
+                textStyle={styles.restoreBtnText}
               />
             </View>
           )}
@@ -98,5 +100,7 @@ const styles = StyleSheet.create({
   },
   meta: { flex: 1, minWidth: 0 },
   name: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  restoreBtn: { minWidth: 88, height: 36 },
+  restoreBtn: { minWidth: 96, borderRadius: 12 },
+  restoreBtnContent: { paddingVertical: 9, paddingHorizontal: 16 },
+  restoreBtnText: { fontSize: 14 },
 });

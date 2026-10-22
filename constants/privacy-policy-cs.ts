@@ -45,8 +45,8 @@ Bez vašeho aktivního souhlasu a dokončení bankovního přihlášení bankovn
 
 7. Vaše práva
 Máte právo na:
-- Přístup ke svým datům (export v sekci Profil → Správa dat)
-- Smazání účtu a všech dat (Profil → Správa dat → Smazat účet)
+- Přístup ke svým datům (export v sekci Profil → Soukromí a bezpečnost → Správa dat)
+- Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)
 - Opravu nesprávných údajů
 - Odvolání souhlasu s napojením banky
 
