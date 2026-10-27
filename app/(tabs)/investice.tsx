@@ -70,6 +70,7 @@ import {
   formatInvestDeletePortfolioConfirm,
   formatInvestImportSummary,
 } from '@/lib/plural-cs';
+import { PremiumGateScreen } from '@/components/PremiumGate';
 
 const GREEN = '#10B981';
 const RED = '#EF4444';
@@ -137,7 +138,7 @@ function canDeletePortfolio(portfolio: InvestmentPortfolio, userId: string | und
   return true;
 }
 
-export default function InvesticeTabScreen() {
+function InvesticeTabScreenContent() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
@@ -1901,3 +1902,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
 });
+
+export default function InvesticeTabScreen() {
+  return (
+    <PremiumGateScreen feature="investments">
+      <InvesticeTabScreenContent />
+    </PremiumGateScreen>
+  );
+}

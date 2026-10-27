@@ -37,6 +37,7 @@ import {
   SAVE_PENDING_NOTIFICATION_TYPE,
   type SavePendingItem,
 } from '@/store/save-pending-store';
+import { PremiumGateScreen } from '@/components/PremiumGate';
 
 const DEFAULT_ANNUAL_RETURN = 7;
 const DEFAULT_YEARS = 10;
@@ -61,7 +62,7 @@ function hoursToHoursMinutes(hours: number): { h: number; m: number } {
 
 type WageMode = 'hourly' | 'monthly';
 
-export default function SaveScreen() {
+function SaveScreenContent() {
   const router = useRouter();
   const { getCurrentCurrency } = useSettingsStore();
   const { t } = useLanguageStore();
@@ -1241,3 +1242,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+export default function SaveScreen() {
+  return (
+    <PremiumGateScreen feature="save" showBack>
+      <SaveScreenContent />
+    </PremiumGateScreen>
+  );
+}

@@ -549,6 +549,11 @@ export interface ParsedImportRow {
   /** Zdroj pro `Transaction.source` (raiffeisenbank, csob, kb, …) — doplní import */
   source?: string;
   /**
+   * Klíč souboru ve multi-select importu (ephemeral — Free kvóta).
+   * Nepersistuje se do DB.
+   */
+  importFileKey?: string;
+  /**
    * Bankovní identifikátor pohybu (RB/KB „Kód transakce“, …).
    * Použije se pro stabilní `unique_key` / `external_id`.
    */

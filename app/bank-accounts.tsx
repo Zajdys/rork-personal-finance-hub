@@ -15,7 +15,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { usePremium } from '@/hooks/usePremium';
+import { openPaywall } from '@/components/PremiumGate';
 import { StackHeaderBackButton } from '@/components/BackButton';
 import { AsyncButton } from '@/components/AsyncButton';
 import { BankLogo } from '@/components/BankLogo';
@@ -110,6 +112,8 @@ export default function BankAccountsScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
   const { user } = useAuth();
+  const router = useRouter();
+  const { isPremium } = usePremium();
   const userProfile = useSettingsStore((s) => s.userProfile);
   const deleteTransactions = useFinanceStore((s) => s.deleteTransactions);
   const loadTransactionsFromSupabase = useFinanceStore((s) => s.loadTransactionsFromSupabase);
@@ -211,6 +215,10 @@ export default function BankAccountsScreen() {
   );
 
   const { run: runConnectBank } = useAsyncAction(async () => {
+    if (!isPremium) {
+      openPaywall(router, 'bank_sync');
+      return;
+    }
     setBankConnectBusy(true);
     try {
       const { url, redirectionId: linkId } = await bankLink();
@@ -247,6 +255,10 @@ export default function BankAccountsScreen() {
   });
 
   const { run: runSyncConnection } = useAsyncAction(async (connectionId: string) => {
+    if (!isPremium) {
+      openPaywall(router, 'bank_sync');
+      return;
+    }
     setBankSyncBusyId(connectionId);
     try {
       const result = await bankSync(connectionId);

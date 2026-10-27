@@ -332,6 +332,7 @@ export default function BankStatementImportModal({
           date: r.date,
           bookingDate: r.bookingDate ?? null,
           source: (r as ParsedImportRow & { source?: string }).source,
+          importFileKey: (r as ParsedImportRow).importFileKey,
           bankTransactionId: r.bankTransactionId,
           counterpartyAccount: r.counterpartyAccount,
           counterpartyName: r.counterpartyName,

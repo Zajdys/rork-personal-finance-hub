@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -20,11 +22,12 @@ import {
   Shield,
   Bell,
   ExternalLink,
-  CheckCircle,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
+import { usePremium } from '@/hooks/usePremium';
+import { useRevenueCatStore } from '@/store/revenuecat-store';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
@@ -33,7 +36,10 @@ import { safeGoBack } from '@/lib/safe-back';
 export default function AccountScreen() {
   const { isDarkMode } = useSettingsStore();
   const { t } = useLanguageStore();
-  const { user, logout, hasActiveSubscription } = useAuth();
+  const { user, logout } = useAuth();
+  const { isPremium, isHouseholdPremium } = usePremium();
+  const rcPlan = useRevenueCatStore((s) => s.plan);
+  const rcExpiresAt = useRevenueCatStore((s) => s.expiresAt);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -41,8 +47,16 @@ export default function AccountScreen() {
     router.push('/edit-profile');
   };
 
+  const handleTryPremium = () => {
+    router.push('/choose-subscription');
+  };
+
   const handleManageSubscription = () => {
-    router.push('/subscription');
+    if (Platform.OS === 'ios') {
+      void Linking.openURL('https://apps.apple.com/account/subscriptions');
+    } else {
+      void Linking.openURL('https://play.google.com/store/account/subscriptions');
+    }
   };
 
   const handleLogout = () => {
@@ -63,23 +77,21 @@ export default function AccountScreen() {
     );
   };
 
-  const getSubscriptionPlanName = (plan: string | null) => {
-    switch (plan) {
-      case 'monthly': return t('account.planMonthly');
-      case 'quarterly': return t('account.planQuarterly');
-      case 'yearly': return t('account.planYearly');
-      default: return t('account.planFree');
-    }
-  };
-
-  /** Dev/beta: hasActiveSubscription=true i bez nákupu (plan null) → zobraz „Zdarma“. */
-  const hasPaidPlan =
-    user?.subscription?.plan === 'monthly' ||
-    user?.subscription?.plan === 'quarterly' ||
-    user?.subscription?.plan === 'yearly';
-  const subscriptionLabel = hasPaidPlan
-    ? `${getSubscriptionPlanName(user!.subscription.plan)} · ${t('account.active')}`
-    : t('account.planFree');
+  const isSharedOnly = isHouseholdPremium && !isPremium;
+  const planName = rcPlan === 'yearly' ? t('account.planYearly') : t('account.planMonthly');
+  const renewText = rcExpiresAt
+    ? t('account.renewsOn', { date: new Date(rcExpiresAt).toLocaleDateString('cs-CZ') })
+    : '';
+  const subscriptionLabel = isPremium
+    ? rcPlan && renewText
+      ? t('account.premiumPlanLabel', { plan: planName, renew: renewText })
+      : rcPlan
+        ? `Premium · ${planName}`
+        : 'Premium'
+    : isSharedOnly
+      ? t('account.premiumShared')
+      : t('account.planFree');
+  const badgeActive = isPremium || isSharedOnly;
 
   const AccountInfoCard = () => (
     <View style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
@@ -138,30 +150,18 @@ export default function AccountScreen() {
         </View>
         <View style={[
           styles.subscriptionBadge,
-          { backgroundColor: hasPaidPlan ? '#10B981' : '#6B7280' }
+          { backgroundColor: badgeActive ? '#10B981' : '#6B7280' }
         ]}>
           <Text style={styles.subscriptionBadgeText}>
-            {hasPaidPlan ? t('account.active') : t('account.planFree')}
+            {badgeActive ? t('account.active') : t('account.planFree')}
           </Text>
         </View>
       </View>
 
-      {hasPaidPlan && user?.subscription?.expiresAt && (
-        <View style={styles.subscriptionDetails}>
-          <View style={styles.subscriptionDetail}>
-            <CheckCircle color="#10B981" size={16} />
-            <Text style={[styles.subscriptionDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-              {t('account.validUntil', {
-                date: new Date(user.subscription.expiresAt).toLocaleDateString('cs-CZ'),
-              })}
-            </Text>
-          </View>
-        </View>
-      )}
-
+      {!isSharedOnly && (
       <TouchableOpacity 
         style={styles.manageSubscriptionButton}
-        onPress={handleManageSubscription}
+        onPress={isPremium ? handleManageSubscription : handleTryPremium}
       >
         <LinearGradient
           colors={['#667eea', '#764ba2']}
@@ -171,11 +171,12 @@ export default function AccountScreen() {
         >
           <CreditCard color="white" size={20} />
           <Text style={styles.manageSubscriptionText}>
-            {hasActiveSubscription ? t('account.manageSubscription') : t('account.activateSubscription')}
+            {isPremium ? t('account.manageSubscription') : t('account.tryPremium')}
           </Text>
-          <ExternalLink color="white" size={16} />
+          {isPremium ? <ExternalLink color="white" size={16} /> : null}
         </LinearGradient>
       </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -223,7 +224,7 @@ export default function AccountScreen() {
             size={24}
             style={styles.backButton}
             onPress={() =>
-              safeGoBack(hasActiveSubscription ? '/(tabs)' : '/choose-subscription')
+              safeGoBack('/(tabs)')
             }
           />
           <View style={styles.headerTitleContainer}>

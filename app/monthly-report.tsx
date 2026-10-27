@@ -39,6 +39,7 @@ import {
   yyyyMmLocalFromDate,
   yyyyMmLocalToday,
 } from '@/lib/transaction-date';
+import { PremiumGateScreen } from '@/components/PremiumGate';
 
 type CategoryBarProps = { category: string; amount: number; percentage: number; color: string };
 
@@ -243,7 +244,7 @@ function formatCompactMomDelta(
 
 type ReportMainTab = 'month' | 'year';
 
-export default function MonthlyReportScreen() {
+function MonthlyReportScreenContent() {
   const {
     getAllCategories,
     deleteTransaction,
@@ -1678,3 +1679,11 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default function MonthlyReportScreen() {
+  return (
+    <PremiumGateScreen feature="monthly_report" showBack>
+      <MonthlyReportScreenContent />
+    </PremiumGateScreen>
+  );
+}

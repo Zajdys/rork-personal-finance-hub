@@ -64,6 +64,7 @@ import { BackButton } from '@/components/BackButton';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { parseMoneyInput } from '@/lib/parse-money-input';
+import { PremiumGateScreen } from '@/components/PremiumGate';
 
 type TranslateFn = (key: keyof typeof TRANSLATIONS.cs, params?: Record<string, string | number>) => string;
 
@@ -234,7 +235,7 @@ function getTransactionsForCategoryThisMonth(
     .sort(compareTxDateDesc);
 }
 
-export default function FinancialGoalsScreen() {
+function FinancialGoalsScreenContent() {
   const { t, language } = useLanguageStore();
   const { colors } = useTheme();
   const finance = useFinanceStore();
@@ -2017,3 +2018,10 @@ const styles = StyleSheet.create({
   },
 });
 
+export default function FinancialGoalsScreen() {
+  return (
+    <PremiumGateScreen feature="financial_goals" showBack>
+      <FinancialGoalsScreenContent />
+    </PremiumGateScreen>
+  );
+}

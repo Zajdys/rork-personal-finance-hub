@@ -26,7 +26,7 @@ async function promptUnlock(labels: {
  * Po návratu z pozadí (po stavu `background`) vyžádá biometrii, pokud je v nastavení zapnutá.
  */
 export function BiometricAppLock() {
-  const { isAuthenticated, hasActiveSubscription, user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { colors, isDark } = useTheme();
   const { t } = useLanguageStore();
   const insets = useSafeAreaInsets();
@@ -35,8 +35,7 @@ export function BiometricAppLock() {
   /** true po přechodu do background (ne jen inactive — např. Control Center). */
   const sawBackgroundRef = useRef(false);
 
-  const fullAccess =
-    isAuthenticated && hasActiveSubscription === true && user != null && user.onboardingCompleted === true;
+  const fullAccess = isAuthenticated && user != null;
 
   const authLabels = useMemo(
     () => ({

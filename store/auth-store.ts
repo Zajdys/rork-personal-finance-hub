@@ -11,6 +11,12 @@ import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
+import {
+  planFromCustomerInfo,
+  useRevenueCatStore,
+  logoutUser as rcLogoutUser,
+} from '@/store/revenuecat-store';
+import { isDevForcePremium } from '@/constants/premium';
 
 function translateAuthError(error: unknown): string {
   const key = authErrorI18nKey(classifyAuthError(error));
@@ -184,6 +190,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     await purgeAuthStorage();
     useSettingsStore.getState().clearUserProfile();
+    try {
+      await rcLogoutUser();
+    } catch {
+      /* ignore */
+    }
+    useRevenueCatStore.getState().reset();
     setUser(null);
     setIsAuthenticated(false);
     setHasActiveSubscription(false);
@@ -298,7 +310,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         welcomeTourCompleted,
         termsAccepted,
         subscription: {
-          active: true,
+          active: false,
           plan: null,
           expiresAt: null,
         },
@@ -306,22 +318,41 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       setUser(newUser);
       setIsAuthenticated(true);
-      setHasActiveSubscription(true);
       setIsLoading(false);
+
+      const premium = await useRevenueCatStore.getState().refreshPremium(userId);
+      const { plan, expiresAt } = planFromCustomerInfo(
+        useRevenueCatStore.getState().customerInfo,
+      );
+      const withSub: User = {
+        ...newUser,
+        subscription: {
+          active: premium || isDevForcePremium(),
+          plan: premium ? plan : null,
+          expiresAt: premium ? expiresAt : null,
+        },
+      };
+      setUser(withSub);
+      setHasActiveSubscription(withSub.subscription.active);
 
       await storage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          user: newUser,
+          user: withSub,
           isAuthenticated: true,
-          hasActiveSubscription: true,
-        })
+          hasActiveSubscription: withSub.subscription.active,
+        }),
       );
 
       await syncLocalFinanceDataForAuthUser(userId);
 
       invalidRefreshHandledRef.current = false;
-      console.log('[auth] login completed', { userId: newUser.id, onboardingCompleted, welcomeTourCompleted });
+      console.log('[auth] login completed', {
+        userId: withSub.id,
+        onboardingCompleted,
+        welcomeTourCompleted,
+        isPremium: withSub.subscription.active,
+      });
       void flushPendingOnboardingProfileSync();
       return { success: true, onboardingCompleted, welcomeTourCompleted };
     } catch (error) {
@@ -397,7 +428,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         welcomeTourCompleted: false,
         termsAccepted: consent.ok,
         subscription: {
-          active: true,
+          active: false,
           plan: null,
           expiresAt: null,
         },
@@ -420,16 +451,30 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       setUser(newUser);
       setIsAuthenticated(true);
-      setHasActiveSubscription(true);
       setIsLoading(false);
+
+      const premium = await useRevenueCatStore.getState().refreshPremium(userId);
+      const { plan, expiresAt } = planFromCustomerInfo(
+        useRevenueCatStore.getState().customerInfo,
+      );
+      const withSub: User = {
+        ...newUser,
+        subscription: {
+          active: premium || isDevForcePremium(),
+          plan: premium ? plan : null,
+          expiresAt: premium ? expiresAt : null,
+        },
+      };
+      setUser(withSub);
+      setHasActiveSubscription(withSub.subscription.active);
 
       await storage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          user: newUser,
+          user: withSub,
           isAuthenticated: true,
-          hasActiveSubscription: true,
-        })
+          hasActiveSubscription: withSub.subscription.active,
+        }),
       );
 
       // Při registraci nového účtu vždy vymaž lokální data
@@ -456,6 +501,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     intentionalLogoutRef.current = true;
     try {
       await supabase.auth.signOut();
+      try {
+        await rcLogoutUser(); // Purchases.logOut() — odpojí RC app_user_id
+      } catch (e) {
+        console.warn('[auth] RevenueCat logOut', e);
+      }
+      useRevenueCatStore.getState().reset();
       router.replace('/auth');
       await purgeAuthStorage();
       useSettingsStore.getState().clearUserProfile();
@@ -474,26 +525,40 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const activateSubscription = useCallback(async (plan: 'monthly' | 'quarterly' | 'yearly'): Promise<void> => {
     if (!user) return;
 
+    // Preferuj stav z RevenueCat (po nákupu/restore); plan parametr je fallback.
+    await useRevenueCatStore.getState().refreshPremium(user.id);
+    const rc = useRevenueCatStore.getState();
+    const fromRc = planFromCustomerInfo(rc.customerInfo);
+    const mappedPlan: 'monthly' | 'yearly' | null =
+      fromRc.plan ?? (plan === 'yearly' ? 'yearly' : plan === 'monthly' ? 'monthly' : 'monthly');
+
     const updatedUser: User = {
       ...user,
       onboardingCompleted: user.onboardingCompleted ?? false,
       welcomeTourCompleted: user.welcomeTourCompleted ?? false,
       termsAccepted: user.termsAccepted ?? false,
       subscription: {
-        active: true,
-        plan,
-        expiresAt: new Date(Date.now() + (plan === 'yearly' ? 365 : plan === 'quarterly' ? 90 : 30) * 24 * 60 * 60 * 1000).toISOString(),
+        active: rc.isPremium || isDevForcePremium(),
+        plan: mappedPlan,
+        expiresAt:
+          fromRc.expiresAt ??
+          new Date(
+            Date.now() + (mappedPlan === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000,
+          ).toISOString(),
       },
     };
-    
+
     setUser(updatedUser);
-    setHasActiveSubscription(true);
-    
-    await storage.setItem(STORAGE_KEY, JSON.stringify({
-      user: updatedUser,
-      isAuthenticated: true,
-      hasActiveSubscription: true,
-    }));
+    setHasActiveSubscription(updatedUser.subscription.active);
+
+    await storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        user: updatedUser,
+        isAuthenticated: true,
+        hasActiveSubscription: updatedUser.subscription.active,
+      }),
+    );
   }, [user]);
 
   const loadAuthState = useCallback(async (): Promise<void> => {
@@ -535,19 +600,42 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           welcomeTourCompleted: flags.welcomeTourCompleted,
           termsAccepted: flags.termsAccepted,
           subscription: {
-            active: true,
+            active: false,
             plan: null,
             expiresAt: null,
           },
         };
         setUser(hydratedUser);
         setIsAuthenticated(true);
-        setHasActiveSubscription(true);
+
+        const premium = await useRevenueCatStore.getState().refreshPremium(sessionUser.id);
+        const { plan, expiresAt } = planFromCustomerInfo(
+          useRevenueCatStore.getState().customerInfo,
+        );
+        const withSub: User = {
+          ...hydratedUser,
+          subscription: {
+            active: premium || isDevForcePremium(),
+            plan: premium ? plan : null,
+            expiresAt: premium ? expiresAt : null,
+          },
+        };
+        setUser(withSub);
+        setHasActiveSubscription(withSub.subscription.active);
+        await storage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: withSub,
+            isAuthenticated: true,
+            hasActiveSubscription: withSub.subscription.active,
+          }),
+        );
         void flushPendingOnboardingProfileSync();
       } else {
         setUser(null);
         setIsAuthenticated(false);
         setHasActiveSubscription(false);
+        useRevenueCatStore.getState().reset();
       }
       setIsLoading(false);
     } catch (error) {

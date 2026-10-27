@@ -52,6 +52,9 @@ import {
 } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useTheme } from '@/hooks/use-theme';
+import { usePremium } from '@/hooks/usePremium';
+import { PremiumGate } from '@/components/PremiumGate';
+import type { PremiumFeatureId } from '@/constants/premium';
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 import { useLanguageStore } from '@/store/language-store';
 import { safePush } from '@/lib/safe-navigate';
@@ -291,6 +294,17 @@ function formatDashboardTodayDate(locale: string): string {
 
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const { isHouseholdPremium } = usePremium();
+  const pushOrPaywall = useCallback(
+    (href: Parameters<typeof safePush>[0], feature: PremiumFeatureId) => {
+      if (isHouseholdPremium) {
+        safePush(href);
+      } else {
+        safePush({ pathname: '/choose-subscription', params: { feature, reason: feature } });
+      }
+    },
+    [isHouseholdPremium],
+  );
   const finance = useFinanceStore();
   const getAllCategories = useFinanceStore((s) => s.getAllCategories);
   const {
@@ -1515,7 +1529,7 @@ export default function DashboardScreen() {
             color="#8B5CF6"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => safePush('/(tabs)/household')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
+        <TouchableOpacity onPress={() => pushOrPaywall('/(tabs)/household', 'household')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
           <FinanceCard
             title={householdLabel}
             amount={domacnostDashboardCard.amount}
@@ -1544,7 +1558,7 @@ export default function DashboardScreen() {
             icon={Calendar}
             title={t('monthlyReport')}
             color={['#F59E0B', '#D97706']}
-            onPress={() => safePush('/monthly-report')}
+            onPress={() => pushOrPaywall('/monthly-report', 'monthly_report')}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
           <QuickActionCard
@@ -1558,7 +1572,7 @@ export default function DashboardScreen() {
             icon={PiggyBank}
             title={t('piggyBankFeature')}
             color={['#EC4899', '#BE185D']}
-            onPress={() => safePush('/save')}
+            onPress={() => pushOrPaywall('/save', 'save')}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
         </View>
@@ -1577,6 +1591,7 @@ export default function DashboardScreen() {
             {t('dashboardMonthlySubs')}
           </Text>
         </View>
+        <PremiumGate feature="subscriptions" compact>
         <View
           style={[
             styles.subsSummaryBox,
@@ -1658,6 +1673,7 @@ export default function DashboardScreen() {
             {t('dashboardAddSub')}
           </Text>
         </TouchableOpacity>
+        </PremiumGate>
       </View>
           </View>
           <View style={styles.desktopColumn}>
@@ -1726,6 +1742,7 @@ export default function DashboardScreen() {
             {t('dashboardMonthlySubs')}
           </Text>
         </View>
+        <PremiumGate feature="subscriptions" compact>
         <View
           style={[
             styles.subsSummaryBox,
@@ -1807,6 +1824,7 @@ export default function DashboardScreen() {
             {t('dashboardAddSub')}
           </Text>
         </TouchableOpacity>
+        </PremiumGate>
       </View>
 
       {goalsSection}

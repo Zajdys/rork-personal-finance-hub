@@ -76,6 +76,11 @@ export interface Transaction {
   /** Výchozí manual; bank = import z výpisu */
   source?: string;
   importBatchId?: string | null;
+  /**
+   * Klíč souboru při multi-select importu (ephemeral, jen Free kvóta).
+   * Neukládá se do Supabase.
+   */
+  importFileKey?: string;
   /** Veřejná URL účtenky ve Storage (bucket `receipts`) */
   receiptUrl?: string;
   /** Deduplikace importů v Supabase */

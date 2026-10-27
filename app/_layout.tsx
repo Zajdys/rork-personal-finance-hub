@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { router, Stack } from "expo-router";
+import { router, Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
 import { useSettingsStore } from '@/store/settings-store';
@@ -26,6 +26,9 @@ import { ExpoPushTokenRegistration } from '@/components/ExpoPushTokenRegistratio
 import { SplitExpensePushNotificationHandler } from '@/components/SplitExpensePushNotificationHandler';
 import { AppLock } from '@/components/AppLock';
 import { StackHeaderBackButton } from '@/components/BackButton';
+import { useRevenueCatStore } from '@/store/revenuecat-store';
+import { getIsPremiumSnapshot } from '@/hooks/usePremium';
+import { consumeSuppressTabsRedirect } from '@/lib/nav-guards';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -42,6 +45,7 @@ const queryClient = new QueryClient();
 
 const autoSyncFio = async () => {
   try {
+    if (!getIsPremiumSnapshot()) return;
     const token = await AsyncStorage.getItem('fio_token');
     if (!token) return;
     const { data: { user } } = await supabase.auth.getUser();
@@ -104,9 +108,11 @@ class RootErrorBoundary extends React.Component<
 export { ErrorBoundary } from './error';
 
 function HouseholdRecurringNotificationsRunner() {
-  const { user, isAuthenticated, hasActiveSubscription } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const isPremium = useRevenueCatStore((s) => s.isPremium);
+  const appStateRef = useRef(AppState.currentState);
   useEffect(() => {
-    if (!isAuthenticated || !hasActiveSubscription || !user?.id || Platform.OS === 'web') return;
+    if (!isAuthenticated || !isPremium || !user?.id || Platform.OS === 'web') return;
     const run = () => {
       const { subscriptions, loans } = useFinanceStore.getState();
       const sym = useSettingsStore.getState().getCurrentCurrency().symbol;
@@ -115,79 +121,106 @@ function HouseholdRecurringNotificationsRunner() {
       );
     };
     run();
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') run();
+    const sub = AppState.addEventListener('change', (next) => {
+      const prev = appStateRef.current;
+      appStateRef.current = next;
+      // Jen skutečný návrat z pozadí — ne inactive (document picker / share sheet).
+      if (prev === 'background' && next === 'active') run();
     });
     return () => sub.remove();
-  }, [user?.id, isAuthenticated, hasActiveSubscription]);
+  }, [user?.id, isAuthenticated, isPremium]);
   return null;
 }
 
+/** Routy mimo hlavní app stack — gate sem smí přesměrovat. */
+const PRE_APP_SEGMENTS = new Set([
+  'landing',
+  'auth',
+  'register',
+  'accept-terms',
+  'welcome-tour',
+]);
+
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
-  const { isAuthenticated, hasActiveSubscription, isLoading, user } = useAuth();
-  const hasRedirectedToAuth = React.useRef(false);
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const segments = useSegments();
+  const rootSegment = String(segments[0] ?? '');
 
-  // Skutečná navigace podle gate (Expo Router drží všechny file-routes;
-  // samotný return jiného <Stack> bez replace nechá URL na předchozí obrazovce, např. /auth).
+  const userId = user?.id ?? null;
+  const termsAccepted = user?.termsAccepted === true;
+  const welcomeTourCompleted = user?.welcomeTourCompleted === true;
+
+  // Free tier má plný přístup. replace JEN při přechodu mezi skupinami rout — nikdy když už jsme v app.
   useEffect(() => {
     if (!isLoaded || isLoading) return;
 
+    const inPreApp = PRE_APP_SEGMENTS.has(rootSegment) || rootSegment === '';
+    const onUnauthSurface =
+      rootSegment === 'landing' ||
+      rootSegment === 'auth' ||
+      rootSegment === 'register' ||
+      rootSegment === 'redeem-code' ||
+      rootSegment === 'privacy-policy';
+
     if (!isAuthenticated) {
-      if (!hasRedirectedToAuth.current) {
-        hasRedirectedToAuth.current = true;
-        console.log('[nav] gate → /landing (not authenticated)');
-        router.replace('/landing');
+      if (onUnauthSurface) {
+        console.log('[nav] gate skip (already on unauth surface)', rootSegment);
+        return;
       }
+      console.log('[nav] gate → /landing (reason: not authenticated)');
+      router.replace('/landing');
       return;
     }
-    hasRedirectedToAuth.current = false;
 
-    if (user && user.termsAccepted !== true) {
-      console.log('[nav] gate → /accept-terms');
+    if (!termsAccepted) {
+      if (rootSegment === 'accept-terms' || rootSegment === 'privacy-policy') {
+        console.log('[nav] gate skip (already accept-terms)');
+        return;
+      }
+      console.log('[nav] gate → /accept-terms (reason: terms not accepted)');
       router.replace('/accept-terms');
       return;
     }
 
-    if (!hasActiveSubscription) {
-      console.log('[nav] gate → /choose-subscription (no active subscription)');
-      router.replace('/choose-subscription');
-      return;
-    }
-
-    // Dotazník (onboarding) je vyřazený z flow — žádná gate na onboardingCompleted.
-
-    if (user && user.welcomeTourCompleted === false) {
-      console.log('[nav] gate → /welcome-tour (replace)', {
-        onboardingCompleted: user.onboardingCompleted,
-        welcomeTourCompleted: user.welcomeTourCompleted,
-      });
+    if (!welcomeTourCompleted) {
+      if (rootSegment === 'welcome-tour' || rootSegment === 'choose-subscription') {
+        console.log('[nav] gate skip (already welcome/paywall)');
+        return;
+      }
+      console.log('[nav] gate → /welcome-tour (reason: tour incomplete)');
       router.replace('/welcome-tour');
       return;
     }
 
-    // onboarding + welcome tour hotové → hlavní app
-    console.log('[nav] gate → /(tabs) (replace)', {
-      onboardingCompleted: user?.onboardingCompleted,
-      welcomeTourCompleted: user?.welcomeTourCompleted,
-    });
+    // Přihlášený + terms + tour — pokud už jsme v app stacku, NIKDY replace.
+    if (!inPreApp) {
+      console.log('[nav] gate skip (already in app)', rootSegment || segments.join('/'));
+      return;
+    }
+
+    // Po welcome-tour může finishAndGo chtít paywall místo tabs.
+    if (consumeSuppressTabsRedirect()) {
+      console.log('[nav] gate skip (welcome paywall suppress)');
+      return;
+    }
+
+    console.log('[nav] gate → /(tabs) (reason: leaving pre-app)', rootSegment);
     router.replace('/(tabs)');
   }, [
     isLoaded,
     isLoading,
     isAuthenticated,
-    hasActiveSubscription,
-    user,
-    user?.termsAccepted,
-    user?.onboardingCompleted,
-    user?.welcomeTourCompleted,
+    userId,
+    termsAccepted,
+    welcomeTourCompleted,
+    rootSegment,
   ]);
 
   if (!isLoaded || isLoading) {
     return null;
   }
   
-  // Gated access logic
   if (!isAuthenticated) {
     return (
       <Stack initialRouteName="landing" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
@@ -209,47 +242,7 @@ function RootLayoutNav() {
     );
   }
   
-  if (isAuthenticated && !hasActiveSubscription) {
-    return (
-      <Stack initialRouteName="choose-subscription" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
-        <Stack.Screen name="choose-subscription" options={{ title: t('screenChooseSubscription') }} />
-        <Stack.Screen name="account" options={{ title: t('profileMyAccount') }} />
-        <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
-        <Stack.Screen name="redeem-code" options={{ title: t('screenRedeemCode') }} />
-        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
-      </Stack>
-    );
-  }
-  
-  // Onboarding dotazník je vyřazený z post-register flow (soubor onboarding.tsx zůstává).
-  // Noví uživatelé mají onboarding_completed=true z registrace; legacy bez tour → welcome-tour.
-
-  const showWelcomeTour = !!user && user.welcomeTourCompleted === false;
-
-  console.log('[nav] welcome tour gate', {
-    isAuthenticated,
-    hasActiveSubscription,
-    onboardingCompleted: user?.onboardingCompleted,
-    welcomeTourCompleted: user?.welcomeTourCompleted,
-    showTour: showWelcomeTour,
-  });
-
-  if (
-    isAuthenticated &&
-    hasActiveSubscription &&
-    user &&
-    showWelcomeTour
-  ) {
-    console.log('[nav] render → welcome-tour stack (welcomeTourCompleted === false)');
-    return (
-      <Stack initialRouteName="welcome-tour" screenOptions={{ headerBackTitle: t('back'), headerShown: false, header: () => null, title: '', contentStyle: { backgroundColor: '#0a0a0a' } }}>
-        <Stack.Screen name="welcome-tour" options={{ title: '', headerShown: false, header: () => null, contentStyle: { backgroundColor: '#0a0a0a' } }} />
-      </Stack>
-    );
-  }
-
-  // Full app access for authenticated users with active subscription
-  console.log('[nav] render → full app stack /(tabs)');
+  // Po terms: jeden Stack (welcome-tour / paywall / tabs — gate přesměruje jen ze skupiny pre-app).
   return (
     <>
       <HouseholdRecurringNotificationsRunner />
@@ -351,12 +344,13 @@ export default function RootLayout() {
     // Sync při startu
     autoSyncFio();
 
-    // Sync při přepnutí do appky
+    // Sync jen po skutečném background → active (ne inactive z document pickeru).
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+      const prev = appState.current;
+      appState.current = nextState;
+      if (prev === 'background' && nextState === 'active') {
         autoSyncFio();
       }
-      appState.current = nextState;
     });
 
     return () => {

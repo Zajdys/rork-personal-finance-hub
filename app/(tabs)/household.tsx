@@ -35,8 +35,9 @@ import {
 } from '@/hooks/household/useHouseholdSwitcher';
 import { useRecurringExpenses } from '@/hooks/household/useRecurringExpenses';
 import { useSharedExpenses } from '@/hooks/household/useSharedExpenses';
+import { PremiumGateScreen } from '@/components/PremiumGate';
 
-export default function HouseholdTabScreen() {
+function HouseholdTabScreenContent() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
   const { getCurrentCurrency } = useSettingsStore();
@@ -604,5 +605,13 @@ export default function HouseholdTabScreen() {
       />
       {RenameModal}
     </>
+  );
+}
+
+export default function HouseholdTabScreen() {
+  return (
+    <PremiumGateScreen feature="household">
+      <HouseholdTabScreenContent />
+    </PremiumGateScreen>
   );
 }

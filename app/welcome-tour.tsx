@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
+import { getIsPremiumSnapshot } from '@/hooks/usePremium';
 import BrandLogo from '@/components/BrandLogo';
 import { BANK_SYNC_ENABLED } from '@/constants/feature-flags';
 
@@ -299,8 +300,15 @@ export default function WelcomeTourScreen() {
       if (busy) return;
       setBusy(true);
       try {
-        await completeWelcomeTour();
-        router.replace(href);
+        if (href === '/(tabs)' && !getIsPremiumSnapshot()) {
+          const { suppressNextTabsRedirect } = await import('@/lib/nav-guards');
+          suppressNextTabsRedirect();
+          await completeWelcomeTour();
+          router.replace({ pathname: '/choose-subscription', params: { from: 'welcome' } });
+        } else {
+          await completeWelcomeTour();
+          router.replace(href);
+        }
       } finally {
         setBusy(false);
       }

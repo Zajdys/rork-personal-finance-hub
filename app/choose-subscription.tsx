@@ -16,22 +16,49 @@ import {
   Star,
   RefreshCw,
 } from 'lucide-react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BackButton } from '@/components/BackButton';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
-import { 
-  getOfferings, 
-  purchasePackage, 
+import {
+  getOfferings,
+  purchasePackage,
   restorePurchases,
   getCustomerInfo,
   hasPremiumAccess,
   loginUser,
+  isAnnualPackage,
+  getIntroOfferLabel,
   PurchasesPackage,
 } from '@/store/revenuecat-store';
+
+function formatMoneyFromProduct(price: number, priceString: string, currencyCode?: string): string {
+  if (typeof priceString === 'string' && priceString.trim()) return priceString;
+  try {
+    return new Intl.NumberFormat('cs-CZ', {
+      style: 'currency',
+      currency: currencyCode || 'CZK',
+      maximumFractionDigits: 0,
+    }).format(price);
+  } catch {
+    return String(price);
+  }
+}
+
+function monthlyEquivalent(annualPrice: number): number {
+  return annualPrice / 12;
+}
+
+function savingsPercent(monthlyPrice: number, annualPrice: number): number | null {
+  if (!(monthlyPrice > 0) || !(annualPrice > 0)) return null;
+  const fullYear = monthlyPrice * 12;
+  if (!(fullYear > 0)) return null;
+  const pct = Math.round((1 - annualPrice / fullYear) * 100);
+  return pct > 0 ? pct : null;
+}
 
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
@@ -39,6 +66,14 @@ export default function ChooseSubscriptionScreen() {
   const { user, activateSubscription } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{
+    from?: string;
+    feature?: string;
+    reason?: string;
+    remaining?: string;
+    used?: string;
+    limit?: string;
+  }>();
 
   const offeringsQuery = useQuery({
     queryKey: ['rc-offerings'],
@@ -54,12 +89,13 @@ export default function ChooseSubscriptionScreen() {
     mutationFn: purchasePackage,
     onSuccess: async (customerInfo) => {
       if (customerInfo && hasPremiumAccess(customerInfo)) {
-        await activateSubscription('monthly');
+        await activateSubscription('yearly');
         queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
+        queryClient.invalidateQueries({ queryKey: ['household-premium'] });
         Alert.alert(
           t('chooseSubscription.successTitle'),
           t('chooseSubscription.activated'),
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }],
         );
       }
     },
@@ -73,12 +109,13 @@ export default function ChooseSubscriptionScreen() {
     mutationFn: restorePurchases,
     onSuccess: async (customerInfo) => {
       if (customerInfo && hasPremiumAccess(customerInfo)) {
-        await activateSubscription('monthly');
+        await activateSubscription('yearly');
         queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
+        queryClient.invalidateQueries({ queryKey: ['household-premium'] });
         Alert.alert(
           t('chooseSubscription.successTitle'),
           t('chooseSubscription.restored'),
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }],
         );
       } else {
         Alert.alert('Info', t('chooseSubscription.noPrevious'));
@@ -92,12 +129,61 @@ export default function ChooseSubscriptionScreen() {
 
   React.useEffect(() => {
     if (user?.id) {
-      loginUser(user.id);
+      void loginUser(user.id);
     }
   }, [user?.id]);
 
   const packages = offeringsQuery.data?.current?.availablePackages ?? [];
-  const isLoading = offeringsQuery.isLoading || purchaseMutation.isPending || restoreMutation.isPending;
+  const isLoading =
+    offeringsQuery.isLoading || purchaseMutation.isPending || restoreMutation.isPending;
+
+  const sortedPackages = useMemo(() => {
+    const list = [...packages];
+    list.sort((a, b) => Number(isAnnualPackage(b)) - Number(isAnnualPackage(a)));
+    return list;
+  }, [packages]);
+
+  const monthlyPkg = sortedPackages.find((p) => !isAnnualPackage(p));
+  const annualPkg = sortedPackages.find((p) => isAnnualPackage(p));
+  const monthlyPriceNum = Number(monthlyPkg?.product?.price ?? 0);
+  const annualPriceNum = Number(annualPkg?.product?.price ?? 0);
+  const savePct = savingsPercent(monthlyPriceNum, annualPriceNum);
+
+  const reasonBlurb = useMemo(() => {
+    if (params.reason === 'unlimited_imports' || params.feature === 'unlimited_imports') {
+      const remaining = Number(params.remaining);
+      if (Number.isFinite(remaining) && remaining <= 0) {
+        return t('premium.importLimitExhausted', {
+          limit: params.limit || '2',
+        });
+      }
+      if (Number.isFinite(remaining) && remaining > 0) {
+        return t('premium.importLimitPaywallRemaining', {
+          limit: params.limit || '2',
+          remaining: String(remaining),
+        });
+      }
+      return t('premium.importLimitPaywall');
+    }
+    return null;
+  }, [params.feature, params.reason, params.remaining, params.limit, t]);
+
+  const planFeatures = useMemo(
+    () => [
+      t('premium.featureFioTitle'),
+      t('premium.featureHouseholdTitle'),
+      t('premium.featureSubsTitle'),
+      t('premium.featureGoalsTitle'),
+      t('premium.featureSaveTitle'),
+      t('premium.featureSpacesTitle'),
+      t('premium.featureReportTitle'),
+      t('premium.featureInvestTitle'),
+      t('premium.featureBankSyncTitle'),
+      t('premium.featureImportsTitle'),
+      t('chooseSubscription.featureHouseholdShare'),
+    ],
+    [t],
+  );
 
   const handleSelectPackage = (pkg: PurchasesPackage) => {
     Alert.alert(
@@ -106,34 +192,149 @@ export default function ChooseSubscriptionScreen() {
       [
         { text: t('cancel'), style: 'cancel' },
         { text: t('confirm'), onPress: () => purchaseMutation.mutate(pkg) },
-      ]
+      ],
     );
   };
 
-  const planFeatures = useMemo(
-    () => [
-      t('chooseSubscription.featureAll'),
-      t('chooseSubscription.featureAi'),
-      t('chooseSubscription.featureSupport'),
-      t('chooseSubscription.featureUnlimited'),
-    ],
-    [t],
-  );
+  const handleContinueFree = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
 
-  const getPackageDetails = (pkg: PurchasesPackage) => {
-    const isAnnual = pkg.packageType === 'ANNUAL' || pkg.identifier.includes('annual') || pkg.identifier.includes('yearly');
-    return {
-      isAnnual,
-      popular: isAnnual,
-      badge: isAnnual ? t('chooseSubscription.bestValue') : null,
-      badgeColor: '#F59E0B',
-    };
+  const renderPackageCard = (pkg: PurchasesPackage) => {
+    const isAnnual = isAnnualPackage(pkg);
+    const product = pkg.product;
+    const priceString = formatMoneyFromProduct(
+      Number(product?.price ?? 0),
+      String(product?.priceString ?? ''),
+      product?.currencyCode,
+    );
+    const intro = getIntroOfferLabel(pkg);
+    const eqMonthly =
+      isAnnual && annualPriceNum > 0
+        ? formatMoneyFromProduct(
+            monthlyEquivalent(annualPriceNum),
+            '',
+            product?.currencyCode,
+          )
+        : null;
+
+    let highlightLine: string | null = null;
+    if (isAnnual && eqMonthly) {
+      highlightLine = t('chooseSubscription.annualHighlight', {
+        yearly: priceString,
+        monthly: eqMonthly,
+        save: savePct != null ? String(savePct) : '33',
+      });
+    }
+
+    let introLine: string | null = null;
+    if (intro.hasFreeTrial && intro.priceAfter) {
+      const days = intro.periodDays ?? 14;
+      introLine = isAnnual
+        ? t('chooseSubscription.trialThenYearly', { days: String(days), price: intro.priceAfter })
+        : t('chooseSubscription.trialThenMonthly', { days: String(days), price: intro.priceAfter });
+    }
+
+    return (
+      <View
+        key={pkg.identifier}
+        style={[
+          styles.planCard,
+          {
+            backgroundColor: isDarkMode ? '#1F2937' : 'white',
+            borderColor: isAnnual ? '#667eea' : 'transparent',
+          },
+        ]}
+      >
+        {isAnnual ? (
+          <View style={[styles.badge, { backgroundColor: '#F59E0B' }]}>
+            <Star color="white" size={14} fill="white" />
+            <Text style={styles.badgeText}>{t('chooseSubscription.bestValue')}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.planHeader}>
+          <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+            {isAnnual ? t('account.planYearly') : t('account.planMonthly')}
+          </Text>
+          <View style={styles.priceContainer}>
+            <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+              {priceString}
+            </Text>
+            <Text style={[styles.period, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              /{isAnnual ? t('chooseSubscription.perYear') : t('chooseSubscription.perMonth')}
+            </Text>
+          </View>
+        </View>
+
+        {highlightLine ? (
+          <Text style={[styles.highlight, { color: isDarkMode ? '#C4B5FD' : '#667eea' }]}>
+            {highlightLine}
+          </Text>
+        ) : null}
+
+        {introLine ? (
+          <Text style={[styles.introLine, { color: isDarkMode ? '#A7F3D0' : '#059669' }]}>
+            {introLine}
+          </Text>
+        ) : null}
+
+        {isAnnual ? (
+          <View style={styles.features}>
+            {planFeatures.map((feature, index) => (
+              <View key={index} style={styles.feature}>
+                <CheckCircle color="#10B981" size={16} />
+                <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                  {feature}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={[styles.selectButton, isAnnual && styles.popularButton]}
+          onPress={() => handleSelectPackage(pkg)}
+          disabled={isLoading}
+        >
+          <LinearGradient
+            colors={isAnnual ? ['#667eea', '#764ba2'] : ['#10B981', '#059669']}
+            style={styles.selectButtonGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            {purchaseMutation.isPending ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Text style={styles.selectButtonText}>
+                {intro.hasFreeTrial
+                  ? t('premium.tryFreeTrial')
+                  : t('chooseSubscription.selectPlan')}
+              </Text>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <Text style={[styles.autoRenewText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+          {t('chooseSubscription.autoRenew', {
+            price: priceString,
+            period: isAnnual
+              ? t('chooseSubscription.perYear')
+              : t('chooseSubscription.perMonth'),
+          })}
+        </Text>
+      </View>
+    );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={styles.headerGradient}
@@ -151,6 +352,12 @@ export default function ChooseSubscriptionScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          {reasonBlurb ? (
+            <Text style={[styles.reasonBlurb, { color: isDarkMode ? '#FDE68A' : '#92400E' }]}>
+              {reasonBlurb}
+            </Text>
+          ) : null}
+
           {offeringsQuery.isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#667eea" />
@@ -158,13 +365,28 @@ export default function ChooseSubscriptionScreen() {
                 {t('chooseSubscription.loading')}
               </Text>
             </View>
-          ) : packages.length === 0 ? (
+          ) : sortedPackages.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: isDarkMode ? '#1F2937' : 'white' }]}>
-              <Text style={[styles.emptyText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                {t('chooseSubscription.noOffers')}
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: isDarkMode ? '#FDE68A' : '#92400E', fontWeight: '700', marginBottom: 16 },
+                ]}
+              >
+                {t('chooseSubscription.comingSoon')}
               </Text>
+              <View style={styles.features}>
+                {planFeatures.map((feature, index) => (
+                  <View key={index} style={styles.feature}>
+                    <CheckCircle color="#10B981" size={16} />
+                    <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                      {feature}
+                    </Text>
+                  </View>
+                ))}
+              </View>
               <TouchableOpacity
-                style={styles.retryButton}
+                style={[styles.retryButton, { marginTop: 16 }]}
                 onPress={() => offeringsQuery.refetch()}
               >
                 <RefreshCw color="#667eea" size={20} />
@@ -172,88 +394,7 @@ export default function ChooseSubscriptionScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            packages.map((pkg: PurchasesPackage) => {
-              const details = getPackageDetails(pkg);
-              
-              return (
-                <View
-                  key={pkg.identifier}
-                  style={[
-                    styles.planCard,
-                    {
-                      backgroundColor: isDarkMode ? '#1F2937' : 'white',
-                      borderColor: details.popular ? '#667eea' : 'transparent',
-                    },
-                  ]}
-                >
-                  {details.badge && (
-                    <View style={[styles.badge, { backgroundColor: details.badgeColor }]}>
-                      <Star color="white" size={14} fill="white" />
-                      <Text style={styles.badgeText}>{details.badge}</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.planHeader}>
-                    <Text style={[styles.planName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                      {pkg.product.title}
-                    </Text>
-                    <View style={styles.priceContainer}>
-                      <Text style={[styles.price, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-                        {pkg.product.priceString}
-                      </Text>
-                      <Text style={[styles.period, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                        /{details.isAnnual ? t('chooseSubscription.perYear') : t('chooseSubscription.perMonth')}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {pkg.product.description && (
-                    <Text style={[styles.description, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                      {pkg.product.description}
-                    </Text>
-                  )}
-
-                  <View style={styles.features}>
-                    {planFeatures.map((feature, index) => (
-                      <View key={index} style={styles.feature}>
-                        <CheckCircle color="#10B981" size={16} />
-                        <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                          {feature}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.selectButton, details.popular && styles.popularButton]}
-                    onPress={() => handleSelectPackage(pkg)}
-                    disabled={isLoading}
-                  >
-                    <LinearGradient
-                      colors={details.popular ? ['#667eea', '#764ba2'] : ['#10B981', '#059669']}
-                      style={styles.selectButtonGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    >
-                      {purchaseMutation.isPending ? (
-                        <ActivityIndicator color="white" size="small" />
-                      ) : (
-                        <Text style={styles.selectButtonText}>{t('chooseSubscription.selectPlan')}</Text>
-                      )}
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <Text style={[styles.autoRenewText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-                    {t('chooseSubscription.autoRenew', {
-                      price: pkg.product.priceString,
-                      period: details.isAnnual
-                        ? t('chooseSubscription.perYear')
-                        : t('chooseSubscription.perMonth'),
-                    })}
-                  </Text>
-                </View>
-              );
-            })
+            sortedPackages.map(renderPackageCard)
           )}
 
           <TouchableOpacity
@@ -271,6 +412,12 @@ export default function ChooseSubscriptionScreen() {
                 </Text>
               </>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.continueFree} onPress={handleContinueFree}>
+            <Text style={[styles.continueFreeText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              {t('chooseSubscription.continueFree')}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.legalLinksRow}>
@@ -333,6 +480,13 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  reasonBlurb: {
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 22,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   loadingContainer: {
     alignItems: 'center',
@@ -419,10 +573,16 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginLeft: 4,
   },
-  description: {
+  highlight: {
     fontSize: 14,
-    marginBottom: 16,
+    fontWeight: '600',
+    marginBottom: 8,
     lineHeight: 20,
+  },
+  introLine: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
   },
   features: {
     gap: 12,
@@ -436,6 +596,7 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 15,
     color: '#6B7280',
+    flex: 1,
   },
   selectButton: {
     borderRadius: 14,
@@ -465,11 +626,20 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   restoreText: {
     fontSize: 15,
     fontWeight: '500' as const,
+  },
+  continueFree: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  continueFreeText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   autoRenewText: {
     fontSize: 12,

@@ -97,7 +97,7 @@ async function tryBiometrics(labels: {
 }
 
 export function AppLock() {
-  const { isAuthenticated, hasActiveSubscription, user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
   const insets = useSafeAreaInsets();
@@ -124,8 +124,7 @@ export function AppLock() {
   /** Čas odchodu do background — pro grace period při návratu. */
   const backgroundedAtRef = useRef<number | null>(null);
 
-  const fullAccess =
-    isAuthenticated && hasActiveSubscription === true && user != null && user.onboardingCompleted === true;
+  const fullAccess = isAuthenticated && user != null;
 
   const userEmail = (user?.email ?? '').trim().toLowerCase();
   const maskedEmail = userEmail ? maskEmail(userEmail) : '';

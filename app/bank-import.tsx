@@ -21,11 +21,21 @@ import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
+import { useRouter } from 'expo-router';
+import { usePremium } from '@/hooks/usePremium';
+import { PremiumGate, openPaywall } from '@/components/PremiumGate';
+import {
+  getFreeImportQuota,
+  canFreeUserImportFiles,
+  recordImportBatch,
+  type FreeImportQuota,
+} from '@/lib/free-import-limit';
 import { useSettingsStore } from '@/store/settings-store';
 import { supabase } from '@/lib/supabase';
 import { czechCountForm, pluralNovaTransakce, pluralDuplicita, pluralTransakce, pluralPolozka, pluralProtiucet, pluralVypis, pluralSoubor, pluralUcet } from '@/lib/plural-cs';
 import { normalizeAccount } from '@/utils/normalizeAccount';
 import {
+  bankImportTransactionToInsertRow,
   insertBankImportTransactionsRemote,
   reclassifyTransfersByAccountsRemote,
 } from '@/lib/supabase-transactions';
@@ -105,6 +115,8 @@ export default function BankImportScreen() {
   const { t, language } = useLanguageStore();
   const lang = language === 'en' ? 'en' : 'cs';
   const { user } = useAuth();
+  const router = useRouter();
+  const { isPremium } = usePremium();
   const userProfile = useSettingsStore((s) => s.userProfile);
   const setUserProfile = useSettingsStore((s) => s.setUserProfile);
   const addTransactions = useFinanceStore((s) => s.addTransactions);
@@ -115,7 +127,9 @@ export default function BankImportScreen() {
     bankLabel: string;
     rows: ParsedImportRow[];
     warnings?: string[];
+    fileCount: number;
   } | null>(null);
+  const [freeQuota, setFreeQuota] = useState<FreeImportQuota | null>(null);
   const [loading, setLoading] = useState(false);
   /** Postup jen v horním tlačítku „Vybrat CSV nebo PDF“ (žádná samostatná karta). */
   const [importProgress, setImportProgress] = useState<string | null>(null);
@@ -151,7 +165,22 @@ export default function BankImportScreen() {
   /** Po dismissu modalu „vlastní účty“ otevřít picker (iOS onDismiss / Android fallback). */
   const openPickerAfterOwnAccountsDismissRef = useRef(false);
 
+  const refreshFreeQuota = useCallback(async () => {
+    if (isPremium || !user?.id) {
+      setFreeQuota(null);
+      return;
+    }
+    const q = await getFreeImportQuota(user.id);
+    setFreeQuota(q);
+  }, [isPremium, user?.id]);
+
   useEffect(() => {
+    void refreshFreeQuota();
+  }, [refreshFreeQuota]);
+
+  useEffect(() => {
+    // Fio sync je Premium funkce — free uživatelům neprobíhá ani auto-sync.
+    if (!isPremium) return;
     AsyncStorage.getItem('fio_token').then(async (t) => {
       if (t) {
         setFioToken(t);
@@ -172,7 +201,7 @@ export default function BankImportScreen() {
         }
       }
     });
-  }, []);
+  }, [isPremium]);
 
   // Jednorázově odeber hypotéční účet z vlastních účtů (nesmí být Převod)
   useEffect(() => {
@@ -325,7 +354,8 @@ export default function BankImportScreen() {
               errors.push(`${asset.name || t('bankImportFileWord')}: ${warn}`);
               failedNames.push(asset.name || t('bankImportFileWord'));
             } else if (rows.length) {
-              allRows.push(...rows.map((r) => ({ ...r, source: src })));
+              const importFileKey = `file-${i}`;
+              allRows.push(...rows.map((r) => ({ ...r, source: src, importFileKey })));
               okFiles += 1;
               if (bankLabel) sourceLabels.push(bankLabel);
             } else if (emptyStatement || message?.includes('neobsahuje žádné transakce')) {
@@ -365,10 +395,12 @@ export default function BankImportScreen() {
               errors.push(`${asset.name || 'CSV'}: ${parsed.error}`);
               failedNames.push(asset.name || 'CSV');
             } else {
+              const importFileKey = `file-${i}`;
               allRows.push(
                 ...parsed.rows.map((r) => ({
                   ...r,
                   source: csvBankIdToSource(parsed.bank.id),
+                  importFileKey,
                 })),
               );
               sourceLabels.push(parsed.bank.label);
@@ -462,9 +494,10 @@ export default function BankImportScreen() {
         }),
         rows: allRows,
         warnings: ownerNames.length === 0 ? [t('bankImportOwnerNameMissing')] : undefined,
+        fileCount: total,
       });
       setModalOpen(true);
-      console.log('[import] krok 4 preview modal open', { rows: allRows.length });
+      console.log('[import] krok 4 preview modal open', { rows: allRows.length, fileCount: total });
       } catch (e) {
         console.error('[import] runImportFromAssets fatal', e);
         setLoading(false);
@@ -497,6 +530,21 @@ export default function BankImportScreen() {
         Alert.alert(t('importLabel'), t('bankImportFilePickFailed'));
         return;
       }
+
+      // Free: po výběru zkontroluj počet souborů — při překročení nic neimportuj.
+      if (!isPremium && user?.id) {
+        const check = await canFreeUserImportFiles(user.id, assets.length);
+        setFreeQuota(check);
+        if (!check.allowed) {
+          openPaywall(router, 'unlimited_imports', {
+            remaining: check.remaining,
+            used: check.usedThisMonth,
+            limit: check.limit,
+          });
+          return;
+        }
+      }
+
       await runImportFromAssets(assets);
     } catch (e) {
       console.error('[import] openDocumentPicker failed', e);
@@ -532,6 +580,22 @@ export default function BankImportScreen() {
     }
     console.log('[import] pickFile tapped');
     try {
+      if (!isPremium) {
+        if (!user?.id) {
+          openPaywall(router, 'unlimited_imports', { remaining: 0 });
+          return;
+        }
+        const quota = await getFreeImportQuota(user.id);
+        setFreeQuota(quota);
+        if (!quota.isFirstImport && quota.remaining <= 0) {
+          openPaywall(router, 'unlimited_imports', {
+            remaining: 0,
+            used: quota.usedThisMonth,
+            limit: quota.limit,
+          });
+          return;
+        }
+      }
       if (await shouldShowOwnerAccountsImportPrompt()) {
         console.log('[import] own-accounts prompt shown — picker deferred');
         setDraftAccounts([]);
@@ -545,7 +609,7 @@ export default function BankImportScreen() {
       console.error('[import] pickFile failed', e);
       Alert.alert(t('importLabel'), logAndGetUserFacingError('bank-import', e));
     }
-  }, [loading, isPicking, isImportingAssets, openDocumentPicker, t]);
+  }, [loading, isPicking, isImportingAssets, openDocumentPicker, t, isPremium, user?.id, router]);
 
   const addDraftAccount = useCallback(() => {
     const number = draftAccountNumber.trim();
@@ -700,6 +764,10 @@ export default function BankImportScreen() {
   });
 
   const { run: syncFio, isRunning: fioSyncing } = useAsyncAction(async () => {
+    if (!isPremium) {
+      openPaywall(router, 'fio_sync');
+      return;
+    }
     if (!fioToken.trim()) return;
     try {
       await AsyncStorage.setItem('fio_token', fioToken.trim());
@@ -762,6 +830,17 @@ export default function BankImportScreen() {
             </Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        {!isPremium && freeQuota ? (
+          <Text style={[styles.freeQuotaHint, { color: colors.textSecondary }]}>
+            {freeQuota.isFirstImport
+              ? t('bankImportFreeFirstUnlimited')
+              : t('bankImportFreeQuotaRemaining', {
+                  remaining: freeQuota.remaining,
+                  limit: freeQuota.limit,
+                })}
+          </Text>
+        ) : null}
 
         {ownAccountCandidates.length > 0 && (
           <View
@@ -1075,6 +1154,7 @@ export default function BankImportScreen() {
           </TouchableOpacity>
         )}
 
+        <PremiumGate feature="fio_sync" requireOwnPremium compact>
         <View style={[styles.fioCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.fioTitle, { color: colors.text }]}>🏦 Fio banka — auto sync</Text>
           <Text style={[styles.fioSub, { color: colors.textSecondary }]}>
@@ -1102,6 +1182,7 @@ export default function BankImportScreen() {
             }
           </TouchableOpacity>
         </View>
+        </PremiumGate>
 
         {lastImportIds && lastImportIds.length > 0 && (
           <TouchableOpacity
@@ -1174,6 +1255,7 @@ export default function BankImportScreen() {
                 counterpartyAccount: cpAcc,
                 counterpartyName: cpName,
                 uniqueKey: undefined,
+                importFileKey: tx.importFileKey,
               };
             });
 
@@ -1218,6 +1300,32 @@ export default function BankImportScreen() {
             if (x > 0) {
               addTransactions(inserted, { fromRemote: true });
               setLastImportIds(inserted.map((tx) => tx.id));
+
+              // Free kvóta: jen soubory, ze kterých přibyla ≥1 nová transakce (0 nových = nepočítat).
+              const uniqueKeyToFile = new Map<string, string>();
+              for (const tx of withMeta) {
+                if (!tx.importFileKey) continue;
+                const row = bankImportTransactionToInsertRow(tx, authUser.id);
+                const uk = row.unique_key?.trim();
+                if (uk) uniqueKeyToFile.set(uk, tx.importFileKey);
+              }
+              const filesWithNew = new Set<string>();
+              for (const tx of inserted) {
+                const uk = tx.uniqueKey?.trim();
+                if (uk && uniqueKeyToFile.has(uk)) {
+                  filesWithNew.add(uniqueKeyToFile.get(uk)!);
+                }
+              }
+              const fileCount =
+                filesWithNew.size > 0
+                  ? filesWithNew.size
+                  : 1; // fallback: aspoň 1 soubor, když matching selže ale máme insert
+              await recordImportBatch({
+                batchId: importBatchId,
+                userId: authUser.id,
+                fileCount,
+              });
+              void refreshFreeQuota();
             }
 
             // Návrhy i při čistém reimportu (x===0) — DB deduplikuje, protiúčty můžou být nové.
@@ -1461,6 +1569,13 @@ const styles = StyleSheet.create({
   },
   primaryIcon: { marginRight: 10 },
   primaryBtnText: { color: 'white', fontSize: 17, fontWeight: '700' },
+  freeQuotaHint: {
+    marginHorizontal: 24,
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
   undoImportBtn: {
     marginHorizontal: 20,
     marginTop: 16,
