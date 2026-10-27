@@ -1247,6 +1247,28 @@ function InvesticeTabScreenContent() {
               </Text>
             </View>
 
+            <TouchableOpacity style={emptyStyles.primaryBtn} onPress={openImportSheet} activeOpacity={0.9}>
+              <LinearGradient
+                colors={[colors.gradientStart, colors.gradientEnd]}
+                style={emptyStyles.primaryBtnGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Upload color="#FFFFFF" size={18} strokeWidth={2.2} />
+                <Text style={emptyStyles.primaryBtnText}>{t('importPortfolio')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={emptyStyles.guideLink}
+              onPress={() => setExportGuideVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[emptyStyles.guideLinkText, { color: colors.primary }]}>
+                {t('investEmptyHowExport')}
+              </Text>
+            </TouchableOpacity>
+
             <View style={[emptyStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[emptyStyles.cardTitle, { color: colors.text }]}>
                 {t('investEmptyBrokersTitle')}
@@ -1294,28 +1316,6 @@ function InvesticeTabScreenContent() {
                 ))}
               </View>
             </View>
-
-            <TouchableOpacity style={emptyStyles.primaryBtn} onPress={openImportSheet} activeOpacity={0.9}>
-              <LinearGradient
-                colors={[colors.gradientStart, colors.gradientEnd]}
-                style={emptyStyles.primaryBtnGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Upload color="#FFFFFF" size={18} strokeWidth={2.2} />
-                <Text style={emptyStyles.primaryBtnText}>{t('importPortfolio')}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={emptyStyles.guideLink}
-              onPress={() => setExportGuideVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[emptyStyles.guideLinkText, { color: colors.primary }]}>
-                {t('investEmptyHowExport')}
-              </Text>
-            </TouchableOpacity>
 
             <Text style={[emptyStyles.footnote, { color: colors.textSecondary }]}>
               {t('investEmptyBetaNote')}
