@@ -46,6 +46,11 @@ import {
   getPushTokenSetupFailed,
   registerExpoPushTokenForUser,
 } from '@/lib/expo-push-token';
+import { supabase } from '@/lib/supabase';
+import {
+  fetchOrCreateUserNotificationProfile,
+  type UserNotificationProfile,
+} from '@/lib/household-recurring-notifications';
 
 function parseTimeToDate(s: string): Date {
   const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
@@ -60,6 +65,14 @@ function parseTimeToDate(s: string): Date {
 
 function formatTimeFromDate(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function householdToNotifPrefs(en: boolean, dayB: number, time: string): NotifCategoryPrefs {
+  if (!en || dayB < 0) {
+    return { enabled: false, daysBefore: 1, time };
+  }
+  const d = dayB === 0 ? 1 : dayB === 2 ? 2 : dayB === 3 ? 3 : 1;
+  return { enabled: true, daysBefore: d as DaysBefore, time };
 }
 
 const DAY_PILL_VALUES: DaysBefore[] = [1, 2, 3];
@@ -99,7 +112,25 @@ export default function NotificationsSettingsScreen() {
   const [showSubTime, setShowSubTime] = useState(false);
   const [showTipTime, setShowTipTime] = useState(false);
   const [showMortTime, setShowMortTime] = useState(false);
+  const [showHhTime, setShowHhTime] = useState(false);
   const [pushSetupFailed, setPushSetupFailed] = useState(false);
+
+  const [hhEnabled, setHhEnabled] = useState(true);
+  const [hhDaysBefore, setHhDaysBefore] = useState(1);
+  const [hhTimeStr, setHhTimeStr] = useState('09:00');
+  const [hhSaving, setHhSaving] = useState(false);
+  const [hhLoaded, setHhLoaded] = useState(false);
+
+  const hhDayOptions = useMemo(
+    () => [
+      { label: t('hhNotifSameDay'), value: 0 },
+      { label: t('hhNotif1DayBefore'), value: 1 },
+      { label: t('hhNotif2DaysBefore'), value: 2 },
+      { label: t('hhNotif3DaysBefore'), value: 3 },
+      { label: t('hhNotifOff'), value: -1 },
+    ],
+    [t],
+  );
 
   const hasMortgage = loans.some((l) => l.loanType === 'mortgage');
   const masterOn = notifications.pushNotifications;
@@ -120,6 +151,53 @@ export default function NotificationsSettingsScreen() {
     }
   }, [user?.id, subscriptions, loans, currencySymbol]);
 
+  const saveHousehold = useCallback(
+    async (
+      next: Partial<UserNotificationProfile> & {
+        recurring_expense_notifications_enabled?: boolean;
+      },
+    ) => {
+      if (!user?.id) return;
+      setHhSaving(true);
+      try {
+        const payload = {
+          id: user.id,
+          user_id: user.id,
+          recurring_expense_notifications_enabled:
+            next.recurring_expense_notifications_enabled ?? hhEnabled,
+          notification_days_before: next.notification_days_before ?? hhDaysBefore,
+          notification_time: next.notification_time ?? hhTimeStr,
+          updated_at: new Date().toISOString(),
+        };
+        const { error } = await supabase.from('user_profiles').upsert(payload, {
+          onConflict: 'user_id',
+        });
+        if (error) {
+          Alert.alert(t('error'), error.message);
+          return;
+        }
+        if (next.recurring_expense_notifications_enabled !== undefined) {
+          setHhEnabled(next.recurring_expense_notifications_enabled);
+        }
+        if (next.notification_days_before !== undefined) {
+          setHhDaysBefore(next.notification_days_before);
+        }
+        if (next.notification_time !== undefined) {
+          setHhTimeStr(next.notification_time);
+        }
+
+        const en = next.recurring_expense_notifications_enabled ?? hhEnabled;
+        const db = next.notification_days_before ?? hhDaysBefore;
+        const tm = next.notification_time ?? hhTimeStr;
+        await saveNotifPaymentsPrefs(householdToNotifPrefs(en, db, tm));
+        await runReschedule();
+      } finally {
+        setHhSaving(false);
+      }
+    },
+    [user?.id, hhEnabled, hhDaysBefore, hhTimeStr, t, runReschedule],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -137,6 +215,16 @@ export default function NotificationsSettingsScreen() {
       setMortgage(m);
       setSplitExpensesNotif(split);
       setPushSetupFailed(pushFailed);
+
+      if (user?.id) {
+        const hp = await fetchOrCreateUserNotificationProfile(user.id);
+        setHhEnabled(hp.recurring_expense_notifications_enabled);
+        setHhDaysBefore(hp.notification_days_before);
+        setHhTimeStr(hp.notification_time);
+        setHhLoaded(true);
+      } else {
+        setHhLoaded(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -576,6 +664,91 @@ export default function NotificationsSettingsScreen() {
             ) : null}
           </View>
         ) : null}
+
+        {/* Domácnost — dříve samostatná obrazovka household-notification-settings */}
+        {user?.id && hhLoaded ? (
+          <View style={cardStyle}>
+            <Text style={[styles.sectionHeading, { color: colors.text }]}>
+              {t('profileSectionHousehold')}
+            </Text>
+            <Text style={[styles.sub, { color: colors.textSecondary, marginBottom: 12 }]}>
+              {t('hhNotifExpenseAlerts')}
+            </Text>
+            <View style={styles.row}>
+              <View style={styles.textBlock}>
+                <Text style={[styles.title, { color: colors.text }]}>{t('hhNotifEnabled')}</Text>
+              </View>
+              <Switch
+                value={hhEnabled}
+                onValueChange={(v) => {
+                  setHhEnabled(v);
+                  void saveHousehold({ recurring_expense_notifications_enabled: v });
+                }}
+                trackColor={{ false: '#9CA3AF', true: '#86EFAC' }}
+                thumbColor={Platform.OS === 'android' ? (hhEnabled ? '#fff' : '#f4f3f4') : undefined}
+              />
+            </View>
+            <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
+              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{t('hhNotifWhen')}</Text>
+              {hhDayOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.hhOption,
+                    {
+                      borderColor: hhDaysBefore === opt.value ? colors.primary : colors.border,
+                      backgroundColor:
+                        hhDaysBefore === opt.value
+                          ? isDark
+                            ? '#312E81'
+                            : '#EEF2FF'
+                          : 'transparent',
+                    },
+                  ]}
+                  onPress={() => {
+                    setHhDaysBefore(opt.value);
+                    void saveHousehold({ notification_days_before: opt.value });
+                  }}
+                >
+                  <Text style={[styles.hhOptionText, { color: colors.text }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <Text style={[styles.subLabel, { color: colors.textSecondary, marginTop: 12 }]}>
+                {t('hhNotifTime')}
+              </Text>
+              <TouchableOpacity
+                style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
+                onPress={() => setShowHhTime(true)}
+              >
+                <Text style={[styles.timeBtnText, { color: colors.text }]}>{hhTimeStr}</Text>
+              </TouchableOpacity>
+              {showHhTime ? (
+                <DateTimePicker
+                  value={parseTimeToDate(hhTimeStr)}
+                  mode="time"
+                  is24Hour
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(_, date) => {
+                    setShowHhTime(Platform.OS === 'ios');
+                    if (date) {
+                      const s = formatTimeFromDate(date);
+                      setHhTimeStr(s);
+                      void saveHousehold({ notification_time: s });
+                    }
+                  }}
+                />
+              ) : null}
+              {hhSaving ? (
+                <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 8 }]}>
+                  {t('hhNotifSaving')}
+                </Text>
+              ) : null}
+              <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 10 }]}>
+                {t('hhNotifFooter')}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
     </>
   );
@@ -658,4 +831,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   timeBtnText: { fontSize: 16, fontWeight: '600' },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  hhOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  hhOptionText: { fontSize: 14, fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,23 @@ import {
   Linking,
   Platform,
   RefreshControl,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedScrollHandler,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { decode } from 'base64-arraybuffer';
 import {
-  User,
-  Settings,
   Bell,
-  Shield,
   HelpCircle,
-  Globe,
-  DollarSign,
   Palette,
   ChevronRight,
   Sparkles,
@@ -37,26 +34,26 @@ import {
   Building2,
   Lock,
   FileText,
+  Target,
+  Landmark,
+  LogOut,
+  Crown,
   Pencil,
+  Camera,
 } from 'lucide-react-native';
 
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
-import { appLocale } from '@/lib/app-locale';
 import { useAuth } from '@/store/auth-store';
+import { usePremium } from '@/hooks/usePremium';
 import { useFinanceStore } from '@/store/finance-store';
-import { fetchUserProfileFromSupabase } from '@/lib/user-profile-supabase';
-import { computeProfileRecommendations } from '@/lib/financial-recommendations';
-import { formatMoneyWithSymbol } from '@/lib/format-money';
-import { yyyyMmLocalToday } from '@/lib/transaction-date';
-import { CollapsingGradientHeader } from '@/components/CollapsingGradientHeader';
-
+import { useSavePendingStore } from '@/store/save-pending-store';
+import { fetchUserProfileFromSupabase, updateUserProfileFields } from '@/lib/user-profile-supabase';
+import { fetchSavedTotalFromDb } from '@/lib/save-decisions';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/use-theme';
 import { TERMS_OF_USE_URL } from '@/constants/legal-urls';
-
-const HEADER_COLLAPSED_BODY = 44;
-const HEADER_EXPANDED_BODY = 88;
 
 function profileInitials(firstName: string, lastName: string, fallbackName: string, email: string): string {
   const f = firstName.trim();
@@ -71,62 +68,52 @@ function profileInitials(firstName: string, lastName: string, fallbackName: stri
   return local.charAt(0).toUpperCase() || '?';
 }
 
+function formatCzkWhole(amount: number): string {
+  const n = Math.round(amount);
+  try {
+    return `${new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 0 }).format(n)} Kč`;
+  } catch {
+    return `${n} Kč`;
+  }
+}
+
+function formatMemberSince(iso: string | undefined, fallback: string): string {
+  if (!iso) return fallback;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fallback;
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${mm}/${d.getFullYear()}`;
+}
+
+async function resizeAvatarUri(uri: string, width?: number, height?: number): Promise<string> {
+  const w = width ?? 1024;
+  const h = height ?? 1024;
+  const actions: ImageManipulator.Action[] = [];
+  if (w > 500 || h > 500) {
+    if (w >= h) actions.push({ resize: { width: 500 } });
+    else actions.push({ resize: { height: 500 } });
+  }
+  const out = await ImageManipulator.manipulateAsync(uri, actions, {
+    compress: 0.8,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  return out.uri;
+}
+
 export default function ProfileScreen() {
-  const { user } = useAuth();
-  const { theme, userProfile, setUserProfile, getCurrentCurrency } = useSettingsStore();
-  const appCurrency = getCurrentCurrency();
+  const { user, logout } = useAuth();
+  const { userProfile, setUserProfile } = useSettingsStore();
+  const { isPremium, isHouseholdPremium } = usePremium();
   const transactions = useFinanceStore((s) => s.transactions);
+  const savedTotalLocal = useSavePendingStore((s) => s.savedTotal);
+  const loadSaveStore = useSavePendingStore((s) => s.loadFromStorage);
   const { colors } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t } = useLanguageStore();
   const router = useRouter();
-  const numberLocale = appLocale(language);
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-
-  const headerMin = insets.top + HEADER_COLLAPSED_BODY;
-  const headerMax = insets.top + HEADER_EXPANDED_BODY;
-  const scrollDistance = Math.max(1, headerMax - headerMin);
-  const isIOS = Platform.OS === 'ios';
-  const scrollYInsetOffset = isIOS ? headerMax : 0;
-  const scrollY = useSharedValue(isIOS ? -headerMax : 0);
-
-  const onScroll = useAnimatedScrollHandler({
-    onScroll: (e) => {
-      scrollY.value = e.contentOffset.y;
-    },
-  });
-
-  const collapsingHeaderStyle = useAnimatedStyle(() => {
-    const y = scrollY.value + scrollYInsetOffset;
-    return {
-      height: interpolate(y, [0, scrollDistance], [headerMax, headerMin], Extrapolation.CLAMP),
-    };
-  });
-  const headerGradientFadeStyle = useAnimatedStyle(() => {
-    const y = scrollY.value + scrollYInsetOffset;
-    return { opacity: interpolate(y, [0, scrollDistance], [1, 0], Extrapolation.CLAMP) };
-  });
-  const headerHairlineStyle = useAnimatedStyle(() => {
-    const y = scrollY.value + scrollYInsetOffset;
-    return {
-      opacity: interpolate(y, [scrollDistance * 0.65, scrollDistance], [0, 1], Extrapolation.CLAMP),
-    };
-  });
-  const largeGreetingStyle = useAnimatedStyle(() => {
-    const y = scrollY.value + scrollYInsetOffset;
-    return {
-      opacity: interpolate(y, [0, scrollDistance * 0.55], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        { translateY: interpolate(y, [0, scrollDistance], [0, -12], Extrapolation.CLAMP) },
-      ],
-    };
-  });
-  const compactTitleStyle = useAnimatedStyle(() => {
-    const y = scrollY.value + scrollYInsetOffset;
-    return {
-      opacity: interpolate(y, [scrollDistance * 0.4, scrollDistance * 0.85], [0, 1], Extrapolation.CLAMP),
-    };
-  });
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [savedTotalDb, setSavedTotalDb] = useState<number | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -144,34 +131,129 @@ export default function ProfileScreen() {
     }
   }, [user?.id, setUserProfile]);
 
-  useFocusRefresh(loadProfile);
+  const loadSaved = useCallback(async () => {
+    if (!user?.id || !isHouseholdPremium) {
+      setSavedTotalDb(null);
+      return;
+    }
+    try {
+      await loadSaveStore();
+      const total = await fetchSavedTotalFromDb(user.id, null);
+      setSavedTotalDb(total);
+    } catch (e) {
+      console.warn('[profile] saved total', e);
+    }
+  }, [user?.id, isHouseholdPremium, loadSaveStore]);
+
+  useFocusRefresh(
+    useCallback(async () => {
+      await Promise.all([loadProfile(), loadSaved()]);
+    }, [loadProfile, loadSaved]),
+  );
+
+  useEffect(() => {
+    void loadSaved();
+  }, [loadSaved]);
 
   const onPullRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadProfile();
+      await Promise.all([loadProfile(), loadSaved()]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadProfile]);
+  }, [loadProfile, loadSaved]);
 
-  const recommendations = useMemo(
-    () => computeProfileRecommendations(transactions, yyyyMmLocalToday()),
-    [transactions],
+  const uploadAvatarFromUri = useCallback(
+    async (uri: string) => {
+      if (!user?.id) return;
+      setAvatarUploading(true);
+      try {
+        const path = `${user.id}/avatar.jpg`;
+        let uploadBody: Blob | ArrayBuffer;
+        if (Platform.OS === 'web') {
+          const response = await fetch(uri);
+          uploadBody = await response.blob();
+        } else {
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          uploadBody = decode(base64);
+        }
+        const { error: upErr } = await supabase.storage.from('avatars').upload(path, uploadBody, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+        if (upErr) throw new Error(upErr.message);
+        const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+        const nextAvatarUrl = `${pub.publicUrl}?t=${Date.now()}`;
+        const { error } = await updateUserProfileFields(user.id, { avatar_url: nextAvatarUrl });
+        if (error) throw error;
+        setUserProfile({ avatarUrl: nextAvatarUrl });
+      } catch (e) {
+        console.error(e);
+        Alert.alert(t('error'), e instanceof Error ? e.message : t('editProfile.photoEditFailed'));
+      } finally {
+        setAvatarUploading(false);
+      }
+    },
+    [user?.id, setUserProfile, t],
   );
 
-  const getThemeDisplayName = () => {
-    switch (theme) {
-      case 'light':
-        return t('themeLightShort');
-      case 'dark':
-        return t('themeDarkShort');
-      case 'auto':
-        return t('themeAutoShort');
-      default:
-        return t('themeLightShort');
+  const pickAvatar = useCallback(
+    async (source: 'library' | 'camera') => {
+      try {
+        if (source === 'library') {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert(t('editProfile.accessDenied'), t('editProfile.photosPermission'));
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: Platform.OS !== 'web',
+            aspect: [1, 1],
+            quality: 1,
+          });
+          if (result.canceled || !result.assets[0]) return;
+          const asset = result.assets[0];
+          const uri = await resizeAvatarUri(asset.uri, asset.width, asset.height);
+          await uploadAvatarFromUri(uri);
+        } else {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert(t('editProfile.accessDenied'), t('editProfile.cameraPermission'));
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: Platform.OS !== 'web',
+            aspect: [1, 1],
+            quality: 1,
+          });
+          if (result.canceled || !result.assets[0]) return;
+          const asset = result.assets[0];
+          const uri = await resizeAvatarUri(asset.uri, asset.width, asset.height);
+          await uploadAvatarFromUri(uri);
+        }
+      } catch (e) {
+        console.error(e);
+        Alert.alert(t('error'), t('editProfile.photoEditFailed'));
+      }
+    },
+    [t, uploadAvatarFromUri],
+  );
+
+  const onCameraPress = useCallback(() => {
+    if (Platform.OS === 'web') {
+      void pickAvatar('library');
+      return;
     }
-  };
+    Alert.alert(t('editProfile.profilePhoto'), t('editProfile.chooseSource'), [
+      { text: t('editProfile.gallery'), onPress: () => void pickAvatar('library') },
+      { text: t('editProfile.camera'), onPress: () => void pickAvatar('camera') },
+      { text: t('cancel'), style: 'cancel' },
+    ]);
+  }, [pickAvatar, t]);
 
   const MenuButton = ({ icon: Icon, title, subtitle, onPress }: any) => (
     <TouchableOpacity style={[styles.menuButton, { backgroundColor: colors.card }]} onPress={onPress}>
@@ -181,9 +263,9 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.menuButtonText}>
           <Text style={[styles.menuButtonTitle, { color: colors.text }]}>{title}</Text>
-          {subtitle && (
+          {subtitle ? (
             <Text style={[styles.menuButtonSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-          )}
+          ) : null}
         </View>
         <ChevronRight color={colors.textSecondary} size={20} />
       </View>
@@ -201,94 +283,52 @@ export default function ProfileScreen() {
     user?.email ?? '',
   );
 
-  const RecommendationCard = ({
-    title,
-    value,
-    subtitle,
-    color,
-    onPress,
-  }: {
-    title: string;
-    value: string;
-    subtitle: string;
-    color: readonly [string, string];
-    onPress?: () => void;
-  }) => (
-    <TouchableOpacity
-      style={styles.recommendationCard}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.88 : 1}
-      disabled={!onPress}
-    >
-      <LinearGradient
-        colors={color}
-        style={styles.recommendationGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <Text style={styles.recommendationValue}>{value}</Text>
-        <Text style={styles.recommendationTitle}>{title}</Text>
-        <Text style={styles.recommendationSubtitle}>{subtitle}</Text>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+  const txCount = transactions.length;
+  const savedDisplay = useMemo(() => {
+    if (!isHouseholdPremium) return formatCzkWhole(0);
+    const amount = savedTotalDb != null ? savedTotalDb : savedTotalLocal;
+    return formatCzkWhole(amount || 0);
+  }, [isHouseholdPremium, savedTotalDb, savedTotalLocal]);
+
+  const memberSince = formatMemberSince(user?.registrationDate, '—');
+
+  const appVersion =
+    Constants.expoConfig?.version ??
+    (Constants as { nativeAppVersion?: string }).nativeAppVersion ??
+    '—';
+
+  const openLegalPicker = () => {
+    Alert.alert(t('profileLegalTitle'), t('profileLegalSubtitle'), [
+      {
+        text: t('privacyPolicyGdpr'),
+        onPress: () => router.push('/privacy-policy'),
+      },
+      {
+        text: t('termsOfUse'),
+        onPress: () => void Linking.openURL(TERMS_OF_USE_URL),
+      },
+      { text: t('cancel'), style: 'cancel' },
+    ]);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(t('account.logoutTitle'), t('account.logoutConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('account.logoutTitle'),
+        style: 'destructive',
+        onPress: () => void logout(),
+      },
+    ]);
+  };
 
   return (
     <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
       <StatusBar style="light" />
-      <CollapsingGradientHeader
-        heightStyle={collapsingHeaderStyle}
-        gradientOpacityStyle={headerGradientFadeStyle}
-        hairlineOpacityStyle={headerHairlineStyle}
-        expandedOpacityStyle={largeGreetingStyle}
-        collapsedOpacityStyle={compactTitleStyle}
-        insetsTop={insets.top}
-        backgroundColor={colors.background}
-        borderColor={colors.border}
-        gradientColors={[colors.gradientStart, colors.gradientEnd]}
-        collapsedTitle={t('profile')}
-        expandedContent={
-          <View style={styles.profileExpandedRow}>
-            <View style={styles.headerAvatar}>
-              <Text style={styles.headerAvatarText}>{initials}</Text>
-            </View>
-            <View style={styles.profileExpandedText}>
-              <Text style={styles.profileDisplayName} numberOfLines={1}>
-                {displayName}
-              </Text>
-              {user?.email ? (
-                <Text style={styles.profileEmail} numberOfLines={1}>
-                  {user.email}
-                </Text>
-              ) : null}
-            </View>
-            <TouchableOpacity
-              style={styles.editIconBtn}
-              onPress={() => router.push('/edit-profile')}
-              accessibilityRole="button"
-              accessibilityLabel={t('profileEditProfile')}
-              hitSlop={10}
-            >
-              <Pencil color="white" size={20} />
-            </TouchableOpacity>
-          </View>
-        }
-      />
-
-      <Animated.ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
+      <ScrollView
+        style={styles.container}
         showsVerticalScrollIndicator={false}
-        bounces
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        contentInset={isIOS ? { top: headerMax } : undefined}
-        contentOffset={isIOS ? { x: 0, y: -headerMax } : undefined}
-        scrollIndicatorInsets={isIOS ? { top: headerMax } : undefined}
-        contentInsetAdjustmentBehavior={isIOS ? 'never' : undefined}
-        contentContainerStyle={{
-          paddingTop: isIOS ? 24 : headerMin + 24,
-          paddingBottom: 32,
-        }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -296,103 +336,130 @@ export default function ProfileScreen() {
             tintColor="#FFFFFF"
             colors={['#FFFFFF', colors.primary]}
             progressBackgroundColor={colors.primary}
-            progressViewOffset={Platform.OS === 'android' ? headerMax : undefined}
           />
         }
       >
-        {!isIOS ? <View style={{ height: scrollDistance }} collapsable={false} /> : null}
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.avatarWrap}>
+            {userProfile.avatarUrl ? (
+              <Image source={{ uri: userProfile.avatarUrl }} style={styles.avatar} contentFit="cover" />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitials}>{initials}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.cameraBadge}
+              onPress={onCameraPress}
+              disabled={avatarUploading}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('editProfile.profilePhoto')}
+            >
+              {avatarUploading ? (
+                <ActivityIndicator color="#667eea" size="small" />
+              ) : (
+                <Camera color="#667eea" size={16} />
+              )}
+            </TouchableOpacity>
+          </View>
 
-        {recommendations.visible ? (
-          <View style={styles.recommendationsContainer}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {t('financialRecommendations')}
+          <Text style={styles.heroName} numberOfLines={1}>
+            {displayName}
+          </Text>
+          {user?.email ? (
+            <Text style={styles.heroEmail} numberOfLines={1}>
+              {user.email}
             </Text>
-            <Text style={[styles.recommendationBasis, { color: colors.textSecondary }]}>
-              {t('profileRecBasedOnAvg')}
-            </Text>
-            <View style={styles.recommendationsGrid}>
-              <RecommendationCard
-                title={t('profileRecSetAside')}
-                value={formatMoneyWithSymbol(recommendations.setAside, numberLocale, appCurrency.symbol)}
-                subtitle={t('profileRecSetAsideHint')}
-                color={['#8B5CF6', '#7C3AED'] as const}
-                onPress={() => router.push('/investment-detail')}
-              />
-              <RecommendationCard
-                title={t('emergencyFundReserve')}
-                value={formatMoneyWithSymbol(
-                  recommendations.reserveTarget,
-                  numberLocale,
-                  appCurrency.symbol,
-                )}
-                subtitle={t('profileRecReserveHint')}
-                color={['#10B981', '#059669'] as const}
-                onPress={() => router.push('/reserve-detail')}
-              />
+          ) : null}
+
+          <View style={styles.heroActions}>
+            {isPremium ? (
+              <TouchableOpacity
+                style={styles.premiumBtn}
+                onPress={() => router.push('/account')}
+                activeOpacity={0.88}
+              >
+                <Crown color="#92400E" size={16} />
+                <Text style={styles.premiumBtnText}>{t('premium.tabBadge')}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={styles.editProfileBtn}
+              onPress={() => router.push('/edit-profile')}
+              activeOpacity={0.88}
+            >
+              <Pencil color="#FFFFFF" size={16} />
+              <Text style={styles.editProfileBtnText}>{t('profileEditProfileShort')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{txCount}</Text>
+              <Text style={styles.statLabel}>{t('profileStatTransactions')}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{savedDisplay}</Text>
+              <Text style={styles.statLabel}>{t('profileStatSaved')}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{memberSince}</Text>
+              <Text style={styles.statLabel}>{t('profileStatMemberSince')}</Text>
             </View>
           </View>
+        </LinearGradient>
+
+        {!isPremium ? (
+          <TouchableOpacity
+            style={styles.tryPremiumCard}
+            onPress={() => router.push('/choose-subscription')}
+            activeOpacity={0.9}
+          >
+            <View style={[styles.menuButtonIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Sparkles color="#FFFFFF" size={22} />
+            </View>
+            <View style={styles.menuButtonText}>
+              <Text style={styles.tryPremiumTitle}>{t('profileTryPremiumTitle')}</Text>
+              <Text style={styles.tryPremiumSub}>{t('profileTryPremiumSubtitle')}</Text>
+            </View>
+            <ChevronRight color="rgba(255,255,255,0.85)" size={20} />
+          </TouchableOpacity>
         ) : null}
 
         <View style={styles.menuContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionFinance')}</Text>
-
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionMyMoney')}</Text>
+          <MenuButton
+            icon={Target}
+            title={t('financialGoals')}
+            subtitle={t('profileGoalsReserveSubtitle')}
+            onPress={() => router.push('/financial-goals')}
+          />
+          <MenuButton
+            icon={Landmark}
+            title={t('profileReserveTitle')}
+            subtitle={t('profileReserveSubtitle')}
+            onPress={() => router.push('/reserve-detail')}
+          />
           <MenuButton
             icon={PiggyBank}
             title={t('piggyBankFeature')}
             subtitle={t('profileSaveSubtitle')}
             onPress={() => router.push('/save')}
           />
-
-          <MenuButton
-            icon={UsersRound}
-            title={t('splitGroups')}
-            subtitle={t('profileSplitGroupsSubtitle')}
-            onPress={() => router.push('/split-groups')}
-          />
-
-          <MenuButton
-            icon={Sparkles}
-            title={t('financialGoals')}
-            subtitle={t('profileGoalsSubtitle')}
-            onPress={() => router.push('/financial-goals')}
-          />
-
           <MenuButton
             icon={CreditCard}
             title={t('profileMyLiabilities')}
             subtitle={t('profileLoansSubtitle')}
             onPress={() => router.push('/loans')}
           />
-        </View>
-
-        <View style={styles.menuContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionHousehold')}</Text>
-
-          <MenuButton
-            icon={Users}
-            title={t('profileHouseholdSettings')}
-            subtitle={t('profileHouseholdSubtitle')}
-            onPress={() => router.push('/(tabs)/household')}
-          />
-
-          <MenuButton
-            icon={Bell}
-            title={t('profileNotificationSettings')}
-            subtitle={t('profileHouseholdBillsSubtitle')}
-            onPress={() => router.push('/household-notification-settings')}
-          />
-        </View>
-
-        <View style={styles.menuContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionAccount')}</Text>
-
-          <MenuButton
-            icon={User}
-            title={t('profileMyAccount')}
-            subtitle={t('profileAccountSubtitle')}
-            onPress={() => router.push('/account')}
-          />
-
           <MenuButton
             icon={Building2}
             title={t('bankAccountsTitle')}
@@ -402,142 +469,241 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionSharing')}</Text>
+          <MenuButton
+            icon={Users}
+            title={t('profileHouseholdSettings')}
+            subtitle={t('profileHouseholdSubtitle')}
+            onPress={() => router.push('/(tabs)/household')}
+          />
+          <MenuButton
+            icon={UsersRound}
+            title={t('splitGroups')}
+            subtitle={t('profileSplitGroupsSubtitle')}
+            onPress={() => router.push('/split-groups')}
+          />
+        </View>
+
+        <View style={styles.menuContainer}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('settings')}</Text>
-
-          <MenuButton
-            icon={Globe}
-            title={t('language')}
-            subtitle={language === 'cs' ? t('languageCs') : t('languageEn')}
-            onPress={() => router.push('/language-settings')}
-          />
-
-          <MenuButton
-            icon={DollarSign}
-            title={t('appCurrency')}
-            subtitle={`${appCurrency.name} (${appCurrency.code})`}
-            onPress={() => router.push('/currency-settings')}
-          />
-
           <MenuButton
             icon={Palette}
-            title={t('theme')}
-            subtitle={getThemeDisplayName()}
-            onPress={() => router.push('/theme-settings')}
+            title={t('profileAppearanceTitle')}
+            subtitle={t('profileAppearanceMenuSubtitle')}
+            onPress={() => router.push('/appearance-settings')}
           />
-
           <MenuButton
             icon={Bell}
             title={t('notifications')}
             subtitle={t('profileNotificationsSubtitle')}
             onPress={() => router.push('/notifications-settings')}
           />
-
           <MenuButton
             icon={Lock}
             title={t('privacySecurity')}
             subtitle={t('profilePrivacySubtitle')}
             onPress={() => router.push('/privacy-settings')}
           />
+        </View>
 
-          <MenuButton
-            icon={Shield}
-            title={t('privacyPolicy')}
-            subtitle={t('privacyPolicySubtitle')}
-            onPress={() => router.push('/privacy-policy')}
-          />
-
-          <MenuButton
-            icon={FileText}
-            title={t('termsOfUse')}
-            subtitle={t('termsOfUseSubtitle')}
-            onPress={() => {
-              void Linking.openURL(TERMS_OF_USE_URL);
-            }}
-          />
-
+        <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionInfo')}</Text>
           <MenuButton
             icon={HelpCircle}
             title={t('helpSupport')}
             subtitle={t('profileHelpSubtitle')}
             onPress={() => router.push('/help-support')}
           />
-
           <MenuButton
-            icon={Settings}
-            title={t('generalSettings')}
-            subtitle={t('generalSettingsSubtitle')}
-            onPress={() => router.push('/general-settings')}
+            icon={FileText}
+            title={t('profileLegalTitle')}
+            subtitle={t('profileLegalMenuSubtitle')}
+            onPress={openLegalPicker}
           />
+          <Text style={[styles.versionText, { color: colors.textSecondary }]}>
+            {t('profileAppVersion', { version: appVersion })}
+          </Text>
         </View>
-      </Animated.ScrollView>
+
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleLogout}
+          activeOpacity={0.88}
+        >
+          <View style={[styles.menuButtonIcon, { backgroundColor: '#FEE2E2' }]}>
+            <LogOut color="#EF4444" size={22} />
+          </View>
+          <Text style={styles.logoutText}>{t('account.logoutTitle')}</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  rootFill: {
-    flex: 1,
+  rootFill: { flex: 1 },
+  container: { flex: 1 },
+  hero: {
+    paddingHorizontal: 20,
+    paddingBottom: 22,
+    alignItems: 'center',
   },
-  container: {
-    flex: 1,
+  avatarWrap: {
+    marginBottom: 14,
   },
-  profileExpandedRow: {
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  avatarFallback: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  avatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(102,126,234,0.25)',
+  },
+  heroName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  heroEmail: {
+    marginTop: 4,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.82)',
+    textAlign: 'center',
+  },
+  heroActions: {
+    width: '100%',
+    alignItems: 'stretch',
+    gap: 10,
+    marginTop: 16,
+  },
+  editProfileBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'transparent',
+  },
+  editProfileBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  premiumBtn: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#FBBF24',
+  },
+  premiumBtnText: {
+    color: '#92400E',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    width: '100%',
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.25)',
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  statLabel: {
+    marginTop: 4,
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+  tryPremiumCard: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    marginBottom: 4,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    backgroundColor: '#667eea',
   },
-  headerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerAvatarText: {
-    color: 'white',
-    fontSize: 18,
+  tryPremiumTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '700',
   },
-  profileExpandedText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  profileDisplayName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
+  tryPremiumSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
     marginTop: 2,
   },
-  editIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
+  menuContainer: {
+    paddingHorizontal: 20,
+    marginTop: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  menuContainer: {
-    marginHorizontal: 20,
-    marginBottom: 32,
-  },
   menuButton: {
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   menuButtonContent: {
     flexDirection: 'row',
@@ -545,12 +711,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   menuButtonIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   menuButtonText: {
     flex: 1,
@@ -563,53 +729,25 @@ const styles = StyleSheet.create({
   menuButtonSubtitle: {
     fontSize: 14,
   },
-  recommendationsContainer: {
+  versionText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  logoutButton: {
     marginHorizontal: 20,
-    marginBottom: 32,
-  },
-  recommendationBasis: {
-    fontSize: 13,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  recommendationsGrid: {
+    marginTop: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
-  recommendationCard: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  recommendationGradient: {
-    padding: 20,
-    alignItems: 'center',
-    minHeight: 140,
-    justifyContent: 'center',
-  },
-  recommendationValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  recommendationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: 4,
-  },
-  recommendationSubtitle: {
-    fontSize: 11,
-    color: 'white',
-    opacity: 0.85,
-    textAlign: 'center',
-    lineHeight: 15,
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#EF4444',
   },
 });

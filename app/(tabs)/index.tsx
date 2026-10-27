@@ -63,6 +63,7 @@ import { SwipeableTransactionRow } from '@/components/SwipeableTransactionRow';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { useAuth } from '@/store/auth-store';
+import { usePremiumBannerStore } from '@/store/premium-banner-store';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { fetchHouseholdRecurringPaySummary, type HouseholdRecurringPaySummary } from '@/lib/household-recurring-dashboard';
 import { fetchUserProfileFromSupabase } from '@/lib/user-profile-supabase';
@@ -540,8 +541,16 @@ export default function DashboardScreen() {
   const [tipArticleOpen, setTipArticleOpen] = useState(false);
   const [txSelectionMode, setTxSelectionMode] = useState(false);
   const [txSelectedIds, setTxSelectedIds] = useState<Set<string>>(() => new Set());
+  const premiumBannerVisible = usePremiumBannerStore((s) => s.visible);
+  const hidePremiumBanner = usePremiumBannerStore((s) => s.hide);
   const insets = useSafeAreaInsets();
   const { isDesktop, contentMaxWidth } = useResponsiveLayout();
+
+  useEffect(() => {
+    if (!premiumBannerVisible) return;
+    const id = setTimeout(() => hidePremiumBanner(), 2800);
+    return () => clearTimeout(id);
+  }, [premiumBannerVisible, hidePremiumBanner]);
 
   const headerMin = insets.top + HEADER_COLLAPSED_BODY;
   const headerMax = insets.top + HEADER_EXPANDED_BODY;
@@ -1186,6 +1195,17 @@ export default function DashboardScreen() {
   return (
     <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
       <StatusBar style="light" />
+      {premiumBannerVisible ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.premiumActiveBanner,
+            { top: insets.top + 8, backgroundColor: '#059669' },
+          ]}
+        >
+          <Text style={styles.premiumActiveBannerText}>{t('premium.premiumActiveBanner')}</Text>
+        </View>
+      ) : null}
       <Animated.View style={[styles.collapsingHeader, collapsingHeaderStyle]}>
         <View
           pointerEvents="none"
@@ -2024,6 +2044,26 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   rootFill: {
     flex: 1,
+  },
+  premiumActiveBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 50,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  premiumActiveBannerText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   container: {
     flex: 1,

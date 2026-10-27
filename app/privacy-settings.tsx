@@ -18,6 +18,8 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Shield, Eye, Database, Trash2, ChevronRight, FileText, ShieldCheck, Smartphone } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
+import { useAuth } from '@/store/auth-store';
+import { clearAppDataCacheAndRefetch } from '@/lib/clear-app-data-cache';
 import { getBiometricsEnabled, setBiometricsEnabled } from '@/lib/biometrics-storage';
 import {
   disableAppLock,
@@ -33,12 +35,14 @@ import { PRIVACY_POLICY_URL, SECURITY_URL, TERMS_OF_USE_URL } from '@/constants/
 export default function PrivacySettingsScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
+  const { user } = useAuth();
   const router = useRouter();
   const [biometricsOn, setBiometricsOn] = useState(false);
   const [appLockOn, setAppLockOn] = useState(false);
   const [appLockSaving, setAppLockSaving] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const [bioLabel, setBioLabel] = useState('Face ID / Touch ID');
+  const [, setCacheBusy] = useState(false);
 
   const reloadSecurityFlags = useCallback(async () => {
     const [bio, hasPin] = await Promise.all([getBiometricsEnabled(), hasAppLockPin()]);
@@ -324,6 +328,37 @@ export default function PrivacySettingsScreen() {
             title={t('privacyDataManagement')}
             subtitle={t('privacyDataManagementSubtitle')}
             onPress={() => router.push('/privacy-data-management')}
+          />
+
+          <PrivacyItem
+            icon={Trash2}
+            title={t('generalSettingsClearCache')}
+            subtitle={t('generalSettingsClearCacheSubtitle')}
+            onPress={() => {
+              Alert.alert(t('generalSettingsClearCache'), t('generalSettingsClearCacheConfirm'), [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                  text: t('generalSettingsClearCache'),
+                  style: 'destructive',
+                  onPress: () => {
+                    void (async () => {
+                      setCacheBusy(true);
+                      try {
+                        await clearAppDataCacheAndRefetch(user?.id);
+                        Alert.alert(t('done'), t('generalSettingsClearCacheDone'));
+                      } catch (e) {
+                        Alert.alert(
+                          t('error'),
+                          e instanceof Error ? e.message : String(e),
+                        );
+                      } finally {
+                        setCacheBusy(false);
+                      }
+                    })();
+                  },
+                },
+              ]);
+            }}
           />
 
           <PrivacyItem

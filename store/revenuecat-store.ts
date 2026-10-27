@@ -127,9 +127,56 @@ export function hasRevenueCatApiKey(): boolean {
   return Boolean(getRCToken());
 }
 
-/** iOS Offer Code redemption sheet (App Store). No-op mimo iOS / bez RC. */
+/** Test Store klíč (dev bundle) — Offer Code sheet / App Store produkty nefungují. */
+export function isRevenueCatTestStore(): boolean {
+  return getAppVariant() === 'development' || Platform.OS === 'web';
+}
+
+/**
+ * Formát ceny z RevenueCat produktu.
+ * CZK → „1 290 Kč“ (bez haléřů); jiná měna → product.priceString.
+ */
+export function formatRcProductPrice(
+  price: number,
+  priceString?: string | null,
+  currencyCode?: string | null,
+): string {
+  const code = (String(currencyCode ?? 'CZK').trim().toUpperCase() || 'CZK');
+  if (code === 'CZK') {
+    try {
+      return new Intl.NumberFormat('cs-CZ', {
+        style: 'currency',
+        currency: 'CZK',
+        maximumFractionDigits: 0,
+      }).format(Math.round(Number(price) || 0));
+    } catch {
+      return `${Math.round(Number(price) || 0)} Kč`;
+    }
+  }
+  if (typeof priceString === 'string' && priceString.trim()) return priceString.trim();
+  try {
+    return new Intl.NumberFormat('cs-CZ', {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(Number(price) || 0);
+  } catch {
+    return String(price);
+  }
+}
+
+/** Měsíční ekvivalent roční ceny — zaokrouhleno na celé Kč. */
+export function formatRcMonthlyEquivalent(
+  annualPrice: number,
+  currencyCode?: string | null,
+): string {
+  const monthly = Math.round(Number(annualPrice) / 12);
+  return formatRcProductPrice(monthly, null, currencyCode ?? 'CZK');
+}
+
+/** iOS Offer Code redemption sheet (App Store). No-op mimo iOS / bez RC / Test Store. */
 export async function presentAppleCodeRedemptionSheet(): Promise<void> {
-  if (Platform.OS !== 'ios') return;
+  if (Platform.OS !== 'ios' || isRevenueCatTestStore()) return;
   const ready = await ensureConfigured();
   if (!ready || !Purchases?.presentCodeRedemptionSheet) return;
   await Purchases.presentCodeRedemptionSheet();
@@ -403,6 +450,24 @@ export function isAnnualPackage(pkg: PurchasesPackage): boolean {
   return type === 'ANNUAL' || id.includes('annual') || id.includes('yearly') || id.includes('year');
 }
 
+/** true = uživatel je eligible na trial/intro u daného productIdentifier. */
+export async function checkIntroEligibility(productIdentifier: string): Promise<boolean> {
+  try {
+    const ready = await ensureConfigured();
+    if (!ready || !Purchases?.checkTrialOrIntroductoryPriceEligibility) return false;
+    const map = await Purchases.checkTrialOrIntroductoryPriceEligibility([productIdentifier]);
+    const entry = map?.[productIdentifier];
+    const status = entry?.status;
+    // react-native-purchases: INTRO_ELIGIBILITY_STATUS_ELIGIBLE === 2
+    if (status === 2) return true;
+    const label = String(status ?? '').toUpperCase();
+    return label.includes('ELIGIBLE') && !label.includes('INELIGIBLE') && !label.includes('NO_INTRO');
+  } catch (e) {
+    console.warn('[RevenueCat] intro eligibility', e);
+    return false;
+  }
+}
+
 /** Intro nabídka (trial) z RC produktu, pokud existuje. */
 export function getIntroOfferLabel(pkg: PurchasesPackage): {
   hasFreeTrial: boolean;
@@ -424,9 +489,15 @@ export function getIntroOfferLabel(pkg: PurchasesPackage): {
   } else if (unit.includes('WEEK')) periodDays = (cycles || 1) * 7;
   else if (unit.includes('MONTH')) periodDays = (cycles || 1) * 30;
 
+  const priceAfter = formatRcProductPrice(
+    Number(product?.price ?? 0),
+    typeof product?.priceString === 'string' ? product.priceString : null,
+    product?.currencyCode,
+  );
+
   return {
     hasFreeTrial,
     periodDays,
-    priceAfter: typeof product?.priceString === 'string' ? product.priceString : null,
+    priceAfter: priceAfter || null,
   };
 }

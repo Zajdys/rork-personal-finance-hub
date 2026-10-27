@@ -283,6 +283,7 @@ function RootLayoutNav() {
       <Stack.Screen name="language-settings" options={{ title: t('language'), headerShown: true }} />
       <Stack.Screen name="currency-settings" options={{ title: t('appCurrency'), headerShown: true }} />
       <Stack.Screen name="theme-settings" options={{ title: t('theme'), headerShown: true }} />
+      <Stack.Screen name="appearance-settings" options={{ title: t('profileAppearanceTitle'), headerShown: true }} />
       <Stack.Screen name="general-settings" options={{ title: t('general'), headerShown: true }} />
       <Stack.Screen name="bank-accounts" options={{ title: t('bankAccountsTitle'), headerShown: true }} />
       <Stack.Screen name="notifications-settings" options={{ title: t('notifications'), headerShown: true }} />

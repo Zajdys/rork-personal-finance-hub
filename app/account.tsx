@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,26 +8,28 @@ import {
   Alert,
   Linking,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   User,
-
   Calendar,
   Crown,
   CreditCard,
-  Settings,
   LogOut,
   Edit3,
-  Shield,
-  Bell,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { usePremium } from '@/hooks/usePremium';
-import { useRevenueCatStore } from '@/store/revenuecat-store';
+import {
+  useRevenueCatStore,
+  restorePurchases,
+  hasPremiumAccess,
+} from '@/store/revenuecat-store';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/BackButton';
@@ -36,12 +38,13 @@ import { safeGoBack } from '@/lib/safe-back';
 export default function AccountScreen() {
   const { isDarkMode } = useSettingsStore();
   const { t } = useLanguageStore();
-  const { user, logout } = useAuth();
+  const { user, logout, activateSubscription } = useAuth();
   const { isPremium, isHouseholdPremium } = usePremium();
   const rcPlan = useRevenueCatStore((s) => s.plan);
   const rcExpiresAt = useRevenueCatStore((s) => s.expiresAt);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [restoring, setRestoring] = useState(false);
 
   const handleEditProfile = () => {
     router.push('/edit-profile');
@@ -59,22 +62,34 @@ export default function AccountScreen() {
     }
   };
 
+  const handleRestore = async () => {
+    setRestoring(true);
+    try {
+      const info = await restorePurchases();
+      if (info && hasPremiumAccess(info)) {
+        await activateSubscription('yearly');
+        Alert.alert(t('chooseSubscription.successTitle'), t('chooseSubscription.restored'));
+      } else {
+        Alert.alert('Info', t('chooseSubscription.noPrevious'));
+      }
+    } catch {
+      Alert.alert(t('error'), t('chooseSubscription.restoreFailed'));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      t('account.logoutTitle'),
-      t('account.logoutConfirm'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { 
-          text: t('account.logoutTitle'), 
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            // Navigation will be handled automatically by the auth system
-          }
-        }
-      ]
-    );
+    Alert.alert(t('account.logoutTitle'), t('account.logoutConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('account.logoutTitle'),
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+        },
+      },
+    ]);
   };
 
   const isSharedOnly = isHouseholdPremium && !isPremium;
@@ -93,212 +108,176 @@ export default function AccountScreen() {
       : t('account.planFree');
   const badgeActive = isPremium || isSharedOnly;
 
-  const AccountInfoCard = () => (
-    <View style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-      <View style={styles.accountHeader}>
-        <View style={styles.avatarContainer}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.avatar}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <User color="white" size={32} />
-          </LinearGradient>
-        </View>
-        <View style={styles.accountInfo}>
-          <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {user?.name || t('account.userFallback')}
-          </Text>
-          <Text style={[styles.accountEmail, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {user?.email || t('account.unknownEmail')}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-          <Edit3 color="#667eea" size={20} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.accountDetails}>
-        <View style={styles.accountDetail}>
-          <Calendar color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={16} />
-          <Text style={[styles.accountDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-            {t('account.memberSince', {
-              date: user?.registrationDate
-                ? new Date(user.registrationDate).toLocaleDateString('cs-CZ')
-                : t('account.unknown'),
-            })}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  const SubscriptionCard = () => (
-    <View style={[styles.subscriptionCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
-      <View style={styles.subscriptionHeader}>
-        <View style={styles.subscriptionIcon}>
-          <Crown color="#F59E0B" size={24} />
-        </View>
-        <View style={styles.subscriptionInfo}>
-          <Text style={[styles.subscriptionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {t('account.subscription')}
-          </Text>
-          <Text style={[styles.subscriptionSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-            {subscriptionLabel}
-          </Text>
-        </View>
-        <View style={[
-          styles.subscriptionBadge,
-          { backgroundColor: badgeActive ? '#10B981' : '#6B7280' }
-        ]}>
-          <Text style={styles.subscriptionBadgeText}>
-            {badgeActive ? t('account.active') : t('account.planFree')}
-          </Text>
-        </View>
-      </View>
-
-      {!isSharedOnly && (
-      <TouchableOpacity 
-        style={styles.manageSubscriptionButton}
-        onPress={isPremium ? handleManageSubscription : handleTryPremium}
-      >
+  return (
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC', paddingTop: insets.top },
+      ]}
+    >
+      <ScrollView showsVerticalScrollIndicator={false}>
         <LinearGradient
           colors={['#667eea', '#764ba2']}
-          style={styles.manageSubscriptionGradient}
+          style={styles.header}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <CreditCard color="white" size={20} />
-          <Text style={styles.manageSubscriptionText}>
-            {isPremium ? t('account.manageSubscription') : t('account.tryPremium')}
-          </Text>
-          {isPremium ? <ExternalLink color="white" size={16} /> : null}
-        </LinearGradient>
-      </TouchableOpacity>
-      )}
-    </View>
-  );
-
-  const MenuButton = ({ icon: Icon, title, subtitle, onPress, danger = false }: any) => (
-    <TouchableOpacity 
-      style={[styles.menuButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]} 
-      onPress={onPress}
-    >
-      <View style={styles.menuButtonContent}>
-        <View style={[styles.menuButtonIcon, { backgroundColor: danger ? '#FEE2E2' : '#F3F4F6' }]}>
-          <Icon color={danger ? '#EF4444' : '#667eea'} size={20} />
-        </View>
-        <View style={styles.menuButtonText}>
-          <Text style={[
-            styles.menuButtonTitle, 
-            { color: danger ? '#EF4444' : (isDarkMode ? 'white' : '#1F2937') }
-          ]}>
-            {title}
-          </Text>
-          {subtitle && (
-            <Text style={[styles.menuButtonSubtitle, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {subtitle}
-            </Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC', paddingTop: insets.top }]}>
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-      >
-      {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerTop}>
-          <BackButton
-            color="white"
-            size={24}
-            style={styles.backButton}
-            onPress={() =>
-              safeGoBack('/(tabs)')
-            }
-          />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('profileMyAccount')}</Text>
-            <Text style={styles.headerSubtitle}>{t('profileAccountSubtitle')}</Text>
+          <View style={styles.headerTop}>
+            <BackButton
+              color="white"
+              size={24}
+              style={styles.backButton}
+              onPress={() => safeGoBack('/(tabs)/profile')}
+            />
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>{t('profileMyAccount')}</Text>
+              <Text style={styles.headerSubtitle}>{t('profileAccountSubtitle')}</Text>
+            </View>
           </View>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
 
-      <View style={styles.content}>
-        {/* Account Info */}
-        <AccountInfoCard />
+        <View style={styles.content}>
+          <View style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>
+            <View style={styles.accountHeader}>
+              <View style={styles.avatarContainer}>
+                <LinearGradient
+                  colors={['#667eea', '#764ba2']}
+                  style={styles.avatar}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <User color="white" size={32} />
+                </LinearGradient>
+              </View>
+              <View style={styles.accountInfo}>
+                <Text style={[styles.accountName, { color: isDarkMode ? 'white' : '#1F2937' }]}>
+                  {user?.name || t('account.userFallback')}
+                </Text>
+                <Text style={[styles.accountEmail, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                  {user?.email || t('account.unknownEmail')}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+                <Edit3 color="#667eea" size={20} />
+              </TouchableOpacity>
+            </View>
 
-        {/* Subscription */}
-        <SubscriptionCard />
+            <View style={styles.accountDetails}>
+              <View style={styles.accountDetail}>
+                <Calendar color={isDarkMode ? '#9CA3AF' : '#6B7280'} size={16} />
+                <Text
+                  style={[styles.accountDetailText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}
+                >
+                  {t('account.memberSince', {
+                    date: user?.registrationDate
+                      ? new Date(user.registrationDate).toLocaleDateString('cs-CZ')
+                      : t('account.unknown'),
+                  })}
+                </Text>
+              </View>
+            </View>
+          </View>
 
-        {/* Menu Options */}
-        <View style={styles.menuSection}>
-          <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
-            {t('account.accountSettings')}
-          </Text>
+          <View
+            style={[styles.subscriptionCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
+          >
+            <View style={styles.subscriptionHeader}>
+              <View style={styles.subscriptionIcon}>
+                <Crown color="#F59E0B" size={24} />
+              </View>
+              <View style={styles.subscriptionInfo}>
+                <Text
+                  style={[styles.subscriptionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}
+                >
+                  {t('account.subscription')}
+                </Text>
+                <Text
+                  style={[
+                    styles.subscriptionSubtitle,
+                    { color: isDarkMode ? '#9CA3AF' : '#6B7280' },
+                  ]}
+                >
+                  {subscriptionLabel}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.subscriptionBadge,
+                  { backgroundColor: badgeActive ? '#10B981' : '#6B7280' },
+                ]}
+              >
+                <Text style={styles.subscriptionBadgeText}>
+                  {badgeActive ? t('account.active') : t('account.planFree')}
+                </Text>
+              </View>
+            </View>
 
-          <MenuButton
-            icon={Bell}
-            title={t('notifications')}
-            subtitle={t('profileNotificationsSubtitle')}
-            onPress={() => router.push('/notifications-settings')}
-          />
+            {!isSharedOnly ? (
+              <TouchableOpacity
+                style={styles.manageSubscriptionButton}
+                onPress={isPremium ? handleManageSubscription : handleTryPremium}
+              >
+                <LinearGradient
+                  colors={['#667eea', '#764ba2']}
+                  style={styles.manageSubscriptionGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <CreditCard color="white" size={20} />
+                  <Text style={styles.manageSubscriptionText}>
+                    {isPremium ? t('account.manageSubscription') : t('account.tryPremium')}
+                  </Text>
+                  {isPremium ? <ExternalLink color="white" size={16} /> : null}
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : null}
 
-          <MenuButton
-            icon={Shield}
-            title={t('privacySecurity')}
-            subtitle={t('protectData')}
-            onPress={() => router.push('/privacy-settings')}
-          />
+            <TouchableOpacity
+              style={[styles.restoreBtn, { borderColor: isDarkMode ? '#4B5563' : '#E5E7EB' }]}
+              onPress={() => void handleRestore()}
+              disabled={restoring}
+            >
+              {restoring ? (
+                <ActivityIndicator color="#667eea" size="small" />
+              ) : (
+                <>
+                  <RefreshCw color="#667eea" size={18} />
+                  <Text style={[styles.restoreText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
+                    {t('chooseSubscription.restore')}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
 
-          <MenuButton
-            icon={Settings}
-            title={t('generalSettings')}
-            subtitle={t('additionalOptions')}
-            onPress={() => router.push('/general-settings')}
-          />
-        </View>
-
-        {/* Logout */}
-        <View style={styles.logoutSection}>
-          <MenuButton
-            icon={LogOut}
-            title={t('account.logoutTitle')}
-            subtitle={t('account.logoutSubtitle')}
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
             onPress={handleLogout}
-            danger={true}
-          />
+          >
+            <View style={[styles.menuButtonIcon, { backgroundColor: '#FEE2E2' }]}>
+              <LogOut color="#EF4444" size={20} />
+            </View>
+            <View style={styles.menuButtonText}>
+              <Text style={styles.logoutTitle}>{t('account.logoutTitle')}</Text>
+              <Text style={[styles.logoutSub, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+                {t('account.logoutSubtitle')}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
-      </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+  container: { flex: 1 },
   header: {
-    paddingTop: 60,
+    paddingTop: 12,
     paddingBottom: 32,
     paddingHorizontal: 20,
   },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center' },
   backButton: {
     width: 40,
     height: 40,
@@ -308,9 +287,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 16,
   },
-  headerTitleContainer: {
-    flex: 1,
-  },
+  headerTitleContainer: { flex: 1 },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -326,9 +303,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
+    paddingBottom: 40,
   },
   accountCard: {
-    backgroundColor: 'white',
     borderRadius: 20,
     padding: 24,
     marginBottom: 20,
@@ -344,9 +321,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  avatarContainer: {
-    marginRight: 16,
-  },
+  avatarContainer: { marginRight: 16 },
   avatar: {
     width: 64,
     height: 64,
@@ -354,19 +329,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  accountInfo: {
-    flex: 1,
-  },
+  accountInfo: { flex: 1 },
   accountName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1F2937',
     marginBottom: 4,
   },
-  accountEmail: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
+  accountEmail: { fontSize: 14 },
   editButton: {
     width: 40,
     height: 40,
@@ -375,30 +344,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  accountDetails: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  accountDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  accountDetailText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
+  accountDetails: { paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E5E7EB' },
+  accountDetail: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  accountDetailText: { fontSize: 14 },
   subscriptionCard: {
-    backgroundColor: 'white',
     borderRadius: 20,
-    padding: 24,
-    marginBottom: 32,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   subscriptionHeader: {
     flexDirection: 'row',
@@ -409,113 +366,67 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
-  subscriptionInfo: {
-    flex: 1,
-  },
-  subscriptionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  subscriptionSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
+  subscriptionInfo: { flex: 1 },
+  subscriptionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 2 },
+  subscriptionSubtitle: { fontSize: 13, lineHeight: 18 },
   subscriptionBadge: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#10B981',
+    borderRadius: 999,
   },
-  subscriptionBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'white',
-  },
-  subscriptionDetails: {
-    marginBottom: 20,
-  },
-  subscriptionDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  subscriptionDetailText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
+  subscriptionBadgeText: { color: 'white', fontSize: 12, fontWeight: '700' },
   manageSubscriptionButton: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
+    marginBottom: 10,
   },
   manageSubscriptionGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    paddingVertical: 14,
   },
   manageSubscriptionText: {
-    fontSize: 16,
-    fontWeight: '600',
     color: 'white',
-    flex: 1,
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
   },
-  menuSection: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  menuButton: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  menuButtonContent: {
+  restoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  restoreText: { fontSize: 15, fontWeight: '600' },
+  logoutButton: {
+    borderRadius: 16,
     padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   menuButtonIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
   },
-  menuButtonText: {
-    flex: 1,
-  },
-  menuButtonTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  menuButtonSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  logoutSection: {
-    marginBottom: 32,
-  },
+  menuButtonText: { flex: 1 },
+  logoutTitle: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
+  logoutSub: { fontSize: 13, marginTop: 2 },
 });
