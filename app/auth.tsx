@@ -33,6 +33,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import BrandLogo from '@/components/BrandLogo';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
+import { useRegisterIntentStore } from '@/store/register-intent-store';
 
 const GRADIENT_BG: [string, string, string] = ['#1a0533', '#120a3d', '#0d1b4b'];
 const TEXT_PRIMARY = '#FFFFFF';
@@ -112,12 +113,18 @@ function PremiumInput({
 }
 
 export default function AuthScreen() {
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, intent } = useLocalSearchParams<{ mode?: string; intent?: string }>();
   const [isLogin, setIsLogin] = useState(() => mode !== 'register');
 
   useEffect(() => {
     if (mode === 'register') setIsLogin(false);
   }, [mode]);
+
+  useEffect(() => {
+    if (intent === 'premium') {
+      useRegisterIntentStore.getState().setIntent('premium');
+    }
+  }, [intent]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -165,8 +172,10 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
-          // Gate → welcome-tour (onboarding dotazník je mimo flow)
-          router.replace('/welcome-tour');
+          // intent=premium: gate → paywall; jinak welcome-tour
+          if (useRegisterIntentStore.getState().intent !== 'premium') {
+            router.replace('/welcome-tour');
+          }
         } else {
           setError(result.error || t('auth.registrationFailed'));
         }
@@ -329,14 +338,6 @@ export default function AuthScreen() {
                 {isLogin ? t('auth.noAccount') : t('auth.haveAccount')}
                 <Text style={styles.switchAccent}>{isLogin ? t('auth.register') : t('auth.login')}</Text>
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.codeButton}
-              onPress={() => router.push('/redeem-code')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.codeButtonText}>{t('auth.haveCode')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -502,19 +503,5 @@ const styles = StyleSheet.create({
   switchAccent: {
     color: '#c4b5fd',
     fontWeight: '700',
-  },
-  codeButton: {
-    marginTop: 4,
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-  },
-  codeButtonText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 15,
-    fontWeight: '600',
   },
 });

@@ -1187,6 +1187,13 @@ export const TRANSLATIONS = {
     'chooseSubscription.trialThenYearly': '{{days}} dní zdarma, pak {{price}}/rok',
     'chooseSubscription.trialThenMonthly': '{{days}} dní zdarma, pak {{price}}/měsíc',
     'chooseSubscription.featureHouseholdShare': 'Jedno předplatné pro celou domácnost',
+    'chooseSubscription.benefitHousehold':
+      'Společné finance s partnerem – jedno předplatné pro oba',
+    'chooseSubscription.benefitImports': 'Neomezený import výpisů',
+    'chooseSubscription.benefitFio': 'Automatická synchronizace Fio',
+    'chooseSubscription.benefitSubs': 'Hlídání předplatných a pravidelných plateb',
+    'chooseSubscription.benefitSave': 'Ušetři, finanční cíle a prostory',
+    'chooseSubscription.benefitInvest': 'Investice a měsíční reporty',
     'premium.tryFreeTrial': 'Vyzkoušet 14 dní zdarma',
     'premium.tabBadge': 'Premium',
     'premium.importLimitPaywall':
@@ -1486,6 +1493,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.retry': 'Zkusit znovu',
     'chooseSubscription.selectPlan': 'Vybrat plán',
     'chooseSubscription.restore': 'Obnovit předchozí nákupy',
+    'chooseSubscription.redeemCode': 'Uplatnit slevový kód',
     'chooseSubscription.autoRenew':
       'Předplatné se automaticky obnovuje za {{price}}/{{period}}, pokud ho nezrušíš alespoň 24 h před koncem období. Zrušit můžeš v Nastavení → Apple ID → Předplatná.',
     'chooseSubscription.termsLink': 'Podmínky užívání',
@@ -1784,8 +1792,19 @@ export const TRANSLATIONS = {
     privacyDeleteAccountDetail: 'Trvale odstraní účet včetně dat v databázi. Lokální úložiště se vyčistí a budete odhlášeni.',
 
     // Landing
-    landingHeroSubtitle: 'Tvůj osobní finanční asistent',
-    landingHeroDescription: 'Spravuj výdaje, importuj výpisy z banky a sleduj finance na jednom místě.',
+    landingHeroSubtitle: 'Konečně víš, kam ti mizí výplata.',
+    landingHeroDescription: 'Základ zdarma navždy. Premium 14 dní zdarma na vyzkoušení.',
+    landingRowImport: 'Výpis z velké české banky',
+    landingRowSplit: 'Rozděl útratu s kamarády',
+    landingRowHousehold: 'Společné finance s partnerem',
+    landingRowSave: 'Ušetři – odlož nákup a uvidíš, kolik ti zůstalo',
+    landingRowSubs: 'Předplatná, investice a reporty',
+    landingAndMore: '…a cíle, prostory, rozpočty a další',
+    landingBadgeFree: 'Zdarma',
+    landingBadgePremium: 'Premium',
+    landingSecurityLine: '🔒 Data šifrovaná, uložená v EU. Neprodáváme je.',
+    landingLegalPrivacy: 'Zásady',
+    landingLegalTerms: 'Podmínky',
     landingFeatureImport: 'Import výpisů',
     landingFeatureImportDesc: 'Nahraj výpis z velké české banky (PDF/CSV). Appka transakce automaticky rozpozná a zařadí do kategorií.',
     landingFeatureReports: 'Přehledy a reporty',
@@ -1796,7 +1815,8 @@ export const TRANSLATIONS = {
     landingFeatureGoalsDesc: 'Nastav si cíl a sleduj, jak se k němu blížíš měsíc po měsíci.',
     landingFeaturesTitle: 'Co umí MoneyBuddy',
     landingGetStarted: 'Začít zdarma',
-    landingHaveAccount: 'Už mám účet',
+    landingTryPremium: 'Vyzkoušet Premium 14 dní zdarma',
+    landingHaveAccount: 'Mám účet – přihlásit se',
     landingLearnMore: 'Zjistit více',
 
     // Landing preview
@@ -2470,12 +2490,12 @@ export const TRANSLATIONS = {
     welcomeTourGridImportTitlePdf: '📄 Import výpisů',
     welcomeTourGridInvestTitle: '📈 Investice',
     welcomeTourGridSaveTitle: '🐷 Ušetři',
-    welcomeTourHousehold: 'Sdílené finance s partnerem v Domácnosti.',
+    welcomeTourHousehold: 'Sdílené finance s partnerem.',
     welcomeTourImport: 'Propoj českou banku — transakce se synchronizují samy.',
     welcomeTourImportPdf:
       'Nahraj PDF nebo CSV z české banky, appka transakce sama roztřídí.',
     welcomeTourIntro: 'Přehled výdajů, domácnost a investice — vše na jednom místě.',
-    welcomeTourInvestments: 'Sleduj portfolio v Investicích.',
+    welcomeTourInvestments: 'Sleduj své portfolio na jednom místě.',
     welcomeTourSave: 'Zapisuj si, co sis nekoupil, a sleduj, kolik jsi ušetřil.',
     welcomeTourSkip: 'Přeskočit',
     welcomeTourSplit: 'Rozděl útratu s kámoši — připojí se kódem, bez společné domácnosti.',
@@ -3660,6 +3680,13 @@ export const TRANSLATIONS = {
     'chooseSubscription.trialThenYearly': '{{days}} days free, then {{price}}/year',
     'chooseSubscription.trialThenMonthly': '{{days}} days free, then {{price}}/month',
     'chooseSubscription.featureHouseholdShare': 'One subscription for the whole household',
+    'chooseSubscription.benefitHousehold':
+      'Shared finances with a partner – one subscription for both',
+    'chooseSubscription.benefitImports': 'Unlimited statement imports',
+    'chooseSubscription.benefitFio': 'Automatic Fio bank sync',
+    'chooseSubscription.benefitSubs': 'Subscription and recurring payment tracking',
+    'chooseSubscription.benefitSave': 'Save, financial goals and spaces',
+    'chooseSubscription.benefitInvest': 'Investments and monthly reports',
     'premium.tryFreeTrial': 'Try 14 days free',
     'premium.tabBadge': 'Premium',
     'premium.importLimitPaywall':
@@ -3959,6 +3986,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.retry': 'Try again',
     'chooseSubscription.selectPlan': 'Select plan',
     'chooseSubscription.restore': 'Restore previous purchases',
+    'chooseSubscription.redeemCode': 'Redeem offer code',
     'chooseSubscription.autoRenew':
       'Subscription automatically renews for {{price}}/{{period}} unless cancelled at least 24 hours before the end of the period. Cancel in Settings → Apple ID → Subscriptions.',
     'chooseSubscription.termsLink': 'Terms of Use',
@@ -4257,8 +4285,19 @@ export const TRANSLATIONS = {
     privacyDeleteAccountDetail: 'Permanently deletes the account including database data. Local storage is cleared and you will be signed out.',
 
     // Landing
-    landingHeroSubtitle: 'Your personal finance assistant',
-    landingHeroDescription: 'Manage expenses, import bank statements and track finances in one place.',
+    landingHeroSubtitle: 'Finally see where your paycheck goes.',
+    landingHeroDescription: 'Core features free forever. Premium: 14-day free trial.',
+    landingRowImport: 'Statements from a major Czech bank',
+    landingRowSplit: 'Split expenses with friends',
+    landingRowHousehold: 'Shared finances with a partner',
+    landingRowSave: 'Save – pause a purchase and see what’s left',
+    landingRowSubs: 'Subscriptions, investments & reports',
+    landingAndMore: '…plus goals, spaces, budgets and more',
+    landingBadgeFree: 'Free',
+    landingBadgePremium: 'Premium',
+    landingSecurityLine: '🔒 Encrypted data, stored in the EU. We never sell it.',
+    landingLegalPrivacy: 'Privacy',
+    landingLegalTerms: 'Terms',
     landingFeatureImport: 'Statement import',
     landingFeatureImportDesc:
       'Upload a statement from a major Czech bank (PDF/CSV). The app recognizes transactions and assigns categories.',
@@ -4270,7 +4309,8 @@ export const TRANSLATIONS = {
     landingFeatureGoalsDesc: 'Set a goal and track progress month by month.',
     landingFeaturesTitle: 'What MoneyBuddy can do',
     landingGetStarted: 'Get started free',
-    landingHaveAccount: 'I already have an account',
+    landingTryPremium: 'Try Premium free for 14 days',
+    landingHaveAccount: 'I have an account – sign in',
     landingLearnMore: 'Learn more',
 
     // Landing preview
@@ -4944,12 +4984,12 @@ export const TRANSLATIONS = {
     welcomeTourGridImportTitlePdf: '📄 Statement import',
     welcomeTourGridInvestTitle: '📈 Investments',
     welcomeTourGridSaveTitle: '🐷 Save',
-    welcomeTourHousehold: 'Shared finances with your partner in Household.',
+    welcomeTourHousehold: 'Shared finances with a partner.',
     welcomeTourImport: 'Connect any Czech bank — transactions sync automatically.',
     welcomeTourImportPdf:
       'Upload a PDF or CSV from a Czech bank — the app sorts transactions for you.',
     welcomeTourIntro: 'Spending overview, household and investments — all in one place.',
-    welcomeTourInvestments: 'Track your portfolio in Investments.',
+    welcomeTourInvestments: 'Track your portfolio in one place.',
     welcomeTourSave: 'Log what you didn’t buy and track how much you saved.',
     welcomeTourSkip: 'Skip',
     welcomeTourSplit: 'Split expenses with friends — they join with a code, no shared household needed.',

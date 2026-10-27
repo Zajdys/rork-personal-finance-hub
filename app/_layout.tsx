@@ -29,6 +29,7 @@ import { StackHeaderBackButton } from '@/components/BackButton';
 import { useRevenueCatStore } from '@/store/revenuecat-store';
 import { getIsPremiumSnapshot } from '@/hooks/usePremium';
 import { consumeSuppressTabsRedirect } from '@/lib/nav-guards';
+import { useRegisterIntentStore } from '@/store/register-intent-store';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -143,24 +144,25 @@ const PRE_APP_SEGMENTS = new Set([
 
 function RootLayoutNav() {
   const { t, isLoaded } = useLanguageStore();
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, gateFlagsReady, user } = useAuth();
   const segments = useSegments();
   const rootSegment = String(segments[0] ?? '');
 
   const userId = user?.id ?? null;
   const termsAccepted = user?.termsAccepted === true;
   const welcomeTourCompleted = user?.welcomeTourCompleted === true;
+  const authGateBlocked = isLoading || (isAuthenticated && !gateFlagsReady);
 
   // Free tier má plný přístup. replace JEN při přechodu mezi skupinami rout — nikdy když už jsme v app.
   useEffect(() => {
-    if (!isLoaded || isLoading) return;
+    // Dokud nejsou flags z DB/lokální cache, nic nepřesměrovávat (žádný false → tour flash).
+    if (!isLoaded || authGateBlocked) return;
 
     const inPreApp = PRE_APP_SEGMENTS.has(rootSegment) || rootSegment === '';
     const onUnauthSurface =
       rootSegment === 'landing' ||
       rootSegment === 'auth' ||
       rootSegment === 'register' ||
-      rootSegment === 'redeem-code' ||
       rootSegment === 'privacy-policy';
 
     if (!isAuthenticated) {
@@ -184,6 +186,20 @@ function RootLayoutNav() {
     }
 
     if (!welcomeTourCompleted) {
+      const { intent, skipWelcomePaywall } = useRegisterIntentStore.getState();
+      // Registrace s intent=premium: terms → (PIN soft) → paywall → teprve welcome-tour
+      if (intent === 'premium' && !skipWelcomePaywall) {
+        if (rootSegment === 'choose-subscription') {
+          console.log('[nav] gate skip (premium-intent paywall)');
+          return;
+        }
+        console.log('[nav] gate → /choose-subscription (reason: premium intent)');
+        router.replace({
+          pathname: '/choose-subscription',
+          params: { from: 'register-premium' },
+        });
+        return;
+      }
       if (rootSegment === 'welcome-tour' || rootSegment === 'choose-subscription') {
         console.log('[nav] gate skip (already welcome/paywall)');
         return;
@@ -209,7 +225,7 @@ function RootLayoutNav() {
     router.replace('/(tabs)');
   }, [
     isLoaded,
-    isLoading,
+    authGateBlocked,
     isAuthenticated,
     userId,
     termsAccepted,
@@ -217,7 +233,7 @@ function RootLayoutNav() {
     rootSegment,
   ]);
 
-  if (!isLoaded || isLoading) {
+  if (!isLoaded || authGateBlocked) {
     return null;
   }
   
@@ -227,7 +243,6 @@ function RootLayoutNav() {
         <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
         <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
         <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
-        <Stack.Screen name="redeem-code" options={{ title: t('screenRedeemCode') }} />
         <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
       </Stack>
     );
@@ -316,7 +331,6 @@ function RootLayoutNav() {
       <Stack.Screen name="hall-of-fame" options={{ title: t('screenHallOfFame'), headerShown: true }} />
       <Stack.Screen name="leaderboard" options={{ title: t('screenLeaderboard'), headerShown: true }} />
       <Stack.Screen name="support-chat" options={{ title: t('screenSupport'), headerShown: true }} />
-      <Stack.Screen name="redeem-code" options={{ title: t('screenRedeemCode'), headerShown: true }} />
       <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
       
       {/* These screens should not be accessible when user has active subscription */}

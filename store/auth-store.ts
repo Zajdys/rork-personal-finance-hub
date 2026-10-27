@@ -71,6 +71,23 @@ const storage = {
 
 const STORAGE_KEY = 'auth_state';
 
+/** Lokální cache welcome tour — výchozí před (a při) DB potvrzení. */
+function welcomeTourLocalKey(userId: string): string {
+  return `welcome_tour_completed:${userId}`;
+}
+
+async function readLocalWelcomeTourCompleted(userId: string): Promise<boolean> {
+  return (await storage.getItem(welcomeTourLocalKey(userId))) === 'true';
+}
+
+async function writeLocalWelcomeTourCompleted(userId: string, completed: boolean): Promise<void> {
+  if (completed) {
+    await storage.setItem(welcomeTourLocalKey(userId), 'true');
+  } else {
+    await storage.removeItem(welcomeTourLocalKey(userId));
+  }
+}
+
 const SUPABASE_PROJECT_REF =
   supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? 'jcwbkydaeeqcbdcxgnad';
 const SUPABASE_AUTH_STORAGE_KEY = `sb-${SUPABASE_PROJECT_REF}-auth-token`;
@@ -148,13 +165,27 @@ async function readUserGateFlagsFromSupabase(userId: string): Promise<{
     console.warn('[auth] read onboarding/welcome flags', error.message);
   }
 
-  // Jen explicitní true v DB = tour hotový. false / null / chybějící sloupec → ukázat tour.
-  const welcomeTourCompleted = data?.welcome_tour_completed === true;
+  // Lokální cache jako výchozí (cold start); DB jen potvrdí / doplní true.
+  const localWelcomeDone = await readLocalWelcomeTourCompleted(userId);
+  const dbWelcomeDone = data?.welcome_tour_completed === true;
+  let welcomeTourCompleted = localWelcomeDone || dbWelcomeDone;
+  if (dbWelcomeDone && !localWelcomeDone) {
+    await writeLocalWelcomeTourCompleted(userId, true);
+  } else if (localWelcomeDone && !dbWelcomeDone) {
+    // Lokálně hotovo, DB ještě ne — dožene sync (nesmí znovu ukázat tour).
+    void supabase
+      .from('users')
+      .update({ welcome_tour_completed: true, onboarding_completed: true })
+      .eq('id', userId);
+  }
+
   const termsAccepted = await fetchTermsAccepted(userId);
 
   console.log('[auth] gate flags computed', {
     onboardingCompleted,
     welcomeTourCompleted,
+    localWelcomeDone,
+    dbWelcomeDone,
     termsAccepted,
   });
 
@@ -168,6 +199,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  /** false dokud nejsou gate flags (welcome/terms) vyřešené pro aktuální session. */
+  const [gateFlagsReady, setGateFlagsReady] = useState<boolean>(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState<boolean>(false);
   const intentionalLogoutRef = useRef(false);
   const invalidRefreshHandledRef = useRef(false);
@@ -199,6 +232,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     setUser(null);
     setIsAuthenticated(false);
     setHasActiveSubscription(false);
+    setGateFlagsReady(true);
     setIsLoading(false);
 
     router.replace('/auth');
@@ -318,6 +352,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       setUser(newUser);
       setIsAuthenticated(true);
+      setGateFlagsReady(true);
       setIsLoading(false);
 
       const premium = await useRevenueCatStore.getState().refreshPremium(userId);
@@ -449,8 +484,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         );
       }
 
+      await writeLocalWelcomeTourCompleted(userId, false);
       setUser(newUser);
       setIsAuthenticated(true);
+      setGateFlagsReady(true);
       setIsLoading(false);
 
       const premium = await useRevenueCatStore.getState().refreshPremium(userId);
@@ -507,6 +544,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         console.warn('[auth] RevenueCat logOut', e);
       }
       useRevenueCatStore.getState().reset();
+      const { useRegisterIntentStore } = await import('@/store/register-intent-store');
+      useRegisterIntentStore.getState().clear();
       router.replace('/auth');
       await purgeAuthStorage();
       useSettingsStore.getState().clearUserProfile();
@@ -564,12 +603,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const loadAuthState = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true);
+      setGateFlagsReady(false);
       const sessionOk = await recoverSession();
       if (!sessionOk) {
         if (invalidRefreshHandledRef.current) return;
         setUser(null);
         setIsAuthenticated(false);
         setHasActiveSubscription(false);
+        setGateFlagsReady(true);
         setIsLoading(false);
         return;
       }
@@ -607,6 +648,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         };
         setUser(hydratedUser);
         setIsAuthenticated(true);
+        setGateFlagsReady(true);
 
         const premium = await useRevenueCatStore.getState().refreshPremium(sessionUser.id);
         const { plan, expiresAt } = planFromCustomerInfo(
@@ -636,6 +678,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setIsAuthenticated(false);
         setHasActiveSubscription(false);
         useRevenueCatStore.getState().reset();
+        setGateFlagsReady(true);
       }
       setIsLoading(false);
     } catch (error) {
@@ -644,6 +687,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return;
       }
       console.error('Load auth state error:', error);
+      setGateFlagsReady(true);
       setIsLoading(false);
     }
   }, [handleInvalidRefreshToken, recoverSession]);
@@ -689,6 +733,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const completeWelcomeTour = useCallback(async (): Promise<void> => {
     if (!user) return;
+    // Lokálně hned — DB sync může selhat / být pomalý; gate nesmí znovu ukázat tour.
+    await writeLocalWelcomeTourCompleted(user.id, true);
     const { error } = await supabase
       .from('users')
       .update({ welcome_tour_completed: true, onboarding_completed: true })
@@ -757,6 +803,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     user,
     isAuthenticated,
     isLoading,
+    gateFlagsReady,
     hasActiveSubscription,
     login,
     register,
@@ -772,6 +819,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     user,
     isAuthenticated,
     isLoading,
+    gateFlagsReady,
     hasActiveSubscription,
     login,
     register,

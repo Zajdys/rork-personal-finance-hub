@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Linking,
   Pressable,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -20,6 +21,7 @@ import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
+import { useTheme } from '@/hooks/use-theme';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BackButton } from '@/components/BackButton';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
@@ -32,8 +34,13 @@ import {
   loginUser,
   isAnnualPackage,
   getIntroOfferLabel,
+  hasRevenueCatApiKey,
+  presentAppleCodeRedemptionSheet,
+  useRevenueCatStore,
   PurchasesPackage,
 } from '@/store/revenuecat-store';
+import { useRegisterIntentStore } from '@/store/register-intent-store';
+import { suppressNextTabsRedirect } from '@/lib/nav-guards';
 
 function formatMoneyFromProduct(price: number, priceString: string, currencyCode?: string): string {
   if (typeof priceString === 'string' && priceString.trim()) return priceString;
@@ -62,6 +69,7 @@ function savingsPercent(monthlyPrice: number, annualPrice: number): number | nul
 
 export default function ChooseSubscriptionScreen() {
   const { isDarkMode } = useSettingsStore();
+  const { colors } = useTheme();
   const { t } = useLanguageStore();
   const { user, activateSubscription } = useAuth();
   const router = useRouter();
@@ -85,6 +93,26 @@ export default function ChooseSubscriptionScreen() {
     queryFn: getCustomerInfo,
   });
 
+  const fromRegisterPremium = params.from === 'register-premium';
+
+  const leavePaywall = React.useCallback(() => {
+    if (fromRegisterPremium) {
+      useRegisterIntentStore.getState().markPremiumPaywallSeen();
+      suppressNextTabsRedirect();
+      router.replace('/welcome-tour');
+      return;
+    }
+    if (params.from === 'welcome') {
+      router.replace('/(tabs)');
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [fromRegisterPremium, params.from, router]);
+
   const purchaseMutation = useMutation({
     mutationFn: purchasePackage,
     onSuccess: async (customerInfo) => {
@@ -95,7 +123,7 @@ export default function ChooseSubscriptionScreen() {
         Alert.alert(
           t('chooseSubscription.successTitle'),
           t('chooseSubscription.activated'),
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }],
+          [{ text: 'OK', onPress: leavePaywall }],
         );
       }
     },
@@ -115,7 +143,7 @@ export default function ChooseSubscriptionScreen() {
         Alert.alert(
           t('chooseSubscription.successTitle'),
           t('chooseSubscription.restored'),
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }],
+          [{ text: 'OK', onPress: leavePaywall }],
         );
       } else {
         Alert.alert('Info', t('chooseSubscription.noPrevious'));
@@ -170,19 +198,25 @@ export default function ChooseSubscriptionScreen() {
 
   const planFeatures = useMemo(
     () => [
-      t('premium.featureFioTitle'),
-      t('premium.featureHouseholdTitle'),
-      t('premium.featureSubsTitle'),
-      t('premium.featureGoalsTitle'),
-      t('premium.featureSaveTitle'),
-      t('premium.featureSpacesTitle'),
-      t('premium.featureReportTitle'),
-      t('premium.featureInvestTitle'),
-      t('premium.featureBankSyncTitle'),
-      t('premium.featureImportsTitle'),
-      t('chooseSubscription.featureHouseholdShare'),
+      t('chooseSubscription.benefitHousehold'),
+      t('chooseSubscription.benefitImports'),
+      t('chooseSubscription.benefitFio'),
+      t('chooseSubscription.benefitSubs'),
+      t('chooseSubscription.benefitSave'),
+      t('chooseSubscription.benefitInvest'),
     ],
     [t],
+  );
+
+  const renderBenefits = () => (
+    <View style={styles.features}>
+      {planFeatures.map((feature, index) => (
+        <View key={index} style={styles.feature}>
+          <CheckCircle color="#10B981" size={16} />
+          <Text style={[styles.featureText, { color: colors.text }]}>{feature}</Text>
+        </View>
+      ))}
+    </View>
   );
 
   const handleSelectPackage = (pkg: PurchasesPackage) => {
@@ -197,10 +231,21 @@ export default function ChooseSubscriptionScreen() {
   };
 
   const handleContinueFree = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)');
+    leavePaywall();
+  };
+
+  const showRedeemCode =
+    Platform.OS === 'ios' && hasRevenueCatApiKey();
+
+  const handleRedeemCode = async () => {
+    try {
+      await presentAppleCodeRedemptionSheet();
+    } catch (e) {
+      console.warn('[Paywall] Code redemption sheet failed', e);
+    } finally {
+      void useRevenueCatStore.getState().refreshPremium(user?.id);
+      queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
+      queryClient.invalidateQueries({ queryKey: ['household-premium'] });
     }
   };
 
@@ -283,19 +328,6 @@ export default function ChooseSubscriptionScreen() {
           </Text>
         ) : null}
 
-        {isAnnual ? (
-          <View style={styles.features}>
-            {planFeatures.map((feature, index) => (
-              <View key={index} style={styles.feature}>
-                <CheckCircle color="#10B981" size={16} />
-                <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                  {feature}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
         <TouchableOpacity
           style={[styles.selectButton, isAnnual && styles.popularButton]}
           onPress={() => handleSelectPackage(pkg)}
@@ -342,7 +374,12 @@ export default function ChooseSubscriptionScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.backButton} />
+          <BackButton
+            color="white"
+            size={24}
+            style={styles.backButton}
+            onPress={leavePaywall}
+          />
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>{t('screenChooseSubscription')}</Text>
             <Text style={styles.headerSubtitle}>{t('chooseSubscription.subtitle')}</Text>
@@ -375,26 +412,20 @@ export default function ChooseSubscriptionScreen() {
               >
                 {t('chooseSubscription.comingSoon')}
               </Text>
-              <View style={styles.features}>
-                {planFeatures.map((feature, index) => (
-                  <View key={index} style={styles.feature}>
-                    <CheckCircle color="#10B981" size={16} />
-                    <Text style={[styles.featureText, { color: isDarkMode ? '#D1D5DB' : '#6B7280' }]}>
-                      {feature}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-              <TouchableOpacity
-                style={[styles.retryButton, { marginTop: 16 }]}
-                onPress={() => offeringsQuery.refetch()}
-              >
-                <RefreshCw color="#667eea" size={20} />
-                <Text style={styles.retryText}>{t('chooseSubscription.retry')}</Text>
-              </TouchableOpacity>
+              {renderBenefits()}
             </View>
           ) : (
-            sortedPackages.map(renderPackageCard)
+            <>
+              <View
+                style={[
+                  styles.benefitsCard,
+                  { backgroundColor: isDarkMode ? '#1F2937' : 'white' },
+                ]}
+              >
+                {renderBenefits()}
+              </View>
+              {sortedPackages.map(renderPackageCard)}
+            </>
           )}
 
           <TouchableOpacity
@@ -413,6 +444,18 @@ export default function ChooseSubscriptionScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          {showRedeemCode ? (
+            <TouchableOpacity
+              style={styles.redeemCodeButton}
+              onPress={() => void handleRedeemCode()}
+              disabled={isLoading}
+            >
+              <Text style={[styles.redeemCodeText, { color: isDarkMode ? '#C4B5FD' : '#667eea' }]}>
+                {t('chooseSubscription.redeemCode')}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity style={styles.continueFree} onPress={handleContinueFree}>
             <Text style={[styles.continueFreeText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
@@ -499,22 +542,18 @@ const styles = StyleSheet.create({
   emptyCard: {
     borderRadius: 16,
     padding: 24,
-    alignItems: 'center',
+    alignItems: 'stretch',
+    marginBottom: 16,
+  },
+  benefitsCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
   },
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 16,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  retryText: {
-    color: '#667eea',
-    fontSize: 16,
-    fontWeight: '600' as const,
   },
   planCard: {
     backgroundColor: 'white',
@@ -585,18 +624,23 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   features: {
+    width: '100%',
+    alignSelf: 'stretch',
     gap: 12,
-    marginBottom: 20,
   },
   feature: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
+    width: '100%',
   },
   featureText: {
-    fontSize: 15,
-    color: '#6B7280',
     flex: 1,
+    flexShrink: 1,
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: 'left',
+    color: '#6B7280',
   },
   selectButton: {
     borderRadius: 14,
@@ -631,6 +675,16 @@ const styles = StyleSheet.create({
   restoreText: {
     fontSize: 15,
     fontWeight: '500' as const,
+  },
+  redeemCodeButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  redeemCodeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   continueFree: {
     paddingVertical: 14,

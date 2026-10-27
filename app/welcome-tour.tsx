@@ -300,7 +300,11 @@ export default function WelcomeTourScreen() {
       if (busy) return;
       setBusy(true);
       try {
-        if (href === '/(tabs)' && !getIsPremiumSnapshot()) {
+        const { skipWelcomePaywall } = (
+          await import('@/store/register-intent-store')
+        ).useRegisterIntentStore.getState();
+        // Po registraci s intent=premium už paywall proběhl — neukazovat znovu.
+        if (href === '/(tabs)' && !getIsPremiumSnapshot() && !skipWelcomePaywall) {
           const { suppressNextTabsRedirect } = await import('@/lib/nav-guards');
           suppressNextTabsRedirect();
           await completeWelcomeTour();
@@ -398,7 +402,6 @@ export default function WelcomeTourScreen() {
               </HeroGlowIcon>
               <Text style={styles.title}>{t('welcomeTourTitle')}</Text>
               <Text style={styles.body}>{t('welcomeTourIntro')}</Text>
-              <Text style={styles.tipLine}>{t('welcomeTourTip')}</Text>
               <View style={styles.chipRow}>
                 <View style={styles.chip}>
                   <Text style={styles.chipText}>{t('welcomeTourChipHousehold')}</Text>

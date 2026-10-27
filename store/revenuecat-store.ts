@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { create } from 'zustand';
 import { isDevForcePremium, PREMIUM_ENTITLEMENT_ID } from '@/constants/premium';
 
@@ -15,16 +16,38 @@ let configureInFlight: Promise<boolean> | null = null;
 let lastLoggedInUserId: string | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
 let refreshInFlightUserId: string | null | undefined;
+let loggedRcKeyOnce = false;
+
+function getAppVariant(): 'development' | 'production' {
+  const v = Constants.expoConfig?.extra?.appVariant;
+  return v === 'production' ? 'production' : 'development';
+}
 
 function getRCToken(): string | undefined {
-  if (__DEV__ || Platform.OS === 'web') {
+  // Dev bundle (cz.moneybuddy.app.dev) nemá App Store produkty → vždy Test Store klíč.
+  const variant = getAppVariant();
+  if (variant === 'development' || Platform.OS === 'web') {
+    if (!loggedRcKeyOnce) {
+      loggedRcKeyOnce = true;
+      console.log('[RevenueCat] using TEST key');
+    }
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
   }
-  return Platform.select({
+
+  const key = Platform.select({
     ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
     default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
   });
+  if (!loggedRcKeyOnce) {
+    loggedRcKeyOnce = true;
+    console.log(
+      Platform.OS === 'android'
+        ? '[RevenueCat] using ANDROID key'
+        : '[RevenueCat] using IOS key',
+    );
+  }
+  return key;
 }
 
 function markUnavailable(reason: string): void {
@@ -97,6 +120,19 @@ async function ensureConfigured(): Promise<boolean> {
 
 export function isRevenueCatReady(): boolean {
   return isConfigured && !configureUnavailable;
+}
+
+/** True, pokud je v env dostupný RC API klíč pro aktuální platformu. */
+export function hasRevenueCatApiKey(): boolean {
+  return Boolean(getRCToken());
+}
+
+/** iOS Offer Code redemption sheet (App Store). No-op mimo iOS / bez RC. */
+export async function presentAppleCodeRedemptionSheet(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  const ready = await ensureConfigured();
+  if (!ready || !Purchases?.presentCodeRedemptionSheet) return;
+  await Purchases.presentCodeRedemptionSheet();
 }
 
 export type PurchasesPackage = any;

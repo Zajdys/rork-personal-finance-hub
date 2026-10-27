@@ -6,13 +6,15 @@ import { brand } from '@/constants/theme-colors';
 type Props = {
   size?: number;
   theme?: 'light' | 'dark';
+  /** Override barvy „Buddy“ (např. světlá na fialovém pozadí). */
+  buddyColor?: string;
 };
 
-export default function BrandLogo({ size = 40, theme = 'light' }: Props) {
+export default function BrandLogo({ size = 40, theme = 'light', buddyColor: buddyColorProp }: Props) {
   const isDark = theme === 'dark';
   const markVariant = isDark ? 'white' : 'gradient';
   const moneyColor = isDark ? '#FFFFFF' : brand.ink;
-  const buddyColor = isDark ? brand.violetLight : '#6D4FF0';
+  const buddyColor = buddyColorProp ?? (isDark ? brand.violetLight : '#6D4FF0');
   const fontSize = Math.round(size * 0.55);
 
   return (
