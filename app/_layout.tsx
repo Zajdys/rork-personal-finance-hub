@@ -140,6 +140,8 @@ const PRE_APP_SEGMENTS = new Set([
   'register',
   'accept-terms',
   'welcome-tour',
+  'choose-subscription',
+  'premium-success',
 ]);
 
 function RootLayoutNav() {
@@ -200,8 +202,12 @@ function RootLayoutNav() {
         });
         return;
       }
-      if (rootSegment === 'welcome-tour' || rootSegment === 'choose-subscription') {
-        console.log('[nav] gate skip (already welcome/paywall)');
+      if (
+        rootSegment === 'welcome-tour' ||
+        rootSegment === 'choose-subscription' ||
+        rootSegment === 'premium-success'
+      ) {
+        console.log('[nav] gate skip (already welcome/paywall/success)');
         return;
       }
       console.log('[nav] gate → /welcome-tour (reason: tour incomplete)');
@@ -338,6 +344,7 @@ function RootLayoutNav() {
       <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
       <Stack.Screen name="subscription" options={{ title: t('screenEditSubscription') }} />
       <Stack.Screen name="choose-subscription" options={{ title: t('screenChooseSubscription') }} />
+      <Stack.Screen name="premium-success" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
     </Stack>
       <AppLock />

@@ -42,7 +42,6 @@ import {
   PurchasesPackage,
 } from '@/store/revenuecat-store';
 import { useRegisterIntentStore } from '@/store/register-intent-store';
-import { usePremiumBannerStore } from '@/store/premium-banner-store';
 import { suppressNextTabsRedirect } from '@/lib/nav-guards';
 
 const STICKY_CTA_BLOCK = 132;
@@ -137,20 +136,15 @@ export default function ChooseSubscriptionScreen() {
   }, [fromRegisterPremium, params.from, router]);
 
   const finishPremiumSuccess = React.useCallback(
-    async (kind: 'purchase' | 'restore') => {
+    async (_kind: 'purchase' | 'restore') => {
       await activateSubscription('yearly');
       queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
       queryClient.invalidateQueries({ queryKey: ['household-premium'] });
-      if (kind === 'purchase') {
-        usePremiumBannerStore.getState().show();
-      }
       if (fromRegisterPremium) {
         useRegisterIntentStore.getState().markPremiumPaywallSeen();
         suppressNextTabsRedirect();
-        router.replace('/welcome-tour');
-        return;
       }
-      router.replace('/(tabs)');
+      router.replace('/premium-success');
     },
     [activateSubscription, fromRegisterPremium, queryClient, router],
   );

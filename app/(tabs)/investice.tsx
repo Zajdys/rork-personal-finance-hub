@@ -10,14 +10,24 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   RefreshControl,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Upload, Plus, MoreVertical } from 'lucide-react-native';
+import {
+  Upload,
+  Plus,
+  MoreVertical,
+  TrendingUp,
+  PieChart,
+  Coins,
+  X,
+} from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -143,6 +153,7 @@ function InvesticeTabScreenContent() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const numberLocale = appLocale(language);
   const appLang = language === 'en' ? 'en' : 'cs';
   const formatImportSummary = useCallback(
@@ -165,6 +176,7 @@ function InvesticeTabScreenContent() {
   ) as DisplayCurrency;
 
   const [importSheetVisible, setImportSheetVisible] = useState(false);
+  const [exportGuideVisible, setExportGuideVisible] = useState(false);
   const [addTxSheetVisible, setAddTxSheetVisible] = useState(false);
   const [brokerFilter, setBrokerFilter] = useState<BrokerFilter>('all');
   const [renameTarget, setRenameTarget] = useState<InvestmentPortfolio | null>(null);
@@ -745,8 +757,13 @@ function InvesticeTabScreenContent() {
       >
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerTitle}>{t('investments')}</Text>
+          <View style={styles.betaBadge}>
+            <Text style={styles.betaBadgeText}>BETA</Text>
+          </View>
         </View>
-        <Text style={styles.headerSubtitle}>{t('investTrackPortfolio')}</Text>
+        {!showEmpty ? (
+          <Text style={styles.headerSubtitle}>{t('investTrackPortfolio')}</Text>
+        ) : null}
       </LinearGradient>
 
       {showContent && !showEmpty && brokerTabs.length > 0 ? (
@@ -1212,14 +1229,168 @@ function InvesticeTabScreenContent() {
         ) : null}
 
         {showEmpty ? (
-          <EmptyState
-            title={t('investEmptyTitle')}
-            actionLabel={t('importPortfolio')}
-            actionIcon={<Upload color={colors.onPrimary} size={20} strokeWidth={2.2} />}
-            onAction={openImportSheet}
-          />
+          <View style={emptyStyles.wrap}>
+            <View style={emptyStyles.hero}>
+              <LinearGradient
+                colors={[colors.gradientStart, colors.gradientEnd]}
+                style={emptyStyles.heroIcon}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <TrendingUp color="#FFFFFF" size={32} />
+              </LinearGradient>
+              <Text style={[emptyStyles.heroTitle, { color: colors.text }]}>
+                {t('investEmptyHeroTitle')}
+              </Text>
+              <Text style={[emptyStyles.heroSubtitle, { color: colors.textSecondary }]}>
+                {t('investEmptyHeroSubtitle')}
+              </Text>
+            </View>
+
+            <View style={[emptyStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[emptyStyles.cardTitle, { color: colors.text }]}>
+                {t('investEmptyBrokersTitle')}
+              </Text>
+              {(
+                [
+                  { initial: 'e', name: 'eToro', file: t('investEmptyBrokerEtoroFile'), color: '#10B981' },
+                  { initial: 'T', name: 'Trading 212', file: t('investEmptyBrokerT212File'), color: '#3B82F6' },
+                  { initial: 'X', name: 'XTB', file: t('investEmptyBrokerXtbFile'), color: '#F59E0B' },
+                ] as const
+              ).map((b) => (
+                <View key={b.name} style={emptyStyles.brokerRow}>
+                  <View style={[emptyStyles.brokerInitial, { backgroundColor: b.color }]}>
+                    <Text style={emptyStyles.brokerInitialText}>{b.initial}</Text>
+                  </View>
+                  <Text style={[emptyStyles.brokerName, { color: colors.text }]}>{b.name}</Text>
+                  <Text style={[emptyStyles.brokerFile, { color: colors.textSecondary }]}>{b.file}</Text>
+                </View>
+              ))}
+              <Text style={[emptyStyles.brokersSoon, { color: colors.textSecondary }]}>
+                {t('investEmptyBrokersSoon')}
+              </Text>
+            </View>
+
+            <View style={[emptyStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[emptyStyles.cardTitle, { color: colors.text }]}>
+                {t('investEmptyWhatTitle')}
+              </Text>
+              <View style={emptyStyles.benefitsRow}>
+                {(
+                  [
+                    { Icon: PieChart, label: t('investEmptyBenefitAllocation'), color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
+                    { Icon: TrendingUp, label: t('investEmptyBenefitProfit'), color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+                    { Icon: Coins, label: t('investEmptyBenefitDividends'), color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+                  ] as const
+                ).map(({ Icon, label, color, bg }) => (
+                  <View key={label} style={emptyStyles.benefitInner}>
+                    <View style={[emptyStyles.benefitIcon, { backgroundColor: bg }]}>
+                      <Icon color={color} size={18} />
+                    </View>
+                    <Text style={[emptyStyles.benefitLabel, { color: colors.text }]} numberOfLines={2}>
+                      {label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <TouchableOpacity style={emptyStyles.primaryBtn} onPress={openImportSheet} activeOpacity={0.9}>
+              <LinearGradient
+                colors={[colors.gradientStart, colors.gradientEnd]}
+                style={emptyStyles.primaryBtnGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Upload color="#FFFFFF" size={18} strokeWidth={2.2} />
+                <Text style={emptyStyles.primaryBtnText}>{t('importPortfolio')}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={emptyStyles.guideLink}
+              onPress={() => setExportGuideVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[emptyStyles.guideLinkText, { color: colors.primary }]}>
+                {t('investEmptyHowExport')}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[emptyStyles.footnote, { color: colors.textSecondary }]}>
+              {t('investEmptyBetaNote')}
+            </Text>
+          </View>
         ) : null}
       </ScrollView>
+
+      <Modal
+        visible={exportGuideVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setExportGuideVisible(false)}
+      >
+        <Pressable style={emptyStyles.sheetOverlay} onPress={() => setExportGuideVisible(false)}>
+          <Pressable
+            style={[
+              emptyStyles.sheet,
+              {
+                backgroundColor: colors.card,
+                paddingBottom: Math.max(insets.bottom, 16) + 8,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={emptyStyles.sheetHandleRow}>
+              <View style={[emptyStyles.sheetHandle, { backgroundColor: colors.border }]} />
+              <TouchableOpacity
+                style={[emptyStyles.sheetClose, { backgroundColor: colors.muted }]}
+                onPress={() => setExportGuideVisible(false)}
+                hitSlop={8}
+              >
+                <X color={colors.text} size={18} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[emptyStyles.sheetTitle, { color: colors.text }]}>
+              {t('investEmptyHowExport')}
+            </Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={emptyStyles.sheetScroll}>
+              {(
+                [
+                  {
+                    title: 'eToro',
+                    steps: [t('investEmptyGuideEtoro1'), t('investEmptyGuideEtoro2'), t('investEmptyGuideEtoro3')],
+                  },
+                  {
+                    title: 'Trading 212',
+                    steps: [t('investEmptyGuideT2121'), t('investEmptyGuideT2122'), t('investEmptyGuideT2123')],
+                  },
+                  {
+                    title: 'XTB',
+                    steps: [t('investEmptyGuideXtb1'), t('investEmptyGuideXtb2'), t('investEmptyGuideXtb3')],
+                  },
+                ] as const
+              ).map((section) => (
+                <View key={section.title} style={emptyStyles.guideSection}>
+                  <Text style={[emptyStyles.guideBroker, { color: colors.text }]}>{section.title}</Text>
+                  {section.steps.map((step, index) => (
+                    <View key={index} style={emptyStyles.guideStepRow}>
+                      <View style={[emptyStyles.guideStepNum, { backgroundColor: colors.muted }]}>
+                        <Text style={[emptyStyles.guideStepNumText, { color: colors.primary }]}>
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <Text style={[emptyStyles.guideStepText, { color: colors.textSecondary }]}>
+                        {step}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <InvestmentPortfolioImportSheet
         visible={importSheetVisible}
@@ -1501,14 +1672,14 @@ const styles = StyleSheet.create({
   betaBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
   betaBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.4,
+    letterSpacing: 0.6,
   },
   headerSubtitle: {
     marginTop: 8,
@@ -1910,3 +2081,204 @@ export default function InvesticeTabScreen() {
     </PremiumGateScreen>
   );
 }
+
+const emptyStyles = StyleSheet.create({
+  wrap: {
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  hero: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 22,
+  },
+  heroIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  brokerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  brokerInitial: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brokerInitialText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  brokerName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  brokerFile: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  brokersSoon: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  benefitsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  benefitInner: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  benefitIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  primaryBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  primaryBtnGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  guideLink: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  guideLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  footnote: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
+    paddingHorizontal: 8,
+  },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    maxHeight: '80%',
+  },
+  sheetHandleRow: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  sheetClose: {
+    position: 'absolute',
+    right: 0,
+    top: -2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 14,
+    marginTop: 4,
+  },
+  sheetScroll: {
+    maxHeight: 420,
+  },
+  guideSection: {
+    marginBottom: 18,
+    gap: 10,
+  },
+  guideBroker: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  guideStepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  guideStepNum: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guideStepNumText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  guideStepText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingTop: 2,
+  },
+});

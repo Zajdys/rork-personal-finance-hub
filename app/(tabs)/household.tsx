@@ -2,12 +2,22 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, ChevronRight, PlusCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  ChevronLeft,
+  ChevronRight,
+  PlusCircle,
+  Users,
+  Wallet,
+  PieChart,
+  Target,
+} from 'lucide-react-native';
 import { useAuth } from '@/store/auth-store';
 import { useLanguageStore } from '@/store/language-store';
 import { appLocale } from '@/lib/app-locale';
@@ -45,6 +55,7 @@ function HouseholdTabScreenContent() {
   const currency = getCurrentCurrency();
   const { user } = useAuth();
   const { promptRename, RenameModal } = useHouseholdRenamePrompt();
+  const insets = useSafeAreaInsets();
 
   const householdId = useHouseholdActiveStore((s) => s.activeHouseholdId);
 
@@ -181,32 +192,103 @@ function HouseholdTabScreenContent() {
   }
 
   if (!activeHouseholdId) {
+    const howSteps = [
+      t('hhEmptyStep1'),
+      t('hhEmptyStep2'),
+      t('hhEmptyStep3'),
+    ];
+    const benefits = [
+      { Icon: Wallet, label: t('hhEmptyBenefitExpenses'), color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
+      { Icon: PieChart, label: t('hhEmptyBenefitBudget'), color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
+      { Icon: Target, label: t('hhEmptyBenefitGoals'), color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+    ];
+
     return (
       <>
-        <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.setupWrap}>
-          <LinearGradient
-            colors={[colors.gradientStart, colors.gradientEnd]}
-            style={styles.setupHeader}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.setupTitle}>{t('household')}</Text>
-            <Text style={styles.setupSubtitle}>{t('hhSetupSubtitle')}</Text>
-          </LinearGradient>
-          <View style={[styles.setupCard, { backgroundColor: colors.card }]}>
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-              onPress={switcher.openCreateHouseholdModal}
+        <ScrollView
+          style={[styles.container, { backgroundColor: colors.background }]}
+          contentContainerStyle={[
+            emptyStyles.scrollContent,
+            { paddingTop: Math.max(insets.top, 12) + 8, paddingBottom: Math.max(insets.bottom, 16) + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={emptyStyles.hero}>
+            <LinearGradient
+              colors={[colors.gradientStart, colors.gradientEnd]}
+              style={emptyStyles.heroIcon}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.primaryButtonText}>{t('hhNewHousehold')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.secondaryButton, { backgroundColor: colors.muted, marginTop: 10 }]}
-              onPress={switcher.openJoinHouseholdModal}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{t('hhJoinByCode')}</Text>
-            </TouchableOpacity>
+              <Users color="#FFFFFF" size={32} />
+            </LinearGradient>
+            <Text style={[emptyStyles.heroTitle, { color: colors.text }]}>{t('hhEmptyHeroTitle')}</Text>
+            <Text style={[emptyStyles.heroSubtitle, { color: colors.textSecondary }]}>
+              {t('hhEmptyHeroSubtitle')}
+            </Text>
           </View>
+
+          <View style={[emptyStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[emptyStyles.cardTitle, { color: colors.text }]}>{t('hhEmptyHowTitle')}</Text>
+            {howSteps.map((step, index) => (
+              <View key={index} style={emptyStyles.stepRow}>
+                <LinearGradient
+                  colors={[colors.gradientStart, colors.gradientEnd]}
+                  style={emptyStyles.stepBadge}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={emptyStyles.stepBadgeText}>{index + 1}</Text>
+                </LinearGradient>
+                <Text style={[emptyStyles.stepText, { color: colors.text }]}>{step}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={emptyStyles.benefitsRow}>
+            {benefits.map(({ Icon, label, color, bg }) => (
+              <View
+                key={label}
+                style={[emptyStyles.benefitCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={[emptyStyles.benefitIcon, { backgroundColor: bg }]}>
+                  <Icon color={color} size={18} />
+                </View>
+                <Text style={[emptyStyles.benefitLabel, { color: colors.text }]} numberOfLines={2}>
+                  {label}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={emptyStyles.primaryBtn}
+            onPress={switcher.openCreateHouseholdModal}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={[colors.gradientStart, colors.gradientEnd]}
+              style={emptyStyles.primaryBtnGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={emptyStyles.primaryBtnText}>{t('hhNewHousehold')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[emptyStyles.secondaryBtn, { borderColor: colors.primary }]}
+            onPress={switcher.openJoinHouseholdModal}
+            activeOpacity={0.88}
+          >
+            <Text style={[emptyStyles.secondaryBtnText, { color: colors.primary }]}>
+              {t('hhEmptyHaveCode')}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={[emptyStyles.footnote, { color: colors.textSecondary }]}>
+            {t('hhEmptyPremiumNote')}
+          </Text>
         </ScrollView>
         <HouseholdOverlayModals
           colors={colors}
@@ -615,3 +697,129 @@ export default function HouseholdTabScreen() {
     </PremiumGateScreen>
   );
 }
+
+const emptyStyles = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: 20,
+  },
+  hero: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 22,
+  },
+  heroIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    marginBottom: 16,
+    gap: 14,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  stepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  stepText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+    paddingTop: 4,
+  },
+  benefitsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 22,
+  },
+  benefitCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    gap: 8,
+  },
+  benefitIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  primaryBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  primaryBtnGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+  },
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  secondaryBtn: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  secondaryBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  footnote: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+});
