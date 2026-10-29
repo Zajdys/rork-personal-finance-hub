@@ -10,6 +10,12 @@ export type HouseholdMemberProfile = {
   firstName: string | null;
 };
 
+type RpcMemberProfile = {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+};
+
 function pickDisplayName(opts: {
   firstName: string | null;
   displayName: string | null;
@@ -25,6 +31,35 @@ function pickDisplayName(opts: {
   return opts.fallback;
 }
 
+/**
+ * Bezpečné profily členů mých domácností (id, display_name, email)
+ * — SECURITY DEFINER RPC, ne čtení celého public.users.
+ */
+export async function fetchHouseholdMemberProfilesRpc(): Promise<{
+  byId: Map<string, RpcMemberProfile>;
+  error: Error | null;
+}> {
+  const byId = new Map<string, RpcMemberProfile>();
+  if (!(await hasSupabaseSession())) {
+    return { byId, error: null };
+  }
+  const { data, error } = await supabase.rpc('get_household_member_profiles');
+  if (error) {
+    if (isSessionLostError(error)) return { byId, error: null };
+    return { byId, error: new Error(error.message) };
+  }
+  for (const row of (data ?? []) as RpcMemberProfile[]) {
+    const id = String(row.id ?? '');
+    if (!id) continue;
+    byId.set(id, {
+      id,
+      display_name: row.display_name != null ? String(row.display_name) : null,
+      email: row.email != null ? String(row.email) : null,
+    });
+  }
+  return { byId, error: null };
+}
+
 /** Členové domácnosti s profilem (first_name + avatar). */
 export async function fetchHouseholdMembersWithProfiles(
   householdId: string,
@@ -36,7 +71,7 @@ export async function fetchHouseholdMembersWithProfiles(
 
   const { data, error } = await supabase
     .from('household_members')
-    .select('user_id, users(id, display_name, email)')
+    .select('user_id')
     .eq('household_id', householdId);
 
   if (error) {
@@ -44,15 +79,12 @@ export async function fetchHouseholdMembersWithProfiles(
     return { members: [], error: new Error(error.message) };
   }
 
-  const rows = (data ?? []) as {
-    user_id: string;
-    users?:
-      | { id?: string; display_name?: string | null; email?: string | null }
-      | { id?: string; display_name?: string | null; email?: string | null }[]
-      | null;
-  }[];
-
+  const rows = (data ?? []) as { user_id: string }[];
   const userIds = rows.map((r) => String(r.user_id)).filter(Boolean);
+
+  const { byId: rpcById, error: rpcErr } = await fetchHouseholdMemberProfilesRpc();
+  if (rpcErr) return { members: [], error: rpcErr };
+
   const profileByUser = new Map<
     string,
     { first_name: string | null; avatar_url: string | null }
@@ -78,18 +110,18 @@ export async function fetchHouseholdMembersWithProfiles(
   }
 
   const members: HouseholdMemberProfile[] = rows.map((row) => {
-    const uRaw = row.users;
-    const u = Array.isArray(uRaw) ? uRaw[0] : uRaw;
-    const profile = profileByUser.get(String(row.user_id));
-    const email = u?.email != null ? String(u.email) : null;
+    const uid = String(row.user_id);
+    const rpc = rpcById.get(uid);
+    const profile = profileByUser.get(uid);
+    const email = rpc?.email ?? null;
     const displayName = pickDisplayName({
       firstName: profile?.first_name ?? null,
-      displayName: u?.display_name != null ? String(u.display_name) : null,
+      displayName: rpc?.display_name ?? null,
       email,
       fallback: fallbackLabel,
     });
     return {
-      userId: String(row.user_id),
+      userId: uid,
       displayName,
       email,
       avatarUrl: profile?.avatar_url ?? null,

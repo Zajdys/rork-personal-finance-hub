@@ -191,11 +191,18 @@ export default function BankImportScreen() {
           const { data: { user } } = await supabase.auth.getUser();
           const { data: sessionData } = await supabase.auth.getSession();
           if (!user?.id || !sessionData.session?.access_token) return;
-          await invokeFioSync({
+          const result = await invokeFioSync({
             fioToken: t,
             userId: user.id,
             accessToken: sessionData.session.access_token,
           });
+          if ((result?.imported ?? 0) > 0) {
+            await useFinanceStore.getState().loadTransactionsFromSupabase();
+            const { runAfterTransactionsSideEffects } = await import(
+              '@/lib/after-transactions-side-effects'
+            );
+            await runAfterTransactionsSideEffects({ userId: user.id });
+          }
         } catch (e) {
           // Silent fail - auto sync failure should not bother user
           console.log('[bank-import auto fio-sync] raw error:', e);
@@ -728,11 +735,12 @@ export default function BankImportScreen() {
           }),
         );
       }
+      const { showToast } = await import('@/store/toast-store');
       if (updatedCount === 0 && missingCounterpartyCount === 0) {
-        Alert.alert(t('importLabel'), t('bankImportSuggestAccountsAdded'));
+        showToast({ type: 'success', message: t('bankImportSuggestAccountsAdded') });
         return;
       }
-      Alert.alert(t('importLabel'), parts.join('\n\n'));
+      showToast({ type: 'success', message: parts.join(' · ') });
     } catch (e) {
       console.error('[import] suggest add failed', e);
       Alert.alert(t('importLabel'), logAndGetUserFacingError('bank-import-suggest', e));
@@ -752,13 +760,14 @@ export default function BankImportScreen() {
         updateTransaction(id, { category: LOAN_PAYMENT_CATEGORY });
       }
       setLoanPaymentCandidates([]);
-      Alert.alert(
-        t('importLabel'),
-        t('bankImportSuggestReclassifyDone', {
+      const { showToast } = await import('@/store/toast-store');
+      showToast({
+        type: 'success',
+        message: t('bankImportSuggestReclassifyDone', {
           count: ids.length,
           transactionsWord: pluralTransakce(ids.length, lang),
         }),
-      );
+      });
     } catch (e) {
       Alert.alert(t('importLabel'), logAndGetUserFacingError('bank-import-loan', e));
     }
@@ -786,10 +795,22 @@ export default function BankImportScreen() {
       setFioSaved(true);
       const imported = result?.imported ?? 0;
       const total = result?.total ?? 0;
-      Alert.alert(
-        'Fio synchronizace',
-        `Importováno ${imported} ${pluralNovaTransakce(imported, 'cs')} z ${total} celkem`,
-      );
+      const { showToast } = await import('@/store/toast-store');
+      showToast({
+        type: 'success',
+        message: `Importováno ${imported} ${pluralNovaTransakce(imported, 'cs')} z ${total} celkem`,
+      });
+      if (imported > 0) {
+        await useFinanceStore.getState().loadTransactionsFromSupabase();
+        try {
+          const { runAfterTransactionsSideEffects } = await import(
+            '@/lib/after-transactions-side-effects'
+          );
+          await runAfterTransactionsSideEffects({ userId: user.id });
+        } catch (sideErr) {
+          console.warn('[fio-sync] side effects', sideErr);
+        }
+      }
     } catch (e) {
       Alert.alert('Chyba', logAndGetUserFacingError('fio-sync', e));
     }
@@ -1142,7 +1163,9 @@ export default function BankImportScreen() {
                 updateTransaction(u.id, { category: u.category });
               }
               setReclassifyUndo(null);
-              Alert.alert(t('importLabel'), t('bankImportSuggestReclassifyUndone'));
+              void import('@/store/toast-store').then(({ showToast }) => {
+                showToast({ type: 'success', message: t('bankImportSuggestReclassifyUndone') });
+              });
             }}
           >
             <Text style={[styles.undoImportText, { color: colors.text }]}>
@@ -1303,6 +1326,17 @@ export default function BankImportScreen() {
             if (x > 0) {
               addTransactions(inserted, { fromRemote: true });
               setLastImportIds(inserted.map((tx) => tx.id));
+              try {
+                const { runAfterTransactionsSideEffects } = await import(
+                  '@/lib/after-transactions-side-effects'
+                );
+                await runAfterTransactionsSideEffects({
+                  userId: authUser.id,
+                  newTransactions: inserted,
+                });
+              } catch (sideErr) {
+                console.warn('[bank-import] side effects', sideErr);
+              }
 
               // Free kvóta: jen soubory, ze kterých přibyla ≥1 nová transakce (0 nových = nepočítat).
               const uniqueKeyToFile = new Map<string, string>();
@@ -1429,7 +1463,12 @@ export default function BankImportScreen() {
             const warnParts = parseWarningsRef.current;
             const body =
               warnParts.length > 0 ? `${summary}\n\n${warnParts.join('\n\n')}` : summary;
-            Alert.alert(t('done'), body);
+            if (warnParts.length > 0) {
+              Alert.alert(t('done'), body);
+            } else {
+              const { showToast } = await import('@/store/toast-store');
+              showToast({ type: 'success', message: summary });
+            }
             parseWarningsRef.current = [];
             setImportProgress(null);
             console.log('[import] krok 5 confirm complete');

@@ -19,7 +19,6 @@ export type PremiumFeatureId =
   | 'subscriptions'
   | 'financial_goals'
   | 'save'
-  | 'spaces'
   | 'monthly_report'
   | 'investments'
   | 'bank_sync'
@@ -48,10 +47,6 @@ export const PREMIUM_FEATURE_META: Record<
   save: {
     titleKey: 'premium.featureSaveTitle',
     blurbKey: 'premium.featureSaveBlurb',
-  },
-  spaces: {
-    titleKey: 'premium.featureSpacesTitle',
-    blurbKey: 'premium.featureSpacesBlurb',
   },
   monthly_report: {
     titleKey: 'premium.featureReportTitle',

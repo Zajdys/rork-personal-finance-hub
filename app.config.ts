@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     icon: './assets/images/app-icon-1024.png',
-    supportsTablet: true,
+    supportsTablet: false,
     bundleIdentifier: isProd ? 'cz.moneybuddy.app' : 'cz.moneybuddy.app.dev',
     usesIcloudStorage: true,
     infoPlist: {

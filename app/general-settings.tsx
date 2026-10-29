@@ -73,7 +73,8 @@ export default function GeneralSettingsScreen() {
     setBusy('cache');
     try {
       await clearAppDataCacheAndRefetch(user?.id);
-      Alert.alert(t('done'), t('generalSettingsClearCacheDone'));
+      const { showToast } = await import('@/store/toast-store');
+      showToast({ type: 'success', message: t('generalSettingsClearCacheDone') });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert(t('error'), msg);

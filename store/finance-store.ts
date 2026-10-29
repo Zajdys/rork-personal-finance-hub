@@ -123,6 +123,8 @@ export interface Transaction {
   originalCurrency?: string | null;
   /** Kurz ČNB: CZK za 1 jednotku originalCurrency */
   exchangeRate?: number | null;
+  /** Vazba na personal_recurring_transactions (DB `recurring_id`) */
+  recurringId?: string | null;
 }
 
 /**
@@ -542,7 +544,8 @@ interface FinanceState {
   dashboardTxRevision: number;
   /** Zavolej po úspěšném remote zápisu tx (nebo po fromRemote importu). */
   notifyDashboardTransactionsChanged: () => void;
-  addTransaction: (transaction: Transaction) => void;
+  /** Optimistic local + mirror upsert. Resolves po remote zápisu (nebo hned bez auth). */
+  addTransaction: (transaction: Transaction) => Promise<void>;
   /**
    * Dávka už persistovaná v Supabase (např. bank import).
    * `opts.fromRemote: true` je povinné — přeskočí mirror upsert.
@@ -596,6 +599,8 @@ interface FinanceState {
   getLoanProgress: (id: string) => LoanProgressResult;
   /** Označení „Zaplaceno“ u pravidelného výdaje v Domácnosti → přičte splátku k závazku. */
   recordLoanPaymentFromRecurring: (payload: { name: string; amount: number; category: string }) => void;
+  /** Označení „Zaplaceno“ u splátky závazku (Plán / Závazky). */
+  markLoanPaymentPaid: (loanId: string) => void;
   undoLastLoanPayment: (id: string) => void;
   /** AsyncStorage → Supabase upsert (bez duplicit). */
   syncTransactionsToSupabase: () => Promise<{ ok: boolean; error?: string }>;
@@ -770,9 +775,23 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     set((state) => ({ dashboardTxRevision: state.dashboardTxRevision + 1 }));
   },
 
-  addTransaction: (transaction: Transaction) => {
+  addTransaction: async (transaction: Transaction) => {
+    const { resolveCategoryFieldsForWrite } = await import('@/lib/category-normalize');
+    const resolved = resolveCategoryFieldsForWrite({
+      category: transaction.category,
+      subcategory: transaction.subcategory,
+      title: transaction.title,
+      type: transaction.type,
+    });
+    const withSource: Transaction = {
+      ...transaction,
+      title: resolved.title,
+      category: resolved.category,
+      subcategory: resolved.subcategory,
+      source: transaction.source?.trim() ? transaction.source : 'manual',
+    };
     set((state) => {
-      const newTransactions = [...state.transactions, transaction];
+      const newTransactions = [...state.transactions, withSource];
       return {
         transactions: newTransactions,
         recentTransactions: sliceRecentTransactionsInMonth(newTransactions, yyyyMmLocalToday()),
@@ -781,9 +800,11 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     });
     get().updateTotals();
     get().saveData();
-    void mirrorUpsertTransactions([transaction]).finally(() => {
+    try {
+      await mirrorUpsertTransactions([withSource]);
+    } finally {
       get().notifyDashboardTransactionsChanged();
-    });
+    }
   },
 
   addTransactions: (incoming: RemotePersistedTransaction[], opts: { fromRemote: true }) => {
@@ -1357,6 +1378,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     if (!recurringExpenseMatchesLoanRule(payload.name, payload.category)) return;
     const loans = get().loans;
     const match = findBestMatchingLoan(loans, payload.name, payload.amount);
+    if (!match) return;
+    get().markLoanPaymentPaid(match.id);
+  },
+
+  markLoanPaymentPaid: (loanId: string) => {
+    const match = get().loans.find((l) => l.id === loanId);
     if (!match) return;
     const prev = match.paymentsMade ?? 0;
     const next = prev + 1;

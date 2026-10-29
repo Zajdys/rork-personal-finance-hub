@@ -129,7 +129,11 @@ export default function HouseholdBudgetsScreen() {
     setNewCategoryName('');
     setNewCategoryIcon('📦');
     setShowAddCategoryModal(false);
-    Alert.alert(t('done'), t('hhBudgetCategoryAdded', { name: newCategory.name }));
+    const { showToast } = await import('@/store/toast-store');
+    showToast({
+      type: 'success',
+      message: t('hhBudgetCategoryAdded', { name: newCategory.name }),
+    });
   };
 
   const handleDeleteCustomCategory = async (categoryId: string) => {
@@ -153,7 +157,8 @@ export default function HouseholdBudgetsScreen() {
             };
             await setCategoryBudget(categoryId, budget);
             await saveCustomCategories(customCategories.filter(c => c.id !== categoryId));
-            Alert.alert(t('done'), t('hhBudgetCategoryDeleted'));
+            const { showToast } = await import('@/store/toast-store');
+            showToast({ type: 'success', message: t('hhBudgetCategoryDeleted') });
           },
         },
       ]
@@ -183,16 +188,15 @@ export default function HouseholdBudgetsScreen() {
       };
       
       await setCategoryBudget(selectedCategory, budget);
-      
-      Alert.alert(
-        t('hhBudgetSaved'),
-        t('hhBudgetSavedDetail', {
+      const { showToast } = await import('@/store/toast-store');
+      showToast({
+        type: 'success',
+        message: t('hhBudgetSavedDetail', {
           name: getCategoryDisplayName(selectedCategory),
           amount: limit.toLocaleString('cs-CZ'),
           symbol: currency.symbol,
-        })
-      );
-      
+        }),
+      });
       setShowEditModal(false);
     } catch (error) {
       console.error(error);
@@ -209,7 +213,8 @@ export default function HouseholdBudgetsScreen() {
       };
       await setCategoryBudget(selectedCategory, budget);
       setShowEditModal(false);
-      Alert.alert(t('done'), t('hhBudgetRemoved'));
+      const { showToast } = await import('@/store/toast-store');
+      showToast({ type: 'success', message: t('hhBudgetRemoved') });
     } catch (err) {
       console.error(err);
     }

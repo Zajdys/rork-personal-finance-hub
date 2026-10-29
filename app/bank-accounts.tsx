@@ -8,7 +8,6 @@ import {
   Alert,
   TextInput,
   Platform,
-  ToastAndroid,
   Modal,
   Pressable,
   KeyboardAvoidingView,
@@ -310,11 +309,9 @@ export default function BankAccountsScreen() {
   };
 
   const showToast = (message: string) => {
-    if (Platform.OS === 'android') {
-      ToastAndroid.show(message, ToastAndroid.SHORT);
-      return;
-    }
-    Alert.alert(message);
+    void import('@/store/toast-store').then(({ showToast: toast }) => {
+      toast({ type: 'success', message });
+    });
   };
 
   const persistBanks = useCallback(

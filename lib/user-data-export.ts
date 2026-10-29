@@ -31,7 +31,10 @@ export type UserDataExportBundle = {
   exportedAt: string;
   /** Řádek z public.users (včetně monthly_income, financial_goals jsonb, …). */
   users: Record<string, unknown> | null;
-  /** Jméno, příjmení, avatar z user_profiles. */
+  /**
+   * Řádek user_profiles (jméno, avatar, expected_monthly_income, payday,
+   * employment_type, quick_setup_*, …).
+   */
   user_profiles: Record<string, unknown> | null;
   transactions: unknown[];
   /** Hodnota sloupce users.financial_goals (jsonb); samostatná tabulka v projektu není. */
@@ -40,6 +43,10 @@ export type UserDataExportBundle = {
   subscriptions: unknown[];
   investment_records: unknown[];
   reserve_records: unknown[];
+  user_budgets: unknown[];
+  savings_goals: unknown[];
+  savings_goal_contributions: unknown[];
+  personal_recurring_transactions: unknown[];
 };
 
 /**
@@ -69,6 +76,26 @@ export async function fetchUserDataExportBundle(userId: string): Promise<{
   const resRes = await supabase.from('reserve_records').select('*').eq('user_id', userId);
   if (resRes.error) errors.push(`reserve_records: ${resRes.error.message}`);
 
+  const budgetsRes = await supabase.from('user_budgets').select('*').eq('user_id', userId);
+  if (budgetsRes.error) errors.push(`user_budgets: ${budgetsRes.error.message}`);
+
+  const goalsRes = await supabase.from('savings_goals').select('*').eq('user_id', userId);
+  if (goalsRes.error) errors.push(`savings_goals: ${goalsRes.error.message}`);
+
+  const contribRes = await supabase
+    .from('savings_goal_contributions')
+    .select('*')
+    .eq('user_id', userId);
+  if (contribRes.error) errors.push(`savings_goal_contributions: ${contribRes.error.message}`);
+
+  const recurringRes = await supabase
+    .from('personal_recurring_transactions')
+    .select('*')
+    .eq('user_id', userId);
+  if (recurringRes.error) {
+    errors.push(`personal_recurring_transactions: ${recurringRes.error.message}`);
+  }
+
   const userRow = (usersRes.data ?? null) as Record<string, unknown> | null;
   const financialGoals = userRow?.financial_goals ?? [];
 
@@ -81,6 +108,10 @@ export async function fetchUserDataExportBundle(userId: string): Promise<{
     subscriptions: subsRes.data ?? [],
     investment_records: invRes.data ?? [],
     reserve_records: resRes.data ?? [],
+    user_budgets: budgetsRes.data ?? [],
+    savings_goals: goalsRes.data ?? [],
+    savings_goal_contributions: contribRes.data ?? [],
+    personal_recurring_transactions: recurringRes.data ?? [],
   };
 
   return { bundle, errors };

@@ -38,8 +38,11 @@ import {
   Landmark,
   LogOut,
   Crown,
+  Repeat,
   Pencil,
   Camera,
+  Wallet,
+  TrendingUp,
 } from 'lucide-react-native';
 
 import { useSettingsStore } from '@/store/settings-store';
@@ -437,16 +440,28 @@ export default function ProfileScreen() {
         <View style={styles.menuContainer}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionMyMoney')}</Text>
           <MenuButton
+            icon={Wallet}
+            title="Příjem a rozpočty"
+            subtitle="Rychlé nastavení příjmu, závazků a limitů"
+            onPress={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
+          />
+          <MenuButton
             icon={Target}
-            title={t('financialGoals')}
-            subtitle={t('profileGoalsReserveSubtitle')}
-            onPress={() => router.push('/financial-goals')}
+            title="Plán"
+            subtitle="Rozpočty, spoření a měsíční plán"
+            onPress={() => router.push('/(tabs)/plan')}
           />
           <MenuButton
             icon={Landmark}
             title={t('profileReserveTitle')}
             subtitle={t('profileReserveSubtitle')}
             onPress={() => router.push('/reserve-detail')}
+          />
+          <MenuButton
+            icon={TrendingUp}
+            title="Investice (beta)"
+            subtitle="Portfolia a pozice"
+            onPress={() => router.push('/investice')}
           />
           <MenuButton
             icon={PiggyBank}
@@ -459,6 +474,12 @@ export default function ProfileScreen() {
             title={t('profileMyLiabilities')}
             subtitle={t('profileLoansSubtitle')}
             onPress={() => router.push('/loans')}
+          />
+          <MenuButton
+            icon={Repeat}
+            title={t('personalRecurring.title')}
+            subtitle={t('personalRecurring.menuSubtitle')}
+            onPress={() => router.push('/personal-recurring')}
           />
           <MenuButton
             icon={Building2}

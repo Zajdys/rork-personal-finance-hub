@@ -74,14 +74,28 @@ export default function SavePendingDetailScreen() {
         futureValue: item.futureValue,
       });
     }
-    addTransaction({
+    const tx = {
       id: randomUUID(),
-      type: 'expense',
+      type: 'expense' as const,
       amount: item.price,
       title: item.title,
       category: 'Nákupy',
       date: toYyyyMmDd(new Date()),
-    });
+    };
+    await addTransaction(tx);
+    if (user?.id) {
+      try {
+        const { runAfterTransactionsSideEffects } = await import(
+          '@/lib/after-transactions-side-effects'
+        );
+        await runAfterTransactionsSideEffects({
+          userId: user.id,
+          newTransactions: [tx],
+        });
+      } catch (e) {
+        console.warn('[save-pending] side effects', e);
+      }
+    }
     removePendingItem(item.id);
     safeGoBack();
   }, [item, user?.id, addTransaction, removePendingItem]);

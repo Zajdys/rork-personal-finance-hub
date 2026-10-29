@@ -4,9 +4,12 @@
  */
 import {
   EXPENSE_CATEGORY_TREE,
+  INCOME_CATEGORY_LIST,
   defaultSubcategoriesFor,
   getExpenseCategoryDef,
 } from '@/constants/categories';
+import { lookupMerchantDictionary } from '@/lib/merchant-dictionary';
+import { lookupMerchantKeywords } from '@/lib/merchant-keywords';
 
 export type NormalizedCategory = {
   category: string;
@@ -136,6 +139,95 @@ export function foldCategoryText(s: string): string {
  * Pokud `sub` chybí a legacy mapování má podkategorii, použije se ta.
  * Pokud `sub` je zadaná, má přednost (po oříznutí).
  */
+export function isKnownMainCategoryName(name: string): boolean {
+  if (getExpenseCategoryDef(name)) return true;
+  if (name === 'Převod' || name === 'Investice') return true;
+  if (INCOME_CATEGORY_LIST.some((c) => c.name === name)) return true;
+  return false;
+}
+
+/** True = strom / legacy alias / podkategorie / custom — ne volný popis. */
+export function isRecognizedCategoryLabel(name: string | null | undefined): boolean {
+  const raw = (name ?? '').trim();
+  if (!raw) return false;
+  if (isKnownMainCategoryName(raw)) return true;
+  if (LEGACY_MAP[raw] || CATEGORY_ALIASES[raw]) return true;
+  if (findParentOfSubcategoryName(raw)) return true;
+  if (getCustomMainCategoryNames().includes(raw)) return true;
+  return false;
+}
+
+/**
+ * Sanitizace před zápisem do DB: category jen ze stromu/custom (po normalize),
+ * volný text omylem v `category` přesune do title/description.
+ */
+export function resolveCategoryFieldsForWrite(input: {
+  category?: string | null;
+  subcategory?: string | null;
+  title?: string | null;
+  type?: 'income' | 'expense';
+}): { category: string; subcategory: string | null; title: string } {
+  const rawCat = (input.category ?? '').trim();
+  const rawTitle = (input.title ?? '').trim();
+  const type = input.type ?? 'expense';
+  const recognized = isRecognizedCategoryLabel(rawCat);
+  const n = normalizeCategory(rawCat || 'Ostatní', type === 'expense' ? input.subcategory : null);
+
+  let title = rawTitle;
+  if (!recognized && rawCat) {
+    // AI / import dal merchant/popis do category
+    if (!title) title = rawCat;
+  }
+  if (!title) title = 'Bez názvu';
+
+  return {
+    category: n.category,
+    subcategory: type === 'expense' ? n.subcategory : null,
+    title,
+  };
+}
+
+function getCustomMainCategoryNames(): string[] {
+  try {
+    // Dynamicky — finance-store importuje category-normalize (bez cyklického top-level importu).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useFinanceStore } = require('@/store/finance-store') as typeof import('@/store/finance-store');
+    const customs = useFinanceStore.getState().customCategories ?? [];
+    return customs.filter((c) => !c.parentCategory).map((c) => c.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Zařadí neznámý název (často omylem uložený popis) klasifikátorem.
+ * ČEZ elektřina → Bydlení › Energie.
+ */
+function classifyUnknownCategoryName(raw: string): NormalizedCategory | null {
+  const fromSuggest = suggestCategoryFromDescription(raw, 'expense');
+  if (fromSuggest && isKnownMainCategoryName(fromSuggest.category)) {
+    return fromSuggest;
+  }
+
+  const dict = lookupMerchantDictionary(raw);
+  if (dict?.category && isKnownMainCategoryName(dict.category)) {
+    return {
+      category: dict.category,
+      subcategory: dict.subcategory?.trim() ? dict.subcategory.trim() : null,
+    };
+  }
+
+  const kw = lookupMerchantKeywords(raw);
+  if (kw?.category && isKnownMainCategoryName(kw.category)) {
+    return {
+      category: kw.category,
+      subcategory: kw.subcategory?.trim() ? kw.subcategory.trim() : null,
+    };
+  }
+
+  return null;
+}
+
 export function normalizeCategory(
   cat: string | null | undefined,
   sub?: string | null,
@@ -174,7 +266,25 @@ export function normalizeCategory(
     };
   }
 
-  return { category: raw, subcategory: explicitSub };
+  if (isKnownMainCategoryName(raw)) {
+    return { category: raw, subcategory: explicitSub };
+  }
+
+  // Vlastní kategorie uživatele — ponechat
+  if (getCustomMainCategoryNames().includes(raw)) {
+    return { category: raw, subcategory: explicitSub };
+  }
+
+  // Neznámá (často popis omylem v category) → klasifikátor, jinak Ostatní
+  const classified = classifyUnknownCategoryName(raw);
+  if (classified) {
+    return {
+      category: classified.category,
+      subcategory: explicitSub ?? classified.subcategory,
+    };
+  }
+
+  return { category: 'Ostatní', subcategory: explicitSub };
 }
 
 function trimSub(sub?: string | null): string | null {

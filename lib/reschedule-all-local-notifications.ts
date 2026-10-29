@@ -404,17 +404,86 @@ export async function rescheduleAllLocalNotifications(params: RescheduleAllParam
     await scheduleSubscriptionReminders(subscriptions, currencyLabel, notifSubs, now);
   }
 
-  // --- Hypotéka ---
+  // --- Závazky (hypotéka + ostatní splátky z quick-setup / loans) ---
   if (notifMortgage.enabled) {
-    const mortgages = loans.filter((l) => l.loanType === 'mortgage');
-    if (mortgages.length > 0) {
-      await scheduleMortgageReminders(mortgages, currencyLabel, notifMortgage, now);
+    const withPayment = loans.filter((l) => Number(l.monthlyPayment) > 0);
+    if (withPayment.length > 0) {
+      await scheduleMortgageReminders(withPayment, currencyLabel, notifMortgage, now);
     }
+  }
+
+  // --- Osobní pravidelné platby (den před next_date) ---
+  if (notifPayments.enabled) {
+    await schedulePersonalRecurringReminders(userId, currencyLabel, notifPayments, now);
   }
 
   // --- Denní tip ---
   if (notifTip.enabled) {
     await scheduleDailyTipNotification(notifTip);
+  }
+
+  // --- Týdenní souhrn rozpočtů (pátek 18:00) ---
+  try {
+    const { scheduleBudgetWeeklySummaryIfEnabled } = await import('@/lib/budget-notifications');
+    await scheduleBudgetWeeklySummaryIfEnabled(userId);
+  } catch (e) {
+    console.warn('[notifications] budget weekly', e);
+  }
+}
+
+async function schedulePersonalRecurringReminders(
+  userId: string,
+  currencyLabel: string,
+  prefs: NotifCategoryPrefs,
+  now: Date,
+): Promise<void> {
+  const { fetchPersonalRecurringRules, advanceRecurringDate } = await import(
+    '@/lib/personal-recurring'
+  );
+  const { rules, error } = await fetchPersonalRecurringRules(userId);
+  if (error) {
+    console.warn('[notifications] personal recurring', error.message);
+    return;
+  }
+  const active = rules.filter((r) => r.active);
+  const daysBefore = 1; // „Zítra: …“
+  const timeStr = prefs.time;
+  let slot = 0;
+  const maxSlots = 40;
+
+  for (const rule of active) {
+    let next = rule.nextDate;
+    let guard = 0;
+    while (slot < maxSlots && guard < 6) {
+      guard += 1;
+      if (rule.endDate && next > rule.endDate) break;
+      const [yy, mm, dd] = next.split('-').map((x) => parseInt(x, 10));
+      const dueDate = new Date(yy!, mm! - 1, dd!, 12, 0, 0, 0);
+      const triggerAt = reminderBeforePayment(dueDate, daysBefore, timeStr);
+      if (triggerAt.getTime() > now.getTime()) {
+        const amt = Number(rule.amount).toLocaleString('cs-CZ');
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'MoneyBuddy',
+            body: `Zítra: ${rule.title} ${amt} ${currencyLabel}`,
+            data: {
+              kind: 'personal_recurring',
+              recurringId: rule.id,
+              dueDate: next,
+            },
+            ...(Platform.OS === 'android'
+              ? { android: { channelId: ANDROID_CHANNEL_HOUSEHOLD } }
+              : {}),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerAt,
+          },
+        });
+        slot += 1;
+      }
+      next = advanceRecurringDate(next, rule.frequency);
+    }
   }
 }
 
@@ -467,13 +536,15 @@ async function scheduleMortgageReminders(
     const start = parseLoanStartDate(loan);
     const dom = start.getDate();
     const payments = nextBillingDatesAfter(now, dom, 6);
-    const label = loan.name?.trim() || 'Hypotéka';
+    const label =
+      loan.name?.trim() ||
+      (loan.loanType === 'mortgage' ? 'Hypotéka' : 'Závazek');
     for (const pay of payments) {
       const triggerAt = reminderBeforePayment(pay, daysBefore, time);
       if (triggerAt.getTime() <= now.getTime()) continue;
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '🏠 Splátka hypotéky',
+          title: loan.loanType === 'mortgage' ? '🏠 Splátka hypotéky' : '💳 Blížící se platba',
           body: `${label}: ${loan.monthlyPayment.toLocaleString('cs-CZ')} ${currencyLabel} — splatnost ${formatCsDate(pay)}`,
           data: { kind: 'mortgage_reminder', loanId: loan.id },
           ...(Platform.OS === 'android' ? { android: { channelId: ANDROID_CHANNEL_MORTGAGE } } : {}),

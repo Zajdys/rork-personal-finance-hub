@@ -81,6 +81,7 @@ import {
   formatInvestImportSummary,
 } from '@/lib/plural-cs';
 import { PremiumGateScreen } from '@/components/PremiumGate';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 const GREEN = '#10B981';
 const RED = '#EF4444';
@@ -749,22 +750,16 @@ function InvesticeTabScreenContent() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerTitleRow}>
-          <Text style={styles.headerTitle}>{t('investments')}</Text>
+      <ScreenHeader
+        variant="gradient"
+        title={t('investments')}
+        subtitle={!showEmpty ? t('investTrackPortfolio') : undefined}
+        right={
           <View style={styles.betaBadge}>
             <Text style={styles.betaBadgeText}>BETA</Text>
           </View>
-        </View>
-        {!showEmpty ? (
-          <Text style={styles.headerSubtitle}>{t('investTrackPortfolio')}</Text>
-        ) : null}
-      </LinearGradient>
+        }
+      />
 
       {showContent && !showEmpty && brokerTabs.length > 0 ? (
         <BrokerSegmentedControl

@@ -546,6 +546,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       useRevenueCatStore.getState().reset();
       const { useRegisterIntentStore } = await import('@/store/register-intent-store');
       useRegisterIntentStore.getState().clear();
+      try {
+        const { usePlanStore } = await import('@/store/plan-store');
+        usePlanStore.getState().clear();
+      } catch {
+        /* ignore */
+      }
       router.replace('/auth');
       await purgeAuthStorage();
       useSettingsStore.getState().clearUserProfile();

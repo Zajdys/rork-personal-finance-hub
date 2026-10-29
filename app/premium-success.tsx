@@ -44,7 +44,13 @@ export default function PremiumSuccessScreen() {
   }, [opacity, scale]);
 
   const onContinue = () => {
-    router.replace('/(tabs)');
+    void (async () => {
+      const { resolvePostTourHref } = await import('@/lib/quick-setup');
+      const { supabase } = await import('@/lib/supabase');
+      const { data } = await supabase.auth.getUser();
+      const dest = await resolvePostTourHref(data.user?.id);
+      router.replace(dest);
+    })();
   };
 
   return (

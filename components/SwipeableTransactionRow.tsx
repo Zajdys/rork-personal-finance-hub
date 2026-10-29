@@ -8,6 +8,7 @@ import {
   TouchableOpacity as RNTouchableOpacity,
 } from 'react-native';
 import { Swipeable, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
+import { Repeat } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import type { Transaction } from '@/store/finance-store';
 import { useTheme } from '@/hooks/use-theme';
@@ -177,13 +178,18 @@ export function SwipeableTransactionRow({
         <TransactionSelectionCheckbox selected={selected} onPress={onToggleSelection} />
       ) : null}
       <View style={{ flex: 1, flexShrink: 1, marginRight: 8, overflow: 'hidden' }}>
-        <Text
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          style={[styles.goalDetailTitle, { color: colors.text }]}
-        >
-          {displayTitle}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={[styles.goalDetailTitle, { color: colors.text, flexShrink: 1 }]}
+          >
+            {displayTitle}
+          </Text>
+          {transaction.recurringId ? (
+            <Repeat color={colors.textSecondary} size={12} style={{ marginLeft: 4 }} />
+          ) : null}
+        </View>
         <Text
           numberOfLines={1}
           ellipsizeMode="tail"
@@ -246,13 +252,18 @@ export function SwipeableTransactionRow({
         activeOpacity={0.7}
       >
         <View style={styles.rowText}>
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={[styles.title, { color: colors.text }]}
-          >
-            {displayTitle}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[styles.title, { color: colors.text, flexShrink: 1 }]}
+            >
+              {displayTitle}
+            </Text>
+            {transaction.recurringId ? (
+              <Repeat color={colors.textSecondary} size={13} style={{ marginLeft: 4 }} />
+            ) : null}
+          </View>
           {subtitle != null ? (
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
           ) : (
@@ -391,10 +402,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   title: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,

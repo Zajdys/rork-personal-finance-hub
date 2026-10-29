@@ -88,12 +88,9 @@ export default function EditSubscriptionScreen() {
       paused,
     });
 
-    Alert.alert(t('done'), t('subscription.updated'), [
-      {
-        text: 'OK',
-        onPress: () => safeGoBack(),
-      },
-    ]);
+    const { showToast } = await import('@/store/toast-store');
+    showToast({ type: 'success', message: t('subscription.updated') });
+    safeGoBack();
   });
 
   const handleDelete = () => {

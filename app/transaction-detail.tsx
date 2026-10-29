@@ -139,16 +139,17 @@ export default function TransactionDetailScreen() {
         for (const txId of updatedIds) {
           updateTransaction(txId, { category: cat, subcategory: sub });
         }
-        Alert.alert(
-          t('saved'),
-          t('categoryApplyToOthersDone', {
+        const { showToast } = await import('@/store/toast-store');
+        showToast({
+          type: 'success',
+          message: t('categoryApplyToOthersDone', {
             count: updatedIds.length,
             transactionsWord: pluralTransakce(
               updatedIds.length,
               language === 'en' ? 'en' : 'cs',
             ),
           }),
-        );
+        });
       }
       safeGoBack();
     },
@@ -227,7 +228,8 @@ export default function TransactionDetailScreen() {
       }
     }
 
-    Alert.alert(t('saved'), t('changesSaved'));
+    const { showToast } = await import('@/store/toast-store');
+    showToast({ type: 'success', message: t('changesSaved') });
     safeGoBack();
   });
 

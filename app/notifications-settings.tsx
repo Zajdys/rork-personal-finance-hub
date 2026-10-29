@@ -13,7 +13,7 @@ import {
 import { Stack } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
-import { Bell, BellRing, CreditCard, Home, Lightbulb, UsersRound } from 'lucide-react-native';
+import { Bell, BellRing, CreditCard, Home, Lightbulb, PieChart, UsersRound } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -21,16 +21,21 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth-store';
 import { useFinanceStore } from '@/store/finance-store';
 import {
+  loadNotifBudgetAlertsPrefs,
+  loadNotifBudgetWeeklyPrefs,
   loadNotifMortgagePrefs,
   loadNotifPaymentsPrefs,
   loadNotifSubscriptionsPrefs,
   loadNotifTipPrefs,
+  saveNotifBudgetAlertsPrefs,
+  saveNotifBudgetWeeklyPrefs,
   saveNotifMortgagePrefs,
   saveNotifPaymentsPrefs,
   saveNotifSubscriptionsPrefs,
   saveNotifTipPrefs,
   type DaysBefore,
   type NotifCategoryPrefs,
+  type NotifSimpleToggle,
   type NotifTipPrefs,
 } from '@/lib/notifications-preferences';
 import {
@@ -104,6 +109,8 @@ export default function NotificationsSettingsScreen() {
   const [subsPref, setSubsPref] = useState<NotifCategoryPrefs | null>(null);
   const [tip, setTip] = useState<NotifTipPrefs | null>(null);
   const [mortgage, setMortgage] = useState<NotifCategoryPrefs | null>(null);
+  const [budgetAlerts, setBudgetAlerts] = useState<NotifSimpleToggle | null>(null);
+  const [budgetWeekly, setBudgetWeekly] = useState<NotifSimpleToggle | null>(null);
   const [splitExpensesNotif, setSplitExpensesNotif] = useState<boolean | null>(null);
   const [splitSaving, setSplitSaving] = useState(false);
 
@@ -200,11 +207,13 @@ export default function NotificationsSettingsScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, s, tipPrefs, m, split, pushFailed] = await Promise.all([
+      const [p, s, tipPrefs, m, ba, bw, split, pushFailed] = await Promise.all([
         loadNotifPaymentsPrefs(user?.id ?? null),
         loadNotifSubscriptionsPrefs(),
         loadNotifTipPrefs(),
         loadNotifMortgagePrefs(),
+        loadNotifBudgetAlertsPrefs(),
+        loadNotifBudgetWeeklyPrefs(),
         user?.id ? fetchNotifySplitExpenses(user.id) : Promise.resolve(true),
         getPushTokenSetupFailed(),
       ]);
@@ -212,6 +221,8 @@ export default function NotificationsSettingsScreen() {
       setSubsPref(s);
       setTip(tipPrefs);
       setMortgage(m);
+      setBudgetAlerts(ba);
+      setBudgetWeekly(bw);
       setSplitExpensesNotif(split);
       setPushSetupFailed(pushFailed);
 
@@ -289,7 +300,16 @@ export default function NotificationsSettingsScreen() {
     </View>
   );
 
-  if (loading || !payments || !subsPref || !tip || !mortgage || splitExpensesNotif === null) {
+  if (
+    loading ||
+    !payments ||
+    !subsPref ||
+    !tip ||
+    !mortgage ||
+    !budgetAlerts ||
+    !budgetWeekly ||
+    splitExpensesNotif === null
+  ) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -511,6 +531,63 @@ export default function NotificationsSettingsScreen() {
               }}
               trackColor={{ false: '#E5E7EB', true: '#10B981' }}
               thumbColor={splitExpensesNotif ? 'white' : '#9CA3AF'}
+            />
+          </View>
+        </View>
+
+        {/* Upozornění na rozpočty */}
+        <View style={[...cardStyle, dimStyle]}>
+          <View style={styles.row}>
+            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
+              <PieChart color={colors.primary} size={22} />
+            </View>
+            <View style={styles.textBlock}>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {t('notificationsSettings.budgetAlertsTitle')}
+              </Text>
+              <Text style={[styles.sub, { color: colors.textSecondary }]}>
+                {t('notificationsSettings.budgetAlertsSubtitle')}
+              </Text>
+            </View>
+            <Switch
+              value={budgetAlerts.enabled}
+              disabled={subRowsDisabled}
+              onValueChange={async (v) => {
+                const next = { enabled: v };
+                setBudgetAlerts(next);
+                await saveNotifBudgetAlertsPrefs(next);
+              }}
+              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
+              thumbColor={budgetAlerts.enabled ? 'white' : '#9CA3AF'}
+            />
+          </View>
+        </View>
+
+        {/* Týdenní souhrn rozpočtů */}
+        <View style={[...cardStyle, dimStyle]}>
+          <View style={styles.row}>
+            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
+              <PieChart color={colors.primary} size={22} />
+            </View>
+            <View style={styles.textBlock}>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {t('notificationsSettings.budgetWeeklyTitle')}
+              </Text>
+              <Text style={[styles.sub, { color: colors.textSecondary }]}>
+                {t('notificationsSettings.budgetWeeklySubtitle')}
+              </Text>
+            </View>
+            <Switch
+              value={budgetWeekly.enabled}
+              disabled={subRowsDisabled}
+              onValueChange={async (v) => {
+                const next = { enabled: v };
+                setBudgetWeekly(next);
+                await saveNotifBudgetWeeklyPrefs(next);
+                await runReschedule();
+              }}
+              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
+              thumbColor={budgetWeekly.enabled ? 'white' : '#9CA3AF'}
             />
           </View>
         </View>

@@ -30,6 +30,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
+import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
 const TRANSFER_CATEGORY = 'Převod';
 const TRANSFER_COLOR = '#9CA3AF';
@@ -96,6 +97,7 @@ export default function IncomeDetailScreen() {
 
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   const periodIncomeTransactions = useMemo(() => {
     let list: Transaction[];
@@ -383,20 +385,7 @@ export default function IncomeDetailScreen() {
           </View>
         ) : null}
 
-        {/* Add Income Button */}
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            style={styles.addIncomeButton}
-            onPress={() =>
-              router.push({ pathname: '/(tabs)/add', params: { type: 'income' } })
-            }
-          >
-            <Plus color="white" size={20} />
-            <Text style={styles.addIncomeButtonText}>{t('addIncome')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Period Selection */}
+        {/* Period Selection — nad součty / seznamem */}
         <View style={styles.periodContainer}>
           <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailPeriod')}</Text>
           <View style={[styles.periodButtons, { backgroundColor: mutedBg }]}>
@@ -404,6 +393,16 @@ export default function IncomeDetailScreen() {
             <PeriodButton period="month" label={t('month')} />
             <PeriodButton period="year" label={t('year')} />
           </View>
+        </View>
+
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addIncomeButton}
+            onPress={() => setQuickAddOpen(true)}
+          >
+            <Plus color="white" size={20} />
+            <Text style={styles.addIncomeButtonText}>{t('addIncome')}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Statistics */}
@@ -446,11 +445,9 @@ export default function IncomeDetailScreen() {
               <Text style={[styles.emptyStateSubtext, { color: textSec }]}>
                 {t('startAddingTransactions')}
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
-                onPress={() =>
-                  router.push({ pathname: '/(tabs)/add', params: { type: 'income' } })
-                }
+                onPress={() => setQuickAddOpen(true)}
               >
                 <Plus color="white" size={20} />
                 <Text style={styles.addButtonText}>{t('addIncome')}</Text>
@@ -515,6 +512,14 @@ export default function IncomeDetailScreen() {
           </LinearGradient>
         </View>
       </ScrollView>
+      <QuickAddTransactionSheet
+        visible={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        type="income"
+        onSaved={() => {
+          /* store už obsahuje tx; revision syncne Přehled po mirroru */
+        }}
+      />
     </View>
   );
 }

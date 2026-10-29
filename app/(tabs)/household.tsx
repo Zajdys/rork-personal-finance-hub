@@ -692,7 +692,7 @@ function HouseholdTabScreenContent() {
 
 export default function HouseholdTabScreen() {
   return (
-    <PremiumGateScreen feature="household">
+    <PremiumGateScreen feature="household" showBack={false}>
       <HouseholdTabScreenContent />
     </PremiumGateScreen>
   );

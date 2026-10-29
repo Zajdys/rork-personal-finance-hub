@@ -207,13 +207,17 @@ export async function insertLoanRecurringExpenses(params: {
 export function buildBudgetGoalsFromOnboarding(
   userId: string,
   budget: {
-    housing: string;
-    food: string;
-    transportation: string;
-    entertainment: string;
-    savings: string;
-    other: string;
-  }
+    /** @deprecated legacy */
+    housing?: string;
+    food?: string;
+    transportation?: string;
+    /** Nový strom — Nákupy */
+    shopping?: string;
+    entertainment?: string;
+    /** @deprecated legacy */
+    savings?: string;
+    other?: string;
+  },
 ): FinancialGoal[] {
   const specs: {
     key: string;
@@ -222,25 +226,64 @@ export function buildBudgetGoalsFromOnboarding(
     type: 'spending_limit' | 'saving';
     raw: string;
   }[] = [
-    { key: 'housing', title: 'Limit: bydlení', category: 'Bydlení', type: 'spending_limit', raw: budget.housing },
-    { key: 'food', title: 'Limit: jídlo', category: 'Jídlo a nápoje', type: 'spending_limit', raw: budget.food },
+    {
+      key: 'food',
+      title: 'Limit: jídlo',
+      category: 'Jídlo',
+      type: 'spending_limit',
+      raw: budget.food ?? '',
+    },
     {
       key: 'transportation',
-      title: 'Limit: doprava',
-      category: 'Doprava',
+      title: 'Limit: auto a doprava',
+      category: 'Auto a doprava',
       type: 'spending_limit',
-      raw: budget.transportation,
+      raw: budget.transportation ?? '',
+    },
+    {
+      key: 'shopping',
+      title: 'Limit: nákupy',
+      category: 'Nákupy',
+      type: 'spending_limit',
+      raw: budget.shopping ?? '',
     },
     {
       key: 'entertainment',
-      title: 'Limit: zábava',
-      category: 'Zábava',
+      title: 'Limit: volný čas',
+      category: 'Volný čas',
       type: 'spending_limit',
-      raw: budget.entertainment,
+      raw: budget.entertainment ?? '',
     },
-    { key: 'savings', title: 'Měsíční cíl spoření', category: 'Spoření', type: 'saving', raw: budget.savings },
-    { key: 'other', title: 'Limit: ostatní', category: 'Ostatní', type: 'spending_limit', raw: budget.other },
   ];
+
+  // Legacy klíče (starý onboarding) — jen pokud nové chybí
+  if (budget.housing?.trim()) {
+    specs.push({
+      key: 'housing',
+      title: 'Limit: bydlení',
+      category: 'Bydlení',
+      type: 'spending_limit',
+      raw: budget.housing,
+    });
+  }
+  if (budget.savings?.trim()) {
+    specs.push({
+      key: 'savings',
+      title: 'Měsíční cíl spoření',
+      category: 'Spoření',
+      type: 'saving',
+      raw: budget.savings,
+    });
+  }
+  if (budget.other?.trim()) {
+    specs.push({
+      key: 'other',
+      title: 'Limit: ostatní',
+      category: 'Ostatní',
+      type: 'spending_limit',
+      raw: budget.other,
+    });
+  }
 
   const goals: FinancialGoal[] = [];
   const prefix = userId.slice(0, 8);

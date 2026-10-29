@@ -10,6 +10,7 @@ import {
   PREMIUM_FEATURE_META,
   type PremiumFeatureId,
 } from '@/constants/premium';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 type Props = {
   feature: PremiumFeatureId;
@@ -90,10 +91,9 @@ type ScreenProps = Props & {
  * Celoobrazovkový gate pro celé screeny: free uživatel uvidí vycentrovaný zámek (s volitelným zpět),
  * premium uživatel obsah (children se u free vůbec nemountují).
  */
-export function PremiumGateScreen({ showBack = false, children, ...rest }: ScreenProps) {
+export function PremiumGateScreen({ showBack = true, children, ...rest }: ScreenProps) {
   const { t } = useLanguageStore();
   const { colors } = useTheme();
-  const router = useRouter();
   const { isHouseholdPremium, isPremium, loading } = usePremium();
   const allowed = rest.requireOwnPremium ? isPremium : isHouseholdPremium;
 
@@ -109,15 +109,7 @@ export function PremiumGateScreen({ showBack = false, children, ...rest }: Scree
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {showBack && router.canGoBack() ? (
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ padding: 12, alignSelf: 'flex-start' }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <ChevronLeft color={colors.text} size={26} />
-        </TouchableOpacity>
-      ) : null}
+      {showBack ? <ScreenHeader title="" skipTopInset /> : null}
       <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 20 }}>
         <PremiumGate {...rest}>{null}</PremiumGate>
       </View>

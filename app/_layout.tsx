@@ -27,6 +27,7 @@ import { useRevenueCatStore } from '@/store/revenuecat-store';
 import { getIsPremiumSnapshot } from '@/hooks/usePremium';
 import { consumeSuppressTabsRedirect } from '@/lib/nav-guards';
 import { useRegisterIntentStore } from '@/store/register-intent-store';
+import { ToastHost } from '@/components/Toast';
 
 
 SplashScreen.preventAutoHideAsync();
@@ -49,11 +50,18 @@ const autoSyncFio = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     const { data: sessionData } = await supabase.auth.getSession();
     if (!user?.id || !sessionData.session?.access_token) return;
-    await invokeFioSync({
+    const result = await invokeFioSync({
       fioToken: token,
       userId: user.id,
       accessToken: sessionData.session.access_token,
     });
+    if ((result?.imported ?? 0) > 0) {
+      await useFinanceStore.getState().loadTransactionsFromSupabase();
+      const { runAfterTransactionsSideEffects } = await import(
+        '@/lib/after-transactions-side-effects'
+      );
+      await runAfterTransactionsSideEffects({ userId: user.id });
+    }
   } catch (e) {
     // Auto-sync: log raw, neobtěžuj uživatele
     console.log('[autoSyncFio] raw error:', e);
@@ -110,13 +118,32 @@ function HouseholdRecurringNotificationsRunner() {
   const isPremium = useRevenueCatStore((s) => s.isPremium);
   const appStateRef = useRef(AppState.currentState);
   useEffect(() => {
-    if (!isAuthenticated || !isPremium || !user?.id || Platform.OS === 'web') return;
-    const run = () => {
+    if (!isAuthenticated || !user?.id) return;
+    const runPersonalRecurring = async () => {
+      try {
+        const { materializeDueRecurring } = await import('@/lib/personal-recurring');
+        const { created } = await materializeDueRecurring(user.id);
+        if (created > 0) {
+          await useFinanceStore.getState().loadTransactionsFromSupabase();
+          const { runAfterTransactionsSideEffects } = await import(
+            '@/lib/after-transactions-side-effects'
+          );
+          await runAfterTransactionsSideEffects({ userId: user.id });
+        }
+      } catch (e) {
+        console.warn('[personal recurring]', e);
+      }
+    };
+    const runNotifications = () => {
+      if (!isPremium || Platform.OS === 'web') return;
       const { subscriptions, loans } = useFinanceStore.getState();
       const sym = useSettingsStore.getState().getCurrentCurrency().symbol;
       runHouseholdRecurringNotificationSync(user.id, subscriptions, sym, loans).catch((e) =>
         console.warn('[household notifications]', e),
       );
+    };
+    const run = () => {
+      void runPersonalRecurring().then(runNotifications);
     };
     run();
     const sub = AppState.addEventListener('change', (next) => {
@@ -212,6 +239,12 @@ function RootLayoutNav() {
       return;
     }
 
+    // Quick-setup po tour — nenech gate přesměrovat pryč.
+    if (rootSegment === 'quick-setup') {
+      console.log('[nav] gate skip (quick-setup)');
+      return;
+    }
+
     // Přihlášený + terms + tour — pokud už jsme v app stacku, NIKDY replace.
     if (!inPreApp) {
       console.log('[nav] gate skip (already in app)', rootSegment || segments.join('/'));
@@ -224,8 +257,12 @@ function RootLayoutNav() {
       return;
     }
 
-    console.log('[nav] gate → /(tabs) (reason: leaving pre-app)', rootSegment);
-    router.replace('/(tabs)');
+    void (async () => {
+      const { resolvePostTourHref } = await import('@/lib/quick-setup');
+      const dest = await resolvePostTourHref(userId);
+      console.log('[nav] gate →', dest, '(reason: leaving pre-app)', rootSegment);
+      router.replace(dest);
+    })();
   }, [
     isLoaded,
     authGateBlocked,
@@ -285,6 +322,8 @@ function RootLayoutNav() {
       <Stack.Screen name="financial-goals" options={{ title: t('financialGoals') }} />
       <Stack.Screen name="add-savings-goal" options={{ title: t('fgNewGoal') }} />
       <Stack.Screen name="savings-goal-detail" options={{ title: t('sgGoalTitle') }} />
+      <Stack.Screen name="plan-goal-detail" options={{ title: 'Cíl' }} />
+      <Stack.Screen name="investice" options={{ title: t('investments') }} />
       <Stack.Screen name="language-settings" options={{ title: t('language') }} />
       <Stack.Screen name="currency-settings" options={{ title: t('appCurrency') }} />
       <Stack.Screen name="theme-settings" options={{ title: t('theme') }} />
@@ -313,8 +352,9 @@ function RootLayoutNav() {
       <Stack.Screen name="household-overview" options={{ title: t('screenHouseholdOverview') }} />
       <Stack.Screen name="household-members" options={{ title: t('hhMembersTitle') }} />
       <Stack.Screen name="loans" options={{ title: t('screenLoans') }} />
+      <Stack.Screen name="quick-setup" options={{ title: 'Rychlé nastavení', headerShown: false }} />
+      <Stack.Screen name="personal-recurring" options={{ title: t('personalRecurring.title') }} />
       <Stack.Screen name="loan-detail" options={{ title: t('screenLoanDetail') }} />
-      <Stack.Screen name="loan-finder" options={{ title: t('screenLoanFinder') }} />
       <Stack.Screen name="add-loan" options={{ title: t('screenAddLoan') }} />
       <Stack.Screen name="edit-loan" options={{ title: t('screenEditLoan') }} />
       <Stack.Screen name="add-subscription" options={{ title: t('screenAddSubscription') }} />
@@ -403,6 +443,14 @@ export default function RootLayout() {
         // Krátká pauza aby AsyncStorage stihl zapsat
         await new Promise((resolve) => setTimeout(resolve, 100));
         await Promise.all([loadFinanceData(), loadBuddyData()]);
+        if (currentUserId) {
+          try {
+            const { migrateLocalPlanDataToSupabase } = await import('@/lib/supabase-plan');
+            await migrateLocalPlanDataToSupabase(currentUserId);
+          } catch (e) {
+            console.warn('[plan] migrate on init', e);
+          }
+        }
         console.log('App initialized successfully');
         setAppReady(true);
         await SplashScreen.hideAsync();
@@ -466,6 +514,7 @@ export default function RootLayout() {
               <HouseholdProvider>
                 <RootLayoutNav />
               </HouseholdProvider>
+              <ToastHost />
             </AuthProvider>
           </QueryClientProvider>
         </trpc.Provider>

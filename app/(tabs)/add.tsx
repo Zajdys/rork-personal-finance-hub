@@ -9,36 +9,28 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   TrendingUp,
   TrendingDown,
-  ShoppingCart,
-  Home,
-  Car,
-  Coffee,
-  Gamepad2,
-  Heart,
-  Book,
-  Smartphone,
   Camera,
   FileText,
   Plus,
   ArrowLeft,
   FileSpreadsheet,
   ChevronRight,
-  Search,
   X,
 } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useFinanceStore, CustomCategory, EXPENSE_CATEGORIES } from '@/store/finance-store';
+import { useFinanceStore, CustomCategory } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import { pluralTransakce } from '@/lib/plural-cs';
 import { logAndGetUserFacingError } from '@/lib/user-facing-error';
-import { convertForeignAmount } from '@/lib/cnb-exchange-rates';
 import { randomUUID } from '@/lib/random-uuid';
 import { useTheme } from '@/hooks/use-theme';
 import { toYyyyMmDd, transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
@@ -50,19 +42,15 @@ import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { safePush } from '@/lib/safe-navigate';
-import { classifyImportRow } from '@/lib/classify-import-category';
-import {
-  categoryMatchesQuery,
-  DEFAULT_TOP_EXPENSE_CATEGORIES,
-  formatCategoryDisplay,
-  isPickerExpenseCategory,
-  mainCategoryName,
-  normalizeCategory,
-  suggestCategoryFromDescription,
-  type NormalizedCategory,
-} from '@/lib/category-normalize';
-import { defaultSubcategoriesFor, getExpenseCategoryDef } from '@/constants/categories';
+import { resolveCategoryFieldsForWrite } from '@/lib/category-normalize';
 import { RECEIPT_SCAN_ENABLED } from '@/constants/feature-flags';
+import { CategoryPicker } from '@/components/CategoryPicker';
+import {
+  RecurringFrequencyField,
+  type PersonalRecurringChoice,
+} from '@/components/RecurringFrequencyField';
+import { useAddTransaction } from '@/hooks/useAddTransaction';
+import { appLocale } from '@/lib/app-locale';
 
 type ParsedTxn = {
   type: 'income' | 'expense';
@@ -71,32 +59,6 @@ type ParsedTxn = {
   category: string;
   subcategory?: string | null;
   date: string;
-};
-
-const EXPENSE_CATEGORY_ICONS: Record<string, typeof ShoppingCart> = {
-  Jídlo: Coffee,
-  Bydlení: Home,
-  Úvěry: Home,
-  'Auto a doprava': Car,
-  Nákupy: ShoppingCart,
-  'Volný čas': Gamepad2,
-  Cestování: Car,
-  Zdraví: Heart,
-  Předplatné: Smartphone,
-  Vzdělání: Book,
-  Děti: Heart,
-  Zvířata: Heart,
-  'Poplatky a hotovost': Smartphone,
-  'Platby lidem': ShoppingCart,
-  Ostatní: ShoppingCart,
-};
-
-const INCOME_CATEGORY_ICONS = {
-  'Mzda': TrendingUp,
-  'Freelance': TrendingUp,
-  'Investice': TrendingUp,
-  'Dary': TrendingUp,
-  'Ostatní': TrendingUp,
 };
 
 const MANUAL_CURRENCIES = ['CZK', 'EUR', 'USD', 'GBP', 'CHF', 'PLN'] as const;
@@ -177,12 +139,9 @@ export default function AddTransactionScreen() {
   const [title, setTitle] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
-  const [categoryPickedManually, setCategoryPickedManually] = useState(false);
-  const [suggestedCategory, setSuggestedCategory] = useState<NormalizedCategory | null>(null);
-  const [categoryQuery, setCategoryQuery] = useState('');
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const [addingSubcategory, setAddingSubcategory] = useState(false);
-  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [txDate, setTxDate] = useState(() => new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [frequency, setFrequency] = useState<PersonalRecurringChoice>(null);
   const [emojiGroupKey, setEmojiGroupKey] = useState(EMOJI_GROUPS[0]!.key);
   const [customEmojiInput, setCustomEmojiInput] = useState('');
   const [preview, setPreview] = useState<ParsedTxn[]>([]);
@@ -195,28 +154,18 @@ export default function AddTransactionScreen() {
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryIcon, setNewCategoryIcon] = useState<string>('📦');
   const [newCategoryColor, setNewCategoryColor] = useState<string>('#6B7280');
-  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     addTransaction,
-    getAllCategories,
     addCustomCategory,
-    getCustomSubcategories,
-    transactions,
-    customCategories,
   } = useFinanceStore();
   const { addPoints, showBuddyMessage } = useBuddyStore();
   const { t, language } = useLanguageStore();
+  const { saveTransaction, isSaving: isSavingTx } = useAddTransaction();
 
   const resetCategoryUi = useCallback(() => {
     setSelectedCategory('');
     setSelectedSubcategory(null);
-    setCategoryPickedManually(false);
-    setSuggestedCategory(null);
-    setCategoryQuery('');
-    setShowAllCategories(false);
-    setAddingSubcategory(false);
-    setNewSubcategoryName('');
   }, []);
 
   useFocusEffect(
@@ -244,227 +193,95 @@ export default function AddTransactionScreen() {
     }, [params.type, resetCategoryUi, router]),
   );
 
-  const categoryData = getAllCategories(type);
-  const categoryIcons = type === 'income' ? INCOME_CATEGORY_ICONS : EXPENSE_CATEGORY_ICONS;
-
-  const pickerCategories = useMemo(() => {
-    const entries = Object.entries(categoryData)
-      .filter(([name]) => (type === 'expense' ? isPickerExpenseCategory(name) : name !== 'Převod'))
-      .map(([name, data]) => ({
-        id: name,
-        name,
-        icon: categoryIcons[name as keyof typeof categoryIcons] || ShoppingCart,
-        color: data.color,
-      }));
-    return entries;
-  }, [categoryData, categoryIcons, type]);
-
-  const topCategoryNames = useMemo(() => {
-    if (type === 'income') return pickerCategories.map((c) => c.name);
-    const counts = new Map<string, number>();
-    for (const tx of transactions) {
-      if (tx.type !== 'expense') continue;
-      const cat = mainCategoryName(tx.category, tx.subcategory);
-      if (!isPickerExpenseCategory(cat)) continue;
-      counts.set(cat, (counts.get(cat) || 0) + 1);
+  const dateLabel = useMemo(() => {
+    try {
+      return txDate.toLocaleDateString(appLocale(language), {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return toYyyyMmDd(txDate);
     }
-    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
-    if (ranked.length === 0) return [...DEFAULT_TOP_EXPENSE_CATEGORIES];
-    const top = ranked.slice(0, 6);
-    while (top.length < 6) {
-      const fill = DEFAULT_TOP_EXPENSE_CATEGORIES.find((c) => !top.includes(c));
-      if (!fill) break;
-      top.push(fill);
-    }
-    return top;
-  }, [pickerCategories, transactions, type]);
-
-  const visibleCategories = useMemo(() => {
-    const q = categoryQuery.trim();
-    if (q) {
-      return pickerCategories.filter((c) => categoryMatchesQuery(c.name, q));
-    }
-    if (type === 'income' || showAllCategories) return pickerCategories;
-    const topSet = new Set(topCategoryNames);
-    return pickerCategories.filter((c) => topSet.has(c.name));
-  }, [categoryQuery, pickerCategories, showAllCategories, topCategoryNames, type]);
-
-  const subcategoryChips = useMemo(() => {
-    if (type !== 'expense' || !selectedCategory) return [] as string[];
-    const defaults = [...defaultSubcategoriesFor(selectedCategory)];
-    const custom = (getCustomSubcategories(selectedCategory) || []).map((c) => c.name);
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const s of [...defaults, ...custom]) {
-      if (!s || seen.has(s)) continue;
-      seen.add(s);
-      out.push(s);
-    }
-    return out;
-  }, [type, selectedCategory, getCustomSubcategories, customCategories]);
-
-  // Debounced category suggestion from description
-  useEffect(() => {
-    if (suggestTimer.current) clearTimeout(suggestTimer.current);
-    if (categoryPickedManually) return;
-    const text = title.trim();
-    if (text.length < 2) {
-      setSuggestedCategory(null);
-      return;
-    }
-    suggestTimer.current = setTimeout(() => {
-      let next: NormalizedCategory | null = suggestCategoryFromDescription(text, type);
-      if (!next && type === 'expense') {
-        const classified = classifyImportRow({
-          type: 'expense',
-          description: text,
-          title: text,
-        });
-        if (
-          classified.category &&
-          classified.category !== 'Ostatní' &&
-          (classified.source === 'keywords' ||
-            classified.source === 'dictionary' ||
-            classified.source === 'special')
-        ) {
-          next = {
-            category: classified.category,
-            subcategory: classified.subcategory ?? null,
-          };
-        }
-      }
-      if (next && type === 'expense') {
-        if (!isPickerExpenseCategory(next.category) && next.category !== 'Investice') {
-          if (!Object.keys(EXPENSE_CATEGORIES).includes(next.category)) next = null;
-          else if (!isPickerExpenseCategory(next.category)) next = null;
-        }
-      }
-      setSuggestedCategory(next);
-      if (next && !selectedCategory) {
-        setSelectedCategory(next.category);
-        setSelectedSubcategory(next.subcategory);
-      }
-    }, 300);
-    return () => {
-      if (suggestTimer.current) clearTimeout(suggestTimer.current);
-    };
-  }, [title, type, categoryPickedManually, selectedCategory]);
+  }, [txDate, language]);
 
   const { run: handleSubmit } = useAsyncAction(async () => {
-    if (fxBusy) return;
-    if (!amount || !title || !selectedCategory) {
-      Alert.alert(t('errorMessage'), t('fillAllFields'));
-      return;
-    }
-
-    const numAmount = parseMoneyInput(amount);
-    if (numAmount == null || numAmount <= 0) {
-      Alert.alert(t('errorMessage'), t('enterValidAmount'));
-      return;
-    }
-
-    const dateYmd = toYyyyMmDd(new Date());
-    let amountCzk = numAmount;
-    let originalAmount: number | null = null;
-    let originalCurrency: string | null = null;
-    let exchangeRate: number | null = null;
-
-    if (currency !== 'CZK') {
-      try {
-        setFxBusy(true);
-        const fx = await convertForeignAmount({
-          originalAmount: numAmount,
-          originalCurrency: currency,
-          date: dateYmd,
-        });
-        amountCzk = fx.amountCzk;
-        originalAmount = fx.originalAmount;
-        originalCurrency = fx.originalCurrency;
-        exchangeRate = fx.exchangeRate;
-      } catch (e) {
-        Alert.alert(
-          t('errorMessage'),
-          e instanceof Error ? e.message : logAndGetUserFacingError('fx-convert', e),
-        );
-        return;
-      } finally {
-        setFxBusy(false);
-      }
-    }
-
-    addTransaction({
-      id: randomUUID(),
+    if (fxBusy || isSavingTx) return;
+    const result = await saveTransaction({
       type,
-      amount: amountCzk,
+      amount,
       title,
       category: selectedCategory,
-      subcategory: type === 'expense' ? selectedSubcategory : null,
-      date: dateYmd,
-      originalAmount,
-      originalCurrency,
-      exchangeRate,
+      subcategory: selectedSubcategory,
+      currency,
+      date: toYyyyMmDd(txDate),
+      frequency,
     });
-
-    addPoints(5);
-    
-    const displayAmt =
-      originalCurrency && originalAmount != null
-        ? `${amountCzk.toLocaleString('cs-CZ')} Kč (${originalAmount.toLocaleString('cs-CZ')} ${originalCurrency})`
-        : `${amountCzk.toLocaleString('cs-CZ')} Kč`;
-    const catLabel =
-      type === 'expense'
-        ? formatCategoryDisplay(selectedCategory, selectedSubcategory, { withIcon: false })
-        : selectedCategory;
-    showBuddyMessage(
-      type === 'income' 
-        ? `${t('addedIncome')} ${displayAmt}. ${t('dontForgetInvest')}`
-        : `${t('recordedExpense')} ${displayAmt} za ${catLabel}. ${t('watchBudget')}`
-    );
-
-    // Reset form
+    if (!result.ok) return;
     setAmount('');
     setCurrency('CZK');
     setTitle('');
-    setSelectedCategory('');
-    setSelectedSubcategory(null);
-    setCategoryPickedManually(false);
-    setSuggestedCategory(null);
-    setAddingSubcategory(false);
-    setNewSubcategoryName('');
+    setTxDate(new Date());
+    setFrequency(null);
+    setShowDatePicker(false);
+    resetCategoryUi();
   });
 
 
   const confirmImport = useCallback(() => {
-    try {
-      let count = 0;
-      for (const p of preview) {
-        const tx = {
-          id: randomUUID(),
-          type: p.type,
-          amount: p.amount,
-          title: p.title,
-          category: p.category,
-          subcategory: p.subcategory ?? null,
-          date: p.date,
-        } as const;
-        addTransaction(tx);
-        count++;
+    void (async () => {
+      try {
+        const created = [];
+        for (const p of preview) {
+          const resolved = resolveCategoryFieldsForWrite({
+            category: p.category,
+            subcategory: p.subcategory,
+            title: p.title,
+            type: p.type,
+          });
+          const tx = {
+            id: randomUUID(),
+            type: p.type,
+            amount: p.amount,
+            title: resolved.title,
+            category: resolved.category,
+            subcategory: resolved.subcategory,
+            date: p.date,
+            source: 'manual' as const,
+          };
+          await addTransaction(tx);
+          created.push(tx);
+        }
+        const count = created.length;
+        setPreview([]);
+        setPreviewOpen(false);
+        addPoints(10);
+        showBuddyMessage(
+          t('addTransaction.importedCount', {
+            count,
+            transactionsWord: pluralTransakce(count, language === 'en' ? 'en' : 'cs'),
+          }),
+        );
+        try {
+          const { getAuthUserId } = await import('@/lib/supabase-transactions');
+          const uid = await getAuthUserId();
+          if (uid && created.length > 0) {
+            const { runAfterTransactionsSideEffects } = await import(
+              '@/lib/after-transactions-side-effects'
+            );
+            await runAfterTransactionsSideEffects({
+              userId: uid,
+              newTransactions: created,
+            });
+          }
+        } catch (sideErr) {
+          console.warn('[confirmImport] side effects', sideErr);
+        }
+      } catch (e) {
+        console.error('confirmImport error', e);
+        Alert.alert(t('error'), t('addTransaction.importFailed'));
       }
-      setPreview([]);
-      setPreviewOpen(false);
-      Alert.alert(
-        t('done'),
-        t('addTransaction.importedCount', {
-          count,
-          transactionsWord: pluralTransakce(count, language === 'en' ? 'en' : 'cs'),
-        }),
-      );
-      addPoints(10);
-      showBuddyMessage(t('addTransaction.bankImportBuddy'));
-    } catch (e) {
-      console.error('confirmImport error', e);
-      Alert.alert(t('error'), t('addTransaction.importFailed'));
-    }
+    })();
   }, [preview, addTransaction, addPoints, showBuddyMessage, t, language]);
 
   const scanInvoiceWithCamera = useCallback(async () => {
@@ -516,14 +333,14 @@ export default function AddTransactionScreen() {
                 category: z
                   .string()
                   .describe(
-                    'Hlavní kategorie: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní',
+                    'POUZE jedna z: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní. NIKDY obchodník/popis (ne „ČEZ“, „Lidl“…).',
                   ),
                 subcategory: z
                   .string()
                   .nullable()
                   .optional()
                   .describe(
-                    'Volitelná podkategorie (např. Potraviny, Benzín a nafta, Streaming). Null pokud nejasné.',
+                    'Volitelná podkategorie (např. Potraviny, Benzín a nafta, Energie). Null pokud nejasné.',
                   ),
               })
             ),
@@ -542,7 +359,7 @@ export default function AddTransactionScreen() {
                     content: [
                       {
                         type: 'text',
-                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 50Kč, amount musí být 200, ne 50)\n2. Do title zahrň název produktu/služby + množství pokud je uvedeno\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš jednotkovou cenu a množství, vynásob je pro celkovou částku\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Mezisoučet" nebo "DPH" nebo "Celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je položka uvedena vícekrát, každá má vlastní záznam\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, internet, telefon\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: kino, hry, sport\n- Zdraví: léky, vitamíny, lékárna\n- Vzdělání: knihy, kurzy\n- Nákupy: elektronika, drogerie, domácnost\n- Služby: servis, opravy, služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtenke je: "Mléko 1,5%\n2 ks x 25 Kč\nCelkem: 50 Kč"\nVrať: {title: "Mléko 1,5% 2 ks", amount: 50, category: "Jídlo", subcategory: "Potraviny"}\n\nPŘÍKLAD 2:\nPokud na účtenke je: "Rohlík\n5 ks x 3 Kč\n15 Kč"\nVrať: {title: "Rohlík 5 ks", amount: 15, category: "Jídlo", subcategory: "Potraviny"}\n\nPŘÍKLAD 3:\nPokud na účtenke je: "Benzín Natural 95\n35 L x 38,50 Kč\n1 347,50 Kč"\nVrať: {title: "Benzín Natural 95 35 L", amount: 1347.50, category: "Auto a doprava", subcategory: "Benzín a nafta"}',
+                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 50Kč, amount musí být 200, ne 50)\n2. Do title dej název produktu/služby (+ množství) — NIKDY do category\n3. category musí být PŘESNĚ jedna z: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní\n4. NIKDY nedávej do category obchodníka ani popis (špatně: "ČEZ elektřina", "Lidl"; správně category "Bydlení"/"Jídlo")\n5. Zpracuj VŠECHNY položky; ignoruj mezisoučty DPH/Celkem\n\nPříklady:\n- Mléko → title "Mléko 2 ks", category "Jídlo", subcategory "Potraviny"\n- Benzín → title "Benzín Natural 95", category "Auto a doprava", subcategory "Benzín a nafta"\n- Elektřina ČEZ → title "ČEZ elektřina", category "Bydlení", subcategory "Energie"',
                       },
                       {
                         type: 'image',
@@ -614,13 +431,18 @@ export default function AddTransactionScreen() {
           }
           
           const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => {
-            const n = normalizeCategory(item.category || 'Ostatní', item.subcategory);
+            const resolved = resolveCategoryFieldsForWrite({
+              category: item.category,
+              subcategory: item.subcategory,
+              title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
+              type: 'expense',
+            });
             return {
               type: 'expense' as const,
               amount: parseMoneyInput(item.amount) ?? 0,
-              title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
-              category: n.category,
-              subcategory: n.subcategory,
+              title: resolved.title,
+              category: resolved.category,
+              subcategory: resolved.subcategory,
               date: toYyyyMmDd(new Date()),
             };
           });
@@ -689,7 +511,11 @@ export default function AddTransactionScreen() {
               z.object({
                 title: z.string().describe('Název položky včetně množství, např. "Webový hosting 1 rok" nebo "Grafické práce 5 hodin"'),
                 amount: z.number().describe('CELKOVÁ číselná částka za tuto položku v Kč (ne jednotková cena)'),
-                category: z.string().describe('Hlavní kategorie: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní'),
+                category: z
+                  .string()
+                  .describe(
+                    'POUZE jedna z: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní. NIKDY obchodník/popis.',
+                  ),
                 subcategory: z.string().nullable().optional().describe('Volitelná podkategorie nebo null'),
               })
             ),
@@ -708,7 +534,7 @@ export default function AddTransactionScreen() {
                     content: [
                       {
                         type: 'text',
-                        text: 'Analyzuj tuto fakturu a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 500Kč, amount musí být 2000, ne 500)\n2. Do title zahrň název služby/produktu + jednotky/množství pokud je uvedeno\n3. Zpracuj VŠECHNY položky z faktury, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš jednotkovou cenu a množství, vynásob je pro celkovou částku\n5. Nezapomeň na žádnou položku, i když je faktura dlouhá\n6. Ignoruj mezisoučty jako "Mezisoučet" nebo "DPH celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je položka uvedena vícekrát, každá má vlastní záznam\n\nKategorie:\n- Jídlo a nápoje: catering, nápoje, potraviny\n- Nájem a bydlení: nájem, energie, internet, telefon, údržba\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, leasing, servis, parkování\n- Zábava: předplatné, licence, streaming\n- Zdraví: léky, zdravotní pomůcky, pojištění\n- Vzdělání: kurzy, školení, knihy, certifikace\n- Nákupy: elektronika, software, kancelářské potřeby, nábytek\n- Služby: konzultace, právní služby, účetnictví, hosting, reklama\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na faktuře je: "Webový hosting\n12 měsíců x 250 Kč\nCelkem: 3 000 Kč"\nVrať: {title: "Webový hosting 12 měsíců", amount: 3000, category: "Služby"}\n\nPŘÍKLAD 2:\nPokud na faktuře je: "Grafické práce\n5 hodin x 800 Kč\n4 000 Kč"\nVrať: {title: "Grafické práce 5 hodin", amount: 4000, category: "Služby"}\n\nPŘÍKLAD 3:\nPokud na faktuře je: "Licence Microsoft Office\n1 ks 2 500 Kč"\nVrať: {title: "Licence Microsoft Office", amount: 2500, category: "Nákupy"}',
+                        text: 'Analyzuj tuto fakturu a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. CELKOVÁ cena položky (ne jednotková)\n2. title = název služby/produktu; category NIKDY nesmí být obchodník ani popis faktury\n3. category PŘESNĚ jedna z: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní\n4. Špatně: category "ČEZ elektřina" / "Služby". Správně: title "ČEZ elektřina", category "Bydlení", subcategory "Energie"\n5. Ignoruj DPH/mezisoučty\n\nPříklady:\n- Hosting → title "Webový hosting 12 měsíců", category "Nákupy"\n- Licence Office → title "Licence Microsoft Office", category "Nákupy", subcategory "Elektronika"',
                       },
                       {
                         type: 'image',
@@ -780,13 +606,18 @@ export default function AddTransactionScreen() {
           }
           
           const invoiceTransactions: ParsedTxn[] = invoiceItems.map((item: any, index: number) => {
-            const n = normalizeCategory(item.category || 'Ostatní', item.subcategory);
+            const resolved = resolveCategoryFieldsForWrite({
+              category: item.category,
+              subcategory: item.subcategory,
+              title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
+              type: 'expense',
+            });
             return {
               type: 'expense' as const,
               amount: parseMoneyInput(item.amount) ?? 0,
-              title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
-              category: n.category,
-              subcategory: n.subcategory,
+              title: resolved.title,
+              category: resolved.category,
+              subcategory: resolved.subcategory,
               date: toYyyyMmDd(new Date()),
             };
           });
@@ -945,8 +776,6 @@ export default function AddTransactionScreen() {
     addCustomCategory(newCategory);
     setSelectedCategory(newCategory.name);
     setSelectedSubcategory(null);
-    setCategoryPickedManually(true);
-    setSuggestedCategory(null);
     setCreateCategoryOpen(false);
     setNewCategoryName('');
     setNewCategoryIcon('📦');
@@ -955,42 +784,6 @@ export default function AddTransactionScreen() {
 
     addPoints(2);
     showBuddyMessage(t('addTransaction.categoryCreated'));
-  };
-
-  const handleCreateSubcategory = () => {
-    const name = newSubcategoryName.trim();
-    if (!name || !selectedCategory) return;
-    const newCategory: CustomCategory = {
-      id: Date.now().toString(),
-      name,
-      icon: getExpenseCategoryDef(selectedCategory)?.icon || '📦',
-      color: getExpenseCategoryDef(selectedCategory)?.color || '#6B7280',
-      type: 'expense',
-      parentCategory: selectedCategory,
-    };
-    addCustomCategory(newCategory);
-    setSelectedSubcategory(name);
-    setCategoryPickedManually(true);
-    setSuggestedCategory(null);
-    setAddingSubcategory(false);
-    setNewSubcategoryName('');
-    addPoints(1);
-  };
-
-  const pickCategory = (name: string, manual: boolean, sub?: string | null) => {
-    setSelectedCategory(name);
-    setSelectedSubcategory(sub ?? null);
-    setAddingSubcategory(false);
-    setNewSubcategoryName('');
-    if (manual) {
-      setCategoryPickedManually(true);
-      setSuggestedCategory(null);
-    }
-  };
-
-  const pickSuggested = () => {
-    if (!suggestedCategory) return;
-    pickCategory(suggestedCategory.category, true, suggestedCategory.subcategory);
   };
 
   const TypeSelector = () => (
@@ -1034,210 +827,6 @@ export default function AddTransactionScreen() {
   );
 
   const activeEmojiGroup = EMOJI_GROUPS.find((g) => g.key === emojiGroupKey) ?? EMOJI_GROUPS[0]!;
-
-  const CategoryGrid = () => (
-    <View>
-      <View
-        style={[
-          styles.categorySearchRow,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
-      >
-        <Search color={colors.textSecondary} size={18} />
-        <TextInput
-          style={[styles.categorySearchInput, { color: colors.text }]}
-          value={categoryQuery}
-          onChangeText={setCategoryQuery}
-          placeholder={t('addTransaction.searchCategory')}
-          placeholderTextColor={colors.textSecondary}
-          autoCorrect={false}
-        />
-        {categoryQuery ? (
-          <TouchableOpacity onPress={() => setCategoryQuery('')} hitSlop={8}>
-            <X color={colors.textSecondary} size={16} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {suggestedCategory && !categoryPickedManually ? (
-        <View style={[styles.suggestChip, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={styles.suggestChipMain}
-            onPress={pickSuggested}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.suggestChipText, { color: colors.text }]}>
-              {t('addTransaction.suggestedCategory', {
-                icon:
-                  categoryData[suggestedCategory.category]?.icon ||
-                  getExpenseCategoryDef(suggestedCategory.category)?.icon ||
-                  '📦',
-                name: formatCategoryDisplay(
-                  suggestedCategory.category,
-                  suggestedCategory.subcategory,
-                  { withIcon: false },
-                ).replace(' · ', ' › '),
-              })}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setSuggestedCategory(null);
-              if (selectedCategory === suggestedCategory.category) {
-                setSelectedCategory('');
-                setSelectedSubcategory(null);
-              }
-            }}
-            hitSlop={8}
-          >
-            <X color={colors.textSecondary} size={16} />
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      <View style={styles.categoryGrid}>
-        {visibleCategories.map((category) => {
-          const isSelected = selectedCategory === category.id;
-          return (
-            <TouchableOpacity
-              key={category.id}
-              testID={`category-${category.id}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected }}
-              style={[
-                styles.categoryCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                isSelected && styles.categoryCardSelected,
-                isSelected ? { borderColor: category.color } : null,
-              ]}
-              onPress={() => pickCategory(category.id, true, null)}
-            >
-              <View
-                style={[
-                  styles.categoryIcon,
-                  {
-                    backgroundColor: isSelected ? category.color + '33' : category.color + '20',
-                    borderWidth: isSelected ? 2 : 0,
-                    borderColor: isSelected ? category.color : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ fontSize: 24 }}>{categoryData[category.name]?.icon || '📦'}</Text>
-              </View>
-              <Text
-                style={[
-                  styles.categoryText,
-                  { color: colors.text },
-                  isSelected ? { color: category.color, fontWeight: '700' } : null,
-                ]}
-                numberOfLines={1}
-              >
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-
-        <TouchableOpacity
-          style={[
-            styles.categoryCard,
-            styles.addCategoryCard,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-          onPress={() => setCreateCategoryOpen(true)}
-        >
-          <View style={[styles.categoryIcon, { backgroundColor: colors.muted }]}>
-            <Plus color={colors.textSecondary} size={24} />
-          </View>
-          <Text style={[styles.categoryText, { color: colors.textSecondary }]}>
-            {t('addTransaction.newCategory')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {type === 'expense' && selectedCategory ? (
-        <View style={styles.subcategorySection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcategoryRow}>
-            {subcategoryChips.map((sub) => {
-              const active = selectedSubcategory === sub;
-              return (
-                <TouchableOpacity
-                  key={sub}
-                  style={[
-                    styles.subcategoryChip,
-                    {
-                      backgroundColor: active ? colors.primary + '22' : colors.surface,
-                      borderColor: active ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => {
-                    setSelectedSubcategory(active ? null : sub);
-                    setCategoryPickedManually(true);
-                    setSuggestedCategory(null);
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active ? colors.primary : colors.text,
-                      fontWeight: active ? '700' : '500',
-                      fontSize: 13,
-                    }}
-                  >
-                    {sub}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            {addingSubcategory ? (
-              <View
-                style={[
-                  styles.subcategoryChip,
-                  styles.subcategoryInputChip,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <TextInput
-                  style={{ color: colors.text, minWidth: 100, fontSize: 13, padding: 0 }}
-                  value={newSubcategoryName}
-                  onChangeText={setNewSubcategoryName}
-                  placeholder={t('addTransaction.subcategoryPlaceholder')}
-                  placeholderTextColor={colors.textSecondary}
-                  autoFocus
-                  onSubmitEditing={handleCreateSubcategory}
-                />
-                <TouchableOpacity onPress={handleCreateSubcategory} hitSlop={6}>
-                  <Plus color={colors.primary} size={16} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[
-                  styles.subcategoryChip,
-                  { backgroundColor: colors.muted, borderColor: colors.border },
-                ]}
-                onPress={() => setAddingSubcategory(true)}
-              >
-                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
-                  {t('addTransaction.addSubcategory')}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        </View>
-      ) : null}
-
-      {type === 'expense' && !categoryQuery && !showAllCategories ? (
-        <TouchableOpacity
-          style={[styles.showAllCategoriesBtn, { borderColor: colors.border }]}
-          onPress={() => setShowAllCategories(true)}
-        >
-          <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
-            {t('addTransaction.showAllCategories')}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
@@ -1408,7 +997,49 @@ export default function AddTransactionScreen() {
 
         <View style={styles.inputSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('category')}</Text>
-          <CategoryGrid />
+          <CategoryPicker
+            type={type}
+            selectedCategory={selectedCategory}
+            selectedSubcategory={selectedSubcategory}
+            description={title}
+            onChange={(cat, sub) => {
+              setSelectedCategory(cat);
+              setSelectedSubcategory(sub);
+            }}
+            layout="grid"
+            allowCreateCategory
+            onRequestCreateCategory={() => setCreateCategoryOpen(true)}
+          />
+        </View>
+
+        <View style={styles.inputSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('date')}</Text>
+          <TouchableOpacity
+            style={[
+              styles.textInput,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                justifyContent: 'center',
+              },
+            ]}
+            onPress={() => setShowDatePicker((v) => !v)}
+          >
+            <Text style={{ color: colors.text, fontWeight: '600' }}>{dateLabel}</Text>
+          </TouchableOpacity>
+          {showDatePicker ? (
+            <DateTimePicker
+              value={txDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(_e, selected) => {
+                if (Platform.OS === 'android') setShowDatePicker(false);
+                if (selected) setTxDate(selected);
+              }}
+              maximumDate={frequency ? undefined : new Date()}
+            />
+          ) : null}
+          <RecurringFrequencyField value={frequency} onChange={setFrequency} />
         </View>
 
         <AsyncButton
@@ -1416,7 +1047,7 @@ export default function AddTransactionScreen() {
           label={type === 'income' ? t('addIncome') : t('addExpense')}
           loadingLabel={t('hhNotifSaving')}
           onPress={handleSubmit}
-          disabled={fxBusy}
+          disabled={fxBusy || isSavingTx}
           style={styles.submitButton}
           contentStyle={styles.submitGradient}
           textStyle={styles.submitText}

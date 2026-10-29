@@ -63,7 +63,7 @@ export default function PrivacyPolicyScreen() {
       >
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>MoneyBuddy – Czech Finance</Text>
         <Text style={[styles.updated, { color: colors.textSecondary }]}>
-          Poslední aktualizace: 9. 10. 2026
+          Poslední aktualizace: 29. 10. 2026
         </Text>
 
         <Pressable onPress={() => openUrl(PRIVACY_POLICY_URL)} style={styles.webLink}>
@@ -130,22 +130,10 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>Apple / Google (technické údaje a platby přes obchod s aplikacemi)</Bullet>
         </Section>
 
-        <Section title="6. Automatické napojení banky (pokud ho zapnete)" colors={colors}>
+        <Section title="6. Automatické napojení banky" colors={colors}>
           <Body colors={colors}>
-            Pokud zapnete automatické napojení bankovního účtu (AIS):
-          </Body>
-          <Bullet colors={colors}>
-            Kontomatik sp. z o.o. (Polsko) — licencovaný poskytovatel AIS (PSD2); zprostředkuje přihlášení
-            k bance a stažení zůstatků a transakcí
-          </Bullet>
-          <Bullet colors={colors}>
-            Hetzner Online GmbH (Německo) — mostový server bank.moneybuddy.cz s pevnou IP a šifrovanými
-            přístupovými údaji pro synchronizaci
-          </Bullet>
-          <Body colors={colors}>
-            {'\n'}
-            Přístup odpojíte v aplikaci. Při smazání účtu se snažíme zrušit i přístup u Kontomatiku. Bez
-            vašeho aktivního souhlasu bankovní data nestahujeme.
+            Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně
+            (PDF/CSV) nebo přes Fio API token.
           </Body>
         </Section>
 
@@ -154,7 +142,6 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>Přístup ke svým datům (Profil → Soukromí a bezpečnost → Správa dat)</Bullet>
           <Bullet colors={colors}>Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)</Bullet>
           <Bullet colors={colors}>Opravu nesprávných údajů</Bullet>
-          <Bullet colors={colors}>Odvolání souhlasu s napojením banky</Bullet>
         </Section>
 
         <Section title="8. Bankovní výpisy (PDF / CSV)" colors={colors}>

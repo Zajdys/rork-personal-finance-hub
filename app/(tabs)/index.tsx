@@ -31,15 +31,22 @@ import {
   DollarSign,
   PiggyBank,
   Calendar,
-  UsersRound,
   X,
   Lightbulb,
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
   Check,
+  Lock,
 } from 'lucide-react-native';
 import { useDraggableList } from '@/lib/use-draggable-list';
+import {
+  DEFAULT_QUICK_ACTION_IDS,
+  loadQuickActionIds,
+  resolveQuickActions,
+  type QuickActionId,
+} from '@/lib/quick-actions';
+import { QuickActionsEditSheet } from '@/components/QuickActionsEditSheet';
 import {
   useFinanceStore,
   CategoryExpense,
@@ -66,6 +73,13 @@ import { useAuth } from '@/store/auth-store';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { fetchHouseholdRecurringPaySummary, type HouseholdRecurringPaySummary } from '@/lib/household-recurring-dashboard';
 import { fetchUserProfileFromSupabase } from '@/lib/user-profile-supabase';
+import {
+  loadQuickSetupStatus,
+  markQuickSetupBannerDismissed,
+  shouldShowQuickSetupBanner,
+} from '@/lib/quick-setup';
+import { usePlanStore } from '@/store/plan-store';
+import { useInvestmentStore } from '@/store/investment-store';
 import { logAndGetUserFacingError } from '@/lib/user-facing-error';
 import { isSessionLostError } from '@/lib/supabase-session';
 import { useBuddyStore } from '@/store/buddy-store';
@@ -90,6 +104,7 @@ import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
+import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
 const { width } = Dimensions.get('window');
 /** Šířka slajdu = obrazovka minus `warningsContainer` okraje 16+16. */
@@ -294,6 +309,12 @@ function formatDashboardTodayDate(locale: string): string {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const { isHouseholdPremium } = usePremium();
+  const [showQuickSetupBanner, setShowQuickSetupBanner] = useState(false);
+  const [expectedMonthlyIncome, setExpectedMonthlyIncome] = useState(0);
+  const [quickActionIds, setQuickActionIds] = useState<QuickActionId[]>([
+    ...DEFAULT_QUICK_ACTION_IDS,
+  ]);
+  const [quickActionsEditOpen, setQuickActionsEditOpen] = useState(false);
   const pushOrPaywall = useCallback(
     (href: Parameters<typeof safePush>[0], feature: PremiumFeatureId) => {
       if (isHouseholdPremium) {
@@ -304,6 +325,40 @@ export default function DashboardScreen() {
     },
     [isHouseholdPremium],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) {
+        setQuickActionIds([]);
+        return;
+      }
+      const { ids } = await loadQuickActionIds(user.id);
+      if (!cancelled) setQuickActionIds(ids);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const quickActionDefs = useMemo(() => resolveQuickActions(quickActionIds), [quickActionIds]);
+
+  const reloadQuickSetupChrome = useCallback(async () => {
+    if (!user?.id) {
+      setShowQuickSetupBanner(false);
+      setExpectedMonthlyIncome(0);
+      return;
+    }
+    const status = await loadQuickSetupStatus(user.id);
+    setShowQuickSetupBanner(shouldShowQuickSetupBanner(status));
+    setExpectedMonthlyIncome(
+      status.expectedMonthlyIncome > 0 ? status.expectedMonthlyIncome : 0,
+    );
+  }, [user?.id]);
+
+  useEffect(() => {
+    void reloadQuickSetupChrome();
+  }, [reloadQuickSetupChrome]);
   const finance = useFinanceStore();
   const getAllCategories = useFinanceStore((s) => s.getAllCategories);
   const {
@@ -448,6 +503,7 @@ export default function DashboardScreen() {
     } catch (e) {
       console.warn('[dashboard] refreshDashboardData', e);
     }
+    void reloadQuickSetupChrome();
     if (!user?.id) return;
     try {
       const row = await fetchUserProfileFromSupabase(user.id);
@@ -460,7 +516,7 @@ export default function DashboardScreen() {
     } catch (e) {
       console.warn('[dashboard] profile fetch', e);
     }
-  }, [refreshDashboardData, user?.id, setUserProfile]);
+  }, [refreshDashboardData, user?.id, setUserProfile, reloadQuickSetupChrome]);
 
   const { refresh: refreshDashboard } = useFocusRefresh(loadDashboardOnFocus);
 
@@ -538,6 +594,10 @@ export default function DashboardScreen() {
   const alertScrollRef = useRef<ScrollView>(null);
   const [tipArticleOpen, setTipArticleOpen] = useState(false);
   const [txSelectionMode, setTxSelectionMode] = useState(false);
+  const [quickAdd, setQuickAdd] = useState<{ open: boolean; type: 'income' | 'expense' }>({
+    open: false,
+    type: 'expense',
+  });
   const [txSelectedIds, setTxSelectedIds] = useState<Set<string>>(() => new Set());
   const insets = useSafeAreaInsets();
   const { isDesktop, contentMaxWidth } = useResponsiveLayout();
@@ -657,7 +717,58 @@ export default function DashboardScreen() {
 
   const totalIncome = dashboardReport.totalIncome;
   const totalExpenses = dashboardReport.totalExpenses;
+  const liabilitiesMonthlySum = useMemo(
+    () => (loans ?? []).reduce((sum, loan) => sum + (Number(loan.monthlyPayment) || 0), 0),
+    [loans],
+  );
+  const planBudgets = usePlanStore((s) => s.budgets);
+  const loadPlan = usePlanStore((s) => s.loadPlan);
+  useEffect(() => {
+    if (user?.id) void loadPlan(user.id);
+  }, [user?.id, loadPlan]);
+
+  const planBudgetStats = useMemo(() => {
+    let ok = 0;
+    let over = 0;
+    for (const b of planBudgets) {
+      const spent = selectedMonthTransactions
+        .filter(
+          (t) =>
+            t.type === 'expense' &&
+            mainCategoryName(t.category, t.subcategory) === b.category,
+        )
+        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      if (b.amount > 0 && spent > b.amount) over += 1;
+      else ok += 1;
+    }
+    return { ok, over, count: planBudgets.length };
+  }, [planBudgets, selectedMonthTransactions]);
+
+  const planRemainToSpend =
+    expectedMonthlyIncome > 0
+      ? expectedMonthlyIncome - liabilitiesMonthlySum - totalExpenses
+      : null;
   const balance = dashboardReport.balance;
+
+  const investPortfolios = useInvestmentStore((s) => s.portfolios);
+  const investPositions = useInvestmentStore((s) => s.positions);
+  const fetchInvestPortfolios = useInvestmentStore((s) => s.fetchPortfolios);
+  const fetchInvestPositions = useInvestmentStore((s) => s.fetchPositions);
+  useEffect(() => {
+    if (!user?.id) return;
+    void (async () => {
+      await fetchInvestPortfolios(user.id);
+      await fetchInvestPositions();
+    })();
+  }, [user?.id, fetchInvestPortfolios, fetchInvestPositions]);
+  const investApproxValue = useMemo(() => {
+    let sum = 0;
+    for (const p of investPositions) {
+      const v = p.current_value_eur ?? p.current_value_usd;
+      if (v != null && Number.isFinite(v)) sum += Number(v);
+    }
+    return sum;
+  }, [investPositions]);
 
   const previousMonthYm = useMemo(() => addMonthsToYyyyMm(selectedMonth, -1), [selectedMonth]);
   const previousMonthReport = useMemo(
@@ -849,18 +960,24 @@ export default function DashboardScreen() {
     });
   }, [activeAlertKey, activeAlertSlides.length]);
 
-  const QuickActionCard = ({ icon: Icon, title, color, onPress, cardStyle }: any) => (
-    <TouchableOpacity style={[styles.quickActionCard, cardStyle]} onPress={onPress}>
-      <LinearGradient
-        colors={color}
-        style={[styles.quickActionGradient, isDesktop && styles.quickActionGradientDesktop]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <Icon color="white" size={isDesktop ? 32 : 24} />
-        <Text style={[styles.quickActionText, isDesktop && styles.quickActionTextDesktop]}>{title}</Text>
-      </LinearGradient>
-    </TouchableOpacity>
+  const runQuickAction = useCallback(
+    (id: QuickActionId) => {
+      const def = quickActionDefs.find((a) => a.id === id) ?? resolveQuickActions([id])[0];
+      if (!def) return;
+      if (def.premium && !isHouseholdPremium) {
+        pushOrPaywall(
+          def.route ?? '/(tabs)',
+          def.premiumFeature ?? 'financial_goals',
+        );
+        return;
+      }
+      if (def.kind === 'sheet' && def.sheetType) {
+        setQuickAdd({ open: true, type: def.sheetType });
+        return;
+      }
+      if (def.route) safePush(def.route);
+    },
+    [quickActionDefs, isHouseholdPremium, pushOrPaywall],
   );
 
   const FinanceCard = ({
@@ -1042,103 +1159,65 @@ export default function DashboardScreen() {
     );
   }, [txSelectedIds, deleteTransactions, exitTxSelection, t]);
 
-  const goalsSection =
-    financialGoals.length > 0 ? (
-      <View style={styles.goalsOverviewContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('financialGoals')}</Text>
-          <TouchableOpacity
-            onPress={() => safePush('/financial-goals')}
-            style={styles.showMoreButton}
-          >
-            <Text style={styles.showMoreText}>{t('viewAll')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {financialGoals.slice(0, 2).map((goal) => {
-          const actualSpent =
-            goal.type === 'spending_limit'
-              ? sumSpentForSpendingLimitCategory(selectedMonthTransactions, goal.category)
-              : goal.currentAmount;
-
-          const displayAmount = goal.type === 'spending_limit' ? actualSpent : goal.currentAmount;
-          const progress = (displayAmount / goal.targetAmount) * 100;
-          const isOverLimit = goal.type === 'spending_limit' && displayAmount > goal.targetAmount;
-          const color = isOverLimit ? '#EF4444' : '#10B981';
-
-          const categoryEmojis: { [key: string]: string } = {
-            Bydlení: '🏠',
-            'Jídlo a nápoje': '🍽️',
-            Doprava: '🚗',
-            Benzín: '⛽',
-            Nákupy: '🛍️',
-            Spoření: '💰',
-            Investice: '📈',
-            Ostatní: '🎯',
-          };
-          const emoji = categoryEmojis[goal.category || 'Ostatní'] || '🎯';
-
-          return (
-            <TouchableOpacity
-              key={goal.id}
-              style={[styles.goalCard, { backgroundColor: colors.card }]}
-              onPress={() => safePush('/financial-goals')}
+  const goalsSection = (
+    <TouchableOpacity
+      style={[styles.planSummaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => safePush('/(tabs)/plan')}
+      activeOpacity={0.85}
+    >
+      <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Plán</Text>
+      <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4, lineHeight: 20 }}>
+        {planRemainToSpend != null ? (
+          <>
+            zbývá utratit{' '}
+            <Text
+              style={{
+                fontWeight: '700',
+                color: planRemainToSpend >= 0 ? '#10B981' : '#EF4444',
+              }}
             >
-              <View style={styles.goalCardHeader}>
-                <View style={styles.goalCardInfo}>
-                  <View style={styles.goalCardTitleRow}>
-                    <Text style={styles.goalCardEmoji}>{emoji}</Text>
-                    <Text style={[styles.goalCardTitle, { color: colors.text }]}>{goal.title}</Text>
-                  </View>
-                  <Text style={[styles.goalCardCategory, { color: colors.textSecondary }]}>{goal.category}</Text>
-                </View>
-                <View style={styles.goalCardAmounts}>
-                  <Text style={[styles.goalCurrentAmount, { color }]}>
-                    {formatMoneyWithSymbol(displayAmount, numberLocale, currentCurrency.symbol)}
-                  </Text>
-                  <Text style={[styles.goalTargetAmount, { color: colors.textSecondary }]}>
-                    {t('dashboardGoalOf')}{' '}
-                    {formatMoneyWithSymbol(goal.targetAmount, numberLocale, currentCurrency.symbol)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.goalProgressBarContainer}>
-                <View style={[styles.goalProgressBarBackground, { backgroundColor: colors.muted }]}>
-                  <View
-                    style={[
-                      styles.goalProgressBar,
-                      {
-                        width: `${Math.min(progress, 100)}%`,
-                        backgroundColor: color,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.goalProgressText, { color }]}>{Math.round(progress)}%</Text>
-              </View>
-
-              {isOverLimit && <Text style={styles.goalOverLimitText}>{t('dashboardGoalOverLimit')}</Text>}
-            </TouchableOpacity>
-          );
-        })}
-
-        {financialGoals.length === 0 && (
-          <TouchableOpacity
-            style={[styles.emptyGoalsCard, { backgroundColor: colors.card }]}
-            onPress={() => safePush('/financial-goals')}
-          >
-            <Target color="#9CA3AF" size={32} />
-            <Text style={[styles.emptyGoalsText, { color: colors.textSecondary }]}>
-              {t('dashboardSetGoals')}
+              {planRemainToSpend.toLocaleString(numberLocale)} Kč
             </Text>
-            <Text style={[styles.emptyGoalsSubtext, { color: colors.textSecondary }]}>
-              {t('dashboardTrackGoals')}
-            </Text>
-          </TouchableOpacity>
+            {planBudgetStats.count > 0
+              ? ` · ${planBudgetStats.ok} rozpočt${planBudgetStats.ok === 1 ? '' : planBudgetStats.ok >= 2 && planBudgetStats.ok <= 4 ? 'y' : 'ů'} v pořádku`
+              : ''}
+            {planBudgetStats.over > 0
+              ? ` · ${planBudgetStats.over} přečerpan${planBudgetStats.over === 1 ? 'ý' : 'é'}`
+              : ''}
+          </>
+        ) : (
+          'Nastav příjem a rozpočty'
         )}
-      </View>
-    ) : null;
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const investiceSection =
+    investPortfolios.length > 0 || investPositions.length > 0 ? (
+      <TouchableOpacity
+        style={[styles.planSummaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={() => safePush('/investice')}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Investice (beta)</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
+          {investApproxValue > 0
+            ? `Hodnota portfolia ≈ ${Math.round(investApproxValue).toLocaleString(numberLocale)} ${currentCurrency.symbol || '€'}`
+            : `${investPortfolios.length} portfolií · otevřít přehled`}
+        </Text>
+      </TouchableOpacity>
+    ) : (
+      <TouchableOpacity
+        style={[styles.planSummaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={() => safePush('/investice')}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Investice (beta)</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
+          Sleduj portfolio a výnosy
+        </Text>
+      </TouchableOpacity>
+    );
 
   const categoriesSection =
     categoryExpenses.length > 0 ? (
@@ -1160,7 +1239,7 @@ export default function DashboardScreen() {
 
         <TouchableOpacity
           style={styles.addExpenseButtonContainer}
-          onPress={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
+          onPress={() => setQuickAdd({ open: true, type: 'expense' })}
         >
           <LinearGradient
             colors={['#EF4444', '#DC2626']}
@@ -1418,6 +1497,36 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      {showQuickSetupBanner ? (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => safePush('/quick-setup')}
+          style={[
+            styles.quickSetupBanner,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.quickSetupBannerTitle, { color: colors.text }]}>
+              Dokonči nastavení – 1 minuta
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+              Příjem, závazky a limity kategorií
+            </Text>
+          </View>
+          <TouchableOpacity
+            hitSlop={12}
+            onPress={() => {
+              if (user?.id) void markQuickSetupBannerDismissed(user.id);
+              setShowQuickSetupBanner(false);
+            }}
+            accessibilityLabel="Zavřít"
+          >
+            <X color={colors.textSecondary} size={18} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      ) : null}
+
       <View style={styles.balanceContainer}>
         <View style={styles.overviewTitleRow}>
           <Text style={[styles.sectionTitle, styles.overviewTitleText, { color: colors.text }]}>
@@ -1542,36 +1651,42 @@ export default function DashboardScreen() {
 
 
       <View style={styles.quickActionsContainer}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quickActions')}</Text>
-        <View style={[styles.quickActionsGrid, isDesktop && styles.quickActionsGridDesktop]}>
-          <QuickActionCard
-            icon={PlusCircle}
-            title={t('addTransaction')}
-            color={['#10B981', '#059669']}
-            onPress={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
-            cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
-          />
-          <QuickActionCard
-            icon={Calendar}
-            title={t('monthlyReport')}
-            color={['#F59E0B', '#D97706']}
-            onPress={() => pushOrPaywall('/monthly-report', 'monthly_report')}
-            cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
-          />
-          <QuickActionCard
-            icon={UsersRound}
-            title={t('splitGroups')}
-            color={['#06B6D4', '#0891B2']}
-            onPress={() => safePush('/split-groups')}
-            cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
-          />
-          <QuickActionCard
-            icon={PiggyBank}
-            title={t('piggyBankFeature')}
-            color={['#EC4899', '#BE185D']}
-            onPress={() => pushOrPaywall('/save', 'save')}
-            cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
-          />
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>
+            {t('quickActions')}
+          </Text>
+          <TouchableOpacity onPress={() => setQuickActionsEditOpen(true)} hitSlop={10}>
+            <Text style={[styles.showMoreText, { color: colors.primary }]}>Upravit</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.quickActionsGrid}>
+          {quickActionDefs.map((def) => {
+            const Icon = def.icon;
+            const locked = def.premium && !isHouseholdPremium;
+            return (
+              <TouchableOpacity
+                key={def.id}
+                style={styles.quickActionTile}
+                onPress={() => runQuickAction(def.id)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.quickActionIconWrap, { backgroundColor: `${def.color}22` }]}>
+                  <Icon color={def.color} size={22} />
+                  {locked ? (
+                    <View style={[styles.quickActionLock, { backgroundColor: colors.primary }]}>
+                      <Lock color="#fff" size={9} strokeWidth={2.5} />
+                    </View>
+                  ) : null}
+                </View>
+                <Text
+                  style={[styles.quickActionTileLabel, { color: colors.text }]}
+                  numberOfLines={2}
+                >
+                  {def.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
@@ -1706,7 +1821,7 @@ export default function DashboardScreen() {
             description={t('startAddingTransactions')}
             icon={<DollarSign color={colors.textSecondary} size={48} />}
             actionLabel={t('addTransaction')}
-            onAction={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
+            onAction={() => setQuickAdd({ open: true, type: 'expense' })}
           />
         ) : (
           recentTransactions.map((transaction) => (
@@ -1726,6 +1841,7 @@ export default function DashboardScreen() {
           </View>
         </View>
       {goalsSection}
+      {investiceSection}
       {categoriesSection}
       </>
       ) : (
@@ -1825,6 +1941,7 @@ export default function DashboardScreen() {
       </View>
 
       {goalsSection}
+      {investiceSection}
       {categoriesSection}
 
       <View style={styles.transactionsContainer}>
@@ -1859,7 +1976,7 @@ export default function DashboardScreen() {
             description={t('startAddingTransactions')}
             icon={<DollarSign color={colors.textSecondary} size={48} />}
             actionLabel={t('addTransaction')}
-            onAction={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
+            onAction={() => setQuickAdd({ open: true, type: 'expense' })}
           />
         ) : (
           recentTransactions.map((transaction) => (
@@ -2014,6 +2131,21 @@ export default function DashboardScreen() {
         </Pressable>
       </Pressable>
     </Modal>
+      <QuickAddTransactionSheet
+        visible={quickAdd.open}
+        type={quickAdd.type}
+        onClose={() => setQuickAdd((s) => ({ ...s, open: false }))}
+        onSaved={() => {
+          /* lokální store + dashboardTxRevision po mirroru */
+        }}
+      />
+      <QuickActionsEditSheet
+        visible={quickActionsEditOpen}
+        userId={user?.id}
+        selectedIds={quickActionIds}
+        onClose={() => setQuickActionsEditOpen(false)}
+        onSaved={setQuickActionIds}
+      />
     </View>
   );
 }
@@ -2223,6 +2355,26 @@ const styles = StyleSheet.create({
   balanceContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
+  },
+  quickSetupBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  quickSetupBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  planRow: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
   },
   overviewTitleRow: {
     flexDirection: 'row',
@@ -2445,7 +2597,38 @@ const styles = StyleSheet.create({
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    marginTop: 12,
+  },
+  quickActionTile: {
+    width: '25%',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    marginBottom: 14,
+  },
+  quickActionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  quickActionLock: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionTileLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 14,
+    minHeight: 28,
   },
   quickActionsGridDesktop: {
     flexWrap: 'nowrap',
@@ -3108,6 +3291,17 @@ const styles = StyleSheet.create({
   loanProgressBar: {
     height: '100%',
     borderRadius: 4,
+  },
+  planSummaryCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  planSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '800',
   },
   goalsOverviewContainer: {
     marginHorizontal: 20,

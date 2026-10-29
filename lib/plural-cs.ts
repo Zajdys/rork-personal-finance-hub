@@ -186,6 +186,29 @@ export function pluralDen(n: number, lang: AppLang = 'cs'): string {
   );
 }
 
+/**
+ * „zbývá 1 den“ / „zbývají 2 dny“ / „zbývá 5 dní“
+ * (sloveso se shoduje s českým plurálem).
+ */
+export function formatZbyvaDni(n: number, lang: AppLang = 'cs'): string {
+  const count = Math.max(0, Math.trunc(n));
+  if (lang === 'en') {
+    return count === 1 ? '1 day left' : `${count} days left`;
+  }
+  const form = czechCountForm(count);
+  const verb = form === 'few' ? 'zbývají' : 'zbývá';
+  return `${verb} ${count} ${pluralDen(count, lang)}`;
+}
+
+/** „za 1 den“ / „za 2 dny“ / „za 5 dní“ (nebo dnes/zítra). */
+export function formatZaDni(n: number, lang: AppLang = 'cs'): string {
+  const count = Math.max(0, Math.trunc(n));
+  if (count === 0) return lang === 'en' ? 'today' : 'dnes';
+  if (count === 1) return lang === 'en' ? 'tomorrow' : 'zítra';
+  if (lang === 'en') return `in ${count} days`;
+  return `za ${count} ${pluralDen(count, lang)}`;
+}
+
 /** „Domácnost · 2 členové“ */
 export function formatHouseholdMemberCountLabel(
   name: string,

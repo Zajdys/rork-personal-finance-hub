@@ -94,6 +94,8 @@ function SaveScreenContent() {
   const [savingDecision, setSavingDecision] = useState(false);
   const celebrationScale = useRef(new Animated.Value(0.6)).current;
   const celebrationOpacity = useRef(new Animated.Value(0)).current;
+  const annualReturnInputRef = useRef<TextInput>(null);
+  const yearsInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!isPendingLoaded) void loadPendingFromStorage();
@@ -144,6 +146,19 @@ function SaveScreenContent() {
       if (n === 1) return t('saveYearOne');
       if (n >= 2 && n <= 4) return t('saveYearFew', { n });
       return t('saveYearMany', { n });
+    },
+    [t],
+  );
+
+  /** Jen jednotka (bez čísla): rok / roky / let; desetinná → let. */
+  const yearsUnitLabel = useCallback(
+    (raw: string): string => {
+      const n = parseDecimalInput(raw, 2);
+      if (n == null || !Number.isFinite(n) || n < 0) return t('saveYearUnitMany');
+      if (!Number.isInteger(n) || n === 0) return t('saveYearUnitMany');
+      if (n === 1) return t('saveYearUnitOne');
+      if (n >= 2 && n <= 4) return t('saveYearUnitFew');
+      return t('saveYearUnitMany');
     },
     [t],
   );
@@ -570,24 +585,58 @@ function SaveScreenContent() {
           })}
         </View>
         <View style={styles.row}>
-          <TextInput
-            value={annualReturn}
-            onChangeText={setAnnualReturn}
-            placeholder="% p.a."
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="decimal-pad"
-            style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            testID="save-annual-return"
-          />
-          <TextInput
-            value={years}
-            onChangeText={setYears}
-            placeholder={t('saveYearsPlaceholder')}
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="decimal-pad"
-            style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            testID="save-years"
-          />
+          <View style={styles.rowInput}>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+              {t('saveAnnualReturnLabel')}
+            </Text>
+            <Pressable
+              onPress={() => annualReturnInputRef.current?.focus()}
+              style={[
+                styles.inputCompact,
+                styles.inputWithSuffix,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+              ]}
+            >
+              <TextInput
+                ref={annualReturnInputRef}
+                value={annualReturn}
+                onChangeText={setAnnualReturn}
+                placeholder={t('saveAnnualReturnPlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.inputInner, { color: colors.text }]}
+                testID="save-annual-return"
+              />
+              <Text style={[styles.inputSuffix, { color: colors.textSecondary }]}>%</Text>
+            </Pressable>
+          </View>
+          <View style={styles.rowInput}>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+              {t('savePeriodLabel')}
+            </Text>
+            <Pressable
+              onPress={() => yearsInputRef.current?.focus()}
+              style={[
+                styles.inputCompact,
+                styles.inputWithSuffix,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+              ]}
+            >
+              <TextInput
+                ref={yearsInputRef}
+                value={years}
+                onChangeText={setYears}
+                placeholder={t('savePeriodPlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.inputInner, { color: colors.text }]}
+                testID="save-years"
+              />
+              <Text style={[styles.inputSuffix, { color: colors.textSecondary }]}>
+                {yearsUnitLabel(years)}
+              </Text>
+            </Pressable>
+          </View>
         </View>
         <View style={[styles.futureResult, { backgroundColor: colors.muted }]}>
           <Briefcase size={18} color={colors.primary} style={{ marginRight: 8 }} />
@@ -991,6 +1040,28 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     fontSize: 15,
     marginTop: 8,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  inputWithSuffix: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  inputInner: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    margin: 0,
+  },
+  inputSuffix: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   liveBlock: {
     borderRadius: 12,

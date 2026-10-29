@@ -2,7 +2,7 @@
 export const PRIVACY_POLICY_CS = `
 Zásady ochrany osobních údajů
 MoneyBuddy – Czech Finance
-Poslední aktualizace: 9. 10. 2026
+Poslední aktualizace: 29. 10. 2026
 
 1. Správce osobních údajů
 Aplikaci MoneyBuddy provozuje Jan Hájek (dále jen „my" nebo „správce").
@@ -36,20 +36,14 @@ Data mohou být zpřístupněna pouze těmto zpracovatelům v rozsahu nutném pr
 - Yahoo Finance (tržní ceny investic; neodesíláme osobní údaje)
 - Apple / Google (technické údaje a platby přes obchod s aplikacemi)
 
-6. Automatické napojení banky (pokud ho zapnete)
-Pokud v aplikaci zapnete automatické napojení bankovního účtu (AIS):
-- Kontomatik sp. z o.o. (Polsko) — licencovaný poskytovatel služby informování o platebním účtu (AIS) podle PSD2; zprostředkuje bezpečné přihlášení k bance a stažení zůstatků a transakcí
-- Hetzner Online GmbH (Německo) — provoz našeho mostového serveru (bank.moneybuddy.cz), který volá Kontomatik API z pevné IP a ukládá šifrované přístupové údaje pro opakovanou synchronizaci
-Přístup můžete kdykoli odpojit v aplikaci. Při smazání účtu se snažíme zrušit i přístup u Kontomatiku.
-Bez vašeho aktivního souhlasu a dokončení bankovního přihlášení bankovní data nestahujeme.
+6. Automatické napojení banky
+Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token.
 
 7. Vaše práva
 Máte právo na:
 - Přístup ke svým datům (export v sekci Profil → Soukromí a bezpečnost → Správa dat)
 - Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)
 - Opravu nesprávných údajů
-- Odvolání souhlasu s napojením banky
-
 8. Bankovní výpisy (PDF / CSV)
 PDF a CSV výpisy nahrané do aplikace jsou zpracovány na našich serverech (Supabase Edge Function) nebo na zařízení pouze za účelem extrakce transakcí.
 PDF soubory nejsou trvale ukládány.

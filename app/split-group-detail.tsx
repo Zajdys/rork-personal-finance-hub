@@ -165,7 +165,8 @@ export default function SplitGroupDetailScreen() {
     try {
       if (Platform.OS === 'web') {
         await navigator.clipboard.writeText(message);
-        Alert.alert(t('monthlyReportCopied'), t('monthlyReportCopiedMessage'));
+        const { showToast } = await import('@/store/toast-store');
+        showToast({ type: 'success', message: t('monthlyReportCopiedMessage') });
         return;
       }
       await Share.share({ message, title: t('splitGroupsShareInvite') });
@@ -192,7 +193,8 @@ export default function SplitGroupDetailScreen() {
     try {
       if (Platform.OS === 'web') {
         await navigator.clipboard.writeText(message);
-        Alert.alert(t('monthlyReportCopied'), t('monthlyReportCopiedMessage'));
+        const { showToast } = await import('@/store/toast-store');
+        showToast({ type: 'success', message: t('monthlyReportCopiedMessage') });
         return;
       }
       await Share.share({ message, title: t('splitGroupsShareSettleTitle', { name: group.name }) });

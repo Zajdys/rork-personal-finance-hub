@@ -316,6 +316,12 @@ export default function WelcomeTourScreen() {
           await completeWelcomeTour();
           if (href === '/(tabs)/add') {
             router.replace({ pathname: '/(tabs)/add', params: { type: 'expense' } });
+          } else if (href === '/(tabs)') {
+            const { resolvePostTourHref } = await import('@/lib/quick-setup');
+            const { supabase } = await import('@/lib/supabase');
+            const { data } = await supabase.auth.getUser();
+            const dest = await resolvePostTourHref(data.user?.id);
+            router.replace(dest);
           } else {
             router.replace(href);
           }

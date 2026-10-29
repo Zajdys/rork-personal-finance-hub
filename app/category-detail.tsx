@@ -26,6 +26,9 @@ import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { mainCategoryName, normalizeCategory } from '@/lib/category-normalize';
+import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
+import { usePlanStore } from '@/store/plan-store';
+import { Plus } from 'lucide-react-native';
 
 function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.getState>['t']): string {
   const n100 = count % 100;
@@ -110,9 +113,15 @@ export default function CategoryDetailScreen() {
   const { t, language } = useLanguageStore();
   const { getAllCategories, financialGoals, deleteTransaction, deleteTransactions, isLoaded, loadTransactionsFromSupabase } =
     useFinanceStore();
+  const planBudgets = usePlanStore((s) => s.budgets);
+  const loadPlan = usePlanStore((s) => s.loadPlan);
   const { getCurrentCurrency } = useSettingsStore();
   const { colors } = useTheme();
   const numberLocale = appLocale(language);
+
+  useEffect(() => {
+    if (user?.id) void loadPlan(user.id);
+  }, [user?.id, loadPlan]);
 
   const filteredAll = useFilteredTransactions();
   const [listLoading, setListLoading] = useState(!isLoaded);
@@ -182,6 +191,7 @@ export default function CategoryDetailScreen() {
   const insets = useSafeAreaInsets();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   const displayTransactions = useMemo(
     () => transactions.filter((t) => t.amount != null && t.amount !== 0),
@@ -223,11 +233,22 @@ export default function CategoryDetailScreen() {
     return rows;
   }, [displayTransactions, type, category, totalAmount, t]);
 
-  const categoryGoal =
+  const planBudget =
     type === 'expense'
+      ? planBudgets.find((b) => mainCategoryName(b.category) === mainCategoryName(category))
+      : undefined;
+  const legacyGoal =
+    type === 'expense' && !planBudget
       ? financialGoals.find(
-          (goal) => goal.category === category && goal.type === 'spending_limit',
+          (goal) =>
+            goal.type === 'spending_limit' &&
+            mainCategoryName(goal.category) === mainCategoryName(category),
         )
+      : undefined;
+  const categoryGoal = planBudget
+    ? { targetAmount: planBudget.amount }
+    : legacyGoal
+      ? { targetAmount: legacyGoal.targetAmount }
       : undefined;
 
   const budgetPercentage = categoryGoal
@@ -304,6 +325,24 @@ export default function CategoryDetailScreen() {
         }
         variant="gradient"
         gradientColors={[categoryInfo.color, categoryInfo.color + 'CC']}
+        right={
+          <TouchableOpacity
+            onPress={() => setQuickAddOpen(true)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: 'rgba(255,255,255,0.22)',
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              borderRadius: 999,
+            }}
+            hitSlop={8}
+          >
+            <Plus color="#fff" size={16} />
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('add')}</Text>
+          </TouchableOpacity>
+        }
       >
         <View style={styles.headerContent}>
           <Text style={styles.categoryIcon}>{categoryInfo.icon}</Text>
@@ -443,6 +482,15 @@ export default function CategoryDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+      <QuickAddTransactionSheet
+        visible={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        type={type}
+        defaultCategory={category}
+        onSaved={() => {
+          /* store už obsahuje tx; revision syncne Přehled po mirroru */
+        }}
+      />
     </View>
   );
 }

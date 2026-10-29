@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { Transaction } from '@/store/finance-store';
 import { compareTxDateDesc, transactionDateYmd } from '@/lib/transaction-date';
 import { normalizeAccount } from '@/utils/normalizeAccount';
+import { resolveCategoryFieldsForWrite } from '@/lib/category-normalize';
 
 const FINANCE_TX_KEY = 'finance_transactions';
 
@@ -66,7 +67,13 @@ export async function getAuthUserId(): Promise<string | null> {
 }
 
 export function transactionToRow(t: Transaction, userId: string) {
-  const description = t.title;
+  const resolved = resolveCategoryFieldsForWrite({
+    category: t.category,
+    subcategory: t.subcategory,
+    title: t.title,
+    type: t.type,
+  });
+  const description = resolved.title;
   const source = t.source ?? 'manual';
   const bankTransactionId = t.bankTransactionId?.trim() || null;
   const externalId =
@@ -95,8 +102,8 @@ export function transactionToRow(t: Transaction, userId: string) {
     booking_date: t.bookingDate ?? null,
     amount: t.amount,
     type: t.type,
-    category: t.category,
-    subcategory: t.subcategory?.trim() ? t.subcategory.trim() : null,
+    category: resolved.category,
+    subcategory: resolved.subcategory,
     description,
     source,
     import_batch_id: t.importBatchId ?? null,
@@ -110,6 +117,7 @@ export function transactionToRow(t: Transaction, userId: string) {
     exchange_rate: exchangeRate,
     ...(categorySource ? { category_source: categorySource } : {}),
     ...(externalId ? { external_id: externalId } : {}),
+    ...(t.recurringId ? { recurring_id: t.recurringId } : {}),
     unique_key: buildTransactionUniqueKey({
       userId,
       bank: source,
@@ -123,7 +131,13 @@ export function transactionToRow(t: Transaction, userId: string) {
 
 /** Řádek pro RPC `import_bank_transactions` — bez `id` i bez `user_id` (RPC doplní auth.uid()). */
 export function bankImportTransactionToInsertRow(t: Transaction, userId: string) {
-  const description = (t.title || '').trim() || 'Bez názvu';
+  const resolved = resolveCategoryFieldsForWrite({
+    category: t.category,
+    subcategory: t.subcategory,
+    title: t.title,
+    type: t.type === 'income' ? 'income' : 'expense',
+  });
+  const description = resolved.title;
   const source = t.source?.trim() ? t.source.trim() : 'bank_import';
   const bankTransactionId = t.bankTransactionId?.trim() || null;
   const externalId =
@@ -150,8 +164,8 @@ export function bankImportTransactionToInsertRow(t: Transaction, userId: string)
     booking_date: t.bookingDate ?? null,
     amount: t.amount,
     type: t.type,
-    category: t.category?.trim() ? t.category : 'Ostatní',
-    subcategory: t.subcategory?.trim() ? t.subcategory.trim() : null,
+    category: resolved.category,
+    subcategory: resolved.subcategory,
     description,
     source,
     import_batch_id: t.importBatchId ?? null,
@@ -256,6 +270,10 @@ export function rowToTransaction(row: Record<string, unknown>): Transaction {
     ...(categorySource ? { categorySource } : {}),
     ...(cpAcc ? { counterpartyAccount: cpAcc } : {}),
     ...(cpName ? { counterpartyName: cpName } : {}),
+    recurringId:
+      typeof row.recurring_id === 'string' && row.recurring_id.trim()
+        ? row.recurring_id.trim()
+        : null,
   };
 }
 

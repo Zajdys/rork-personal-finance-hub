@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
 import { useLanguageStore } from './language-store';
 import { GamingStats, UserBadge, PersonalityType } from '@/types/gaming';
 import { ALL_BADGES } from '@/constants/badges';
@@ -136,20 +135,12 @@ export const useBuddyStore = create<BuddyState>((set, get) => ({
 
   showBuddyMessage: (message: string) => {
     set({ currentMessage: message });
-    
-    // Zkontrolujeme, zda jsou push notifikace povolené
-    // Importujeme settings store dynamicky, abychom se vyhnuli circular dependency
-    import('@/store/settings-store').then(({ useSettingsStore }) => {
-      const { notifications } = useSettingsStore.getState();
-      
-      if (notifications.pushNotifications) {
-        // Zobrazíme push notifikaci jako Alert
-        Alert.alert('MoneyBuddy 💰', message, [
-          { text: 'OK', style: 'default' }
-        ]);
-      }
-    });
-    
+    const text = String(message ?? '').trim();
+    if (text) {
+      void import('@/store/toast-store').then(({ showToast }) => {
+        showToast({ message: text, type: 'success' });
+      });
+    }
     setTimeout(() => {
       get().clearBuddyMessage();
     }, 5000);

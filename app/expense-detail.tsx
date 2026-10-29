@@ -32,6 +32,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
+import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
 const EXPENSE_CATEGORY_ORDER_KEY = 'expense_category_order';
 const EXCLUDED_FROM_TOTAL_COLOR = '#9CA3AF';
@@ -105,6 +106,7 @@ export default function ExpenseDetailScreen() {
   const { getAllCategories } = useFinanceStore();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   const periodExpenseTransactions = useMemo(() => {
     let list: Transaction[];
@@ -449,20 +451,7 @@ export default function ExpenseDetailScreen() {
           </View>
         ) : null}
 
-        {/* Add Expense Button */}
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            style={styles.addExpenseButton}
-            onPress={() =>
-              router.push({ pathname: '/(tabs)/add', params: { type: 'expense' } })
-            }
-          >
-            <Plus color="white" size={20} />
-            <Text style={styles.addExpenseButtonText}>{t('addExpense')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Period Selection */}
+        {/* Period Selection — nad součty / seznamem */}
         <View style={styles.periodContainer}>
           <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailPeriod')}</Text>
           <View style={[styles.periodButtons, { backgroundColor: mutedBg }]}>
@@ -470,6 +459,16 @@ export default function ExpenseDetailScreen() {
             <PeriodButton period="month" label={t('month')} />
             <PeriodButton period="year" label={t('year')} />
           </View>
+        </View>
+
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addExpenseButton}
+            onPress={() => setQuickAddOpen(true)}
+          >
+            <Plus color="white" size={20} />
+            <Text style={styles.addExpenseButtonText}>{t('addExpense')}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Statistics */}
@@ -559,6 +558,14 @@ export default function ExpenseDetailScreen() {
           </LinearGradient>
         </View>
       </ScrollView>
+      <QuickAddTransactionSheet
+        visible={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        type="expense"
+        onSaved={() => {
+          /* store už obsahuje tx; revision syncne Přehled po mirroru */
+        }}
+      />
     </View>
   );
 }

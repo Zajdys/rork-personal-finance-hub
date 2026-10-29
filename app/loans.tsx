@@ -140,6 +140,33 @@ export default function LoansScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+          <TouchableOpacity
+            style={[styles.refiCard, { backgroundColor: cardBg, marginBottom: 12 }]}
+            onPress={() => safePush('/personal-recurring')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.refiHeaderRow}>
+              <View style={styles.refiHeaderLeft}>
+                <View style={[styles.refiIconWrap, { backgroundColor: isDarkMode ? '#4B5563' : '#EEF2FF' }]}>
+                  <Text style={{ fontSize: 18 }}>🔁</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.refiTitle, { color: primary }]}>
+                    {t('personalRecurring.title')}
+                  </Text>
+                  <Text style={{ color: subtle, fontSize: 13, marginTop: 2 }}>
+                    {t('personalRecurring.menuSubtitle')}
+                  </Text>
+                </View>
+              </View>
+              <ChevronDown
+                color={subtle}
+                size={22}
+                style={{ transform: [{ rotate: '-90deg' }] }}
+              />
+            </View>
+          </TouchableOpacity>
+
           {loans.length > 0 && (
             <View style={[styles.refiCard, { backgroundColor: cardBg }]}>
               <TouchableOpacity

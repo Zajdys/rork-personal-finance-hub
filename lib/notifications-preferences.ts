@@ -7,7 +7,14 @@ export const NOTIF_STORAGE_KEYS = {
   subscriptions: 'notif_subscriptions',
   tip: 'notif_tip',
   mortgage: 'notif_mortgage',
+  budgetAlerts: 'notif_budget_alerts',
+  budgetWeekly: 'notif_budget_weekly',
 } as const;
+
+export type NotifSimpleToggle = { enabled: boolean };
+
+export const DEFAULT_NOTIF_BUDGET_ALERTS: NotifSimpleToggle = { enabled: true };
+export const DEFAULT_NOTIF_BUDGET_WEEKLY: NotifSimpleToggle = { enabled: false };
 
 export type DaysBefore = 1 | 2 | 3;
 
@@ -140,6 +147,48 @@ export async function saveNotifTipPrefs(p: NotifTipPrefs): Promise<void> {
 
 export async function saveNotifMortgagePrefs(p: NotifCategoryPrefs): Promise<void> {
   await AsyncStorage.setItem(NOTIF_STORAGE_KEYS.mortgage, JSON.stringify(normalizeNotifCategory(p)));
+}
+
+function normalizeSimpleToggle(raw: unknown, fallback: NotifSimpleToggle): NotifSimpleToggle {
+  if (!raw || typeof raw !== 'object') return { ...fallback };
+  const o = raw as Record<string, unknown>;
+  return {
+    enabled: typeof o.enabled === 'boolean' ? o.enabled : fallback.enabled,
+  };
+}
+
+export async function loadNotifBudgetAlertsPrefs(): Promise<NotifSimpleToggle> {
+  try {
+    const raw = await AsyncStorage.getItem(NOTIF_STORAGE_KEYS.budgetAlerts);
+    if (raw) return normalizeSimpleToggle(JSON.parse(raw), DEFAULT_NOTIF_BUDGET_ALERTS);
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_NOTIF_BUDGET_ALERTS };
+}
+
+export async function saveNotifBudgetAlertsPrefs(p: NotifSimpleToggle): Promise<void> {
+  await AsyncStorage.setItem(
+    NOTIF_STORAGE_KEYS.budgetAlerts,
+    JSON.stringify(normalizeSimpleToggle(p, DEFAULT_NOTIF_BUDGET_ALERTS)),
+  );
+}
+
+export async function loadNotifBudgetWeeklyPrefs(): Promise<NotifSimpleToggle> {
+  try {
+    const raw = await AsyncStorage.getItem(NOTIF_STORAGE_KEYS.budgetWeekly);
+    if (raw) return normalizeSimpleToggle(JSON.parse(raw), DEFAULT_NOTIF_BUDGET_WEEKLY);
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_NOTIF_BUDGET_WEEKLY };
+}
+
+export async function saveNotifBudgetWeeklyPrefs(p: NotifSimpleToggle): Promise<void> {
+  await AsyncStorage.setItem(
+    NOTIF_STORAGE_KEYS.budgetWeekly,
+    JSON.stringify(normalizeSimpleToggle(p, DEFAULT_NOTIF_BUDGET_WEEKLY)),
+  );
 }
 
 async function fetchOrCreateUserProfileForMigration(userId: string): Promise<{

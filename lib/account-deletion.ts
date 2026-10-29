@@ -72,6 +72,11 @@ export async function fetchHouseholdDeletionWarnings(
   }
 
   const warnings: HouseholdDeletionWarning[] = [];
+  const { fetchHouseholdMemberProfilesRpc } = await import('@/lib/household-members');
+  const { byId: profileById, error: rpcErr } = await fetchHouseholdMemberProfilesRpc();
+  if (rpcErr) {
+    return { warnings: [], error: rpcErr.message };
+  }
 
   for (const h of owned ?? []) {
     const householdId = String(h.id);
@@ -79,7 +84,7 @@ export async function fetchHouseholdDeletionWarnings(
 
     const { data: members, error: memErr } = await supabase
       .from('household_members')
-      .select('user_id, users(display_name, email)')
+      .select('user_id')
       .eq('household_id', householdId);
 
     if (memErr) {
@@ -92,17 +97,11 @@ export async function fetchHouseholdDeletionWarnings(
       continue;
     }
 
-    const first = others[0] as {
-      user_id: string;
-      users?:
-        | { display_name?: string | null; email?: string | null }
-        | { display_name?: string | null; email?: string | null }[]
-        | null;
-    };
-    const u = Array.isArray(first.users) ? first.users[0] : first.users;
+    const firstOtherId = String(others[0]!.user_id);
+    const profile = profileById.get(firstOtherId);
     const successorName =
-      (u?.display_name && String(u.display_name).trim()) ||
-      (u?.email && String(u.email).trim()) ||
+      (profile?.display_name && profile.display_name.trim()) ||
+      (profile?.email && profile.email.trim()) ||
       'jiný člen';
 
     warnings.push({

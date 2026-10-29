@@ -23,7 +23,8 @@ export default function HiddenSubscriptionSuggestionsScreen() {
   const onRestore = useCallback(
     async (id: string, name: string) => {
       await restore(id);
-      Alert.alert(t('done'), t('hiddenSubsRestored', { name }));
+      const { showToast } = await import('@/store/toast-store');
+      showToast({ type: 'success', message: t('hiddenSubsRestored', { name }) });
     },
     [restore, t],
   );

@@ -1,17 +1,19 @@
 import { Tabs } from "expo-router";
 import { 
   Home, 
-  PlusCircle, 
+  Plus,
   Users,
-  TrendingUp,
   User,
   Lock,
+  Target,
 } from "lucide-react-native";
 import React from "react";
-import { View } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { useLanguageStore } from '@/store/language-store';
 import { useTheme } from '@/hooks/use-theme';
 import { usePremium } from '@/hooks/usePremium';
+import { useQuickAddSheetStore } from '@/store/quick-add-sheet-store';
+import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
 function TabIconWithLock({
   children,
@@ -50,11 +52,12 @@ function TabIconWithLock({
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
   const { t } = useLanguageStore();
-  const { isPremium, isHouseholdPremium } = usePremium();
+  const { isHouseholdPremium } = usePremium();
   const showHouseholdLock = !isHouseholdPremium;
-  const showInvestLock = !(isPremium || isHouseholdPremium);
+  const quickAdd = useQuickAddSheetStore();
   
   return (
+    <>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
@@ -88,10 +91,27 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{
+          title: 'Plán',
+          tabBarIcon: ({ color, size }) => <Target color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="add"
         options={{
-          title: t('add'),
-          tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />,
+          title: '',
+          tabBarIcon: () => (
+            <View style={[styles.fab, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
+              <Plus color="#fff" size={28} strokeWidth={2.5} />
+            </View>
+          ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            quickAdd.open('expense');
+          },
         }}
       />
       <Tabs.Screen
@@ -106,17 +126,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="investice"
-        options={{
-          title: t('investments'),
-          tabBarIcon: ({ color, size }) => (
-            <TabIconWithLock showLock={showInvestLock} accent={colors.primary}>
-              <TrendingUp color={color} size={size} />
-            </TabIconWithLock>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
           title: t('profile'),
@@ -124,5 +133,30 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+
+    <QuickAddTransactionSheet
+      visible={quickAdd.visible}
+      onClose={quickAdd.close}
+      type={quickAdd.type}
+      allowTypeToggle
+      onTypeChange={quickAdd.setType}
+      showMoreOptions
+    />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+});

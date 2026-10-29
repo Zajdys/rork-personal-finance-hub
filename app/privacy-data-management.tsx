@@ -12,6 +12,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -219,6 +220,28 @@ export default function PrivacyDataManagementScreen() {
               <Text style={[styles.modalBody, { color: colors.textSecondary }]}>
                 {t('privacyDeleteAccountConfirm')}
               </Text>
+
+              {Platform.OS === 'ios' ? (
+                <View
+                  style={[
+                    styles.warningBox,
+                    { backgroundColor: colors.muted, borderColor: colors.border, marginTop: 12 },
+                  ]}
+                >
+                  <Text style={[styles.warningLine, { color: colors.text }]}>
+                    {t('privacyDeleteAppleSubWarning')}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, { backgroundColor: colors.card, marginTop: 10 }]}
+                    onPress={() => void Linking.openURL('https://apps.apple.com/account/subscriptions')}
+                    disabled={deleting}
+                  >
+                    <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>
+                      {t('privacyDeleteManageSubscription')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
               {loadingWarnings ? (
                 <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />

@@ -124,16 +124,22 @@ export default function ChooseSubscriptionScreen() {
       router.replace('/welcome-tour');
       return;
     }
-    if (params.from === 'welcome') {
-      router.replace('/(tabs)');
-      return;
-    }
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)');
-    }
-  }, [fromRegisterPremium, params.from, router]);
+    void (async () => {
+      if (params.from === 'welcome') {
+        const { resolvePostTourHref } = await import('@/lib/quick-setup');
+        const dest = await resolvePostTourHref(user?.id);
+        router.replace(dest);
+        return;
+      }
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        const { resolvePostTourHref } = await import('@/lib/quick-setup');
+        const dest = await resolvePostTourHref(user?.id);
+        router.replace(dest);
+      }
+    })();
+  }, [fromRegisterPremium, params.from, router, user?.id]);
 
   const finishPremiumSuccess = React.useCallback(
     async (_kind: 'purchase' | 'restore') => {

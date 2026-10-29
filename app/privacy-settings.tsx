@@ -325,7 +325,11 @@ export default function PrivacySettingsScreen() {
                       setCacheBusy(true);
                       try {
                         await clearAppDataCacheAndRefetch(user?.id);
-                        Alert.alert(t('done'), t('generalSettingsClearCacheDone'));
+                        const { showToast } = await import('@/store/toast-store');
+                        showToast({
+                          type: 'success',
+                          message: t('generalSettingsClearCacheDone'),
+                        });
                       } catch (e) {
                         Alert.alert(
                           t('error'),

@@ -100,12 +100,9 @@ export default function AddSubscriptionScreen() {
       paused: false,
     });
 
-    Alert.alert(t('done'), t('subscription.added'), [
-      {
-        text: 'OK',
-        onPress: () => safeGoBack(),
-      },
-    ]);
+    const { showToast } = await import('@/store/toast-store');
+    showToast({ type: 'success', message: t('subscription.added') });
+    safeGoBack();
   });
 
   const categories = Object.keys(EXPENSE_CATEGORIES);

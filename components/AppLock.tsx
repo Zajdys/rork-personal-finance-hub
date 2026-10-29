@@ -58,6 +58,7 @@ const SOFT_PIN_BLOCKED_ROOTS = new Set([
   'choose-subscription',
   'premium-success',
   'welcome-tour',
+  'quick-setup',
   'landing',
   'auth',
   'register',
