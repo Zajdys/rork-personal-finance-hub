@@ -25,6 +25,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSegments } from 'expo-router';
 import { Fingerprint, KeyRound, Shield } from 'lucide-react-native';
 
 import { useAuth } from '@/store/auth-store';
@@ -52,8 +53,29 @@ const LOCK_GRACE_PERIOD_MS = 30_000;
 /** Jednorázový prompt „nastavte PIN“ pro účty bez PIN (ne vynucení). */
 const PIN_SETUP_PROMPT_DISMISSED_KEY = 'app_lock_setup_prompt_dismissed';
 
+/** Routy, nad kterými se soft PIN nabídka nesmí zobrazit. */
+const SOFT_PIN_BLOCKED_ROOTS = new Set([
+  'choose-subscription',
+  'premium-success',
+  'welcome-tour',
+  'landing',
+  'auth',
+  'register',
+  'accept-terms',
+  'onboarding',
+]);
+
 type LockMode = 'unlock' | 'recover' | 'resetPin';
 type SoftPrompt = 'none' | 'offer' | 'setupPin' | 'setupBio';
+
+/** true = uživatel je na tabu Přehled (po dokončeném welcome tour). */
+function isOnOverviewTab(segments: readonly string[]): boolean {
+  const root = String(segments[0] ?? '');
+  if (root !== '(tabs)') return false;
+  const tab = String(segments[1] ?? '');
+  // index je defaultní tab — segment může chybět nebo být 'index'
+  return !tab || tab === 'index';
+}
 
 function maskEmail(email: string): string {
   const [local, domain] = email.split('@');
@@ -101,6 +123,9 @@ export function AppLock() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguageStore();
   const insets = useSafeAreaInsets();
+  const segments = useSegments();
+  const rootSegment = String(segments[0] ?? '');
+  const welcomeTourCompleted = user?.welcomeTourCompleted === true;
 
   const [locked, setLocked] = useState(false);
   const [mode, setMode] = useState<LockMode>('unlock');
@@ -112,6 +137,8 @@ export function AppLock() {
   const [bioUnlockAvailable, setBioUnlockAvailable] = useState(false);
 
   const [softPrompt, setSoftPrompt] = useState<SoftPrompt>('none');
+  const softPromptRef = useRef<SoftPrompt>('none');
+  softPromptRef.current = softPrompt;
 
   // Recovery OTP state
   const [otpSent, setOtpSent] = useState(false);
@@ -213,8 +240,11 @@ export function AppLock() {
 
   const maybeShowSoftPinPrompt = useCallback(async () => {
     if (Platform.OS === 'web') return;
+    if (softPromptRef.current !== 'none') return;
     const dismissed = await AsyncStorage.getItem(PIN_SETUP_PROMPT_DISMISSED_KEY);
     if (dismissed === 'true') return;
+    const hasPin = await hasAppLockPin();
+    if (hasPin) return;
     setSoftPrompt('offer');
   }, []);
 
@@ -259,7 +289,8 @@ export function AppLock() {
     setShowPin(true);
   }, [attemptBiometrics, unlock]);
 
-  // Cold start / first fullAccess
+  // Cold start / first fullAccess — lock check jen když PIN existuje.
+  // Soft PIN nabídku tady NEspouštět (paywall / welcome tour / premium-success).
   useEffect(() => {
     if (!fullAccess) {
       didInitialCheckRef.current = false;
@@ -273,12 +304,26 @@ export function AppLock() {
         const [enabled, bio] = await Promise.all([getAppLockEnabled(), getBiometricsEnabled()]);
         if (enabled || bio) await clearDeviceSecurity();
         setLocked(false);
-        await maybeShowSoftPinPrompt();
         return;
       }
       await runLockCheck();
     })();
-  }, [fullAccess, runLockCheck, maybeShowSoftPinPrompt]);
+  }, [fullAccess, runLockCheck]);
+
+  // Soft PIN nabídka: max 1×, až na Přehledu po welcome tour, jen bez PINu.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !fullAccess) return;
+    if (!welcomeTourCompleted) return;
+    if (SOFT_PIN_BLOCKED_ROOTS.has(rootSegment)) return;
+    if (!isOnOverviewTab(segments as string[])) return;
+    void maybeShowSoftPinPrompt();
+  }, [
+    fullAccess,
+    welcomeTourCompleted,
+    rootSegment,
+    segments,
+    maybeShowSoftPinPrompt,
+  ]);
 
   // Background → foreground (grace period — krátký odskok nezamyká)
   useEffect(() => {
@@ -429,44 +474,50 @@ export function AppLock() {
         </View>
       );
     }
-    // offer
-    return (
-      <Modal visible transparent animationType="fade" onRequestClose={() => void dismissSoftPrompt()}>
-        <View style={[styles.promptRoot, { backgroundColor: colors.overlay ?? 'rgba(0,0,0,0.45)' }]}>
-          <View
-            style={[
-              styles.promptCard,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                marginBottom: insets.bottom + 24,
-              },
-            ]}
-          >
-            <View style={[styles.promptIcon, { backgroundColor: colors.muted }]}>
-              <Shield color={colors.primary} size={28} />
-            </View>
-            <Text style={[styles.title, { color: colors.text }]}>{t('appLockSetupPromptTitle')}</Text>
-            <Text style={[styles.sub, { color: colors.textSecondary }]}>
-              {t('appLockSetupPromptBody')}
-            </Text>
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-              onPress={() => setSoftPrompt('setupPin')}
+    // offer — jen na Přehledu po welcome tour (nikdy nad paywall / success / tour)
+    const canShowOffer =
+      welcomeTourCompleted &&
+      !SOFT_PIN_BLOCKED_ROOTS.has(rootSegment) &&
+      isOnOverviewTab(segments as string[]);
+    if (canShowOffer) {
+      return (
+        <Modal visible transparent animationType="fade" onRequestClose={() => void dismissSoftPrompt()}>
+          <View style={[styles.promptRoot, { backgroundColor: colors.overlay ?? 'rgba(0,0,0,0.45)' }]}>
+            <View
+              style={[
+                styles.promptCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  marginBottom: insets.bottom + 24,
+                },
+              ]}
             >
-              <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>
-                {t('appLockSetupPromptCta')}
+              <View style={[styles.promptIcon, { backgroundColor: colors.muted }]}>
+                <Shield color={colors.primary} size={28} />
+              </View>
+              <Text style={[styles.title, { color: colors.text }]}>{t('appLockSetupPromptTitle')}</Text>
+              <Text style={[styles.sub, { color: colors.textSecondary }]}>
+                {t('appLockSetupPromptBody')}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.forgotBtn} onPress={() => void dismissSoftPrompt()}>
-              <Text style={[styles.forgotText, { color: colors.textSecondary }]}>
-                {t('appLockSetupPromptLater')}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+                onPress={() => setSoftPrompt('setupPin')}
+              >
+                <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>
+                  {t('appLockSetupPromptCta')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.forgotBtn} onPress={() => void dismissSoftPrompt()}>
+                <Text style={[styles.forgotText, { color: colors.textSecondary }]}>
+                  {t('appLockSetupPromptLater')}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
-    );
+        </Modal>
+      );
+    }
   }
 
   if (Platform.OS === 'web' || !fullAccess || !locked) return null;

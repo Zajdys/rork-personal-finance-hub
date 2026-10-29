@@ -1144,7 +1144,7 @@ export const TRANSLATIONS = {
     saveOk: 'OK',
 
     // Auth
-    'auth.tagline': 'Chytře spravuj své finance',
+    'auth.tagline': 'Měj přehled o svých penězích',
     'auth.login': 'Přihlášení',
     'auth.register': 'Registrace',
     'auth.fullName': 'Celé jméno',
@@ -1849,7 +1849,7 @@ export const TRANSLATIONS = {
     // Landing
     landingHeroSubtitle: 'Konečně víš, kam ti mizí výplata.',
     landingHeroDescription: 'Základ zdarma navždy. Premium 14 dní zdarma na vyzkoušení.',
-    landingRowImport: 'Výpis z velké české banky',
+    landingRowImport: 'Nahraj výpis, appka ho sama roztřídí',
     landingRowSplit: 'Rozděl útratu s kamarády',
     landingRowHousehold: 'Společné finance s partnerem',
     landingRowSave: 'Ušetři – odlož nákup a uvidíš, kolik ti zůstalo',
@@ -2585,7 +2585,7 @@ export const TRANSLATIONS = {
     welcomeTourSplitDemoTitle: 'Večeře v Brně',
     welcomeTourSplitDemoTotal: '2 840 Kč',
     welcomeTourTip: '🎯 Zabere ti to necelou minutu',
-    welcomeTourTitle: 'Vítej v MoneyBuddy',
+    welcomeTourTitle: 'Jak MoneyBuddy funguje',
 
   },
   en: {
@@ -3716,7 +3716,7 @@ export const TRANSLATIONS = {
     saveOk: 'OK',
 
     // Auth
-    'auth.tagline': 'Manage your finances smartly',
+    'auth.tagline': 'Keep track of your money',
     'auth.login': 'Sign In',
     'auth.register': 'Register',
     'auth.fullName': 'Full name',
@@ -4421,7 +4421,7 @@ export const TRANSLATIONS = {
     // Landing
     landingHeroSubtitle: 'Finally see where your paycheck goes.',
     landingHeroDescription: 'Core features free forever. Premium: 14-day free trial.',
-    landingRowImport: 'Statements from a major Czech bank',
+    landingRowImport: 'Upload a statement — the app sorts it for you',
     landingRowSplit: 'Split expenses with friends',
     landingRowHousehold: 'Shared finances with a partner',
     landingRowSave: 'Save – pause a purchase and see what’s left',
@@ -5158,7 +5158,7 @@ export const TRANSLATIONS = {
     welcomeTourSplitDemoTitle: 'Dinner in Brno',
     welcomeTourSplitDemoTotal: '2,840 CZK',
     welcomeTourTip: '🎯 Takes under a minute',
-    welcomeTourTitle: 'Welcome to MoneyBuddy',
+    welcomeTourTitle: 'How MoneyBuddy works',
 
   },
 };

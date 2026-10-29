@@ -207,14 +207,16 @@ export default function AuthScreen() {
         ))}
       </View>
 
-      <FloatingIcon Icon={Wallet} top="8%" left="6%" size={56} rotate="-12deg" />
-      <FloatingIcon Icon={TrendingUp} top="18%" right="8%" size={44} rotate="8deg" />
-      <FloatingIcon Icon={PiggyBank} bottom="32%" left="4%" size={48} rotate="6deg" />
-      <FloatingIcon Icon={Landmark} bottom="22%" right="6%" size={52} rotate="-6deg" />
-      <FloatingIcon Icon={Sparkles} top="42%" left="10%" size={28} rotate="15deg" />
+      <View style={styles.decorLayer} pointerEvents="none">
+        <FloatingIcon Icon={Wallet} top="8%" left="6%" size={56} rotate="-12deg" />
+        <FloatingIcon Icon={TrendingUp} top="18%" right="8%" size={44} rotate="8deg" />
+        <FloatingIcon Icon={PiggyBank} bottom="12%" left="5%" size={48} rotate="6deg" />
+        <FloatingIcon Icon={Landmark} bottom="8%" right="6%" size={52} rotate="-6deg" />
+        <FloatingIcon Icon={Sparkles} top="14%" right="28%" size={28} rotate="15deg" />
+      </View>
 
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={styles.formLayer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
@@ -413,9 +415,17 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
+  decorLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+    opacity: 0.55,
+  },
+  formLayer: {
+    flex: 1,
+    zIndex: 2,
+  },
   floatIcon: {
     position: 'absolute',
-    zIndex: 0,
   },
   hero: {
     alignItems: 'center',
