@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -28,8 +28,12 @@ import {
   ArrowLeft,
   FileSpreadsheet,
   ChevronRight,
+  Search,
+  X,
 } from 'lucide-react-native';
-import { useFinanceStore, CustomCategory } from '@/store/finance-store';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { useFinanceStore, CustomCategory, EXPENSE_CATEGORIES } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { useLanguageStore } from '@/store/language-store';
 import { pluralTransakce } from '@/lib/plural-cs';
@@ -39,32 +43,52 @@ import { randomUUID } from '@/lib/random-uuid';
 import { useTheme } from '@/hooks/use-theme';
 import { toYyyyMmDd, transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
 import * as ImagePicker from 'expo-image-picker';
+// TODO(App Store): nahradit vlastní AI pipeline a odstranit @rork-ai/toolkit-sdk (+ withRorkMetro).
 import { generateObject } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
 import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { safePush } from '@/lib/safe-navigate';
+import { classifyImportRow } from '@/lib/classify-import-category';
+import {
+  categoryMatchesQuery,
+  DEFAULT_TOP_EXPENSE_CATEGORIES,
+  formatCategoryDisplay,
+  isPickerExpenseCategory,
+  mainCategoryName,
+  normalizeCategory,
+  suggestCategoryFromDescription,
+  type NormalizedCategory,
+} from '@/lib/category-normalize';
+import { defaultSubcategoriesFor, getExpenseCategoryDef } from '@/constants/categories';
+import { RECEIPT_SCAN_ENABLED } from '@/constants/feature-flags';
 
 type ParsedTxn = {
   type: 'income' | 'expense';
   amount: number;
   title: string;
   category: string;
+  subcategory?: string | null;
   date: string;
 };
 
-const EXPENSE_CATEGORY_ICONS = {
-  'Jídlo a nápoje': Coffee,
-  'Nájem a bydlení': Home,
-  'Oblečení': ShoppingCart,
-  'Doprava': Car,
-  'Zábava': Gamepad2,
-  'Zdraví': Heart,
-  'Vzdělání': Book,
-  'Nákupy': ShoppingCart,
-  'Služby': Smartphone,
-  'Ostatní': ShoppingCart,
+const EXPENSE_CATEGORY_ICONS: Record<string, typeof ShoppingCart> = {
+  Jídlo: Coffee,
+  Bydlení: Home,
+  Úvěry: Home,
+  'Auto a doprava': Car,
+  Nákupy: ShoppingCart,
+  'Volný čas': Gamepad2,
+  Cestování: Car,
+  Zdraví: Heart,
+  Předplatné: Smartphone,
+  Vzdělání: Book,
+  Děti: Heart,
+  Zvířata: Heart,
+  'Poplatky a hotovost': Smartphone,
+  'Platby lidem': ShoppingCart,
+  Ostatní: ShoppingCart,
 };
 
 const INCOME_CATEGORY_ICONS = {
@@ -77,14 +101,90 @@ const INCOME_CATEGORY_ICONS = {
 
 const MANUAL_CURRENCIES = ['CZK', 'EUR', 'USD', 'GBP', 'CHF', 'PLN'] as const;
 
+const EMOJI_GROUPS: { key: string; labelCs: string; labelEn: string; emojis: string[] }[] = [
+  {
+    key: 'food',
+    labelCs: 'Jídlo',
+    labelEn: 'Food',
+    emojis: ['🍽️', '🍕', '🍔', '🍣', '🥗', '☕', '🍺', '🥐', '🍦', '🍎', '🥑', '🍜'],
+  },
+  {
+    key: 'home',
+    labelCs: 'Domov',
+    labelEn: 'Home',
+    emojis: ['🏠', '🏡', '🔑', '🛋️', '🛏️', '🧹', '💡', '🔧', '🪴', '🛁', '🧺', '📦'],
+  },
+  {
+    key: 'transport',
+    labelCs: 'Doprava',
+    labelEn: 'Transport',
+    emojis: ['🚗', '🚕', '🚌', '🚆', '✈️', '🚲', '⛽', '🛵', '🚇', '🅿️', '🛳️', '🛴'],
+  },
+  {
+    key: 'fun',
+    labelCs: 'Zábava',
+    labelEn: 'Fun',
+    emojis: ['🎬', '🎭', '🎮', '🎵', '🎧', '🎸', '🎲', '🎯', '🎤', '📺', '🪩', '🎉'],
+  },
+  {
+    key: 'health',
+    labelCs: 'Zdraví',
+    labelEn: 'Health',
+    emojis: ['⚕️', '💊', '🏥', '🦷', '🧠', '🧘', '🏃', '⚽', '🏋️', '🏊', '🩺', '❤️'],
+  },
+  {
+    key: 'money',
+    labelCs: 'Peníze',
+    labelEn: 'Money',
+    emojis: ['💰', '💵', '💳', '🏦', '📈', '📉', '💼', '🧾', '💎', '🪙', '📊', '🏧'],
+  },
+  {
+    key: 'pets',
+    labelCs: 'Zvířata',
+    labelEn: 'Pets',
+    emojis: ['🐶', '🐱', '🐠', '🐦', '🐰', '🐹', '🐾', '🦴'],
+  },
+  {
+    key: 'kids',
+    labelCs: 'Děti',
+    labelEn: 'Kids',
+    emojis: ['👶', '🧒', '🎒', '🧸', '🏫', '🍼', '🎠', '🎨'],
+  },
+  {
+    key: 'work',
+    labelCs: 'Práce',
+    labelEn: 'Work',
+    emojis: ['💻', '📱', '🖥️', '⌨️', '🖨️', '📁', '✏️', '🗓️'],
+  },
+  {
+    key: 'other',
+    labelCs: 'Ostatní',
+    labelEn: 'Other',
+    emojis: ['🎁', '🛍️', '👕', '👟', '📚', '✈️', '🌍', '⭐', '🔥', '✨', '🧭', '🧩'],
+  },
+];
+
 export default function AddTransactionScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ type?: string }>();
   const [type, setType] = useState<'income' | 'expense'>('expense');
+  /** true = otevřeno z konkrétního CTA s ?type= — skryj přepínač */
+  const [typeLocked, setTypeLocked] = useState(false);
   const [amount, setAmount] = useState<string>('');
   const [currency, setCurrency] = useState<(typeof MANUAL_CURRENCIES)[number]>('CZK');
   const [fxBusy, setFxBusy] = useState(false);
   const [title, setTitle] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+  const [categoryPickedManually, setCategoryPickedManually] = useState(false);
+  const [suggestedCategory, setSuggestedCategory] = useState<NormalizedCategory | null>(null);
+  const [categoryQuery, setCategoryQuery] = useState('');
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [addingSubcategory, setAddingSubcategory] = useState(false);
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [emojiGroupKey, setEmojiGroupKey] = useState(EMOJI_GROUPS[0]!.key);
+  const [customEmojiInput, setCustomEmojiInput] = useState('');
   const [preview, setPreview] = useState<ParsedTxn[]>([]);
   const [previewOpen, setPreviewOpen] = useState<boolean>(false);
   const [invoiceScanOpen, setInvoiceScanOpen] = useState<boolean>(false);
@@ -95,20 +195,160 @@ export default function AddTransactionScreen() {
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryIcon, setNewCategoryIcon] = useState<string>('📦');
   const [newCategoryColor, setNewCategoryColor] = useState<string>('#6B7280');
-  
-  const { addTransaction, getAllCategories, addCustomCategory } = useFinanceStore();
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const {
+    addTransaction,
+    getAllCategories,
+    addCustomCategory,
+    getCustomSubcategories,
+    transactions,
+    customCategories,
+  } = useFinanceStore();
   const { addPoints, showBuddyMessage } = useBuddyStore();
   const { t, language } = useLanguageStore();
 
+  const resetCategoryUi = useCallback(() => {
+    setSelectedCategory('');
+    setSelectedSubcategory(null);
+    setCategoryPickedManually(false);
+    setSuggestedCategory(null);
+    setCategoryQuery('');
+    setShowAllCategories(false);
+    setAddingSubcategory(false);
+    setNewSubcategoryName('');
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const raw = Array.isArray(params.type) ? params.type[0] : params.type;
+      const locked = raw === 'income' || raw === 'expense';
+      setTypeLocked(locked);
+      if (locked) {
+        setType(raw);
+        resetCategoryUi();
+      } else {
+        // Tab „Přidat“ bez parametru — přepínač, výchozí výdaj
+        setType('expense');
+        resetCategoryUi();
+      }
+      return () => {
+        // Po odchodu smaž type, ať se při návratu přes tab nezasekne
+        try {
+          router.setParams({ type: '' });
+        } catch {
+          /* ignore */
+        }
+        setTypeLocked(false);
+      };
+    }, [params.type, resetCategoryUi, router]),
+  );
+
   const categoryData = getAllCategories(type);
   const categoryIcons = type === 'income' ? INCOME_CATEGORY_ICONS : EXPENSE_CATEGORY_ICONS;
-  
-  const categories = Object.entries(categoryData).map(([name, data]) => ({
-    id: name,
-    name,
-    icon: categoryIcons[name as keyof typeof categoryIcons] || ShoppingCart,
-    color: data.color,
-  }));
+
+  const pickerCategories = useMemo(() => {
+    const entries = Object.entries(categoryData)
+      .filter(([name]) => (type === 'expense' ? isPickerExpenseCategory(name) : name !== 'Převod'))
+      .map(([name, data]) => ({
+        id: name,
+        name,
+        icon: categoryIcons[name as keyof typeof categoryIcons] || ShoppingCart,
+        color: data.color,
+      }));
+    return entries;
+  }, [categoryData, categoryIcons, type]);
+
+  const topCategoryNames = useMemo(() => {
+    if (type === 'income') return pickerCategories.map((c) => c.name);
+    const counts = new Map<string, number>();
+    for (const tx of transactions) {
+      if (tx.type !== 'expense') continue;
+      const cat = mainCategoryName(tx.category, tx.subcategory);
+      if (!isPickerExpenseCategory(cat)) continue;
+      counts.set(cat, (counts.get(cat) || 0) + 1);
+    }
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+    if (ranked.length === 0) return [...DEFAULT_TOP_EXPENSE_CATEGORIES];
+    const top = ranked.slice(0, 6);
+    while (top.length < 6) {
+      const fill = DEFAULT_TOP_EXPENSE_CATEGORIES.find((c) => !top.includes(c));
+      if (!fill) break;
+      top.push(fill);
+    }
+    return top;
+  }, [pickerCategories, transactions, type]);
+
+  const visibleCategories = useMemo(() => {
+    const q = categoryQuery.trim();
+    if (q) {
+      return pickerCategories.filter((c) => categoryMatchesQuery(c.name, q));
+    }
+    if (type === 'income' || showAllCategories) return pickerCategories;
+    const topSet = new Set(topCategoryNames);
+    return pickerCategories.filter((c) => topSet.has(c.name));
+  }, [categoryQuery, pickerCategories, showAllCategories, topCategoryNames, type]);
+
+  const subcategoryChips = useMemo(() => {
+    if (type !== 'expense' || !selectedCategory) return [] as string[];
+    const defaults = [...defaultSubcategoriesFor(selectedCategory)];
+    const custom = (getCustomSubcategories(selectedCategory) || []).map((c) => c.name);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of [...defaults, ...custom]) {
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      out.push(s);
+    }
+    return out;
+  }, [type, selectedCategory, getCustomSubcategories, customCategories]);
+
+  // Debounced category suggestion from description
+  useEffect(() => {
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    if (categoryPickedManually) return;
+    const text = title.trim();
+    if (text.length < 2) {
+      setSuggestedCategory(null);
+      return;
+    }
+    suggestTimer.current = setTimeout(() => {
+      let next: NormalizedCategory | null = suggestCategoryFromDescription(text, type);
+      if (!next && type === 'expense') {
+        const classified = classifyImportRow({
+          type: 'expense',
+          description: text,
+          title: text,
+        });
+        if (
+          classified.category &&
+          classified.category !== 'Ostatní' &&
+          (classified.source === 'keywords' ||
+            classified.source === 'dictionary' ||
+            classified.source === 'special')
+        ) {
+          next = {
+            category: classified.category,
+            subcategory: classified.subcategory ?? null,
+          };
+        }
+      }
+      if (next && type === 'expense') {
+        if (!isPickerExpenseCategory(next.category) && next.category !== 'Investice') {
+          if (!Object.keys(EXPENSE_CATEGORIES).includes(next.category)) next = null;
+          else if (!isPickerExpenseCategory(next.category)) next = null;
+        }
+      }
+      setSuggestedCategory(next);
+      if (next && !selectedCategory) {
+        setSelectedCategory(next.category);
+        setSelectedSubcategory(next.subcategory);
+      }
+    }, 300);
+    return () => {
+      if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    };
+  }, [title, type, categoryPickedManually, selectedCategory]);
 
   const { run: handleSubmit } = useAsyncAction(async () => {
     if (fxBusy) return;
@@ -158,6 +398,7 @@ export default function AddTransactionScreen() {
       amount: amountCzk,
       title,
       category: selectedCategory,
+      subcategory: type === 'expense' ? selectedSubcategory : null,
       date: dateYmd,
       originalAmount,
       originalCurrency,
@@ -170,10 +411,14 @@ export default function AddTransactionScreen() {
       originalCurrency && originalAmount != null
         ? `${amountCzk.toLocaleString('cs-CZ')} Kč (${originalAmount.toLocaleString('cs-CZ')} ${originalCurrency})`
         : `${amountCzk.toLocaleString('cs-CZ')} Kč`;
+    const catLabel =
+      type === 'expense'
+        ? formatCategoryDisplay(selectedCategory, selectedSubcategory, { withIcon: false })
+        : selectedCategory;
     showBuddyMessage(
       type === 'income' 
         ? `${t('addedIncome')} ${displayAmt}. ${t('dontForgetInvest')}`
-        : `${t('recordedExpense')} ${displayAmt} za ${selectedCategory}. ${t('watchBudget')}`
+        : `${t('recordedExpense')} ${displayAmt} za ${catLabel}. ${t('watchBudget')}`
     );
 
     // Reset form
@@ -181,8 +426,11 @@ export default function AddTransactionScreen() {
     setCurrency('CZK');
     setTitle('');
     setSelectedCategory('');
-    
-    Alert.alert(t('successMessage'), t('transactionAdded'));
+    setSelectedSubcategory(null);
+    setCategoryPickedManually(false);
+    setSuggestedCategory(null);
+    setAddingSubcategory(false);
+    setNewSubcategoryName('');
   });
 
 
@@ -196,6 +444,7 @@ export default function AddTransactionScreen() {
           amount: p.amount,
           title: p.title,
           category: p.category,
+          subcategory: p.subcategory ?? null,
           date: p.date,
         } as const;
         addTransaction(tx);
@@ -264,7 +513,18 @@ export default function AddTransactionScreen() {
               z.object({
                 title: z.string().describe('Název položky, např. "Mléko 1L" nebo "Rohlíky 5ks"'),
                 amount: z.number().describe('CELKOVÁ číselná částka za tuto položku v Kč'),
-                category: z.string().describe('Kategorie - jedna z: Jídlo a nápoje, Nájem a bydlení, Oblečení, Doprava, Zábava, Zdraví, Vzdělání, Nákupy, Služby, Ostatní'),
+                category: z
+                  .string()
+                  .describe(
+                    'Hlavní kategorie: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní',
+                  ),
+                subcategory: z
+                  .string()
+                  .nullable()
+                  .optional()
+                  .describe(
+                    'Volitelná podkategorie (např. Potraviny, Benzín a nafta, Streaming). Null pokud nejasné.',
+                  ),
               })
             ),
           });
@@ -282,7 +542,7 @@ export default function AddTransactionScreen() {
                     content: [
                       {
                         type: 'text',
-                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 50Kč, amount musí být 200, ne 50)\n2. Do title zahrň název produktu/služby + množství pokud je uvedeno\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš jednotkovou cenu a množství, vynásob je pro celkovou částku\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Mezisoučet" nebo "DPH" nebo "Celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je položka uvedena vícekrát, každá má vlastní záznam\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, internet, telefon\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: kino, hry, sport\n- Zdraví: léky, vitamíny, lékárna\n- Vzdělání: knihy, kurzy\n- Nákupy: elektronika, drogerie, domácnost\n- Služby: servis, opravy, služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtenke je: "Mléko 1,5%\n2 ks x 25 Kč\nCelkem: 50 Kč"\nVrať: {title: "Mléko 1,5% 2 ks", amount: 50, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 2:\nPokud na účtenke je: "Rohlík\n5 ks x 3 Kč\n15 Kč"\nVrať: {title: "Rohlík 5 ks", amount: 15, category: "Jídlo a nápoje"}\n\nPŘÍKLAD 3:\nPokud na účtenke je: "Benzín Natural 95\n35 L x 38,50 Kč\n1 347,50 Kč"\nVrať: {title: "Benzín Natural 95 35 L", amount: 1347.50, category: "Doprava"}',
+                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 50Kč, amount musí být 200, ne 50)\n2. Do title zahrň název produktu/služby + množství pokud je uvedeno\n3. Zpracuj VŠECHNY položky z účtenky, i když je jich hodně (10+, 20+, 50+)\n4. Pokud vidíš jednotkovou cenu a množství, vynásob je pro celkovou částku\n5. Nezapomeň na žádnou položku, i když je účtenka dlouhá\n6. Ignoruj mezisoučty jako "Mezisoučet" nebo "DPH" nebo "Celkem" - zajímají nás jen jednotlivé položky\n7. Pokud je položka uvedena vícekrát, každá má vlastní záznam\n\nKategorie:\n- Jídlo a nápoje: potraviny, nápoje, restaurace\n- Nájem a bydlení: nájem, energie, internet, telefon\n- Oblečení: oděvy, boty, doplňky\n- Doprava: benzín, jízdenky, taxi\n- Zábava: kino, hry, sport\n- Zdraví: léky, vitamíny, lékárna\n- Vzdělání: knihy, kurzy\n- Nákupy: elektronika, drogerie, domácnost\n- Služby: servis, opravy, služby\n- Ostatní: vše ostatní\n\nPŘÍKLAD 1:\nPokud na účtenke je: "Mléko 1,5%\n2 ks x 25 Kč\nCelkem: 50 Kč"\nVrať: {title: "Mléko 1,5% 2 ks", amount: 50, category: "Jídlo", subcategory: "Potraviny"}\n\nPŘÍKLAD 2:\nPokud na účtenke je: "Rohlík\n5 ks x 3 Kč\n15 Kč"\nVrať: {title: "Rohlík 5 ks", amount: 15, category: "Jídlo", subcategory: "Potraviny"}\n\nPŘÍKLAD 3:\nPokud na účtenke je: "Benzín Natural 95\n35 L x 38,50 Kč\n1 347,50 Kč"\nVrať: {title: "Benzín Natural 95 35 L", amount: 1347.50, category: "Auto a doprava", subcategory: "Benzín a nafta"}',
                       },
                       {
                         type: 'image',
@@ -353,13 +613,17 @@ export default function AddTransactionScreen() {
             return;
           }
           
-          const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => ({
-            type: 'expense' as const,
-            amount: parseMoneyInput(item.amount) ?? 0,
-            title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
-            category: item.category || 'Ostatní',
-            date: toYyyyMmDd(new Date()),
-          }));
+          const receiptTransactions: ParsedTxn[] = receiptItems.map((item: any, index: number) => {
+            const n = normalizeCategory(item.category || 'Ostatní', item.subcategory);
+            return {
+              type: 'expense' as const,
+              amount: parseMoneyInput(item.amount) ?? 0,
+              title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
+              category: n.category,
+              subcategory: n.subcategory,
+              date: toYyyyMmDd(new Date()),
+            };
+          });
           
           console.log('Receipt transactions created:', receiptTransactions.length);
           setPreview(receiptTransactions);
@@ -425,7 +689,8 @@ export default function AddTransactionScreen() {
               z.object({
                 title: z.string().describe('Název položky včetně množství, např. "Webový hosting 1 rok" nebo "Grafické práce 5 hodin"'),
                 amount: z.number().describe('CELKOVÁ číselná částka za tuto položku v Kč (ne jednotková cena)'),
-                category: z.string().describe('Kategorie - jedna z: Jídlo a nápoje, Nájem a bydlení, Oblečení, Doprava, Zábava, Zdraví, Vzdělání, Nákupy, Služby, Ostatní'),
+                category: z.string().describe('Hlavní kategorie: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní'),
+                subcategory: z.string().nullable().optional().describe('Volitelná podkategorie nebo null'),
               })
             ),
           });
@@ -514,13 +779,17 @@ export default function AddTransactionScreen() {
             return;
           }
           
-          const invoiceTransactions: ParsedTxn[] = invoiceItems.map((item: any, index: number) => ({
-            type: 'expense' as const,
-            amount: parseMoneyInput(item.amount) ?? 0,
-            title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
-            category: item.category || 'Ostatní',
-            date: toYyyyMmDd(new Date()),
-          }));
+          const invoiceTransactions: ParsedTxn[] = invoiceItems.map((item: any, index: number) => {
+            const n = normalizeCategory(item.category || 'Ostatní', item.subcategory);
+            return {
+              type: 'expense' as const,
+              amount: parseMoneyInput(item.amount) ?? 0,
+              title: item.title || t('addTransaction.itemFallback', { index: index + 1 }),
+              category: n.category,
+              subcategory: n.subcategory,
+              date: toYyyyMmDd(new Date()),
+            };
+          });
           
           console.log('Invoice transactions created:', invoiceTransactions.length);
           setPreview(invoiceTransactions);
@@ -654,13 +923,8 @@ export default function AddTransactionScreen() {
   }, [processReceiptFile, t]);
 
   const availableColors = [
-    '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', 
-    '#EC4899', '#6366F1', '#F97316', '#84CC16', '#6B7280'
-  ];
-
-  const availableIcons = [
-    '📦', '🍽️', '🏠', '👕', '🚗', '🎬', '⚕️', '📚', '🛍️', '🔧',
-    '💼', '💻', '📈', '🎁', '💰', '🎯', '🏋️', '✈️', '🎵', '📱'
+    '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6',
+    '#EC4899', '#6366F1', '#F97316', '#84CC16', '#6B7280',
   ];
 
   const handleCreateCategory = () => {
@@ -675,17 +939,58 @@ export default function AddTransactionScreen() {
       icon: newCategoryIcon,
       color: newCategoryColor,
       type: type,
+      parentCategory: null,
     };
 
     addCustomCategory(newCategory);
     setSelectedCategory(newCategory.name);
+    setSelectedSubcategory(null);
+    setCategoryPickedManually(true);
+    setSuggestedCategory(null);
     setCreateCategoryOpen(false);
     setNewCategoryName('');
     setNewCategoryIcon('📦');
     setNewCategoryColor('#6B7280');
-    
+    setCustomEmojiInput('');
+
     addPoints(2);
     showBuddyMessage(t('addTransaction.categoryCreated'));
+  };
+
+  const handleCreateSubcategory = () => {
+    const name = newSubcategoryName.trim();
+    if (!name || !selectedCategory) return;
+    const newCategory: CustomCategory = {
+      id: Date.now().toString(),
+      name,
+      icon: getExpenseCategoryDef(selectedCategory)?.icon || '📦',
+      color: getExpenseCategoryDef(selectedCategory)?.color || '#6B7280',
+      type: 'expense',
+      parentCategory: selectedCategory,
+    };
+    addCustomCategory(newCategory);
+    setSelectedSubcategory(name);
+    setCategoryPickedManually(true);
+    setSuggestedCategory(null);
+    setAddingSubcategory(false);
+    setNewSubcategoryName('');
+    addPoints(1);
+  };
+
+  const pickCategory = (name: string, manual: boolean, sub?: string | null) => {
+    setSelectedCategory(name);
+    setSelectedSubcategory(sub ?? null);
+    setAddingSubcategory(false);
+    setNewSubcategoryName('');
+    if (manual) {
+      setCategoryPickedManually(true);
+      setSuggestedCategory(null);
+    }
+  };
+
+  const pickSuggested = () => {
+    if (!suggestedCategory) return;
+    pickCategory(suggestedCategory.category, true, suggestedCategory.subcategory);
   };
 
   const TypeSelector = () => (
@@ -694,7 +999,7 @@ export default function AddTransactionScreen() {
         style={[styles.typeButton, type === 'income' && styles.typeButtonActive]}
         onPress={() => {
           setType('income');
-          setSelectedCategory('');
+          resetCategoryUi();
         }}
       >
         <LinearGradient
@@ -707,12 +1012,12 @@ export default function AddTransactionScreen() {
           </Text>
         </LinearGradient>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.typeButton, type === 'expense' && styles.typeButtonActive]}
         onPress={() => {
           setType('expense');
-          setSelectedCategory('');
+          resetCategoryUi();
         }}
       >
         <LinearGradient
@@ -728,65 +1033,209 @@ export default function AddTransactionScreen() {
     </View>
   );
 
+  const activeEmojiGroup = EMOJI_GROUPS.find((g) => g.key === emojiGroupKey) ?? EMOJI_GROUPS[0]!;
+
   const CategoryGrid = () => (
-    <View style={styles.categoryGrid}>
-      {categories.map((category) => {
-    
-        const isSelected = selectedCategory === category.id;
-        
-        return (
+    <View>
+      <View
+        style={[
+          styles.categorySearchRow,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <Search color={colors.textSecondary} size={18} />
+        <TextInput
+          style={[styles.categorySearchInput, { color: colors.text }]}
+          value={categoryQuery}
+          onChangeText={setCategoryQuery}
+          placeholder={t('addTransaction.searchCategory')}
+          placeholderTextColor={colors.textSecondary}
+          autoCorrect={false}
+        />
+        {categoryQuery ? (
+          <TouchableOpacity onPress={() => setCategoryQuery('')} hitSlop={8}>
+            <X color={colors.textSecondary} size={16} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {suggestedCategory && !categoryPickedManually ? (
+        <View style={[styles.suggestChip, { backgroundColor: colors.muted, borderColor: colors.border }]}>
           <TouchableOpacity
-            key={category.id}
-            testID={`category-${category.id}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isSelected }}
-            style={[
-              styles.categoryCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-              isSelected && styles.categoryCardSelected,
-              isSelected ? { borderColor: category.color } : null,
-            ]}
-            onPress={() => setSelectedCategory(category.id)}
+            style={styles.suggestChipMain}
+            onPress={pickSuggested}
+            activeOpacity={0.85}
           >
-            <View
-              style={[
-                styles.categoryIcon,
-                {
-                  backgroundColor: isSelected ? (category.color + '33') : (category.color + '20'),
-                  borderWidth: isSelected ? 2 : 0,
-                  borderColor: isSelected ? category.color : 'transparent',
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 24 }}>
-                {categoryData[category.name]?.icon || '📦'}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.categoryText,
-                { color: colors.text },
-                isSelected ? { color: category.color, fontWeight: '700' } : null,
-              ]}
-              numberOfLines={1}
-            >
-              {category.name}
+            <Text style={[styles.suggestChipText, { color: colors.text }]}>
+              {t('addTransaction.suggestedCategory', {
+                icon:
+                  categoryData[suggestedCategory.category]?.icon ||
+                  getExpenseCategoryDef(suggestedCategory.category)?.icon ||
+                  '📦',
+                name: formatCategoryDisplay(
+                  suggestedCategory.category,
+                  suggestedCategory.subcategory,
+                  { withIcon: false },
+                ).replace(' · ', ' › '),
+              })}
             </Text>
           </TouchableOpacity>
-        );
-      })}
-      
-      <TouchableOpacity
-        style={[styles.categoryCard, styles.addCategoryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => setCreateCategoryOpen(true)}
-      >
-        <View style={[styles.categoryIcon, { backgroundColor: colors.muted }]}>
-          <Plus color={colors.textSecondary} size={24} />
+          <TouchableOpacity
+            onPress={() => {
+              setSuggestedCategory(null);
+              if (selectedCategory === suggestedCategory.category) {
+                setSelectedCategory('');
+                setSelectedSubcategory(null);
+              }
+            }}
+            hitSlop={8}
+          >
+            <X color={colors.textSecondary} size={16} />
+          </TouchableOpacity>
         </View>
-        <Text style={[styles.categoryText, { color: colors.textSecondary }]}>
-          {t('addTransaction.newCategory')}
-        </Text>
-      </TouchableOpacity>
+      ) : null}
+
+      <View style={styles.categoryGrid}>
+        {visibleCategories.map((category) => {
+          const isSelected = selectedCategory === category.id;
+          return (
+            <TouchableOpacity
+              key={category.id}
+              testID={`category-${category.id}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              style={[
+                styles.categoryCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                isSelected && styles.categoryCardSelected,
+                isSelected ? { borderColor: category.color } : null,
+              ]}
+              onPress={() => pickCategory(category.id, true, null)}
+            >
+              <View
+                style={[
+                  styles.categoryIcon,
+                  {
+                    backgroundColor: isSelected ? category.color + '33' : category.color + '20',
+                    borderWidth: isSelected ? 2 : 0,
+                    borderColor: isSelected ? category.color : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 24 }}>{categoryData[category.name]?.icon || '📦'}</Text>
+              </View>
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: colors.text },
+                  isSelected ? { color: category.color, fontWeight: '700' } : null,
+                ]}
+                numberOfLines={1}
+              >
+                {category.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
+        <TouchableOpacity
+          style={[
+            styles.categoryCard,
+            styles.addCategoryCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+          onPress={() => setCreateCategoryOpen(true)}
+        >
+          <View style={[styles.categoryIcon, { backgroundColor: colors.muted }]}>
+            <Plus color={colors.textSecondary} size={24} />
+          </View>
+          <Text style={[styles.categoryText, { color: colors.textSecondary }]}>
+            {t('addTransaction.newCategory')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {type === 'expense' && selectedCategory ? (
+        <View style={styles.subcategorySection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcategoryRow}>
+            {subcategoryChips.map((sub) => {
+              const active = selectedSubcategory === sub;
+              return (
+                <TouchableOpacity
+                  key={sub}
+                  style={[
+                    styles.subcategoryChip,
+                    {
+                      backgroundColor: active ? colors.primary + '22' : colors.surface,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedSubcategory(active ? null : sub);
+                    setCategoryPickedManually(true);
+                    setSuggestedCategory(null);
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active ? colors.primary : colors.text,
+                      fontWeight: active ? '700' : '500',
+                      fontSize: 13,
+                    }}
+                  >
+                    {sub}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {addingSubcategory ? (
+              <View
+                style={[
+                  styles.subcategoryChip,
+                  styles.subcategoryInputChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <TextInput
+                  style={{ color: colors.text, minWidth: 100, fontSize: 13, padding: 0 }}
+                  value={newSubcategoryName}
+                  onChangeText={setNewSubcategoryName}
+                  placeholder={t('addTransaction.subcategoryPlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  autoFocus
+                  onSubmitEditing={handleCreateSubcategory}
+                />
+                <TouchableOpacity onPress={handleCreateSubcategory} hitSlop={6}>
+                  <Plus color={colors.primary} size={16} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.subcategoryChip,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+                onPress={() => setAddingSubcategory(true)}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
+                  {t('addTransaction.addSubcategory')}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {type === 'expense' && !categoryQuery && !showAllCategories ? (
+        <TouchableOpacity
+          style={[styles.showAllCategoriesBtn, { borderColor: colors.border }]}
+          onPress={() => setShowAllCategories(true)}
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
+            {t('addTransaction.showAllCategories')}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 
@@ -825,46 +1274,73 @@ export default function AddTransactionScreen() {
           </TouchableOpacity>
         </View>
 
-        <TypeSelector />
-
-        <View style={styles.importSection}>
-          <View style={styles.receiptButtons}>
-            <TouchableOpacity
-              style={[styles.receiptButton, styles.receiptButtonCamera]}
-              onPress={scanReceiptWithCamera}
-              disabled={scanningReceipt}
+        {typeLocked ? (
+          <View
+            style={[
+              styles.lockedTypeBanner,
+              {
+                backgroundColor: type === 'income' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                borderColor: type === 'income' ? '#10B981' : '#EF4444',
+              },
+            ]}
+          >
+            {type === 'income' ? (
+              <TrendingUp color="#10B981" size={22} />
+            ) : (
+              <TrendingDown color="#EF4444" size={22} />
+            )}
+            <Text
+              style={[
+                styles.lockedTypeTitle,
+                { color: type === 'income' ? '#059669' : '#DC2626' },
+              ]}
             >
-              <LinearGradient colors={["#f59e0b", "#d97706"]} style={styles.receiptGradient}>
-                {scanningReceipt ? (
-                  <ActivityIndicator color="#fff" size={16} />
-                ) : (
-                  <>
-                    <Camera color="#fff" size={16} />
-                    <Text style={styles.receiptButtonText}>{t('photoReceipt')}</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.receiptButton, styles.receiptButtonCamera]}
-              onPress={scanInvoiceWithCamera}
-              disabled={scanningInvoice}
-            >
-              <LinearGradient colors={["#10b981", "#059669"]} style={styles.receiptGradient}>
-                {scanningInvoice ? (
-                  <ActivityIndicator color="#fff" size={16} />
-                ) : (
-                  <>
-                    <Camera color="#fff" size={16} />
-                    <Text style={styles.receiptButtonText}>{t('addTransaction.photoInvoice')}</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+              {type === 'income' ? t('addTransaction.newIncomeTitle') : t('addTransaction.newExpenseTitle')}
+            </Text>
           </View>
-          
-        </View>
+        ) : (
+          <TypeSelector />
+        )}
+
+        {RECEIPT_SCAN_ENABLED ? (
+          <View style={styles.importSection}>
+            <View style={styles.receiptButtons}>
+              <TouchableOpacity
+                style={[styles.receiptButton, styles.receiptButtonCamera]}
+                onPress={scanReceiptWithCamera}
+                disabled={scanningReceipt}
+              >
+                <LinearGradient colors={["#f59e0b", "#d97706"]} style={styles.receiptGradient}>
+                  {scanningReceipt ? (
+                    <ActivityIndicator color="#fff" size={16} />
+                  ) : (
+                    <>
+                      <Camera color="#fff" size={16} />
+                      <Text style={styles.receiptButtonText}>{t('photoReceipt')}</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.receiptButton, styles.receiptButtonCamera]}
+                onPress={scanInvoiceWithCamera}
+                disabled={scanningInvoice}
+              >
+                <LinearGradient colors={["#10b981", "#059669"]} style={styles.receiptGradient}>
+                  {scanningInvoice ? (
+                    <ActivityIndicator color="#fff" size={16} />
+                  ) : (
+                    <>
+                      <Camera color="#fff" size={16} />
+                      <Text style={styles.receiptButtonText}>{t('addTransaction.photoInvoice')}</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.inputSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('amount')}</Text>
@@ -1066,20 +1542,70 @@ export default function AddTransactionScreen() {
               />
               
               <Text style={styles.formLabel}>{t('addTransaction.icon')}</Text>
-              <View style={styles.iconGrid}>
-                {availableIcons.map((icon) => (
-                  <TouchableOpacity
-                    key={icon}
-                    style={[
-                      styles.iconOption,
-                      newCategoryIcon === icon && styles.iconOptionSelected
-                    ]}
-                    onPress={() => setNewCategoryIcon(icon)}
-                  >
-                    <Text style={styles.iconText}>{icon}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.emojiTabs}
+                contentContainerStyle={styles.emojiTabsContent}
+              >
+                {EMOJI_GROUPS.map((g) => {
+                  const active = g.key === emojiGroupKey;
+                  return (
+                    <TouchableOpacity
+                      key={g.key}
+                      style={[
+                        styles.emojiTab,
+                        active && { backgroundColor: colors.primary },
+                      ]}
+                      onPress={() => setEmojiGroupKey(g.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.emojiTabText,
+                          { color: active ? '#fff' : colors.textSecondary },
+                        ]}
+                      >
+                        {language === 'en' ? g.labelEn : g.labelCs}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <ScrollView style={styles.emojiScroll} nestedScrollEnabled>
+                <View style={styles.iconGridWide}>
+                  {activeEmojiGroup.emojis.map((icon) => (
+                    <TouchableOpacity
+                      key={icon}
+                      style={[
+                        styles.iconOption,
+                        newCategoryIcon === icon && styles.iconOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setNewCategoryIcon(icon);
+                        setCustomEmojiInput('');
+                      }}
+                    >
+                      <Text style={styles.iconText}>{icon}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <Text style={[styles.formLabel, { marginTop: 8 }]}>
+                {t('addTransaction.customEmoji')}
+              </Text>
+              <TextInput
+                style={styles.categoryNameInput}
+                value={customEmojiInput}
+                onChangeText={(v) => {
+                  const chars = [...v];
+                  const emoji = chars[0] ?? '';
+                  setCustomEmojiInput(emoji);
+                  if (emoji) setNewCategoryIcon(emoji);
+                }}
+                placeholder={t('addTransaction.customEmojiPlaceholder')}
+                placeholderTextColor="#9CA3AF"
+                maxLength={8}
+              />
               
               <Text style={styles.formLabel}>{t('addTransaction.color')}</Text>
               <View style={styles.colorGrid}>
@@ -1528,6 +2054,109 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     backgroundColor: '#F9FAFB',
   },
+  lockedTypeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  lockedTypeTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  categorySearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  categorySearchInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
+  },
+  suggestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  suggestChipMain: {
+    flex: 1,
+  },
+  suggestChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  subcategorySection: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  subcategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  subcategoryChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  subcategoryInputChip: {
+    borderRadius: 12,
+  },
+  showAllCategoriesBtn: {
+    marginTop: 8,
+    marginBottom: 4,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  emojiTabs: {
+    marginBottom: 10,
+    maxHeight: 40,
+  },
+  emojiTabsContent: {
+    gap: 8,
+    paddingRight: 8,
+  },
+  emojiTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+  },
+  emojiTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emojiScroll: {
+    maxHeight: 160,
+  },
+  iconGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   createCategoryModal: {
     width: '90%',
     maxHeight: '80%',
@@ -1562,8 +2191,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconOption: {
-    width: 44,
-    height: 44,
+    width: '11.5%',
+    aspectRatio: 1,
+    minWidth: 36,
+    maxWidth: 44,
     borderRadius: 12,
     backgroundColor: '#F9FAFB',
     alignItems: 'center',

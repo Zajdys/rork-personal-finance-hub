@@ -12,34 +12,18 @@ import {
 } from '@/lib/normalize-merchant-key';
 import { lookupMerchantDictionary } from '@/lib/merchant-dictionary';
 import { lookupMerchantKeywords } from '@/lib/merchant-keywords';
-import { isLoanPaymentText, LOAN_PAYMENT_CATEGORY } from '@/lib/loan-payment-detect';
+import {
+  isLoanPaymentText,
+  LOAN_PAYMENT_CATEGORY,
+  LOAN_PAYMENT_SUBCATEGORY,
+} from '@/lib/loan-payment-detect';
+import { LEGACY_MAP, normalizeCategory } from '@/lib/category-normalize';
+import { EXPENSE_CATEGORY_TREE } from '@/constants/categories';
 
+/** Povolené názvy (nový strom + legacy klíče z LEGACY_MAP). */
 export const ALLOWED_EXPENSE_CATEGORIES = [
-  'Jídlo a nápoje',
-  'Nájem a bydlení',
-  'Bydlení',
-  'Oblečení',
-  'Oblečení a obuv',
-  'Doprava',
-  'Zábava',
-  'Zábava a kultura',
-  'Cestování a ubytování',
-  'Elektronika',
-  'Domácnost a nábytek',
-  'Zdraví',
-  'Sport',
-  'Sport a zdraví',
-  'Vzdělání',
-  'Nákupy',
-  'Služby',
-  'Telefon a internet',
-  'Splátky úvěrů',
-  'Bankovní poplatky',
-  'Investice',
-  'Výběr hotovosti',
-  'Platby lidem',
-  'Předplatné',
-  'Ostatní',
+  ...EXPENSE_CATEGORY_TREE.map((c) => c.name),
+  ...Object.keys(LEGACY_MAP),
 ] as const;
 
 export type AllowedExpenseCategory = (typeof ALLOWED_EXPENSE_CATEGORIES)[number];
@@ -64,6 +48,7 @@ export type ClassifyImportInput = {
 
 export type ClassifyImportResult = {
   category: string;
+  subcategory?: string | null;
   merchantKey: string | null;
   description: string;
   counterpartyName?: string | null;
@@ -183,6 +168,7 @@ export function withBackfilledCounterpartyName<T extends ClassifyImportInput>(
  */
 export function applySpecialCases(input: ClassifyImportInput): {
   category: string | null;
+  subcategory?: string | null;
   description: string;
   merchantKey: string | null;
   counterpartyName: string | null;
@@ -197,6 +183,7 @@ export function applySpecialCases(input: ClassifyImportInput): {
   if (isLoanPaymentText(blob, description, counterpartyName)) {
     return {
       category: LOAN_PAYMENT_CATEGORY,
+      subcategory: LOAN_PAYMENT_SUBCATEGORY,
       description: description === 'Bez popisu' ? 'Splátka úvěru' : description,
       merchantKey: null,
       counterpartyName,
@@ -234,7 +221,8 @@ export function applySpecialCases(input: ClassifyImportInput): {
 
   if (isAtmOrCashDescription(blob) && input.type !== 'income') {
     return {
-      category: 'Výběr hotovosti',
+      category: 'Poplatky a hotovost',
+      subcategory: 'Výběr hotovosti',
       description: 'Výběr hotovosti',
       merchantKey: null,
       counterpartyName,
@@ -293,10 +281,12 @@ export function applySpecialCases(input: ClassifyImportInput): {
   };
 }
 
+export type ClassifyRuleValue = string | { category: string; subcategory?: string | null };
+
 export type ClassifyContext = {
-  userRules?: ReadonlyMap<string, string> | Readonly<Record<string, string>>;
+  userRules?: ReadonlyMap<string, ClassifyRuleValue> | Readonly<Record<string, ClassifyRuleValue>>;
   /** Globální crowd cache (merchant_categories source='crowd') */
-  globalCache?: ReadonlyMap<string, string> | Readonly<Record<string, string>>;
+  globalCache?: ReadonlyMap<string, ClassifyRuleValue> | Readonly<Record<string, ClassifyRuleValue>>;
   /**
    * @deprecated Detekce předplatného už neběží uvnitř classify — jen post-hoc shluky
    * (`collectSubscriptionClusterTxIds`). Ignorováno.
@@ -305,12 +295,24 @@ export type ClassifyContext = {
 };
 
 function mapGet(
-  map: ReadonlyMap<string, string> | Readonly<Record<string, string>> | undefined,
+  map:
+    | ReadonlyMap<string, ClassifyRuleValue>
+    | Readonly<Record<string, ClassifyRuleValue>>
+    | undefined,
   key: string,
-): string | undefined {
+): ClassifyRuleValue | undefined {
   if (!map || !key) return undefined;
   if (map instanceof Map) return map.get(key);
-  return map[key];
+  return (map as Record<string, ClassifyRuleValue>)[key];
+}
+
+function ruleToParts(rule: ClassifyRuleValue): { category: string; subcategory: string | null } {
+  if (typeof rule === 'string') {
+    const n = normalizeCategory(rule);
+    return { category: n.category, subcategory: n.subcategory };
+  }
+  const n = normalizeCategory(rule.category, rule.subcategory);
+  return { category: n.category, subcategory: n.subcategory };
 }
 
 /**
@@ -340,10 +342,19 @@ export function classifyUnknown(_merchantKey: string): string | null {
 
 /**
  * Klasifikace jedné transakce.
- * Layer 0: splátka úvěru (i když by jinak byla Převod) → Splátky úvěrů
+ * Layer 0: splátka úvěru (i když by jinak byla Převod) → Úvěry
  * Layer 0b: Převod
  */
 export function classifyImportRow(
+  input: ClassifyImportInput,
+  ctx: ClassifyContext = {},
+): ClassifyImportResult {
+  const result = classifyImportRowRaw(input, ctx);
+  const n = normalizeCategory(result.category, result.subcategory);
+  return { ...result, category: n.category, subcategory: n.subcategory };
+}
+
+function classifyImportRowRaw(
   input: ClassifyImportInput,
   ctx: ClassifyContext = {},
 ): ClassifyImportResult {
@@ -353,6 +364,7 @@ export function classifyImportRow(
   if (isLoanPaymentText(blobForLoan) && input.type !== 'income') {
     return {
       category: LOAN_PAYMENT_CATEGORY,
+      subcategory: LOAN_PAYMENT_SUBCATEGORY,
       merchantKey: null,
       description:
         (input.description || input.title || 'Splátka úvěru').trim() || 'Splátka úvěru',
@@ -409,6 +421,7 @@ export function classifyImportRow(
   if (special.handled && special.category) {
     return {
       category: special.category,
+      subcategory: special.subcategory ?? null,
       merchantKey,
       description,
       counterpartyName,
@@ -419,19 +432,45 @@ export function classifyImportRow(
   if (merchantKey) {
     // 1) user rules
     const user = mapGet(ctx.userRules, merchantKey);
-    if (user && isAllowedExpenseCategory(user)) {
-      return { category: user, merchantKey, description, counterpartyName, source: 'user_rule' };
+    if (user) {
+      const parts = ruleToParts(user);
+      if (isAllowedExpenseCategory(parts.category)) {
+        return {
+          category: parts.category,
+          subcategory: parts.subcategory,
+          merchantKey,
+          description,
+          counterpartyName,
+          source: 'user_rule',
+        };
+      }
     }
     // 2) crowd
     const crowd = mapGet(ctx.globalCache, merchantKey);
-    if (crowd && isAllowedExpenseCategory(crowd)) {
-      return { category: crowd, merchantKey, description, counterpartyName, source: 'crowd' };
+    if (crowd) {
+      const parts = ruleToParts(crowd);
+      if (isAllowedExpenseCategory(parts.category)) {
+        return {
+          category: parts.category,
+          subcategory: parts.subcategory,
+          merchantKey,
+          description,
+          counterpartyName,
+          source: 'crowd',
+        };
+      }
     }
-    // 3) dictionary (Předplatné jen u čistě subscription brandů; Apple/Google → Elektronika/Ostatní
-    //    a shluky se aplikují až post-hoc v reclassify / import modal)
+    // 3) dictionary
     const dict = lookupMerchantDictionary(merchantKey);
-    if (dict && isAllowedExpenseCategory(dict)) {
-      return { category: dict, merchantKey, description, counterpartyName, source: 'dictionary' };
+    if (dict && isAllowedExpenseCategory(dict.category)) {
+      return {
+        category: dict.category,
+        subcategory: dict.subcategory ?? null,
+        merchantKey,
+        description,
+        counterpartyName,
+        source: 'dictionary',
+      };
     }
   }
 
@@ -440,8 +479,15 @@ export function classifyImportRow(
     .filter(Boolean)
     .join(' ');
   const kw = lookupMerchantKeywords(kwHay);
-  if (kw && isAllowedExpenseCategory(kw)) {
-    return { category: kw, merchantKey, description, counterpartyName, source: 'keywords' };
+  if (kw && isAllowedExpenseCategory(kw.category)) {
+    return {
+      category: kw.category,
+      subcategory: kw.subcategory ?? null,
+      merchantKey,
+      description,
+      counterpartyName,
+      source: 'keywords',
+    };
   }
 
   if (merchantKey) {
@@ -449,6 +495,7 @@ export function classifyImportRow(
     if (hooked && isAllowedExpenseCategory(hooked)) {
       return {
         category: hooked,
+        subcategory: null,
         merchantKey,
         description,
         counterpartyName,
@@ -460,6 +507,7 @@ export function classifyImportRow(
   if (input.category && input.category !== 'Ostatní' && isAllowedExpenseCategory(input.category)) {
     return {
       category: input.category,
+      subcategory: null,
       merchantKey,
       description,
       counterpartyName,
@@ -469,6 +517,7 @@ export function classifyImportRow(
 
   return {
     category: 'Ostatní',
+    subcategory: null,
     merchantKey,
     description,
     counterpartyName,

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { useTheme } from '@/hooks/use-theme';
@@ -265,18 +265,8 @@ export default function InvestmentPositionDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen
-        options={{
-          title: ticker || t('screenInvestmentPosition'),
-          headerShown: true,
-          headerStyle: { backgroundColor: isDark ? '#1F2937' : '#8B5CF6' },
-          headerTintColor: 'white',
-          headerTitleStyle: { fontWeight: '700', color: 'white' },
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={ticker || t('screenInvestmentPosition')} variant="gradient" />
 
       <ScrollView
         contentContainerStyle={styles.scroll}

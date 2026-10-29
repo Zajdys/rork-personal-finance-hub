@@ -20,10 +20,10 @@ import {
   Repeat,
   Target,
   TrendingUp,
-  X,
 } from 'lucide-react-native';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useLanguageStore } from '@/store/language-store';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useAuth } from '@/store/auth-store';
 import { useTheme } from '@/hooks/use-theme';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -348,18 +348,7 @@ export default function ChooseSubscriptionScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 8) }]}>
-        <View style={styles.topBarSpacer} />
-        <TouchableOpacity
-          style={[styles.closeBtn, { backgroundColor: colors.muted }]}
-          onPress={leavePaywall}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={t('close')}
-        >
-          <X color={colors.text} size={20} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader title="" dismissible onDismiss={leavePaywall} />
 
       <ScrollView
         style={styles.scrollView}
@@ -496,23 +485,6 @@ export default function ChooseSubscriptionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  topBarSpacer: {
-    flex: 1,
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,

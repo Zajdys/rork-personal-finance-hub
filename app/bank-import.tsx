@@ -21,7 +21,8 @@ import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { usePremium } from '@/hooks/usePremium';
 import { PremiumGate, openPaywall } from '@/components/PremiumGate';
 import {
@@ -796,6 +797,8 @@ export default function BankImportScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('bankImportScreenTitle')} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <LinearGradient
           colors={['#0D9488', '#0F766E']}

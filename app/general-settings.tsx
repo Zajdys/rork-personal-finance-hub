@@ -8,9 +8,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { Download, Trash2, ChevronRight, Landmark } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
@@ -128,32 +127,11 @@ export default function GeneralSettingsScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('generalSettings'),
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.primary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.primary} />
-          ),
-          headerTitleStyle: { fontWeight: '700', color: colors.text },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('generalSettings')} subtitle={t('generalSettingsSubtitle')} variant="gradient" />
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={[styles.header, { shadowColor: shadowSoft }]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('generalSettings')}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.text, opacity: 0.92 }]}>
-            {t('generalSettingsSubtitle')}
-          </Text>
-        </LinearGradient>
-
         <View style={[styles.content, { backgroundColor: colors.background }]}>
           <SettingItem
                 icon={Landmark}
@@ -187,7 +165,7 @@ export default function GeneralSettingsScreen() {
               />
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 

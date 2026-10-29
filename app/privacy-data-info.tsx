@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 
@@ -21,18 +21,10 @@ export default function PrivacyDataInfoScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('privacyDataPrivacy'),
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.primary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.primary} />
-          ),
-          headerTitleStyle: { fontWeight: '700', color: colors.text },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('privacyDataPrivacy')} />
+
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.pad}>
         <Text style={[styles.lead, { color: colors.textSecondary }]}>{t('privacyDataProcessedIntro')}</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -46,7 +38,7 @@ export default function PrivacyDataInfoScreen() {
         <Text style={[styles.section, { color: colors.text }]}>{t('privacyDataWhereStored')}</Text>
         <Text style={[styles.body, { color: colors.textSecondary }]}>{t('privacyDataRetention')}</Text>
       </ScrollView>
-    </>
+    </View>
   );
 }
 

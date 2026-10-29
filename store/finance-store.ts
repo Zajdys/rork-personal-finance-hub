@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { mainCategoryName } from '@/lib/category-normalize';
+import {
+  buildExpenseCategoriesRecord,
+  buildIncomeCategoriesRecord,
+} from '@/constants/categories';
 import { computeLoanDetailOverview } from '@/lib/loan-math';
 import {
   findBestMatchingLoan,
@@ -66,6 +71,8 @@ export interface Transaction {
   name?: string;
   merchant?: string;
   category: string;
+  /** Podkategorie výdaje (DB `subcategory`); u příjmů zatím null */
+  subcategory?: string | null;
   /** Kalendářní den v lokální časové zóně, formát YYYY-MM-DD (zaúčtování) */
   date: string;
   /**
@@ -187,46 +194,10 @@ export interface SubscriptionItem {
 
 export type { IgnoredSubscriptionSuggestion };
 
-export const EXPENSE_CATEGORIES = {
-  'Jídlo a nápoje': { icon: '🍽️', color: '#EF4444' },
-  'Nájem a bydlení': { icon: '🏠', color: '#8B5CF6' },
-  'Bydlení': { icon: '🏡', color: '#7C3AED' },
-  'Oblečení': { icon: '👕', color: '#F59E0B' },
-  'Oblečení a obuv': { icon: '👟', color: '#D97706' },
-  'Doprava': { icon: '🚗', color: '#10B981' },
-  'Zábava': { icon: '🎬', color: '#EC4899' },
-  'Zábava a kultura': { icon: '🎭', color: '#DB2777' },
-  'Cestování a ubytování': { icon: '✈️', color: '#0EA5E9' },
-  'Elektronika': { icon: '💻', color: '#6366F1' },
-  'Domácnost a nábytek': { icon: '🛋️', color: '#A16207' },
-  'Zdraví': { icon: '⚕️', color: '#06B6D4' },
-  'Sport': { icon: '⚽', color: '#22C55E' },
-  'Sport a zdraví': { icon: '🏃', color: '#14B8A6' },
-  'Vzdělání': { icon: '📚', color: '#6366F1' },
-  'Nákupy': { icon: '🛍️', color: '#F97316' },
-  'Služby': { icon: '🔧', color: '#84CC16' },
-  'Telefon a internet': { icon: '📱', color: '#3B82F6' },
-  'Splátky úvěrů': { icon: '🏦', color: '#0F766E' },
-  'Bankovní poplatky': { icon: '🏛', color: '#78716C' },
-  'Výběr hotovosti': { icon: '💵', color: '#64748B' },
-  'Platby lidem': { icon: '👥', color: '#8B5CF6' },
-  Předplatné: { icon: '📺', color: '#A855F7' },
-  /** Převod na broker / nákup aktiv — nezapočítává se do součtu výdajů. */
-  Investice: { icon: '📈', color: '#9CA3AF' },
-  Převod: { icon: '🔄', color: '#9CA3AF' },
-  'Ostatní': { icon: '📦', color: '#6B7280' },
-} as const;
+/** Hlavní + strukturální výdajové kategorie (ikona/barva). Legacy klíče doplňuje resolveCategoryMeta. */
+export const EXPENSE_CATEGORIES = buildExpenseCategoriesRecord();
 
-export const INCOME_CATEGORIES = {
-  'Mzda': { icon: '💼', color: '#10B981' },
-  'Freelance': { icon: '💻', color: '#8B5CF6' },
-  'Investice': { icon: '📈', color: '#F59E0B' },
-  'Dary': { icon: '🎁', color: '#EC4899' },
-  'Vklad hotovosti': { icon: '💵', color: '#65A30D' },
-  Předplatné: { icon: '📺', color: '#A855F7' },
-  Převod: { icon: '🔄', color: '#9CA3AF' },
-  'Ostatní': { icon: '💰', color: '#6B7280' },
-} as const;
+export const INCOME_CATEGORIES = buildIncomeCategoriesRecord();
 
 /** Povolené výdajové kategorie pro AI / slovník (bez Převod — strukturální). */
 export const CLASSIFIABLE_EXPENSE_CATEGORIES = Object.keys(EXPENSE_CATEGORIES).filter(
@@ -240,6 +211,8 @@ export interface CustomCategory {
   icon: string;
   color: string;
   type: 'income' | 'expense';
+  /** Pokud nastaveno = podkategorie pod touto hlavní kategorií (DB `parent_category`) */
+  parentCategory?: string | null;
 }
 
 export type LoanType = 'mortgage' | 'car' | 'personal' | 'student' | 'other';
@@ -362,10 +335,10 @@ export function computeMonthlyReportFromTransactions(
   const categoryTotals: { [key: string]: number } = {};
   for (const transaction of monthTransactions) {
     if (isExpenseForReport(transaction)) {
-      const category = transaction.category || 'Ostatní';
+      const category = mainCategoryName(transaction.category, transaction.subcategory);
       categoryTotals[category] = (categoryTotals[category] || 0) + transaction.amount;
     } else if (isRefundTransaction(transaction)) {
-      const category = transaction.category || 'Ostatní';
+      const category = mainCategoryName(transaction.category, transaction.subcategory);
       categoryTotals[category] = (categoryTotals[category] || 0) - transaction.amount;
     }
   }
@@ -385,8 +358,8 @@ export function computeMonthlyReportFromTransactions(
     categoryBreakdown.find((c) => c.category !== 'Ostatní')?.category ??
     categoryBreakdown[0]?.category ??
     'Žádné výdaje';
-  /** Insight „vysoké výdaje“: podíl bez fixních kategorií Splátky úvěrů / Bydlení. */
-  const highCategoryExcluded = new Set(['Splátky úvěrů', 'Bydlení']);
+  /** Insight „vysoké výdaje“: podíl bez fixních kategorií Úvěry / Bydlení. */
+  const highCategoryExcluded = new Set(['Úvěry', 'Bydlení']);
   const variableForInsight = categoryBreakdown.filter((c) => !highCategoryExcluded.has(c.category));
   const variableInsightTotal = variableForInsight.reduce((s, c) => s + c.amount, 0);
   const topCategoryForInsight =
@@ -485,10 +458,10 @@ function computeCategoryExpensesFromMonthTransactions(
   const categoryTotals: { [key: string]: number } = {};
   for (const transaction of currentMonthTx) {
     if (isExpenseForReport(transaction)) {
-      const category = transaction.category || 'Ostatní';
+      const category = mainCategoryName(transaction.category, transaction.subcategory);
       categoryTotals[category] = (categoryTotals[category] || 0) + transaction.amount;
     } else if (isRefundTransaction(transaction)) {
-      const category = transaction.category || 'Ostatní';
+      const category = mainCategoryName(transaction.category, transaction.subcategory);
       categoryTotals[category] = (categoryTotals[category] || 0) - transaction.amount;
     }
   }
@@ -497,7 +470,9 @@ function computeCategoryExpensesFromMonthTransactions(
     .filter(([, amount]) => amount > 0.009)
     .map(([category, amount]) => {
       const categoryGoal = financialGoals.find(
-        (goal) => goal.type === 'spending_limit' && goal.category === category,
+        (goal) =>
+          goal.type === 'spending_limit' &&
+          mainCategoryName(goal.category) === category,
       );
 
       /** Podíl kategorie na celkových výdajích měsíce (součet řádků ≈ 100 %). */
@@ -614,6 +589,7 @@ interface FinanceState {
   addCustomCategory: (category: CustomCategory) => void;
   deleteCustomCategory: (id: string) => void;
   getAllCategories: (type: 'income' | 'expense') => { [key: string]: { icon: string; color: string } };
+  getCustomSubcategories: (parentCategory: string) => CustomCategory[];
   addLoan: (loan: LoanItem) => void;
   updateLoan: (id: string, updates: Partial<LoanItem>) => void;
   deleteLoan: (id: string) => void;
@@ -987,10 +963,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     const monthTx = excludeTransfersFromReports(
       getMonthTransactions(state.transactions, now.getFullYear(), now.getMonth() + 1),
     );
+    const want = mainCategoryName(category);
     return monthTx
       .filter(
         (t) =>
-          (isExpenseForReport(t) || isRefundTransaction(t)) && t.category === category,
+          (isExpenseForReport(t) || isRefundTransaction(t)) &&
+          mainCategoryName(t.category, t.subcategory) === want,
       )
       .sort(compareTxDateDesc);
   },
@@ -1001,8 +979,11 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     const monthTx = excludeTransfersFromReports(
       getMonthTransactions(state.transactions, now.getFullYear(), now.getMonth() + 1),
     );
+    const want = mainCategoryName(category);
     return monthTx
-      .filter((t) => isIncomeForReport(t) && t.category === category)
+      .filter(
+        (t) => isIncomeForReport(t) && mainCategoryName(t.category, t.subcategory) === want,
+      )
       .sort(compareTxDateDesc);
   },
 
@@ -1300,14 +1281,26 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
   getAllCategories: (type: 'income' | 'expense') => {
     const state = get();
     const defaultCategories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    // Vlastní HLAVNÍ kategorie (bez parent) — podkategorie řeší picker zvlášť
     const customCategories = state.customCategories
-      .filter(c => c.type === type)
-      .reduce((acc, c) => {
-        acc[c.name] = { icon: c.icon, color: c.color };
-        return acc;
-      }, {} as { [key: string]: { icon: string; color: string } });
-    
+      .filter((c) => c.type === type && !c.parentCategory)
+      .reduce(
+        (acc, c) => {
+          acc[c.name] = { icon: c.icon, color: c.color };
+          return acc;
+        },
+        {} as { [key: string]: { icon: string; color: string } },
+      );
+
     return { ...defaultCategories, ...customCategories };
+  },
+
+  /** Vlastní podkategorie pod danou hlavní kategorií. */
+  getCustomSubcategories: (parentCategory: string) => {
+    const state = get();
+    return state.customCategories.filter(
+      (c) => c.type === 'expense' && c.parentCategory === parentCategory,
+    );
   },
 
   addLoan: (loan: LoanItem) => {

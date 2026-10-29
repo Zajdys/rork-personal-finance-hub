@@ -7,6 +7,7 @@ import { Sparkles, Users, Target, Upload } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 const HIGHLIGHTS = [
   { key: 'premiumSuccess.invitePartner' as const, Icon: Users, color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
@@ -49,11 +50,12 @@ export default function PremiumSuccessScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+      <ScreenHeader title="" dismissible onDismiss={onContinue} />
       <View
         style={[
           styles.content,
           {
-            paddingTop: Math.max(insets.top, 16) + 24,
+            paddingTop: 24,
             paddingBottom: Math.max(insets.bottom, 16) + 12,
           },
         ]}

@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, Trash2 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
@@ -32,11 +31,13 @@ import {
   upsertUserCategoryRule,
 } from '@/lib/user-category-rules';
 import { safeGoBack } from '@/lib/safe-back';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { pluralTransakce } from '@/lib/plural-cs';
+import { defaultSubcategoriesFor } from '@/constants/categories';
+import { isPickerExpenseCategory, mainCategoryName } from '@/lib/category-normalize';
 
 function paramId(raw: string | string[] | undefined): string | undefined {
   if (raw == null) return undefined;
@@ -46,7 +47,13 @@ function paramId(raw: string | string[] | undefined): string | undefined {
 export default function TransactionDetailScreen() {
   const { id: idParam } = useLocalSearchParams<{ id: string }>();
   const id = paramId(idParam);
-  const { transactions, updateTransaction, deleteTransaction, getAllCategories } = useFinanceStore();
+  const {
+    transactions,
+    updateTransaction,
+    deleteTransaction,
+    getAllCategories,
+    getCustomSubcategories,
+  } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const { t, language } = useLanguageStore();
   const currency = getCurrentCurrency();
@@ -56,6 +63,7 @@ export default function TransactionDetailScreen() {
   const [amountStr, setAmountStr] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
+  const [subcategory, setSubcategory] = useState<string | null>(null);
   const [date, setDate] = useState<Date>(new Date());
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [receiptFullscreen, setReceiptFullscreen] = useState(false);
@@ -66,6 +74,7 @@ export default function TransactionDetailScreen() {
     setAmountStr(String(transaction.amount).replace('.', ','));
     setTitle(transaction.title);
     setCategory(transaction.category);
+    setSubcategory(transaction.subcategory ?? null);
     setDate(transactionToLocalDateNoon(transaction.date));
   }, [transaction]);
 
@@ -75,12 +84,30 @@ export default function TransactionDetailScreen() {
   }, [transaction, getAllCategories]);
 
   const categoryNames = useMemo(() => {
-    const names = Object.keys(categoryMap).sort();
-    if (transaction && category && !names.includes(category)) {
-      return [category, ...names];
+    const names = Object.keys(categoryMap).filter((n) => n !== 'Převod' || category === 'Převod');
+    // Strukturální skryté v pickeru kromě aktuální
+    const filtered = names.filter((n) => n !== 'Investice' || category === 'Investice' || transaction?.type === 'income');
+    const sorted = filtered.sort();
+    if (transaction && category && !sorted.includes(category)) {
+      return [category, ...sorted];
     }
-    return names;
+    return sorted;
   }, [categoryMap, category, transaction]);
+
+  const subcategoryOptions = useMemo(() => {
+    if (!transaction || transaction.type !== 'expense' || !category) return [] as string[];
+    const defaults = [...defaultSubcategoriesFor(category)];
+    const custom = getCustomSubcategories(category).map((c) => c.name);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of [...defaults, ...custom]) {
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      out.push(s);
+    }
+    if (subcategory && !seen.has(subcategory)) out.unshift(subcategory);
+    return out;
+  }, [transaction, category, getCustomSubcategories, subcategory]);
 
   const onDateChange = useCallback((_e: unknown, selected?: Date) => {
     if (Platform.OS === 'android' || Platform.OS === 'web') setDatePickerVisible(false);
@@ -92,18 +119,25 @@ export default function TransactionDetailScreen() {
   }, []);
 
   const { run: runBulkApply } = useAsyncAction(
-    async (userId: string, merchantKey: string, cat: string, excludeId: string) => {
+    async (
+      userId: string,
+      merchantKey: string,
+      cat: string,
+      excludeId: string,
+      sub: string | null,
+    ) => {
       const { updatedIds, error: bulkErr } = await bulkApplyCategoryForMerchantKey(
         userId,
         merchantKey,
         cat,
         excludeId,
+        sub,
       );
       if (bulkErr) {
         Alert.alert(t('error'), bulkErr.message);
       } else {
         for (const txId of updatedIds) {
-          updateTransaction(txId, { category: cat });
+          updateTransaction(txId, { category: cat, subcategory: sub });
         }
         Alert.alert(
           t('saved'),
@@ -136,20 +170,29 @@ export default function TransactionDetailScreen() {
       return;
     }
 
-    const categoryChanged = category !== transaction.category;
+    const main = mainCategoryName(category, subcategory);
+    const categoryChanged =
+      main !== mainCategoryName(transaction.category, transaction.subcategory) ||
+      (subcategory ?? null) !== (transaction.subcategory ?? null);
     const merchantLabel = title.trim() || transaction.title;
 
     updateTransaction(id, {
       amount: num,
       title: title.trim(),
-      category,
+      category: main,
+      subcategory: transaction.type === 'expense' ? subcategory : null,
       date: toYyyyMmDd(date),
     });
 
-    if (categoryChanged && transaction.type === 'expense' && category !== 'Převod') {
+    if (categoryChanged && transaction.type === 'expense' && main !== 'Převod') {
       const userId = await getAuthUserId();
       if (userId) {
-        const { merchantKey, error } = await upsertUserCategoryRule(userId, merchantLabel, category);
+        const { merchantKey, error } = await upsertUserCategoryRule(
+          userId,
+          merchantLabel,
+          main,
+          subcategory,
+        );
         if (error) {
           console.warn('[user_category_rules] upsert failed:', error.message);
           Alert.alert(t('error'), error.message);
@@ -173,7 +216,7 @@ export default function TransactionDetailScreen() {
                 {
                   text: t('categoryApplyToOthersYes'),
                   onPress: () => {
-                    void runBulkApply(userId, merchantKey, category, id);
+                    void runBulkApply(userId, merchantKey, main, id, subcategory);
                   },
                 },
               ],
@@ -348,13 +391,12 @@ export default function TransactionDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient colors={headerColors} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <BackButton color="white" size={24} style={styles.headerBack} />
-        <Text style={styles.headerTitle}>{typeLabel}</Text>
-        <Text style={styles.headerSub} numberOfLines={2}>
-          {transaction.title}
-        </Text>
-      </LinearGradient>
+      <ScreenHeader
+        title={typeLabel}
+        subtitle={transaction.title}
+        variant="gradient"
+        gradientColors={headerColors}
+      />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={[styles.label, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('amount')} ({currency.symbol})</Text>
@@ -413,7 +455,13 @@ export default function TransactionDetailScreen() {
 
         <Text style={[styles.label, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('category')}</Text>
         <View style={styles.chipWrap}>
-          {categoryNames.map((name) => (
+          {categoryNames
+            .filter((name) =>
+              transaction.type === 'income'
+                ? true
+                : isPickerExpenseCategory(name) || name === category || name === 'Převod' || name === 'Investice',
+            )
+            .map((name) => (
             <TouchableOpacity
               key={name}
               style={[
@@ -421,7 +469,10 @@ export default function TransactionDetailScreen() {
                 category === name && styles.chipActive,
                 { borderColor: isDarkMode ? '#4B5563' : '#E5E7EB', backgroundColor: isDarkMode ? '#374151' : 'white' },
               ]}
-              onPress={() => setCategory(name)}
+              onPress={() => {
+                setCategory(name);
+                setSubcategory(null);
+              }}
             >
               <Text
                 style={[
@@ -436,6 +487,61 @@ export default function TransactionDetailScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {transaction.type === 'expense' && subcategoryOptions.length > 0 ? (
+          <>
+            <Text style={[styles.label, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
+              {t('addTransaction.subcategoryPlaceholder')}
+            </Text>
+            <View style={styles.chipWrap}>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  subcategory == null && styles.chipActive,
+                  {
+                    borderColor: isDarkMode ? '#4B5563' : '#E5E7EB',
+                    backgroundColor: isDarkMode ? '#374151' : 'white',
+                  },
+                ]}
+                onPress={() => setSubcategory(null)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: isDarkMode ? '#E5E7EB' : '#374151' },
+                    subcategory == null && styles.chipTextActive,
+                  ]}
+                >
+                  {t('addTransaction.noSubcategory')}
+                </Text>
+              </TouchableOpacity>
+              {subcategoryOptions.map((sub) => (
+                <TouchableOpacity
+                  key={sub}
+                  style={[
+                    styles.chip,
+                    subcategory === sub && styles.chipActive,
+                    {
+                      borderColor: isDarkMode ? '#4B5563' : '#E5E7EB',
+                      backgroundColor: isDarkMode ? '#374151' : 'white',
+                    },
+                  ]}
+                  onPress={() => setSubcategory(sub)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      { color: isDarkMode ? '#E5E7EB' : '#374151' },
+                      subcategory === sub && styles.chipTextActive,
+                    ]}
+                  >
+                    {sub}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <Text style={[styles.label, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>{t('date')}</Text>
         <TouchableOpacity

@@ -22,6 +22,7 @@ import {
   SAVINGS_GOAL_COLOR_OPTIONS,
   type SavingsGoalTemplate,
 } from '@/constants/savings-goal-templates';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 
@@ -102,6 +103,8 @@ export default function AddSavingsGoalScreen() {
   });
 
   return (
+    <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }}>
+    <ScreenHeader title={t('fgNewGoal')} variant="gradient" />
     <ScrollView
       style={[styles.root, { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
       contentContainerStyle={styles.content}
@@ -243,6 +246,7 @@ export default function AddSavingsGoalScreen() {
         textStyle={styles.saveBtnText}
       />
     </ScrollView>
+    </View>
   );
 }
 

@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { useFinanceStore, getMonthTransactions, isIncomeForReport, isExpenseForReport, isRefundTransaction, isTransferLikeTransaction, type Transaction } from '@/store/finance-store';
@@ -22,10 +21,11 @@ import { useLanguageStore } from '@/store/language-store';
 import { filterTransactionsByPeriod, filterTransfersByPeriod, type FinancePeriod } from '@/lib/period-transactions';
 import { SwipeableTransactionRow } from '@/components/SwipeableTransactionRow';
 import { compareTxDateDesc, transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
+import { mainCategoryName, normalizeCategory } from '@/lib/category-normalize';
 
 function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.getState>['t']): string {
   const n100 = count % 100;
@@ -44,13 +44,12 @@ function bulkDeleteMessage(count: number, t: ReturnType<typeof useLanguageStore.
 
 /** Stejné defaultní čtení kategorie jako `rowToTransaction` (prázdné = Ostatní). */
 function displayCategory(t: Transaction): string {
-  const c = (t.category ?? '').trim();
-  return c || 'Ostatní';
+  return mainCategoryName(t.category, t.subcategory);
 }
 
 /** Jde o „odpadní“ kategorii v DB (různé zápisy). */
 function isOtherCategoryLabel(s: string): boolean {
-  const u = s.trim();
+  const u = mainCategoryName(s.trim() || 'Ostatní');
   if (!u) return true;
   const lower = u.toLowerCase();
   return (
@@ -66,7 +65,7 @@ function isOtherCategoryLabel(s: string): boolean {
 
 /** Filtrování podle názvu kategorie sjednocené s dashboardem (vč. Ostatní / other / prázdné). */
 function transactionMatchesCategory(t: Transaction, requestedCategory: string): boolean {
-  const req = (requestedCategory || '').trim();
+  const req = mainCategoryName((requestedCategory || '').trim() || 'Ostatní');
   const display = displayCategory(t);
   if (display === req) return true;
   if (isOtherCategoryLabel(req) && isOtherCategoryLabel(display)) return true;
@@ -198,6 +197,32 @@ export default function CategoryDetailScreen() {
     [displayTransactions],
   );
 
+  /** Rozpad po podkategoriích (jen výdaje). */
+  const subcategoryBreakdown = useMemo(() => {
+    if (type !== 'expense' || category === 'Převod' || category === 'Investice') return [];
+    const totals = new Map<string, number>();
+    for (const tx of displayTransactions) {
+      const n = normalizeCategory(tx.category, tx.subcategory);
+      const key = n.subcategory?.trim() || '';
+      const delta = isRefundTransaction(tx) ? -tx.amount : tx.amount;
+      totals.set(key, (totals.get(key) || 0) + delta);
+    }
+    const rows = [...totals.entries()]
+      .map(([sub, amount]) => ({
+        subcategory: sub,
+        label: sub || t('addTransaction.noSubcategory'),
+        amount,
+        percentage: totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0,
+      }))
+      .filter((r) => r.amount > 0.009)
+      .sort((a, b) => {
+        if (!a.subcategory && b.subcategory) return 1;
+        if (a.subcategory && !b.subcategory) return -1;
+        return b.amount - a.amount;
+      });
+    return rows;
+  }, [displayTransactions, type, category, totalAmount, t]);
+
   const categoryGoal =
     type === 'expense'
       ? financialGoals.find(
@@ -270,23 +295,19 @@ export default function CategoryDetailScreen() {
         }}
       />
       
-      <LinearGradient
-        colors={[categoryInfo.color, categoryInfo.color + 'CC']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <ScreenHeader
+        title={category}
+        subtitle={
+          listLoading
+            ? t('categoryLoading')
+            : `${displayTransactions.length} ${displayTransactions.length === 1 ? t('categoryTransactionOne') : t('categoryTransactionMany')}`
+        }
+        variant="gradient"
+        gradientColors={[categoryInfo.color, categoryInfo.color + 'CC']}
       >
-        <BackButton color="white" size={24} style={styles.backButton} />
-        
         <View style={styles.headerContent}>
           <Text style={styles.categoryIcon}>{categoryInfo.icon}</Text>
-          <Text style={styles.headerTitle}>{category}</Text>
           <OverviewFilterBadge onAccent style={{ marginTop: 6, alignSelf: 'center' }} />
-          <Text style={styles.headerSubtitle}>
-            {listLoading
-              ? t('categoryLoading')
-              : `${displayTransactions.length} ${displayTransactions.length === 1 ? t('categoryTransactionOne') : t('categoryTransactionMany')}`}
-          </Text>
           <Text style={styles.totalAmount}>
             {listLoading
               ? '…'
@@ -312,7 +333,25 @@ export default function CategoryDetailScreen() {
             </View>
           )}
         </View>
-      </LinearGradient>
+      </ScreenHeader>
+
+      {subcategoryBreakdown.length > 0 && !listLoading ? (
+        <View style={[styles.subBreakdown, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          {subcategoryBreakdown.map((row) => (
+            <View key={row.subcategory || '__none__'} style={styles.subBreakdownRow}>
+              <Text style={[styles.subBreakdownLabel, { color: colors.text }]} numberOfLines={1}>
+                {row.label}
+              </Text>
+              <Text style={[styles.subBreakdownPct, { color: colors.textSecondary }]}>
+                {row.percentage}%
+              </Text>
+              <Text style={[styles.subBreakdownAmt, { color: colors.text }]}>
+                {formatMoneyWithSymbol(row.amount, numberLocale, currentCurrency.symbol)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {displayTransactions.length > 0 && !listLoading && (
         <View style={[styles.listSelectBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -461,6 +500,34 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  subBreakdown: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  subBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  subBreakdownLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  subBreakdownPct: {
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  subBreakdownAmt: {
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 88,
+    textAlign: 'right',
   },
   header: {
     paddingTop: 60,

@@ -10,9 +10,8 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Shield, Eye, Database, Trash2, ChevronRight, FileText, ShieldCheck, Smartphone } from 'lucide-react-native';
@@ -211,30 +210,11 @@ export default function PrivacySettingsScreen() {
   const webBioHint = t('privacyBioWebUnavailable');
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('privacySecurity'),
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.primary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.primary} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold', color: colors.text },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('privacySecurity')} subtitle={t('privacyProtectData')} variant="gradient" />
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>{t('privacySecurity')}</Text>
-          <Text style={styles.headerSubtitle}>{t('privacyProtectData')}</Text>
-        </LinearGradient>
-
         <View style={styles.content}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
             {t('privacySectionAppLock')}
@@ -423,7 +403,7 @@ export default function PrivacySettingsScreen() {
         onDone={(pin) => void handlePinSetupDone(pin)}
         onCancel={() => void handlePinSetupCancel()}
       />
-    </>
+    </View>
   );
 }
 

@@ -1,259 +1,200 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  Clipboard,
+  Linking,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
-import {
-  HelpCircle,
-  MessageCircle,
-  Mail,
-  BookOpen,
-  ChevronRight,
-} from 'lucide-react-native';
+import { ScreenHeader } from '@/components/ScreenHeader';
+import { ChevronDown, ChevronRight, BookOpen, Mail } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
-import type { ThemeColors } from '@/constants/theme-colors';
 import { useLanguageStore } from '@/store/language-store';
 
-type HelpItemProps = {
-  icon: React.ComponentType<{ color: string; size: number }>;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-  colors: ThemeColors;
-  styles: ReturnType<typeof createStyles>;
-};
-
-function HelpItem({ icon: Icon, title, subtitle, onPress, colors, styles }: HelpItemProps) {
-  return (
-    <TouchableOpacity
-      style={[styles.helpItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <View style={styles.helpContent}>
-        <View style={[styles.iconContainer, { backgroundColor: colors.muted }]}>
-          <Icon color={colors.primary} size={24} />
-        </View>
-        <View style={styles.helpText}>
-          <Text style={[styles.helpTitle, { color: colors.text }]}>{title}</Text>
-          <Text style={[styles.helpSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-        </View>
-      </View>
-      <ChevronRight color={colors.textSecondary} size={20} />
-    </TouchableOpacity>
-  );
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+type FaqItem = { id: string; question: string; answer: string };
 
 export default function HelpSupportScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { t } = useLanguageStore();
-  const styles = useMemo(() => createStyles(), []);
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const faqItems = useMemo(
+  const faqs = useMemo<FaqItem[]>(
     () => [
-      {
-        question: t('faqImportQuestion'),
-        answer: t('faqImportAnswer'),
-      },
-      {
-        question: t('faqManualQuestion'),
-        answer: t('faqManualAnswer'),
-      },
-      {
-        question: t('faqHouseholdQuestion'),
-        answer: t('faqHouseholdAnswer'),
-      },
-      {
-        question: t('faqDeleteImportQuestion'),
-        answer: t('faqDeleteImportAnswer'),
-      },
+      { id: 'import', question: t('helpFaqImportQ'), answer: t('helpFaqImportA') },
+      { id: 'banks', question: t('helpFaqBanksQ'), answer: t('helpFaqBanksA') },
+      { id: 'partner', question: t('helpFaqPartnerQ'), answer: t('helpFaqPartnerA') },
+      { id: 'cancel', question: t('helpFaqCancelSubQ'), answer: t('helpFaqCancelSubA') },
+      { id: 'delete', question: t('helpFaqDeleteAccountQ'), answer: t('helpFaqDeleteAccountA') },
+      { id: 'safety', question: t('helpFaqDataSafeQ'), answer: t('helpFaqDataSafeA') },
+      { id: 'manual', question: t('helpFaqManualQ'), answer: t('helpFaqManualA') },
+      { id: 'household', question: t('helpFaqHouseholdQ'), answer: t('helpFaqHouseholdA') },
     ],
     [t],
   );
 
-  const openFaq = useCallback(() => {
-    Alert.alert(
-      t('helpFaqSection'),
-      t('helpFaqSelect'),
-      [
-        ...faqItems.map((item) => ({
-          text: item.question,
-          onPress: () => Alert.alert(item.question, item.answer),
-        })),
-        { text: t('close'), style: 'cancel' as const },
-      ],
-    );
-  }, [faqItems, t]);
+  const toggle = useCallback((id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const openMail = useCallback(() => {
+    void Linking.openURL('mailto:info@moneybuddy.cz?subject=MoneyBuddy%20podpora');
+  }, []);
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('help'),
-          headerStyle: { backgroundColor: colors.gradientStart },
-          headerTintColor: colors.onPrimary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.onPrimary} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold' },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('help')} subtitle={t('helpSupportSubtitle')} variant="gradient" />
 
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('helpFaqSection')}</Text>
+
+        {faqs.map((item) => {
+          const open = openId === item.id;
+          return (
+            <View
+              key={item.id}
+              style={[styles.faqCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <TouchableOpacity
+                style={styles.faqHeader}
+                onPress={() => toggle(item.id)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: open }}
+              >
+                <Text style={[styles.faqQuestion, { color: colors.text }]}>{item.question}</Text>
+                <ChevronDown
+                  color={colors.textSecondary}
+                  size={20}
+                  style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}
+                />
+              </TouchableOpacity>
+              {open ? (
+                <Text style={[styles.faqAnswer, { color: colors.textSecondary }]}>{item.answer}</Text>
+              ) : null}
+            </View>
+          );
+        })}
+
+        <TouchableOpacity
+          style={[styles.mailBtn, { backgroundColor: colors.primary }]}
+          onPress={openMail}
+          activeOpacity={0.9}
         >
-          <Text style={[styles.headerTitle, { color: colors.onPrimary }]}>{t('help')}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.onPrimary }]}>{t('helpSupportSubtitle')}</Text>
-        </LinearGradient>
+          <Mail color="#FFFFFF" size={20} />
+          <Text style={styles.mailBtnText}>{t('helpWriteUs')}</Text>
+        </TouchableOpacity>
 
-        <View style={styles.content}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('helpFaqSection')}</Text>
-
-          <HelpItem
-            icon={HelpCircle}
-            title={t('faqContact')}
-            subtitle={t('helpFaqAnswers')}
-            onPress={openFaq}
-            colors={colors}
-            styles={styles}
-          />
-
-          <HelpItem
-            icon={BookOpen}
-            title={t('helpUserGuide')}
-            subtitle={t('helpUserGuideSubtitle')}
-            onPress={() => router.push('/user-guide')}
-            colors={colors}
-            styles={styles}
-          />
-
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('helpContactUs')}</Text>
-
-          <HelpItem
-            icon={MessageCircle}
-            title={t('screenSupport')}
-            subtitle={t('helpLiveChat')}
-            onPress={() => router.push('/support-chat')}
-            colors={colors}
-            styles={styles}
-          />
-
-          <HelpItem
-            icon={Mail}
-            title={t('helpEmailSupport')}
-            subtitle="support@moneybuddy.cz"
-            onPress={() => {
-              Clipboard.setString('support@moneybuddy.cz');
-              Alert.alert(t('helpEmailCopied'), t('helpEmailCopiedMessage'));
-            }}
-            colors={colors}
-            styles={styles}
-          />
-
-          <View style={[styles.versionInfo, { borderTopColor: colors.border }]}>
-            <Text style={[styles.versionText, { color: colors.text }]}>
-              {t('moneyBuddy')} verze 1.0.0
-            </Text>
-            <Text style={[styles.buildText, { color: colors.textSecondary }]}>Build 2024.1.1</Text>
+        <TouchableOpacity
+          style={[styles.guideRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => router.push('/user-guide')}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.guideIcon, { backgroundColor: colors.muted }]}>
+            <BookOpen color={colors.primary} size={22} />
           </View>
-        </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.guideTitle, { color: colors.text }]}>{t('helpUserGuide')}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+              {t('helpUserGuideSubtitle')}
+            </Text>
+          </View>
+          <ChevronRight color={colors.textSecondary} size={20} />
+        </TouchableOpacity>
+
+        <Text style={[styles.version, { color: colors.textSecondary }]}>
+          {t('moneyBuddy')} · info@moneybuddy.cz
+        </Text>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
-function createStyles() {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-    },
-    header: {
-      paddingTop: 20,
-      paddingBottom: 24,
-      paddingHorizontal: 20,
-    },
-    headerTitle: {
-      fontSize: 28,
-      fontWeight: 'bold',
-      marginBottom: 4,
-    },
-    headerSubtitle: {
-      fontSize: 16,
-      opacity: 0.9,
-    },
-    content: {
-      padding: 20,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      marginBottom: 16,
-      marginTop: 16,
-    },
-    helpItem: {
-      borderRadius: 16,
-      padding: 20,
-      marginBottom: 12,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      borderWidth: StyleSheet.hairlineWidth,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    helpContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    iconContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 16,
-    },
-    helpText: {
-      flex: 1,
-    },
-    helpTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 2,
-    },
-    helpSubtitle: {
-      fontSize: 14,
-    },
-    versionInfo: {
-      alignItems: 'center',
-      marginTop: 32,
-      paddingTop: 24,
-      borderTopWidth: 1,
-    },
-    versionText: {
-      fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 4,
-    },
-    buildText: {
-      fontSize: 14,
-    },
-  });
-}
+const styles = StyleSheet.create({
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+    gap: 10,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  faqCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  faqHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  faqQuestion: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  faqAnswer: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  mailBtn: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  mailBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  guideRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+  },
+  guideIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guideTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  version: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 13,
+  },
+});

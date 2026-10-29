@@ -14,7 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { Download, Trash2, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
@@ -152,18 +152,10 @@ export default function PrivacyDataManagementScreen() {
   });
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('privacyDataManagement'),
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.primary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.primary} />
-          ),
-          headerTitleStyle: { fontWeight: '700', color: colors.text },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('privacyDataManagement')} />
+
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.pad}>
         <TouchableOpacity
           style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -299,7 +291,7 @@ export default function PrivacyDataManagementScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </>
+    </View>
   );
 }
 

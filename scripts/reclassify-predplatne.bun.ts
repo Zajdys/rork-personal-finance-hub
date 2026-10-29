@@ -100,7 +100,7 @@ async function reclassifyUser(
 
     const dictCat = merchantKey ? lookupMerchantDictionary(merchantKey) : null;
     const isOstatni = !r.category || r.category === 'Ostatní';
-    const isFromDictionary = !!dictCat && r.category === dictCat;
+    const isFromDictionary = !!dictCat && r.category === dict?.categoryCat?.category;
     const isPredplatne = r.category === 'Předplatné';
     const isLegacyApple =
       r.category === 'Elektronika' &&
@@ -203,7 +203,7 @@ async function reclassifyUser(
 
 async function main() {
   // Sanity: keywords shouldn't force Apple
-  if (lookupMerchantKeywords('APPLE.COM/BILL') === 'Předplatné') {
+  if (lookupMerchantKeywords('APPLE.COM/BILL')?.category === 'Předplatné') {
     throw new Error('keywords still map APPLE to Předplatné');
   }
 

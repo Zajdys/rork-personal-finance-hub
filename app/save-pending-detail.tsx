@@ -21,7 +21,7 @@ import { fetchPrimaryHouseholdId } from '@/lib/household-id';
 import { insertSaveDecision } from '@/lib/save-decisions';
 import { safeGoBack } from '@/lib/safe-back';
 import { randomUUID } from '@/lib/random-uuid';
-import { BackButton, StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 const formatCurrency = (value: number) => value.toLocaleString('cs-CZ');
 
@@ -112,15 +112,8 @@ export default function SavePendingDetailScreen() {
   if (!isLoaded) {
     return (
       <>
-        <Stack.Screen
-          options={{
-            title: t('screenThinkItOver'),
-            headerShown: true,
-            headerLeft: ({ tintColor }) => (
-              <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-            ),
-          }}
-        />
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('screenThinkItOver')} variant="gradient" />
         <View style={[styles.centered, { backgroundColor: colors.background }]}>
           <ActivityIndicator color={colors.primary} />
         </View>
@@ -131,15 +124,8 @@ export default function SavePendingDetailScreen() {
   if (!item) {
     return (
       <>
-        <Stack.Screen
-          options={{
-            title: t('screenThinkItOver'),
-            headerShown: true,
-            headerLeft: () => (
-              <BackButton color={colors.primary} size={28} style={styles.headerBack} hitSlop={12} />
-            ),
-          }}
-        />
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('screenThinkItOver')} variant="gradient" />
         <View style={[styles.centered, { backgroundColor: colors.background, padding: 24 }]}>
           <Text style={[styles.missingTitle, { color: colors.text }]}>{t('savePendingItemGone')}</Text>
           <Text style={[styles.missingSub, { color: colors.textSecondary }]}>
@@ -158,15 +144,8 @@ export default function SavePendingDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: t('screenThinkItOver'),
-          headerShown: true,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('screenThinkItOver')} variant="gradient" />
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
@@ -233,7 +212,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerBack: { marginLeft: 4, padding: 4 },
   missingTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
   missingSub: { fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20 },
   backCta: {

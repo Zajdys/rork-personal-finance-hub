@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { useFinanceStore, INCOME_CATEGORIES, getMonthTransactions, isIncomeForReport, isTransferLikeTransaction, type Transaction } from '@/store/finance-store';
+import { mainCategoryName } from '@/lib/category-normalize';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { appLocale } from '@/lib/app-locale';
@@ -25,7 +26,7 @@ import { formatMoneyWithSymbol } from '@/lib/format-money';
 import { useAuth } from '@/store/auth-store';
 import { useRouter, Stack } from 'expo-router';
 import { filterTransactionsByPeriod, filterTransfersByPeriod } from '@/lib/period-transactions';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
@@ -132,7 +133,7 @@ export default function IncomeDetailScreen() {
   const categoryIncomes = useMemo(() => {
     const categoryTotals: { [key: string]: number } = {};
     for (const transaction of periodIncomeTransactions) {
-      const category = transaction.category || 'Ostatní';
+      const category = mainCategoryName(transaction.category, transaction.subcategory);
       categoryTotals[category] = (categoryTotals[category] || 0) + transaction.amount;
     }
     const ti = periodTotalIncome;
@@ -143,8 +144,9 @@ export default function IncomeDetailScreen() {
         percentage: ti > 0 ? Math.round((amount / ti) * 100) : 0,
         icon: INCOME_CATEGORIES[category as keyof typeof INCOME_CATEGORIES]?.icon || '💰',
         color: INCOME_CATEGORIES[category as keyof typeof INCOME_CATEGORIES]?.color || '#6B7280',
-        transactions: periodIncomeTransactions.filter((t) => (t.category || 'Ostatní') === category)
-          .length,
+        transactions: periodIncomeTransactions.filter(
+          (t) => mainCategoryName(t.category, t.subcategory) === category,
+        ).length,
         excludedFromTotal: false as boolean,
       }))
       .sort((a, b) => b.amount - a.amount);
@@ -349,28 +351,23 @@ export default function IncomeDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: pageBg }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#10B981', '#059669']}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.backButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('detailTotalIncome')}</Text>
-            <Text style={styles.headerAmount}>
-              {loadPending
-                ? '…'
-                : `+${formatMoneyWithSymbol(displayTotalIncome, numberLocale, currency.symbol)}`}
-            </Text>
-            <OverviewFilterBadge onAccent style={{ marginTop: 8 }} />
-          </View>
+      <ScreenHeader
+        title={t('detailTotalIncome')}
+        variant="gradient"
+        gradientColors={['#10B981', '#059669']}
+        right={
           <View style={styles.headerIcon}>
             <TrendingUp color="white" size={28} />
           </View>
-        </View>
-      </LinearGradient>
+        }
+      >
+        <Text style={styles.headerAmount}>
+          {loadPending
+            ? '…'
+            : `+${formatMoneyWithSymbol(displayTotalIncome, numberLocale, currency.symbol)}`}
+        </Text>
+        <OverviewFilterBadge onAccent style={{ marginTop: 8 }} />
+      </ScreenHeader>
       <ScrollView
         style={[styles.scrollView, { flex: 1, backgroundColor: pageBg }]}
         showsVerticalScrollIndicator={false}
@@ -390,7 +387,9 @@ export default function IncomeDetailScreen() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addIncomeButton}
-            onPress={() => router.push('/(tabs)/add')}
+            onPress={() =>
+              router.push({ pathname: '/(tabs)/add', params: { type: 'income' } })
+            }
           >
             <Plus color="white" size={20} />
             <Text style={styles.addIncomeButtonText}>{t('addIncome')}</Text>
@@ -449,7 +448,9 @@ export default function IncomeDetailScreen() {
               </Text>
               <TouchableOpacity 
                 style={styles.addButton}
-                onPress={() => router.push('/add')}
+                onPress={() =>
+                  router.push({ pathname: '/(tabs)/add', params: { type: 'income' } })
+                }
               >
                 <Plus color="white" size={20} />
                 <Text style={styles.addButtonText}>{t('addIncome')}</Text>

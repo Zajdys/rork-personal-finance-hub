@@ -9,8 +9,12 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  FlatList,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
   type StyleProp,
   type ViewStyle,
+  type ListRenderItemInfo,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -282,8 +286,7 @@ export default function WelcomeTourScreen() {
   const { completeWelcomeTour } = useAuth();
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
-  const slideOpacity = useRef(new Animated.Value(1)).current;
-  const transitioning = useRef(false);
+  const listRef = useRef<FlatList<TourSlide>>(null);
 
   const slides: TourSlide[] = useMemo(
     () => [
@@ -311,7 +314,11 @@ export default function WelcomeTourScreen() {
           router.replace({ pathname: '/choose-subscription', params: { from: 'welcome' } });
         } else {
           await completeWelcomeTour();
-          router.replace(href);
+          if (href === '/(tabs)/add') {
+            router.replace({ pathname: '/(tabs)/add', params: { type: 'expense' } });
+          } else {
+            router.replace(href);
+          }
         }
       } finally {
         setBusy(false);
@@ -321,27 +328,22 @@ export default function WelcomeTourScreen() {
   );
 
   const goNext = useCallback(() => {
-    if (transitioning.current || index >= slides.length - 1) return;
-    transitioning.current = true;
-    Animated.timing(slideOpacity, {
-      toValue: 0,
-      duration: 160,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) {
-        transitioning.current = false;
-        return;
+    if (index >= slides.length - 1) return;
+    const next = index + 1;
+    listRef.current?.scrollToIndex({ index: next, animated: true });
+    setIndex(next);
+  }, [index, slides.length]);
+
+  const onScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = e.nativeEvent.contentOffset.x;
+      const next = Math.round(x / SCREEN_W);
+      if (next >= 0 && next < slides.length && next !== index) {
+        setIndex(next);
       }
-      setIndex((i) => i + 1);
-      Animated.timing(slideOpacity, {
-        toValue: 1,
-        duration: 240,
-        useNativeDriver: true,
-      }).start(() => {
-        transitioning.current = false;
-      });
-    });
-  }, [index, slideOpacity, slides.length]);
+    },
+    [index, slides.length],
+  );
 
   const featureListItems = useMemo(
     () => [
@@ -547,9 +549,21 @@ export default function WelcomeTourScreen() {
             )}
           </View>
 
-          <Animated.View style={[styles.slideHost, { opacity: slideOpacity }]}>
-            <React.Fragment key={slides[index].key}>{renderSlide(slides[index])}</React.Fragment>
-          </Animated.View>
+          <FlatList
+            ref={listRef}
+            style={styles.slideHost}
+            data={slides}
+            keyExtractor={(s) => s.key}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            bounces={false}
+            onMomentumScrollEnd={onScrollEnd}
+            getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
+            renderItem={({ item }: ListRenderItemInfo<TourSlide>) => (
+              <View style={{ width: SCREEN_W, flex: 1 }}>{renderSlide(item)}</View>
+            )}
+          />
 
           <View style={[styles.footer, { paddingBottom: footerPad }]}>
             <View style={styles.dots}>

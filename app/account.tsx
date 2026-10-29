@@ -31,9 +31,7 @@ import {
   hasPremiumAccess,
 } from '@/store/revenuecat-store';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BackButton } from '@/components/BackButton';
-import { safeGoBack } from '@/lib/safe-back';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 export default function AccountScreen() {
   const { isDarkMode } = useSettingsStore();
@@ -43,7 +41,6 @@ export default function AccountScreen() {
   const rcPlan = useRevenueCatStore((s) => s.plan);
   const rcExpiresAt = useRevenueCatStore((s) => s.expiresAt);
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [restoring, setRestoring] = useState(false);
 
   const handleEditProfile = () => {
@@ -112,29 +109,16 @@ export default function AccountScreen() {
     <View
       style={[
         styles.container,
-        { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC', paddingTop: insets.top },
+        { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' },
       ]}
     >
+      <ScreenHeader
+        title={t('profileMyAccount')}
+        subtitle={t('profileAccountSubtitle')}
+        variant="gradient"
+        fallback="/(tabs)/profile"
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.headerTop}>
-            <BackButton
-              color="white"
-              size={24}
-              style={styles.backButton}
-              onPress={() => safeGoBack('/(tabs)/profile')}
-            />
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>{t('profileMyAccount')}</Text>
-              <Text style={styles.headerSubtitle}>{t('profileAccountSubtitle')}</Text>
-            </View>
-          </View>
-        </LinearGradient>
 
         <View style={styles.content}>
           <View style={[styles.accountCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}>

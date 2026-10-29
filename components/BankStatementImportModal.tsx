@@ -210,6 +210,7 @@ export default function BankStatementImportModal({
           return {
             ...r,
             category: classified.category,
+            subcategory: classified.subcategory ?? null,
             description: classified.description || r.description,
             counterpartyName:
               classified.counterpartyName ?? input.counterpartyName ?? r.counterpartyName,
@@ -354,7 +355,12 @@ export default function BankStatementImportModal({
 
             const rowWithTitle = row as PreviewRow & { title?: string };
             const desc = [row.description, rowWithTitle.title].filter(Boolean).join('\n');
-            const { error } = await upsertUserCategoryRule(userId, desc, row.category);
+            const { error } = await upsertUserCategoryRule(
+              userId,
+              desc,
+              row.category,
+              (row as { subcategory?: string | null }).subcategory ?? null,
+            );
             if (error) merchantErrors.push(error.message);
           }),
         );

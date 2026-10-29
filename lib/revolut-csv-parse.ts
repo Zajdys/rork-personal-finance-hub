@@ -91,7 +91,7 @@ function categorizeByDescription(description: string): {
     const fromDict = mk ? lookupMerchantDictionary(mk) : null;
     if (fromDict) {
       return {
-        category: fromDict,
+        category: fromDict.category,
         bucket: classifyDescription(candidate),
         categorySource: 'dictionary',
       };

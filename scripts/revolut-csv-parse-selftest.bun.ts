@@ -114,10 +114,10 @@ assert(
   normalizeMerchantKey('Trading 212') === 'TRADING 212',
   `Trading 212 key=${normalizeMerchantKey('Trading 212')}`,
 );
-assert(lookupMerchantDictionary('ETORO') === 'Investice', 'ETORO → Investice');
-assert(lookupMerchantDictionary('TRADING 212') === 'Investice', 'T212 → Investice');
-assert(lookupMerchantDictionary('XTB') === 'Investice', 'XTB → Investice');
-assert(lookupMerchantDictionary('ANYCOIN') === 'Investice', 'ANYCOIN → Investice');
+assert(lookupMerchantDictionary('ETORO')?.category === 'Investice', 'ETORO → Investice');
+assert(lookupMerchantDictionary('TRADING 212')?.category === 'Investice', 'T212 → Investice');
+assert(lookupMerchantDictionary('XTB')?.category === 'Investice', 'XTB → Investice');
+assert(lookupMerchantDictionary('ANYCOIN')?.category === 'Investice', 'ANYCOIN → Investice');
 
 // Exchange dual-leg: both sides are Převod → excluded from expense totals
 const exchangeExpense = {

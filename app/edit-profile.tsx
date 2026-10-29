@@ -15,6 +15,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { decode } from 'base64-arraybuffer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Stack } from 'expo-router';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useAuth } from '@/store/auth-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -223,6 +225,9 @@ export default function EditProfileScreen() {
   const preview = localPreviewUri ?? userProfile.avatarUrl;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Stack.Screen options={{ headerShown: false }} />
+    <ScreenHeader title={t('screenEditProfile')} />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingBottom: 24 + insets.bottom }}
@@ -291,6 +296,7 @@ export default function EditProfileScreen() {
         )}
       </TouchableOpacity>
     </ScrollView>
+    </View>
   );
 }
 

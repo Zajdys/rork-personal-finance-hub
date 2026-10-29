@@ -8,7 +8,7 @@ import {
   Linking,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { PRIVACY_POLICY_URL } from '@/constants/legal-urls';
@@ -52,24 +52,15 @@ export default function PrivacyPolicyScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('privacyPolicyModalTitle'),
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.primary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.primary} />
-          ),
-          headerTitleStyle: { fontWeight: '700', color: colors.text },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('privacyPolicyModalTitle')} />
+
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.pad}
         showsVerticalScrollIndicator
       >
-        <Text style={[styles.mainTitle, { color: colors.text }]}>{t('privacyPolicyModalTitle')}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>MoneyBuddy – Czech Finance</Text>
         <Text style={[styles.updated, { color: colors.textSecondary }]}>
           Poslední aktualizace: 9. 10. 2026
@@ -186,7 +177,7 @@ export default function PrivacyPolicyScreen() {
           </Pressable>
         </Section>
       </ScrollView>
-    </>
+    </View>
   );
 }
 

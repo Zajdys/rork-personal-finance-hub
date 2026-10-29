@@ -44,7 +44,7 @@ const msg = parseMbankMessageField(
 assert(msg.merchant === 'Trafika Kaufland', `merchant ${msg.merchant}`);
 assert(msg.bookingFromMessage === '2026-07-21', `booking msg ${msg.bookingFromMessage}`);
 assert(normalizeMerchantKey(msg.merchant) === 'TRAFIKA KAUFLAND', 'merchant_key trafika');
-assert(lookupMerchantDictionary('TRAFIKA KAUFLAND') === 'Nákupy', 'trafika → Nákupy');
+assert(lookupMerchantDictionary('TRAFIKA KAUFLAND')?.category === 'Nákupy', 'trafika → Nákupy');
 
 assert(
   normalizeMbankAccount("'000000-0767628004/5500'") === '767628004/5500',
@@ -109,13 +109,13 @@ assert(trafikaCat?.category === 'Nákupy', `trafika cat ${trafikaCat?.category}`
 const kaufland = classified.find(
   (c) => c.merchantKey === 'KAUFLAND' || /KAUFLAND CZ/i.test(c.description),
 );
-assert(kaufland?.category === 'Jídlo a nápoje', `kaufland ${kaufland?.category}`);
+assert(kaufland?.category === 'Jídlo', `kaufland ${kaufland?.category}`);
 
 const lidl = classified.find((c) => c.merchantKey === 'LIDL');
-assert(lidl?.category === 'Jídlo a nápoje', `lidl ${lidl?.category}`);
+assert(lidl?.category === 'Jídlo', `lidl ${lidl?.category}`);
 
 const globus = classified.find((c) => c.merchantKey === 'GLOBUS');
-assert(globus?.category === 'Jídlo a nápoje', `globus ${globus?.category}`);
+assert(globus?.category === 'Jídlo', `globus ${globus?.category}`);
 
 const meta = extractMbankStatementMeta(utf8);
 assert(approx(meta.openingBalance ?? -1, 0), `opening ${meta.openingBalance}`);

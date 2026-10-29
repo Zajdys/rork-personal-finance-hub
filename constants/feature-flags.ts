@@ -32,3 +32,10 @@ export const INVESTMENT_TX_INTEREST_TAX_ENABLED = true;
  */
 export const BANK_SYNC_ENABLED = __DEV__;
 
+/**
+ * Skenování účtenek / faktur přes @rork-ai/toolkit-sdk (Rork).
+ * false = tlačítka skrytá (App Store / produkce bez Rork backendu).
+ * Kód v add.tsx zůstává — zapnout až bude vlastní AI pipeline.
+ */
+export const RECEIPT_SCAN_ENABLED = false;
+

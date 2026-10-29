@@ -11,7 +11,7 @@ import {
   Switch,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DollarSign, Plus, X, TrendingUp, Trash2 } from 'lucide-react-native';
 import { useHousehold } from '@/store/household-store';
@@ -246,17 +246,25 @@ export default function HouseholdBudgetsScreen() {
     .filter(b => b.enabled && b.monthlyLimit > 0)
     .reduce((sum, b) => sum + b.monthlyLimit, 0);
 
+  if (!currentHousehold) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('screenCategoryBudgets')} fallback="/(tabs)/household" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
+          <DollarSign size={56} color="#9CA3AF" strokeWidth={1.5} />
+          <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#1F2937', textAlign: 'center' }}>
+            {t('hhBudgetsNoHousehold')}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: t('screenCategoryBudgets'),
-          headerShown: true,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-        }}
-      />
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('screenCategoryBudgets')} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>{t('hhBudgetMonthlyTitle')}</Text>

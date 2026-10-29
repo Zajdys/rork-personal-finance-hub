@@ -75,7 +75,7 @@ assert(transferRow?.counterpartyAccount === '767628004/5500', 'cp account normal
 assert(transferRow?.bankTransactionId === '2607206260662771', 'bankTransactionId');
 
 const kauflandRow = rows.find((r) => /KAUFLAND/i.test(r.description));
-assert(kauflandRow?.category === 'Jídlo a nápoje', `kaufland cat ${kauflandRow?.category}`);
+assert(kauflandRow?.category === 'Jídlo', `kaufland cat ${kauflandRow?.category}`);
 
 const meta = extractMonetaStatementMeta(text);
 console.log('Meta:', meta);

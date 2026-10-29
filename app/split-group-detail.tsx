@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Plus,
   Scale,
@@ -32,7 +31,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { SwipeableSplitExpenseRow } from '@/components/SwipeableSplitExpenseRow';
 import { pluralClen } from '@/lib/plural-cs';
 import { safeGoBack } from '@/lib/safe-back';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import {
   useSplitGroupsStore,
   type SplitExpense,
@@ -300,23 +299,11 @@ export default function SplitGroupDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerRow}>
-          <BackButton color="white" size={24} style={styles.headerBtn} hitSlop={12} />
-          <View style={styles.headerTitles} pointerEvents="none">
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {group?.icon ? `${group.icon} ` : ''}
-              {group?.name ?? t('splitGroups')}
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              {memberCountLabel} · {group?.currency ?? 'CZK'}
-            </Text>
-          </View>
+      <ScreenHeader
+        title={`${group?.icon ? `${group.icon} ` : ''}${group?.name ?? t('splitGroups')}`}
+        subtitle={`${memberCountLabel} · ${group?.currency ?? 'CZK'}`}
+        variant="gradient"
+        right={
           <TouchableOpacity
             style={styles.headerBtn}
             onPress={openGroupMenu}
@@ -326,8 +313,8 @@ export default function SplitGroupDetailScreen() {
           >
             <MoreVertical color="white" size={22} />
           </TouchableOpacity>
-        </View>
-      </LinearGradient>
+        }
+      />
 
       {isArchived ? (
         <View style={[styles.archivedBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>

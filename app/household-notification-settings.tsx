@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -145,49 +145,33 @@ export default function HouseholdNotificationSettingsScreen() {
 
   if (!user?.id) {
     return (
-      <View style={[styles.centered, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
-        <Stack.Screen
-          options={{
-            title: t('profileNotificationSettings'),
-            headerLeft: ({ tintColor }) => (
-              <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-            ),
-          }}
-        />
-        <Text style={{ color: primary }}>{t('hhNotifSignIn')}</Text>
+      <View style={[styles.root, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('profileNotificationSettings')} />
+        <View style={styles.centered}>
+          <Text style={{ color: primary }}>{t('hhNotifSignIn')}</Text>
+        </View>
       </View>
     );
   }
 
   if (loading) {
     return (
-      <View style={[styles.centered, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
-        <Stack.Screen
-          options={{
-            title: t('profileNotificationSettings'),
-            headerLeft: ({ tintColor }) => (
-              <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-            ),
-          }}
-        />
-        <ActivityIndicator size="large" color="#667eea" />
+      <View style={[styles.root, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('profileNotificationSettings')} />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#667eea" />
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={[styles.root, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}
-      contentContainerStyle={styles.content}
-    >
-      <Stack.Screen
-        options={{
-          title: t('profileNotificationSettings'),
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-        }}
-      />
+    <View style={[styles.root, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('profileNotificationSettings')} />
+      <ScrollView style={styles.root} contentContainerStyle={styles.content}>
 
       <View style={[styles.card, { backgroundColor: card, borderColor: border }]}>
         <Text style={[styles.label, { color: subtle }]}>{t('hhNotifExpenseAlerts')}</Text>
@@ -244,7 +228,8 @@ export default function HouseholdNotificationSettingsScreen() {
       {saving ? <Text style={[styles.hint, { color: subtle }]}>{t('hhNotifSaving')}</Text> : null}
 
       <Text style={[styles.footerHint, { color: subtle }]}>{t('hhNotifFooter')}</Text>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

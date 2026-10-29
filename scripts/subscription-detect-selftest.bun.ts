@@ -62,7 +62,7 @@ assert(
   'alias OPENAI CHATGPT SUBSCR → CHATGPT',
 );
 
-assert(lookupMerchantDictionary('PREHRAJ.TO') === 'Předplatné', 'prehraj dict');
+assert(lookupMerchantDictionary('PREHRAJ.TO')?.category === 'Předplatné', 'prehraj dict');
 assert(resolveSubscriptionBrand('PREHRAJ.TO')?.key === 'PREHRAJ.TO', 'prehraj brand');
 
 assert(

@@ -96,6 +96,7 @@ export function transactionToRow(t: Transaction, userId: string) {
     amount: t.amount,
     type: t.type,
     category: t.category,
+    subcategory: t.subcategory?.trim() ? t.subcategory.trim() : null,
     description,
     source,
     import_batch_id: t.importBatchId ?? null,
@@ -150,6 +151,7 @@ export function bankImportTransactionToInsertRow(t: Transaction, userId: string)
     amount: t.amount,
     type: t.type,
     category: t.category?.trim() ? t.category : 'Ostatní',
+    subcategory: t.subcategory?.trim() ? t.subcategory.trim() : null,
     description,
     source,
     import_batch_id: t.importBatchId ?? null,
@@ -225,6 +227,10 @@ export function rowToTransaction(row: Record<string, unknown>): Transaction {
     amount: Number(row.amount),
     title: String(row.description ?? ''),
     category: String(row.category ?? 'Ostatní'),
+    subcategory:
+      typeof row.subcategory === 'string' && row.subcategory.trim()
+        ? row.subcategory.trim()
+        : null,
     date: dateStr || transactionDateYmd(new Date()),
     bookingDate: bookingDate,
     source: (typeof row.source === 'string' ? row.source : 'manual') as string | undefined,

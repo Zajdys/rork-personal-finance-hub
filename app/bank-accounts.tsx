@@ -14,11 +14,10 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { usePremium } from '@/hooks/usePremium';
 import { openPaywall } from '@/components/PremiumGate';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { BankLogo } from '@/components/BankLogo';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
@@ -109,7 +108,7 @@ function removeAccountFromBanks(banks: OwnerBankStored[], accountId: string): Ow
 }
 
 export default function BankAccountsScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { t, language } = useLanguageStore();
   const { user } = useAuth();
   const router = useRouter();
@@ -120,7 +119,6 @@ export default function BankAccountsScreen() {
   const loadOwnerBanksFromSupabase = useFinanceStore((s) => s.loadOwnerBanksFromSupabase);
   const replaceOwnerBanks = useFinanceStore((s) => s.replaceOwnerBanks);
   const storeOwnerBanks = useFinanceStore((s) => s.ownerBanks);
-  const shadowSoft = isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.08)';
   const monthLocale = language === 'cs' ? 'cs-CZ' : 'en-US';
   const [ownerBanks, setOwnerBanks] = useState<OwnerBankStored[]>([]);
   const [accountModal, setAccountModal] = useState<AccountModalState | null>(null);
@@ -490,32 +488,11 @@ export default function BankAccountsScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('bankAccountsTitle'),
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.primary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.primary} />
-          ),
-          headerTitleStyle: { fontWeight: '700', color: colors.text },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('bankAccountsTitle')} subtitle={t('bankAccountsSubtitle')} variant="gradient" />
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={[styles.header, { shadowColor: shadowSoft }]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('bankAccountsTitle')}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.text, opacity: 0.92 }]}>
-            {t('bankAccountsSubtitle')}
-          </Text>
-        </LinearGradient>
-
         <View style={[styles.content, { backgroundColor: colors.background }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             {t('bankAccountsMyAccounts')}
@@ -865,7 +842,7 @@ export default function BankAccountsScreen() {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
-    </>
+    </View>
   );
 }
 

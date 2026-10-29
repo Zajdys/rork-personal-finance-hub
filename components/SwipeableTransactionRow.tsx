@@ -16,6 +16,8 @@ import { TransactionSelectionCheckbox } from '@/components/TransactionSelectionC
 import { formatTransactionDate, appLocale } from '@/lib/app-locale';
 import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { getTransactionDisplayTitle } from '@/lib/transaction-display';
+import { normalizeCategory } from '@/lib/category-normalize';
+import { getExpenseCategoryDef } from '@/constants/categories';
 
 const RowTouchable = Platform.OS === 'web' ? RNTouchableOpacity : GHTouchableOpacity;
 
@@ -37,6 +39,36 @@ function sourcePillFor(
 ): { label: string; bg: string; fg: string } | null {
   if (!source || source === 'manual' || source === 'bank_import') return null;
   return SOURCE_PILL[source] ?? null;
+}
+
+/** „🚗 Auto a doprava · Benzín a nafta“ — podkategorie šedě. */
+function CategorySubtitle({
+  transaction,
+  muted,
+}: {
+  transaction: Transaction;
+  muted: string;
+}) {
+  const n = normalizeCategory(transaction.category, transaction.subcategory);
+  const icon =
+    getExpenseCategoryDef(n.category)?.icon ||
+    (transaction.type === 'income' ? '' : '📦');
+  const prefix = icon ? `${icon} ` : '';
+  if (!n.subcategory) {
+    return (
+      <Text style={[styles.subtitle, { color: muted }]} numberOfLines={1}>
+        {prefix}
+        {n.category}
+      </Text>
+    );
+  }
+  return (
+    <Text style={[styles.subtitle, { color: muted }]} numberOfLines={1}>
+      {prefix}
+      {n.category}
+      <Text style={{ color: muted, opacity: 0.75 }}> · {n.subcategory}</Text>
+    </Text>
+  );
 }
 
 type Props = {
@@ -221,9 +253,11 @@ export function SwipeableTransactionRow({
           >
             {displayTitle}
           </Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {subtitle ?? transaction.category}
-          </Text>
+          {subtitle != null ? (
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+          ) : (
+            <CategorySubtitle transaction={transaction} muted={colors.textSecondary} />
+          )}
         </View>
         <View style={styles.amountColumn}>
           <Text

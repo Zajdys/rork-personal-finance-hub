@@ -5,12 +5,11 @@ import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useTheme } from '@/hooks/use-theme';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { BrandIcon } from '@/components/BrandIcon';
 import { appLocale } from '@/lib/app-locale';
 import { formatMoney } from '@/lib/format-money';
-import { LinearGradient } from 'expo-linear-gradient';
 
 export default function HiddenSubscriptionSuggestionsScreen() {
   const ignored = useFinanceStore((s) => s.ignoredSubscriptionSuggestions);
@@ -32,17 +31,7 @@ export default function HiddenSubscriptionSuggestionsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerRow}>
-          <BackButton color="white" size={24} />
-          <Text style={styles.headerTitle}>{t('hiddenSubsTitle')}</Text>
-        </View>
-      </LinearGradient>
+      <ScreenHeader title={t('hiddenSubsTitle')} variant="gradient" />
 
       {ignored.length === 0 ? (
         <Text style={[styles.empty, { color: colors.textSecondary }]}>

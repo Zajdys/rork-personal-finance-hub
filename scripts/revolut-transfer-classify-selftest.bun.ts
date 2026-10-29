@@ -40,7 +40,7 @@ function miniCsv(
 
 console.log('=== Revolut transfer classify self-test ===');
 
-assert(lookupMerchantDictionary('XTB') === 'Investice', 'XTB ve slovníku');
+assert(lookupMerchantDictionary('XTB')?.category === 'Investice', 'XTB ve slovníku');
 assert(extractTransferPartyName('To XTB') === 'XTB', 'extract To XTB');
 assert(extractTransferPartyName('Payment from Acme s.r.o.') === 'Acme s.r.o.', 'extract Payment from');
 assert(isCurrencyExchangeDescription('Exchanged to EUR'), 'Exchanged to');

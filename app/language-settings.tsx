@@ -6,9 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 import { useLanguageStore, LANGUAGES, Language } from '@/store/language-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -27,36 +26,15 @@ export default function LanguageSettingsScreen() {
   }, [setLanguage, refreshDailyTip]);
 
   return (
-    <>
-      <Stack.Screen 
-        options={{
-          title: t('language'),
-          headerStyle: { backgroundColor: '#667eea' },
-          headerTintColor: 'white',
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold' },
-        }} 
-      />
-      
-      <ScrollView style={[
-        styles.container,
-        { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }
-      ]}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>{t('languageSettings')}</Text>
-          <Text style={styles.headerSubtitle}>{t('selectLanguage')}</Text>
-          <Text style={styles.currentLanguage}>
-            {t('language')}: {LANGUAGES[language].name} {LANGUAGES[language].flag}
-          </Text>
-        </LinearGradient>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('languageSettings')} subtitle={t('selectLanguage')} variant="gradient">
+        <Text style={styles.currentLanguage}>
+          {t('language')}: {LANGUAGES[language].name} {LANGUAGES[language].flag}
+        </Text>
+      </ScreenHeader>
 
+      <ScrollView style={styles.scroll}>
         <View style={styles.content}>
           {languageList.map((languageItem) => (
             <TouchableOpacity
@@ -92,11 +70,14 @@ export default function LanguageSettingsScreen() {
           ))}
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',

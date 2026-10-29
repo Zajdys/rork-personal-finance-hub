@@ -29,7 +29,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { getLoanTypeLabel, loanYearLabel } from '@/lib/loan-type-labels';
 import { formatCsCurrencyRounded, formatCsPercent2, formatCsRemainingMonthsWithYears, computeLoanDetailOverview, formatDateCs } from '@/lib/loan-math';
 import { safeGoBack } from '@/lib/safe-back';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 export default function LoanDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -121,20 +121,11 @@ export default function LoanDetailScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.headerBackButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>
-              {loan.name || getLoanTypeLabel(loan.loanType)}
-            </Text>
-            <Text style={styles.headerSubtitle}>{t('loanDetailSubtitle')}</Text>
-          </View>
+      <ScreenHeader
+        title={loan.name || getLoanTypeLabel(loan.loanType)}
+        subtitle={t('loanDetailSubtitle')}
+        variant="gradient"
+        right={
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.editButton}
@@ -149,8 +140,8 @@ export default function LoanDetailScreen() {
               <Trash2 color="white" size={20} />
             </TouchableOpacity>
           </View>
-        </View>
-      </LinearGradient>
+        }
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>

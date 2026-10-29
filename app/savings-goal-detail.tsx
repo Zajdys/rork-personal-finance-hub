@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { Trash2 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -95,19 +95,15 @@ export default function SavingsGoalDetailScreen() {
 
   if (!goal) {
     return (
-      <View style={[styles.centered, { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}>
-        <Stack.Screen
-          options={{
-            title: t('sgGoalTitle'),
-            headerLeft: ({ tintColor }) => (
-              <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-            ),
-          }}
-        />
-        <Text style={{ color: primaryText }}>{t('sgGoalNotFound')}</Text>
-        <TouchableOpacity onPress={() => safeGoBack()} style={styles.backLink}>
-          <Text style={styles.backLinkText}>{t('back')}</Text>
-        </TouchableOpacity>
+      <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('sgGoalTitle')} variant="gradient" />
+        <View style={styles.centered}>
+          <Text style={{ color: primaryText }}>{t('sgGoalNotFound')}</Text>
+          <TouchableOpacity onPress={() => safeGoBack()} style={styles.backLink}>
+            <Text style={styles.backLinkText}>{t('back')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -123,14 +119,8 @@ export default function SavingsGoalDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: goal.name,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={goal.name} variant="gradient" />
       <ScrollView
         style={[styles.root, { backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC' }]}
         contentContainerStyle={styles.content}

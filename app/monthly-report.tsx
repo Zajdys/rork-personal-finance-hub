@@ -28,7 +28,7 @@ import { useTheme } from '@/hooks/use-theme';
 import type { ThemeColors } from '@/constants/theme-colors';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react-native';
 import { SwipeableTransactionRow } from '@/components/SwipeableTransactionRow';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
@@ -586,14 +586,10 @@ function MonthlyReportScreenContent() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+        <ScreenHeader title={t('monthlyReport')} />
         <ScrollView showsVerticalScrollIndicator={false}>
           <Animated.View style={{ opacity: fadeAnim }}>
-          <View style={styles.header}>
-            <BackButton color={colors.text} size={24} style={styles.backButton} testID="back-button" />
-            <Text style={styles.headerTitle}>{t('monthlyReport')}</Text>
-            <View style={styles.headerSpacer} />
-          </View>
 
           <View style={[styles.reportMainTabs, { borderBottomColor: colors.border }]}>
             <TouchableOpacity

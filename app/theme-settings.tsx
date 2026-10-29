@@ -6,9 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { Check, Sun, Moon, Smartphone } from 'lucide-react-native';
 import { useSettingsStore, Theme } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -27,33 +26,15 @@ export default function ThemeSettingsScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen 
-        options={{
-          title: t('themeSettings.title'),
-          headerStyle: { backgroundColor: '#667eea' },
-          headerTintColor: 'white',
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold' },
-        }} 
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader
+        title={t('themeSettings.headerTitle')}
+        subtitle={t('themeSettings.headerSubtitle')}
+        variant="gradient"
       />
-      
-      <ScrollView style={[
-        styles.container,
-        { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }
-      ]}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>{t('themeSettings.headerTitle')}</Text>
-          <Text style={styles.headerSubtitle}>{t('themeSettings.headerSubtitle')}</Text>
-        </LinearGradient>
 
+      <ScrollView style={styles.scroll}>
         <View style={styles.content}>
           {themes.map((themeItem) => {
             const IconComponent = themeItem.icon;
@@ -93,11 +74,14 @@ export default function ThemeSettingsScreen() {
           })}
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },

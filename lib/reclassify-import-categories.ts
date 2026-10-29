@@ -33,6 +33,7 @@ export type ReclassifyResult = {
   localPatches: Array<{
     id: string;
     category: string;
+    subcategory?: string | null;
     title?: string;
     description?: string;
     counterpartyName?: string;
@@ -135,6 +136,7 @@ export async function reclassifyExistingImportTransactions(
     string,
     {
       category: string;
+      subcategory?: string | null;
       category_source: string;
       merchant_key?: string | null;
       title?: string;
@@ -157,12 +159,13 @@ export async function reclassifyExistingImportTransactions(
     if (merchantKey && userRules.has(merchantKey)) {
       const ruled = userRules.get(merchantKey)!;
       if (
-        r.category !== ruled ||
+        r.category !== ruled.category ||
         r.category_source !== 'user' ||
         r.merchant_key !== merchantKey
       ) {
         classified.set(r.id, {
-          category: ruled,
+          category: ruled.category,
+          subcategory: ruled.subcategory,
           category_source: 'user',
           merchant_key: merchantKey,
           title: (r.description || '').slice(0, 200),
@@ -178,7 +181,7 @@ export async function reclassifyExistingImportTransactions(
     const isOstatni = !r.category || r.category === 'Ostatní';
     const isFromDictionary =
       r.category_source === 'dictionary' ||
-      (!!dictCat && r.category === dictCat);
+      (!!dictCat && r.category === dictCat.category);
     const isFromKeywordOrCrowdOrImport =
       r.category_source === 'keyword' ||
       r.category_source === 'crowd' ||
@@ -209,6 +212,7 @@ export async function reclassifyExistingImportTransactions(
     const nextKey = result.merchantKey || merchantKey;
     classified.set(r.id, {
       category: result.category,
+      subcategory: result.subcategory ?? null,
       category_source: mapClassifySourceToCategorySource(result.source),
       merchant_key: nextKey,
       title: (result.description || r.description || '').slice(0, 200),
@@ -222,6 +226,7 @@ export async function reclassifyExistingImportTransactions(
   const updates: Array<{
     id: string;
     category: string;
+    subcategory?: string | null;
     category_source: string;
     categoryChanged: boolean;
     merchant_key?: string | null;
@@ -244,6 +249,7 @@ export async function reclassifyExistingImportTransactions(
     updates.push({
       id,
       category: next.category,
+      subcategory: next.subcategory ?? null,
       category_source: next.category_source,
       categoryChanged,
       ...(next.merchant_key !== undefined ? { merchant_key: next.merchant_key } : {}),
@@ -260,23 +266,35 @@ export async function reclassifyExistingImportTransactions(
     const chunk = updates.slice(i, i + 50);
     await Promise.all(
       chunk.map(async (u) => {
-        const { error: updErr } = await client
+        const payload: Record<string, unknown> = {
+          category: u.category,
+          category_source: u.category_source,
+          subcategory: u.subcategory ?? null,
+          ...(u.merchant_key !== undefined ? { merchant_key: u.merchant_key } : {}),
+          ...(u.description != null ? { description: u.description } : {}),
+          ...(u.counterparty_name != null ? { counterparty_name: u.counterparty_name } : {}),
+        };
+        let { error: updErr } = await client
           .from('transactions')
-          .update({
-            category: u.category,
-            category_source: u.category_source,
-            ...(u.merchant_key !== undefined ? { merchant_key: u.merchant_key } : {}),
-            ...(u.description != null ? { description: u.description } : {}),
-            ...(u.counterparty_name != null ? { counterparty_name: u.counterparty_name } : {}),
-          })
+          .update(payload)
           .eq('id', u.id)
           .eq('user_id', userId);
+        if (updErr && /subcategory/i.test(updErr.message)) {
+          delete payload.subcategory;
+          const retry = await client
+            .from('transactions')
+            .update(payload)
+            .eq('id', u.id)
+            .eq('user_id', userId);
+          updErr = retry.error;
+        }
         if (!updErr) {
           updated += 1;
           if (u.categoryChanged) categoryChanged += 1;
           localPatches.push({
             id: u.id,
             category: u.category,
+            subcategory: u.subcategory ?? null,
             categorySource: u.category_source,
             ...(u.title != null ? { title: u.title } : {}),
             ...(u.description != null ? { description: u.description } : {}),

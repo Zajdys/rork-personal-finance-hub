@@ -8,8 +8,6 @@ import { useFinanceStore } from '@/store/finance-store';
 import { useBuddyStore } from '@/store/buddy-store';
 import { AuthProvider, syncLocalFinanceDataForAuthUser, useAuth } from '@/store/auth-store';
 import { supabase } from '@/lib/supabase';
-import { FriendsProvider } from '@/store/friends-store';
-import { LifeEventProvider } from '@/store/life-event-store';
 import { HouseholdProvider } from '@/store/household-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { trpc, trpcClient } from '@/lib/trpc';
@@ -25,7 +23,6 @@ import { SplitGroupsRealtimeHandler } from '@/components/SplitGroupsRealtimeHand
 import { ExpoPushTokenRegistration } from '@/components/ExpoPushTokenRegistration';
 import { SplitExpensePushNotificationHandler } from '@/components/SplitExpensePushNotificationHandler';
 import { AppLock } from '@/components/AppLock';
-import { StackHeaderBackButton } from '@/components/BackButton';
 import { useRevenueCatStore } from '@/store/revenuecat-store';
 import { getIsPremiumSnapshot } from '@/hooks/usePremium';
 import { consumeSuppressTabsRedirect } from '@/lib/nav-guards';
@@ -249,7 +246,7 @@ function RootLayoutNav() {
         <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
         <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
         <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
-        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
+        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: false }} />
       </Stack>
     );
   }
@@ -258,7 +255,7 @@ function RootLayoutNav() {
     return (
       <Stack initialRouteName="accept-terms" screenOptions={{ headerBackTitle: t('back'), headerShown: false }}>
         <Stack.Screen name="accept-terms" options={{ headerShown: false }} />
-        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
+        <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: false }} />
       </Stack>
     );
   }
@@ -275,77 +272,74 @@ function RootLayoutNav() {
       <Stack
         screenOptions={{
           headerBackTitle: t('back'),
-          headerShown: true,
-          headerLeft: ({ tintColor }) => <StackHeaderBackButton tintColor={tintColor} />,
+          // ScreenHeader žije v obsahu obrazovek — native header vypnutý (žádné dvojité zpět).
+          headerShown: false,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
         }}
       >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
 
-      <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown'), headerShown: true }} />
-      <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis'), headerShown: true }} />
-      <Stack.Screen name="financial-goals" options={{ title: t('financialGoals'), headerShown: true }} />
-      <Stack.Screen name="add-savings-goal" options={{ title: t('fgNewGoal'), headerShown: true }} />
-      <Stack.Screen name="savings-goal-detail" options={{ title: t('sgGoalTitle'), headerShown: true }} />
-      <Stack.Screen name="language-settings" options={{ title: t('language'), headerShown: true }} />
-      <Stack.Screen name="currency-settings" options={{ title: t('appCurrency'), headerShown: true }} />
-      <Stack.Screen name="theme-settings" options={{ title: t('theme'), headerShown: true }} />
-      <Stack.Screen name="appearance-settings" options={{ title: t('profileAppearanceTitle'), headerShown: true }} />
-      <Stack.Screen name="general-settings" options={{ title: t('general'), headerShown: true }} />
-      <Stack.Screen name="bank-accounts" options={{ title: t('bankAccountsTitle'), headerShown: true }} />
-      <Stack.Screen name="notifications-settings" options={{ title: t('notifications'), headerShown: true }} />
-      <Stack.Screen name="household-notification-settings" options={{ title: t('profileNotificationSettings'), headerShown: true }} />
-      <Stack.Screen name="privacy-settings" options={{ title: t('privacy'), headerShown: true }} />
-      <Stack.Screen name="privacy-data-info" options={{ title: t('screenPrivacyData'), headerShown: true }} />
-      <Stack.Screen name="privacy-data-management" options={{ title: t('screenDataManagement'), headerShown: true }} />
-      <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: true }} />
-      <Stack.Screen name="help-support" options={{ title: t('help'), headerShown: true }} />
-      <Stack.Screen name="bank-import" options={{ title: t('bankImportScreenTitle'), headerShown: true }} />
-      <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport'), headerShown: false }} />
-      <Stack.Screen name="asset/[symbol]" options={{ title: t('screenAssetDetail'), headerShown: false }} />
-      <Stack.Screen name="account" options={{ title: t('profileMyAccount'), headerShown: false }} />
-      <Stack.Screen name="edit-profile" options={{ title: t('screenEditProfile'), headerShown: true }} />
-      <Stack.Screen name="investment-detail" options={{ title: t('screenInvestmentDetail'), headerShown: true }} />
-      <Stack.Screen name="investment-position-detail" options={{ title: t('screenInvestmentPosition'), headerShown: true }} />
-      <Stack.Screen name="reserve-detail" options={{ title: t('screenReserveDetail'), headerShown: true }} />
-      <Stack.Screen name="landing-preview" options={{ title: t('screenLandingPreview'), headerShown: true }} />
-      <Stack.Screen name="onboarding" options={{ title: t('screenProfileSetup'), headerShown: true }} />
-      <Stack.Screen name="welcome-tour" options={{ title: '', headerShown: false, header: () => null }} />
-      <Stack.Screen name="friends" options={{ title: t('screenFriends'), headerShown: true }} />
-      <Stack.Screen name="friend-comparison" options={{ title: t('screenComparison'), headerShown: true }} />
-      <Stack.Screen name="life-event" options={{ title: t('screenLifeEvent'), headerShown: false }} />
-      <Stack.Screen name="household-policies" options={{ title: t('screenSharingRules'), headerShown: true }} />
-      <Stack.Screen name="household-splits" options={{ title: t('screenExpenseSplits'), headerShown: true }} />
-      <Stack.Screen name="household-budgets" options={{ title: t('screenCategoryBudgets'), headerShown: true }} />
-      <Stack.Screen name="household-overview" options={{ title: t('screenHouseholdOverview'), headerShown: true }} />
-      <Stack.Screen name="household-members" options={{ title: t('hhMembersTitle'), headerShown: true }} />
-      <Stack.Screen name="loans" options={{ title: t('screenLoans'), headerShown: true }} />
-      <Stack.Screen name="loan-detail" options={{ title: t('screenLoanDetail'), headerShown: true }} />
-      <Stack.Screen name="loan-finder" options={{ title: t('screenLoanFinder'), headerShown: true }} />
-      <Stack.Screen name="add-loan" options={{ title: t('screenAddLoan'), headerShown: true }} />
-      <Stack.Screen name="edit-loan" options={{ title: t('screenEditLoan'), headerShown: true }} />
-      <Stack.Screen name="add-subscription" options={{ title: t('screenAddSubscription'), headerShown: true }} />
-      <Stack.Screen name="category-detail" options={{ title: t('screenCategoryDetail'), headerShown: true }} />
-      <Stack.Screen name="transaction-detail" options={{ title: t('screenTransaction'), headerShown: false }} />
-      <Stack.Screen name="save-pending-detail" options={{ title: t('screenThinkItOver'), headerShown: true }} />
-      <Stack.Screen name="save" options={{ title: t('piggyBankFeature'), headerShown: true }} />
-      <Stack.Screen name="split-groups" options={{ title: t('splitGroups'), headerShown: false }} />
-      <Stack.Screen name="split-group-detail" options={{ title: t('splitGroups'), headerShown: false }} />
-      <Stack.Screen name="join-split-group" options={{ title: t('splitGroupsJoinTitle'), headerShown: false }} />
-      <Stack.Screen name="add-split-expense" options={{ title: t('splitGroupsNewExpense'), headerShown: false }} />
-      <Stack.Screen name="badges" options={{ title: t('screenBadges'), headerShown: true }} />
-      <Stack.Screen name="quests" options={{ title: t('screenQuests'), headerShown: true }} />
-      <Stack.Screen name="gaming-stats" options={{ title: t('screenGamingStats'), headerShown: true }} />
-      <Stack.Screen name="hall-of-fame" options={{ title: t('screenHallOfFame'), headerShown: true }} />
-      <Stack.Screen name="leaderboard" options={{ title: t('screenLeaderboard'), headerShown: true }} />
-      <Stack.Screen name="support-chat" options={{ title: t('screenSupport'), headerShown: true }} />
-      <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
+      <Stack.Screen name="expense-detail" options={{ title: t('expenseBreakdown') }} />
+      <Stack.Screen name="income-detail" options={{ title: t('incomeAnalysis') }} />
+      <Stack.Screen name="financial-goals" options={{ title: t('financialGoals') }} />
+      <Stack.Screen name="add-savings-goal" options={{ title: t('fgNewGoal') }} />
+      <Stack.Screen name="savings-goal-detail" options={{ title: t('sgGoalTitle') }} />
+      <Stack.Screen name="language-settings" options={{ title: t('language') }} />
+      <Stack.Screen name="currency-settings" options={{ title: t('appCurrency') }} />
+      <Stack.Screen name="theme-settings" options={{ title: t('theme') }} />
+      <Stack.Screen name="appearance-settings" options={{ title: t('profileAppearanceTitle') }} />
+      <Stack.Screen name="general-settings" options={{ title: t('general') }} />
+      <Stack.Screen name="bank-accounts" options={{ title: t('bankAccountsTitle') }} />
+      <Stack.Screen name="notifications-settings" options={{ title: t('notifications') }} />
+      <Stack.Screen name="household-notification-settings" options={{ title: t('profileNotificationSettings') }} />
+      <Stack.Screen name="privacy-settings" options={{ title: t('privacy') }} />
+      <Stack.Screen name="privacy-data-info" options={{ title: t('screenPrivacyData') }} />
+      <Stack.Screen name="privacy-data-management" options={{ title: t('screenDataManagement') }} />
+      <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: false }} />
+      <Stack.Screen name="help-support" options={{ title: t('help') }} />
+      <Stack.Screen name="bank-import" options={{ title: t('bankImportScreenTitle') }} />
+      <Stack.Screen name="monthly-report" options={{ title: t('monthlyReport') }} />
+      <Stack.Screen name="asset/[symbol]" options={{ title: t('screenAssetDetail') }} />
+      <Stack.Screen name="account" options={{ title: t('profileMyAccount') }} />
+      <Stack.Screen name="edit-profile" options={{ title: t('screenEditProfile') }} />
+      <Stack.Screen name="investment-detail" options={{ title: t('screenInvestmentDetail') }} />
+      <Stack.Screen name="investment-position-detail" options={{ title: t('screenInvestmentPosition') }} />
+      <Stack.Screen name="reserve-detail" options={{ title: t('screenReserveDetail') }} />
+      <Stack.Screen name="welcome-tour" options={{ title: '', headerShown: false, header: () => null, gestureEnabled: false }} />
+      <Stack.Screen name="household-policies" options={{ title: t('screenSharingRules') }} />
+      <Stack.Screen name="household-splits" options={{ title: t('screenExpenseSplits') }} />
+      <Stack.Screen name="household-budgets" options={{ title: t('screenCategoryBudgets') }} />
+      <Stack.Screen name="household-overview" options={{ title: t('screenHouseholdOverview') }} />
+      <Stack.Screen name="household-members" options={{ title: t('hhMembersTitle') }} />
+      <Stack.Screen name="loans" options={{ title: t('screenLoans') }} />
+      <Stack.Screen name="loan-detail" options={{ title: t('screenLoanDetail') }} />
+      <Stack.Screen name="loan-finder" options={{ title: t('screenLoanFinder') }} />
+      <Stack.Screen name="add-loan" options={{ title: t('screenAddLoan') }} />
+      <Stack.Screen name="edit-loan" options={{ title: t('screenEditLoan') }} />
+      <Stack.Screen name="add-subscription" options={{ title: t('screenAddSubscription') }} />
+      <Stack.Screen name="category-detail" options={{ title: t('screenCategoryDetail') }} />
+      <Stack.Screen name="transaction-detail" options={{ title: t('screenTransaction') }} />
+      <Stack.Screen name="save-pending-detail" options={{ title: t('screenThinkItOver') }} />
+      <Stack.Screen name="save" options={{ title: t('piggyBankFeature') }} />
+      <Stack.Screen name="split-groups" options={{ title: t('splitGroups') }} />
+      <Stack.Screen name="split-group-detail" options={{ title: t('splitGroups') }} />
+      <Stack.Screen name="join-split-group" options={{ title: t('splitGroupsJoinTitle') }} />
+      <Stack.Screen name="add-split-expense" options={{ title: t('splitGroupsNewExpense') }} />
+      <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false, gestureEnabled: false }} />
       
       {/* These screens should not be accessible when user has active subscription */}
-      <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
+      <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="subscription" options={{ title: t('screenEditSubscription') }} />
-      <Stack.Screen name="choose-subscription" options={{ title: t('screenChooseSubscription') }} />
-      <Stack.Screen name="premium-success" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
+      <Stack.Screen
+        name="choose-subscription"
+        options={{ title: t('screenChooseSubscription'), presentation: 'modal', gestureEnabled: true }}
+      />
+      <Stack.Screen
+        name="premium-success"
+        options={{ headerShown: false, gestureEnabled: false, fullScreenGestureEnabled: false }}
+      />
+      <Stack.Screen name="landing" options={{ title: t('moneyBuddy'), gestureEnabled: false }} />
     </Stack>
       <AppLock />
       </View>
@@ -469,13 +463,9 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <ExpoPushTokenRegistration />
-              <FriendsProvider>
-                <LifeEventProvider>
-                  <HouseholdProvider>
-                    <RootLayoutNav />
-                  </HouseholdProvider>
-                </LifeEventProvider>
-              </FriendsProvider>
+              <HouseholdProvider>
+                <RootLayoutNav />
+              </HouseholdProvider>
             </AuthProvider>
           </QueryClientProvider>
         </trpc.Provider>

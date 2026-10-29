@@ -1,124 +1,75 @@
 import { Platform } from 'react-native';
+import {
+  fetchYahooNativePrice,
+  fetchYahooNativePricesInBatches,
+  toYahooSymbol,
+} from '@/lib/yahoo-ticker';
 
 export type LatestPrice = { price: number; time?: string | null; ccy?: string | null };
-
-type YahooQuote = {
-  symbol?: string;
-  regularMarketPrice?: number;
-  regularMarketTime?: number;
-  currency?: string;
-};
 
 function normalizeTickers(tickers: string[]): string[] {
   return Array.from(
     new Set(
       (tickers || [])
         .map((t) => (t ?? '').trim())
-        .filter((t) => t.length > 0)
-    )
+        .filter((t) => t.length > 0),
+    ),
   );
 }
 
-function getApiBaseUrl(): string | null {
-  const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  if (!url) {
-    console.warn('[priceService] EXPO_PUBLIC_RORK_API_BASE_URL is not set, price fetching disabled');
-    return null;
-  }
-  return url;
-}
-
-async function fetchFromYahoo(tickers: string[]): Promise<YahooQuote[]> {
-  const unique = normalizeTickers(tickers);
-  if (!unique.length) return [];
-  const base = getApiBaseUrl();
-  if (!base) {
-    console.warn('[priceService] API base URL not configured, skipping price fetch');
-    return [];
-  }
-  const joined = encodeURIComponent(unique.join(','));
-  const url = `${base}/api/quotes?symbols=${joined}`;
-  console.log('[priceService] yahoo proxy fetch', { url, count: unique.length, platform: Platform.OS });
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-  const json = (await res.json()) as { quotes?: YahooQuote[] };
-  const list = json?.quotes ?? [];
-  return list;
-}
-
-async function fetchFromStooq(_tickers: string[]): Promise<Record<string, LatestPrice>> {
-  console.warn('[priceService] stooq fallback disabled to avoid wrong US mapping on EU tickers');
-  return {};
-}
-
+/**
+ * Ceny přímo z Yahoo Finance (stejný stack jako portfolio).
+ * TODO(App Store): až půjde pryč @rork-ai/toolkit-sdk / Rork proxy, tento soubor už Rork nepoužívá.
+ */
 export async function fetchLatestPrices(tickers: string[]): Promise<Record<string, LatestPrice>> {
   const out: Record<string, LatestPrice> = {};
   const unique = normalizeTickers(tickers);
   if (!unique.length) return out;
 
   try {
-    const quotes = await fetchFromYahoo(unique);
-    for (const q of quotes) {
-      const sym = (q.symbol ?? '').trim();
-      const price = q.regularMarketPrice;
-      if (sym && typeof price === 'number' && Number.isFinite(price)) {
-        const time = q.regularMarketTime ? new Date(q.regularMarketTime * 1000).toISOString() : null;
-        out[sym] = { price, time, ccy: q.currency ?? null };
+    console.log('[priceService] Yahoo direct fetch', { count: unique.length, platform: Platform.OS });
+    const { quotesByTicker } = await fetchYahooNativePricesInBatches(
+      unique.map((ticker) => ({ ticker, isin: null })),
+    );
+    for (const ticker of unique) {
+      const q = quotesByTicker.get(ticker) ?? quotesByTicker.get(ticker.toUpperCase());
+      if (q && typeof q.price === 'number' && Number.isFinite(q.price)) {
+        out[ticker] = { price: q.price, time: null, ccy: q.currency ?? null };
+        out[ticker.toUpperCase()] = out[ticker]!;
       }
     }
-    if (Object.keys(out).length > 0) return out;
   } catch (e) {
-    console.error('[priceService] fetchLatestPrices yahoo error, falling back to stooq', e);
+    console.error('[priceService] fetchLatestPrices Yahoo error', e);
   }
-
-  try {
-    const fallback = await fetchFromStooq(unique);
-    return fallback;
-  } catch (e) {
-    console.error('[priceService] fetchLatestPrices stooq error', e);
-    return out;
-  }
-}
-
-function candidateSymbols(ticker: string): string[] {
-  const t = (ticker || '').trim();
-  const suffixes = ['', '.DE', '.F', '.L', '.MI', '.PA', '.AS', '.SW'];
-  const out: string[] = [];
-  for (const s of suffixes) out.push(`${t}${s}`);
   return out;
 }
 
 export async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, number>> {
   const unique = normalizeTickers(symbols);
   if (!unique.length) return {};
+  const results: Record<string, number> = {};
   try {
-    const allCandidates = Array.from(new Set(unique.flatMap(candidateSymbols)));
-    const quotes = await fetchFromYahoo(allCandidates);
-    const bySymbol: Record<string, YahooQuote> = {};
-    for (const q of quotes) {
-      const sym = (q.symbol ?? '').trim();
-      if (sym) bySymbol[sym] = q;
-    }
-    const preference = ['', '.DE', '.F', '.PA', '.MI', '.AS', '.SW', '.L'];
-    const results: Record<string, number> = {};
-    for (const base of unique) {
-      let picked: YahooQuote | undefined;
-      for (const suf of preference) {
-        const key = `${base}${suf}`;
-        const q = bySymbol[key];
-        if (q && typeof q.regularMarketPrice === 'number' && Number.isFinite(q.regularMarketPrice)) {
-          picked = q; break;
+    await Promise.all(
+      unique.map(async (base) => {
+        const quote = await fetchYahooNativePrice(base);
+        if (quote && typeof quote.price === 'number' && Number.isFinite(quote.price)) {
+          results[base.toUpperCase()] = quote.price;
+          return;
         }
-      }
-      if (picked && typeof picked.regularMarketPrice === 'number') {
-        results[base.toUpperCase()] = picked.regularMarketPrice as number;
-      }
-    }
-    return results;
+        // Zkus mapování broker → Yahoo symbol
+        const mapped = toYahooSymbol(base);
+        if (mapped !== base) {
+          const q2 = await fetchYahooNativePrice(mapped);
+          if (q2 && typeof q2.price === 'number' && Number.isFinite(q2.price)) {
+            results[base.toUpperCase()] = q2.price;
+          }
+        }
+      }),
+    );
   } catch (e) {
-    console.warn('[priceService] fetchCurrentPrices error (prices unavailable, using fallback)', e);
-    return {};
+    console.warn('[priceService] fetchCurrentPrices error', e);
   }
+  return results;
 }
 
 export type StockSector = {
@@ -128,33 +79,7 @@ export type StockSector = {
   country: string | null;
 };
 
-export async function fetchStockSectors(symbols: string[]): Promise<Record<string, StockSector>> {
-  const unique = normalizeTickers(symbols);
-  if (!unique.length) return {};
-  const base = getApiBaseUrl();
-  if (!base) {
-    console.warn('[priceService] API base URL not configured, skipping sector fetch');
-    return {};
-  }
-  
-  try {
-    const joined = encodeURIComponent(unique.join(','));
-    const url = `${base}/api/quotes/sectors?symbols=${joined}`;
-    console.log('[priceService] sectors fetch', { url, count: unique.length });
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Sectors HTTP ${res.status}`);
-    const json = (await res.json()) as { sectors?: StockSector[] };
-    const list = json?.sectors ?? [];
-    
-    const out: Record<string, StockSector> = {};
-    for (const s of list) {
-      if (s.symbol) {
-        out[s.symbol.toUpperCase()] = s;
-      }
-    }
-    return out;
-  } catch (e) {
-    console.error('[priceService] fetchStockSectors error', e);
-    return {};
-  }
+/** Yahoo chart API nevrací sektor spolehlivě — bez Rork proxy vracíme prázdno. */
+export async function fetchStockSectors(_symbols: string[]): Promise<Record<string, StockSector>> {
+  return {};
 }

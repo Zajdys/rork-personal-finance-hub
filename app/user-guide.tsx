@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import {
   Rocket,
   FileSpreadsheet,
@@ -137,41 +136,22 @@ export default function UserGuideScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('helpUserGuide'),
-          headerStyle: { backgroundColor: colors.gradientStart },
-          headerTintColor: colors.onPrimary,
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? colors.onPrimary} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold' },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('helpUserGuide')} subtitle={t('guideIntroSubtitle')} variant="gradient" />
 
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={[styles.headerTitle, { color: colors.onPrimary }]}>{t('helpUserGuide')}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.onPrimary }]}>{t('guideIntroSubtitle')}</Text>
-        </LinearGradient>
-
         <View style={styles.content}>
           {guideSections.map((section) => (
             <GuideSectionCard key={section.title} section={section} colors={colors} styles={styles} />
           ))}
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 

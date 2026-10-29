@@ -65,7 +65,7 @@ async function main() {
     if (r.category === 'Převod') continue;
     const mk = normalizeMerchantKey(r.description);
     const dict = mk ? lookupMerchantDictionary(mk) : null;
-    if (dict) r.category = dict;
+    if (dict) r.category = dict.category;
   }
 
   const batchId = randomUUID();

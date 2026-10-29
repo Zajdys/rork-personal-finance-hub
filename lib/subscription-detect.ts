@@ -40,17 +40,20 @@ export const SUBSCRIPTION_ACTIVE_YEARLY_DAYS = 400;
 export const DIGITAL_SUBSCRIPTION_CATEGORIES = new Set<string>(['Předplatné']);
 
 export const SUBSCRIPTION_EXCLUDED_CATEGORIES = new Set<string>([
-  'Splátky úvěrů',
+  'Úvěry',
+  'Splátky úvěrů', // legacy
   'Bydlení',
-  'Nájem a bydlení',
+  'Nájem a bydlení', // legacy
   'Energie',
-  'Doprava',
-  'Telefon a internet',
+  'Auto a doprava',
+  'Doprava', // legacy
+  'Telefon a internet', // legacy
   'Pojištění',
   'Převod',
   'Platby lidem',
   'Investice',
-  'Bankovní poplatky',
+  'Poplatky a hotovost',
+  'Bankovní poplatky', // legacy
 ]);
 
 export type DetectableTx = {

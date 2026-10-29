@@ -13,14 +13,13 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, UsersRound, ChevronRight, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useSplitGroupsStore } from '@/store/split-groups-store';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { pluralClen } from '@/lib/plural-cs';
 
 const GROUP_ICONS = ['👥', '✈️', '🏠', '🎉', '🍕', '⛰️', '🍻', '🏖️'];
@@ -155,21 +154,11 @@ export default function SplitGroupsListScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerRow}>
-          <BackButton color="white" size={24} style={styles.headerBtn} />
-          <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>{t('splitGroups')}</Text>
-            <Text style={styles.headerSubtitle}>{t('splitGroupsListSubtitle')}</Text>
-          </View>
-          <View style={styles.headerBtn} />
-        </View>
-      </LinearGradient>
+      <ScreenHeader
+        title={t('splitGroups')}
+        subtitle={t('splitGroupsListSubtitle')}
+        variant="gradient"
+      />
 
       <ScrollView
         style={styles.scroll}

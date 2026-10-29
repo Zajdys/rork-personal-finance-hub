@@ -31,7 +31,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { formatDateCs, fixationEndFromYears, monthlyPaymentAmortizing, monthlyPaymentDiffersOverOnePercent, resolvePaidMonths, resolveRemainingMonths } from '@/lib/loan-math';
 import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { safeReplace } from '@/lib/safe-navigate';
@@ -241,20 +241,11 @@ export default function AddLoanScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.headerBackButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('addLoan.title')}</Text>
-            <Text style={styles.headerSubtitle}>{t('addLoan.subtitle')}</Text>
-          </View>
-        </View>
-      </LinearGradient>
+      <ScreenHeader
+        title={t('addLoan.title')}
+        subtitle={t('addLoan.subtitle')}
+        variant="gradient"
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>

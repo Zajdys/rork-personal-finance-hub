@@ -230,7 +230,13 @@ function classifyKbRow(params: {
   counterpartyAccount: string | undefined;
   ownerAccounts: string[];
   type: 'income' | 'expense';
-}): { category: string; description: string; isRefund?: boolean; type: 'income' | 'expense' } {
+}): {
+  category: string;
+  subcategory?: string | null;
+  description: string;
+  isRefund?: boolean;
+  type: 'income' | 'expense';
+} {
   const { txType, merchantPart, counterpartyLabel, note, counterpartyAccount, ownerAccounts } =
     params;
   let { description, type } = params;
@@ -239,7 +245,8 @@ function classifyKbRow(params: {
   // Poplatek banky
   if (txType && /poplatek/i.test(txType)) {
     return {
-      category: 'Bankovní poplatky',
+      category: 'Poplatky a hotovost',
+      subcategory: 'Bankovní poplatky',
       description: 'Poplatek KB',
       type: 'expense',
     };
@@ -276,7 +283,8 @@ function classifyKbRow(params: {
     isAtmOrCashDescription(blob)
   ) {
     return {
-      category: 'Výběr hotovosti',
+      category: 'Poplatky a hotovost',
+      subcategory: 'Výběr hotovosti',
       description: 'Výběr hotovosti',
       type: 'expense',
     };
@@ -286,6 +294,7 @@ function classifyKbRow(params: {
   if (isLoanPaymentText(blob, note)) {
     return {
       category: LOAN_PAYMENT_CATEGORY,
+      subcategory: 'Půjčka',
       description,
       type: 'expense',
     };
@@ -412,7 +421,8 @@ export function parseKbLinesToImportRows(
     const bucket: ImportBucket =
       classified.category === 'Převod'
         ? 'Převod'
-        : classified.category === 'Výběr hotovosti'
+        : classified.category === 'Poplatky a hotovost' ||
+            classified.category === 'Výběr hotovosti'
           ? 'Ostatní'
           : 'Ostatní';
 
@@ -424,6 +434,7 @@ export function parseKbLinesToImportRows(
       amount,
       bucket,
       category: classified.category,
+      subcategory: classified.subcategory ?? null,
       ...(classified.isRefund ? { isRefund: true } : {}),
       ...(bankTransactionId ? { bankTransactionId } : {}),
       ...cpMeta,

@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Home,
   Car,
@@ -31,7 +30,7 @@ import { getLoanTypeLabel } from '@/lib/loan-type-labels';
 import { formatDateCs, fixationEndFromYears, monthlyPaymentAmortizing, monthlyPaymentDiffersOverOnePercent, parseDateDdMmYyyy, resolvePaidMonths, resolveRemainingMonths } from '@/lib/loan-math';
 import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
 import { safeGoBack } from '@/lib/safe-back';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 
@@ -248,20 +247,11 @@ export default function EditLoanScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.headerBackButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('screenEditLoan')}</Text>
-            <Text style={styles.headerSubtitle}>{t('loanDetailSubtitle')}</Text>
-          </View>
-        </View>
-      </LinearGradient>
+      <ScreenHeader
+        title={t('screenEditLoan')}
+        subtitle={t('loanDetailSubtitle')}
+        variant="gradient"
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>

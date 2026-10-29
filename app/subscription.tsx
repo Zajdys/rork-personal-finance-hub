@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Calendar,
   DollarSign,
@@ -21,7 +20,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { safeGoBack } from '@/lib/safe-back';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { BrandIcon } from '@/components/BrandIcon';
 import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
@@ -140,19 +139,7 @@ export default function EditSubscriptionScreen() {
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.backButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('subscription.editTitle')}</Text>
-          </View>
-        </View>
-      </LinearGradient>
+      <ScreenHeader title={t('subscription.editTitle')} variant="gradient" />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>

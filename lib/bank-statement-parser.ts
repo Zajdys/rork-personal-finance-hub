@@ -29,11 +29,11 @@ export type ImportBucket =
   | 'Ostatní';
 
 export const BUCKET_TO_EXPENSE_CATEGORY: Record<ImportBucket, string> = {
-  Jídlo: 'Jídlo a nápoje',
-  'Auto/Benzín': 'Doprava',
-  Restaurace: 'Jídlo a nápoje',
+  Jídlo: 'Jídlo',
+  'Auto/Benzín': 'Auto a doprava',
+  Restaurace: 'Jídlo',
   Bydlení: 'Bydlení',
-  Sport: 'Sport a zdraví',
+  Sport: 'Volný čas',
   Zdraví: 'Zdraví',
   Investice: 'Investice',
   Předplatné: 'Předplatné',
@@ -546,6 +546,8 @@ export interface ParsedImportRow {
   amount: number;
   bucket: ImportBucket;
   category: string;
+  /** Podkategorie výdaje (volitelná) */
+  subcategory?: string | null;
   /** Zdroj pro `Transaction.source` (raiffeisenbank, csob, kb, …) — doplní import */
   source?: string;
   /**

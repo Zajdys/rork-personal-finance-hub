@@ -269,7 +269,7 @@ async function main() {
 
     const dictCat = merchantKey ? lookupMerchantDictionary(merchantKey) : null;
     const isOstatni = !r.category || r.category === 'Ostatní';
-    const isFromDictionary = !!dictCat && r.category === dictCat;
+    const isFromDictionary = !!dictCat && r.category === dict?.categoryCat?.category;
     // Přepočítat i Předplatné u energií (ČEZ) a staré Služby u Vodafone
     const forceEnergy =
       r.category === 'Předplatné' &&

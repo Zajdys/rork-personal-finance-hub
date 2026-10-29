@@ -1,17 +1,21 @@
 /**
- * Klíčová slova po normalizaci merchant_key / popisu → kategorie.
+ * Klíčová slova po normalizaci merchant_key / popisu → kategorie (+ volitelná podkategorie).
  * Shoda jako celé slovo, prefix tokenu, nebo (u selected) infix.
  */
 export type KeywordRule = {
   keywords: string[];
   category: string;
+  subcategory?: string | null;
   /** Hledej i uvnitř slova (např. ARENA v ESPORTARENA) */
   infix?: boolean;
 };
 
+export type KeywordCategoryHit = { category: string; subcategory?: string | null };
+
 export const MERCHANT_KEYWORD_RULES: KeywordRule[] = [
   {
-    category: 'Jídlo a nápoje',
+    category: 'Jídlo',
+    subcategory: 'Restaurace',
     keywords: [
       'KURAK',
       'GRIL',
@@ -19,27 +23,39 @@ export const MERCHANT_KEYWORD_RULES: KeywordRule[] = [
       'KEBAB',
       'BURGER',
       'SUSHI',
-      'PEKARNA',
-      'PEKAR',
       'BAGET',
       'PIZZA',
       'RESTAURACE',
       'RESTAURANT',
-      'KAVARNA',
-      'CAFE',
-      'COFFEE',
       'BISTRO',
       'HOSPODA',
       'BUFET',
-      'CUKRARNA',
-      'ZMRZLINA',
-      'POTRAVINY',
-      'SUPERMARKET',
-      'MARKET',
     ],
   },
   {
-    category: 'Domácnost a nábytek',
+    category: 'Jídlo',
+    subcategory: 'Kavárny',
+    keywords: ['KAVARNA', 'CAFE', 'COFFEE', 'CUKRARNA', 'ZMRZLINA'],
+  },
+  {
+    category: 'Jídlo',
+    subcategory: 'Potraviny',
+    keywords: [
+      'PEKARNA',
+      'PEKAR',
+      'POTRAVINY',
+      'SUPERMARKET',
+      'MARKET',
+      'LIDL',
+      'ALBERT',
+      'KAUFLAND',
+      'BILLA',
+      'TESCO',
+    ],
+  },
+  {
+    category: 'Nákupy',
+    subcategory: 'Domácnost a nábytek',
     keywords: [
       'NABYTEK',
       'HOBBY',
@@ -56,28 +72,24 @@ export const MERCHANT_KEYWORD_RULES: KeywordRule[] = [
     ],
   },
   {
-    category: 'Doprava',
-    keywords: [
-      'PARKOV',
-      'BENZIN',
-      'NAFTA',
-      'OIL',
-      'PETROL',
-      'AUTOBUS',
-      'MHD',
-      'CD.CZ',
-      'TAXI',
-      'UBER',
-      'BOLT',
-      'CERPACI',
-      'CERPACI STANICE',
-      'DALNICE',
-      'MYTO',
-      'CARVERTICAL',
-      'AUTOMOTO',
-      'LKQ',
-      'LETISTE',
-    ],
+    category: 'Auto a doprava',
+    subcategory: 'Benzín a nafta',
+    keywords: ['BENZIN', 'NAFTA', 'TANK', 'OIL', 'PETROL', 'CERPACI', 'CERPACI STANICE'],
+  },
+  {
+    category: 'Auto a doprava',
+    subcategory: 'Parkování a dálnice',
+    keywords: ['PARKOV', 'DALNICE', 'MYTO'],
+  },
+  {
+    category: 'Auto a doprava',
+    subcategory: 'MHD a vlak',
+    keywords: ['VLAK', 'AUTOBUS', 'MHD', 'CD.CZ', 'TAXI', 'UBER', 'BOLT', 'LETISTE'],
+  },
+  {
+    category: 'Auto a doprava',
+    subcategory: 'Servis a STK',
+    keywords: ['CARVERTICAL', 'AUTOMOTO', 'LKQ', 'STK'],
   },
   {
     category: 'Investice',
@@ -88,7 +100,8 @@ export const MERCHANT_KEYWORD_RULES: KeywordRule[] = [
     keywords: ['ALLEGRO', 'AUKRO', 'IHERB', 'THEPAY', 'NANU NANA', 'STARGAZE', 'TEMU'],
   },
   {
-    category: 'Zábava a kultura',
+    category: 'Volný čas',
+    subcategory: 'Kultura',
     keywords: [
       'DOLNIMORAVA',
       'DOLNI MORAVA',
@@ -110,50 +123,96 @@ export const MERCHANT_KEYWORD_RULES: KeywordRule[] = [
     ],
   },
   {
-    category: 'Zábava a kultura',
+    category: 'Volný čas',
+    subcategory: 'Hry',
     keywords: ['ARENA'],
     infix: true,
   },
   {
     category: 'Zdraví',
-    keywords: ['LEKARNA', 'PHARM', 'LEKAREN', 'DOKTOR', 'KLINIKA', 'ORDINACE', 'STOMATO'],
+    subcategory: 'Lékárna',
+    keywords: ['LEKARNA', 'PHARM', 'LEKAREN'],
   },
   {
-    category: 'Sport',
-    keywords: ['SPORT', 'FITNESS', 'GYM', 'BAZEN', 'PLAVANI', 'SQUASH', 'TENIS'],
+    category: 'Zdraví',
+    subcategory: 'Lékař',
+    keywords: ['DOKTOR', 'KLINIKA', 'ORDINACE', 'STOMATO'],
   },
   {
-    category: 'Oblečení a obuv',
+    category: 'Volný čas',
+    subcategory: 'Sport',
+    keywords: ['SPORT', 'BAZEN', 'PLAVANI', 'SQUASH', 'TENIS'],
+  },
+  {
+    category: 'Předplatné',
+    subcategory: 'Posilovna',
+    keywords: ['FITNESS', 'GYM', 'POSILOVNA'],
+  },
+  {
+    category: 'Nákupy',
+    subcategory: 'Oblečení a obuv',
     keywords: ['FASHION', 'OBUV', 'TEXTIL', 'ODĚVY', 'ODEVY', 'BOTY', 'OBUVNICK'],
   },
   {
-    category: 'Cestování a ubytování',
+    category: 'Cestování',
+    subcategory: 'Ubytování',
     keywords: ['HOTEL', 'PENZION', 'AIRBNB', 'BOOKING', 'HOSTEL', 'CAMPING', 'UBYTOVANI', 'UBYT'],
   },
   {
-    category: 'Elektronika',
+    category: 'Nákupy',
+    subcategory: 'Elektronika',
     keywords: ['ELECTRO', 'ELEKTRO', 'NOTEBOOK', 'MOBIL', 'PC ', 'COMPUTER'],
   },
   {
     category: 'Bydlení',
-    keywords: ['POJISTENI', 'POJISTKA', 'POJISTOVNA', 'CEZ', 'INNOGY', 'PLYNARENSKA'],
+    subcategory: 'Energie',
+    keywords: ['CEZ', 'INNOGY', 'PLYNARENSKA', 'ENERGIE', 'ELEKTRINA', 'PLYN'],
   },
   {
-    category: 'Telefon a internet',
+    category: 'Bydlení',
+    subcategory: 'Nájem',
+    keywords: ['NAJEM'],
+  },
+  {
+    category: 'Bydlení',
+    subcategory: 'Voda',
+    keywords: ['VODA'],
+  },
+  {
+    category: 'Auto a doprava',
+    subcategory: 'Pojištění',
+    keywords: ['POJISTENI', 'POJISTKA', 'POJISTOVNA'],
+  },
+  {
+    category: 'Bydlení',
+    subcategory: 'Internet a telefon',
     keywords: ['VODAFONE', 'T-MOBILE', 'TMOBILE', 'STARNET', 'NEJ.CZ'],
   },
   {
-    category: 'Bankovní poplatky',
+    category: 'Poplatky a hotovost',
+    subcategory: 'Bankovní poplatky',
     keywords: ['POPLATEK', 'POPLATKY'],
   },
   {
-    category: 'Splátky úvěrů',
-    keywords: ['SPLATKA UVERU', 'HYPOTEK', 'LEASING'],
+    category: 'Úvěry',
+    subcategory: 'Hypotéka',
+    keywords: ['HYPOTEK'],
+  },
+  {
+    category: 'Úvěry',
+    subcategory: 'Leasing',
+    keywords: ['LEASING'],
+  },
+  {
+    category: 'Úvěry',
+    subcategory: 'Půjčka',
+    keywords: ['SPLATKA UVERU'],
   },
   {
     category: 'Předplatné',
+    subcategory: 'Streaming',
     // Bez APPLE.COM — App Store nákupy i předplatná; shluk řeší subscription-detect
-    keywords: ['SUBSCRIPTION', 'MEMBERSHIP'],
+    keywords: ['SUBSCRIPTION', 'MEMBERSHIP', 'NETFLIX', 'SPOTIFY', 'HBO', 'DISNEY'],
   },
 ];
 
@@ -168,7 +227,7 @@ function normalizeHaystack(raw: string): string {
 }
 
 /**
- * „CS MILOVICE“ / „CS PRAHA“ → Doprava (čerpací stanice CS).
+ * „CS MILOVICE“ / „CS PRAHA“ → Auto a doprava / Benzín a nafta.
  */
 export function isCsFuelStationName(raw: string): boolean {
   const hay = normalizeHaystack(raw);
@@ -178,14 +237,13 @@ export function isCsFuelStationName(raw: string): boolean {
 /**
  * Shoda klíčového slova jako celé slovo, prefix tokenu, nebo infix (ARENA).
  */
-export function lookupMerchantKeywords(raw: string): string | null {
+export function lookupMerchantKeywords(raw: string): KeywordCategoryHit | null {
   const hay = normalizeHaystack(raw);
   if (!hay || hay.length < 3) return null;
 
   if (isCsFuelStationName(hay) || hay.includes('CERPACI STANICE') || hay.includes('CERPACI')) {
-    // CERPACI samotné už je v Doprava; CS <město> explicitně
     if (isCsFuelStationName(hay) || hay.includes('CERPACI')) {
-      return 'Doprava';
+      return { category: 'Auto a doprava', subcategory: 'Benzín a nafta' };
     }
   }
 
@@ -196,14 +254,16 @@ export function lookupMerchantKeywords(raw: string): string | null {
       const k = normalizeHaystack(kw);
       if (!k) continue;
       if (rule.infix) {
-        if (hay.includes(k)) return rule.category;
+        if (hay.includes(k)) {
+          return { category: rule.category, subcategory: rule.subcategory ?? null };
+        }
         continue;
       }
       if (hay === k || hay.startsWith(`${k} `) || hay.includes(` ${k} `) || hay.endsWith(` ${k}`)) {
-        return rule.category;
+        return { category: rule.category, subcategory: rule.subcategory ?? null };
       }
       if (tokens.some((t) => t === k || t.startsWith(k))) {
-        return rule.category;
+        return { category: rule.category, subcategory: rule.subcategory ?? null };
       }
     }
   }

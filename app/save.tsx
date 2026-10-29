@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { PiggyBank, Timer, Briefcase, ChevronRight, TrendingUp } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
 import { useSettingsStore } from '@/store/settings-store';
@@ -389,18 +389,8 @@ function SaveScreenContent() {
 
   return (
     <>
-    <Stack.Screen
-      options={{
-        title: t('piggyBankFeature'),
-        headerShown: true,
-        headerStyle: { backgroundColor: colors.gradientStart },
-        headerTintColor: 'white',
-        headerTitleStyle: { fontWeight: 'bold' },
-        headerLeft: ({ tintColor }) => (
-          <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-        ),
-      }}
-    />
+    <Stack.Screen options={{ headerShown: false }} />
+    <ScreenHeader title={t('piggyBankFeature')} variant="gradient" />
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}

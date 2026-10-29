@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -304,6 +305,7 @@ export default function InvestmentDetailScreen() {
 
   return (
     <>
+      <ScreenHeader title={t('screenInvestmentDetail')} variant="gradient" />
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}

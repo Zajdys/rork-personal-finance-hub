@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { normalizeMerchantKey } from '@/lib/normalize-merchant-key';
+import { normalizeCategory, type NormalizedCategory } from '@/lib/category-normalize';
 
-export type UserCategoryRulesMap = Map<string, string>;
+export type UserCategoryRulesMap = Map<string, NormalizedCategory>;
 
 export async function fetchUserCategoryRules(
   userId: string,
@@ -11,12 +12,24 @@ export async function fetchUserCategoryRules(
   const map: UserCategoryRulesMap = new Map();
   const { data, error } = await client
     .from('user_category_rules')
-    .select('merchant_key, category')
+    .select('merchant_key, category, subcategory')
     .eq('user_id', userId);
 
   if (error) {
-    // Fallback na legacy tabulku, dokud migrace neproběhne všude
+    // Fallback bez subcategory sloupce / legacy tabulka
     console.warn('[user_category_rules] fetch failed, trying legacy:', error.message);
+    const retry = await client
+      .from('user_category_rules')
+      .select('merchant_key, category')
+      .eq('user_id', userId);
+    if (!retry.error) {
+      for (const row of retry.data ?? []) {
+        if (!row.merchant_key || !row.category) continue;
+        const key = normalizeMerchantKey(row.merchant_key) || row.merchant_key;
+        map.set(key, normalizeCategory(row.category));
+      }
+      return map;
+    }
     const legacy = await client
       .from('user_merchant_categories')
       .select('merchant_key, category_id')
@@ -25,7 +38,7 @@ export async function fetchUserCategoryRules(
       for (const row of legacy.data ?? []) {
         if (!row.merchant_key || !row.category_id) continue;
         const key = normalizeMerchantKey(row.merchant_key) || row.merchant_key;
-        map.set(key, row.category_id);
+        map.set(key, normalizeCategory(row.category_id));
       }
     }
     return map;
@@ -33,9 +46,14 @@ export async function fetchUserCategoryRules(
 
   for (const row of data ?? []) {
     if (!row.merchant_key || !row.category) continue;
-    // Defenzivně renormalizuj (legacy klíče před migrací v4)
     const key = normalizeMerchantKey(row.merchant_key) || row.merchant_key;
-    map.set(key, row.category);
+    map.set(
+      key,
+      normalizeCategory(
+        row.category,
+        typeof row.subcategory === 'string' ? row.subcategory : null,
+      ),
+    );
   }
   return map;
 }
@@ -44,27 +62,44 @@ export async function upsertUserCategoryRule(
   userId: string,
   merchantDescriptionOrKey: string,
   category: string,
+  subcategory?: string | null,
 ): Promise<{ merchantKey: string; error: Error | null }> {
   const merchantKey = normalizeMerchantKey(merchantDescriptionOrKey);
   if (!merchantKey || !category.trim()) {
     return { merchantKey: '', error: null };
   }
 
-  const { error } = await supabase.from('user_category_rules').upsert(
-    {
-      user_id: userId,
-      merchant_key: merchantKey,
-      category: category.trim(),
-    },
-    { onConflict: 'user_id,merchant_key' },
-  );
+  const n = normalizeCategory(category, subcategory);
+  const payload: Record<string, unknown> = {
+    user_id: userId,
+    merchant_key: merchantKey,
+    category: n.category,
+    subcategory: n.subcategory,
+  };
+
+  let { error } = await supabase
+    .from('user_category_rules')
+    .upsert(payload, { onConflict: 'user_id,merchant_key' });
+
+  if (error && /subcategory/i.test(error.message)) {
+    // Sloupec ještě nemusí existovat všude
+    const retry = await supabase.from('user_category_rules').upsert(
+      {
+        user_id: userId,
+        merchant_key: merchantKey,
+        category: n.category,
+      },
+      { onConflict: 'user_id,merchant_key' },
+    );
+    error = retry.error;
+  }
 
   // Mirror do legacy tabulky (zpětná kompatibilita)
   void supabase.from('user_merchant_categories').upsert(
     {
       user_id: userId,
       merchant_key: merchantKey,
-      category_id: category.trim(),
+      category_id: n.category,
     },
     { onConflict: 'user_id,merchant_key' },
   );
@@ -90,10 +125,8 @@ export async function countTransactionsForMerchantKey(
 
   if (!error && typeof count === 'number') {
     if (!excludeTransactionId) return count;
-    // count includes exclude — fallback na list
   }
 
-  // Fallback: starší data bez merchant_key sloupce / hodnot
   const { data, error: listErr } = await supabase
     .from('transactions')
     .select('id, title, description, merchant_key, category')
@@ -120,10 +153,12 @@ export async function bulkApplyCategoryForMerchantKey(
   merchantKey: string,
   category: string,
   excludeTransactionId?: string,
+  subcategory?: string | null,
 ): Promise<{ updatedIds: string[]; error: Error | null }> {
+  const n = normalizeCategory(category, subcategory);
   const { data, error } = await supabase
     .from('transactions')
-    .select('id, title, description, merchant_key, category')
+    .select('id, title, description, merchant_key, category, subcategory')
     .eq('user_id', userId)
     .eq('type', 'expense')
     .neq('category', 'Převod')
@@ -134,7 +169,7 @@ export async function bulkApplyCategoryForMerchantKey(
   const ids: string[] = [];
   for (const row of data ?? []) {
     if (excludeTransactionId && row.id === excludeTransactionId) continue;
-    if (row.category === category) continue;
+    if (row.category === n.category && (row.subcategory ?? null) === n.subcategory) continue;
     const key =
       (row.merchant_key && String(row.merchant_key).trim()) ||
       normalizeMerchantKey([row.title, row.description].filter(Boolean).join(' '));
@@ -143,11 +178,29 @@ export async function bulkApplyCategoryForMerchantKey(
 
   if (!ids.length) return { updatedIds: [], error: null };
 
-  const { error: updErr } = await supabase
+  let { error: updErr } = await supabase
     .from('transactions')
-    .update({ category, category_source: 'user', merchant_key: merchantKey })
+    .update({
+      category: n.category,
+      subcategory: n.subcategory,
+      category_source: 'user',
+      merchant_key: merchantKey,
+    })
     .eq('user_id', userId)
     .in('id', ids);
+
+  if (updErr && /subcategory/i.test(updErr.message)) {
+    const retry = await supabase
+      .from('transactions')
+      .update({
+        category: n.category,
+        category_source: 'user',
+        merchant_key: merchantKey,
+      })
+      .eq('user_id', userId)
+      .in('id', ids);
+    updErr = retry.error;
+  }
 
   return { updatedIds: ids, error: updErr ? new Error(updErr.message) : null };
 }

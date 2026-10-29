@@ -94,7 +94,7 @@ export function matchImportTransferRules(
   for (const candidate of party ? [party, desc] : [desc]) {
     const mk = normalizeMerchantKey(candidate);
     const cat = mk ? lookupMerchantDictionary(mk) : null;
-    if (cat === 'Investice') {
+    if (cat?.category === 'Investice') {
       return { kind: 'investice', reason: 'dictionary' };
     }
   }

@@ -10,12 +10,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import { Bell, BellRing, CreditCard, Home, Lightbulb, UsersRound } from 'lucide-react-native';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useTheme } from '@/hooks/use-theme';
@@ -292,46 +291,26 @@ export default function NotificationsSettingsScreen() {
 
   if (loading || !payments || !subsPref || !tip || !mortgage || splitExpensesNotif === null) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Stack.Screen
-          options={{
-            title: t('notificationsSettings.title'),
-            headerShown: true,
-            headerLeft: ({ tintColor }) => (
-              <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-            ),
-          }}
-        />
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title={t('notificationsSettings.title')} />
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('notificationsSettings.title'),
-          headerStyle: { backgroundColor: colors.gradientStart },
-          headerTintColor: 'white',
-          headerTitleStyle: { fontWeight: 'bold' },
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-        }}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader
+        title={t('notificationsSettings.title')}
+        subtitle={t('notificationsSettings.subtitle')}
+        variant="gradient"
       />
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>{t('notificationsSettings.title')}</Text>
-          <Text style={styles.headerSubtitle}>{t('notificationsSettings.subtitle')}</Text>
-        </LinearGradient>
-
         {!user?.id ? (
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             {t('notificationsSettings.signInHint')}
@@ -750,7 +729,7 @@ export default function NotificationsSettingsScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </>
+    </View>
   );
 }
 

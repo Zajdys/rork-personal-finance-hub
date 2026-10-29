@@ -21,6 +21,7 @@ export type MappedBankRow = {
   amount: number;
   type: 'income' | 'expense';
   category: string;
+  subcategory?: string | null;
   description: string;
   source: string;
   counterparty_account: string | null;
@@ -176,6 +177,7 @@ export function mapAisAccountsToRows(params: MapAisOptions): {
         amount,
         type,
         category: classified.category,
+        subcategory: classified.subcategory ?? null,
         description,
         source: bank,
         counterparty_account: partyIban,

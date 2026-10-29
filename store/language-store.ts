@@ -728,6 +728,15 @@ export const TRANSLATIONS = {
 
     // Household overview
     hhOverviewNotInHousehold: 'Nejsi v žádné domácnosti',
+    hhOverviewGoToTabHint:
+      'Sdílené výdaje, vyrovnání a opakované platby najdeš na záložce Domácnost — tady jen skutečná data z tvé domácnosti.',
+    hhFeatureUnavailableTitle: 'Zatím nedostupné',
+    hhPoliciesUnavailableBody:
+      'Pravidla sdílení kategorií zatím nemáme v databázi. Viditelnost řeší společné výdaje na záložce Domácnost.',
+    hhSplitsUnavailableBody:
+      'Výchozí dělení kategorií zatím není uložené. Poměry nastavíš u konkrétního společného výdaje na záložce Domácnost.',
+    hhBudgetsNoHousehold:
+      'Nejdřív vytvoř nebo se připoj k domácnosti na záložce Domácnost. Pak tu nastavíš společné rozpočty.',
     hhOverviewCreateHousehold: 'Vytvořit domácnost',
     hhOverviewTotalBudget: 'Celkový měsíční rozpočet',
     hhOverviewSharedBudget: 'Společný rozpočet domácnosti',
@@ -1318,6 +1327,16 @@ export const TRANSLATIONS = {
     'addTransaction.invoiceLoadFailed': 'Nepodařilo se načíst soubor faktury.',
     'addTransaction.invoiceUploadFailed': 'Nepodařilo se nahrát fakturu. Zkus to prosím znovu.',
     'addTransaction.enterCategoryName': 'Zadej název kategorie',
+    'addTransaction.newIncomeTitle': 'Nový příjem',
+    'addTransaction.newExpenseTitle': 'Nový výdaj',
+    'addTransaction.searchCategory': 'Hledat kategorii…',
+    'addTransaction.showAllCategories': 'Všechny kategorie',
+    'addTransaction.suggestedCategory': 'Navrženo: {{icon}} {{name}}',
+    'addTransaction.addSubcategory': '+ Přidat',
+    'addTransaction.subcategoryPlaceholder': 'Podkategorie',
+    'addTransaction.noSubcategory': 'Bez podkategorie',
+    'addTransaction.customEmoji': 'Nebo napiš vlastní emoji',
+    'addTransaction.customEmojiPlaceholder': '1 emoji z klávesnice',
     'addTransaction.categoryCreated': 'Nová kategorie byla vytvořena! 🎉',
     'addTransaction.newCategory': 'Nová kategorie',
     'addTransaction.importStatement': 'Importovat výpis',
@@ -1741,11 +1760,36 @@ export const TRANSLATIONS = {
     helpFaqAnswers: 'Odpovědi na nejčastější otázky',
     helpUserGuide: 'Uživatelská příručka',
     helpUserGuideSubtitle: 'Kompletní návod k použití',
+    helpWriteUs: 'Napiš nám',
     helpLiveChat: 'Okamžitá pomoc online',
     helpContactUs: 'Kontaktuj nás',
     helpEmailSupport: 'Email podpora',
     helpEmailCopied: 'Email zkopírován',
-    helpEmailCopiedMessage: 'support@moneybuddy.cz byl zkopírován do schránky',
+    helpEmailCopiedMessage: 'info@moneybuddy.cz byl zkopírován do schránky',
+    helpFaqImportQ: 'Jak nahraju výpis?',
+    helpFaqImportA:
+      'Na Přehledu nebo v Profilu otevři Import výpisu, vyber CSV/PDF ze své banky a po náhledu potvrď. Transakce se uloží do přehledu (duplicity se filtrují).',
+    helpFaqBanksQ: 'Které banky podporujete?',
+    helpFaqBanksA:
+      'Ruční import výpisů: Fio, mBank, Moneta, KB, ČSOB, Raiffeisenbank, Revolut a další běžné CSV/PDF formáty. Automatické napojení bank (AIS) je postupně rozšiřované.',
+    helpFaqPartnerQ: 'Jak pozvu partnera?',
+    helpFaqPartnerA:
+      'Otevři Domácnost → Členové a pošli pozvánku e-mailem nebo sdílej kód. Partner přijme pozvánku ve své aplikaci a uvidí společné položky podle nastavení.',
+    helpFaqCancelSubQ: 'Jak zruším předplatné?',
+    helpFaqCancelSubA:
+      'Předplatné spravuje Apple: Nastavení → [tvoje Apple ID] → Předplatná → MoneyBuddy → Zrušit předplatné.',
+    helpFaqDeleteAccountQ: 'Jak smažu účet?',
+    helpFaqDeleteAccountA:
+      'Profil → Soukromí / správa dat → smazání účtu. Smazání je nevratné a odstraní data vázaná na tvůj účet. V případě potíží napiš na info@moneybuddy.cz.',
+    helpFaqDataSafeQ: 'Jsou moje data v bezpečí?',
+    helpFaqDataSafeA:
+      'Data jsou uložená u Supabase (EU-ready infrastruktura) s přihlášením přes bezpečnou autentizaci. Hesla neukládáme v otevřené podobě. Podrobnosti najdeš v Zásadách ochrany osobních údajů.',
+    helpFaqManualQ: 'Jak přidám transakci ručně?',
+    helpFaqManualA:
+      'Na záložce Přidat zadej částku, kategorii, datum a popis. Uložená transakce se ihned projeví v měsíčním přehledu.',
+    helpFaqHouseholdQ: 'Jak funguje sdílení domácnosti?',
+    helpFaqHouseholdA:
+      'V sekci Domácnost můžeš pozvat členy, sdílet rozpočet a společné výdaje. Každý člen vidí přiřazené položky podle nastavení domácnosti.',
     faqImportQuestion: 'Jak importovat výpis z banky?',
     faqImportAnswer: 'V aplikaci otevři Import bankovního výpisu, vyber soubor CSV nebo PDF z banky (ČSOB, Raiffeisenbank a další) a po náhledu potvrď import. Transakce se uloží do přehledu.',
     faqManualQuestion: 'Jak přidat transakci ručně?',
@@ -2140,6 +2184,11 @@ export const TRANSLATIONS = {
     landingSectionSubtitle: 'Co umí MoneyBuddy',
     landingCtaTitle: 'Začni ještě dnes',
     assetCurrentPrice: 'Aktuální cena: {{price}}{{currency}}',
+    assetPriceUnavailable: 'Cenu se nepodařilo načíst z Yahoo Finance.',
+    assetDayChange: 'Dnes: {{pct}}',
+    assetChartUnavailable: 'Graf zatím není k dispozici.',
+    assetShares: 'Počet kusů',
+    assetAvgPrice: 'Průměrná cena',
     assetUnrealizedPnl: 'Nezrealizované P/L',
     assetDividendYield: 'Dividenda (yld)',
     assetBasicInfo: 'Základní informace',
@@ -3300,6 +3349,15 @@ export const TRANSLATIONS = {
 
     // Household overview
     hhOverviewNotInHousehold: 'You are not in a household',
+    hhOverviewGoToTabHint:
+      'Shared expenses, settlements and recurring payments live on the Household tab — only your real household data is shown here.',
+    hhFeatureUnavailableTitle: 'Not available yet',
+    hhPoliciesUnavailableBody:
+      'Category sharing rules are not stored yet. Visibility is handled by shared expenses on the Household tab.',
+    hhSplitsUnavailableBody:
+      'Default category splits are not stored yet. Set ratios on each shared expense on the Household tab.',
+    hhBudgetsNoHousehold:
+      'Create or join a household on the Household tab first. Then you can set shared category budgets here.',
     hhOverviewCreateHousehold: 'Create household',
     hhOverviewTotalBudget: 'Total monthly budget',
     hhOverviewSharedBudget: 'Shared household budget',
@@ -3890,6 +3948,16 @@ export const TRANSLATIONS = {
     'addTransaction.invoiceLoadFailed': 'Failed to load invoice file.',
     'addTransaction.invoiceUploadFailed': 'Failed to upload invoice. Please try again.',
     'addTransaction.enterCategoryName': 'Enter category name',
+    'addTransaction.newIncomeTitle': 'New income',
+    'addTransaction.newExpenseTitle': 'New expense',
+    'addTransaction.searchCategory': 'Search category…',
+    'addTransaction.showAllCategories': 'All categories',
+    'addTransaction.suggestedCategory': 'Suggested: {{icon}} {{name}}',
+    'addTransaction.addSubcategory': '+ Add',
+    'addTransaction.subcategoryPlaceholder': 'Subcategory',
+    'addTransaction.noSubcategory': 'No subcategory',
+    'addTransaction.customEmoji': 'Or type your own emoji',
+    'addTransaction.customEmojiPlaceholder': '1 emoji from keyboard',
     'addTransaction.categoryCreated': 'New category created! 🎉',
     'addTransaction.newCategory': 'New category',
     'addTransaction.importStatement': 'Import statement',
@@ -4313,11 +4381,36 @@ export const TRANSLATIONS = {
     helpFaqAnswers: 'Answers to common questions',
     helpUserGuide: 'User guide',
     helpUserGuideSubtitle: 'Complete usage guide',
+    helpWriteUs: 'Write to us',
     helpLiveChat: 'Instant online help',
     helpContactUs: 'Contact us',
     helpEmailSupport: 'Email support',
     helpEmailCopied: 'Email copied',
-    helpEmailCopiedMessage: 'support@moneybuddy.cz was copied to clipboard',
+    helpEmailCopiedMessage: 'info@moneybuddy.cz was copied to clipboard',
+    helpFaqImportQ: 'How do I import a statement?',
+    helpFaqImportA:
+      'From Overview or Profile open Statement import, pick a CSV/PDF from your bank and confirm after preview. Transactions are saved to the overview (duplicates are filtered).',
+    helpFaqBanksQ: 'Which banks do you support?',
+    helpFaqBanksA:
+      'Manual statement import: Fio, mBank, Moneta, KB, ČSOB, Raiffeisenbank, Revolut and other common CSV/PDF formats. Automatic bank linking (AIS) is being rolled out gradually.',
+    helpFaqPartnerQ: 'How do I invite a partner?',
+    helpFaqPartnerA:
+      'Open Household → Members and send an email invite or share a code. Your partner accepts in their app and sees shared items per your settings.',
+    helpFaqCancelSubQ: 'How do I cancel my subscription?',
+    helpFaqCancelSubA:
+      'Subscriptions are managed by Apple: Settings → [your Apple ID] → Subscriptions → MoneyBuddy → Cancel Subscription.',
+    helpFaqDeleteAccountQ: 'How do I delete my account?',
+    helpFaqDeleteAccountA:
+      'Profile → Privacy / data management → delete account. Deletion is permanent and removes data tied to your account. If you need help, email info@moneybuddy.cz.',
+    helpFaqDataSafeQ: 'Is my data safe?',
+    helpFaqDataSafeA:
+      'Data is stored with Supabase (EU-ready infrastructure) behind secure authentication. We do not store passwords in plain text. See the Privacy Policy for details.',
+    helpFaqManualQ: 'How do I add a transaction manually?',
+    helpFaqManualA:
+      'On the Add tab enter amount, category, date and description. The saved transaction appears immediately in the monthly overview.',
+    helpFaqHouseholdQ: 'How does household sharing work?',
+    helpFaqHouseholdA:
+      'In Household you can invite members, share budget and common expenses. Each member sees assigned items per household settings.',
     faqImportQuestion: 'How to import a bank statement?',
     faqImportAnswer: 'Open Bank Statement Import, select a CSV or PDF file from your bank (ČSOB, Raiffeisenbank, etc.) and confirm after preview. Transactions will be saved to the overview.',
     faqManualQuestion: 'How to add a transaction manually?',
@@ -4713,6 +4806,11 @@ export const TRANSLATIONS = {
     landingSectionSubtitle: 'What MoneyBuddy can do',
     landingCtaTitle: 'Start today',
     assetCurrentPrice: 'Current price: {{price}}{{currency}}',
+    assetPriceUnavailable: 'Could not load price from Yahoo Finance.',
+    assetDayChange: 'Today: {{pct}}',
+    assetChartUnavailable: 'Chart is not available yet.',
+    assetShares: 'Shares',
+    assetAvgPrice: 'Average price',
     assetUnrealizedPnl: 'Unrealized P/L',
     assetDividendYield: 'Dividend (yield)',
     assetBasicInfo: 'Basic information',

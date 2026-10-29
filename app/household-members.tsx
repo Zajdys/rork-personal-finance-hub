@@ -21,7 +21,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useHouseholdActiveStore, type UserHousehold } from '@/store/household-active-store';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { EmptyState } from '@/components/EmptyState';
 import {
   fetchHouseholdMembersWithProfiles,
@@ -323,13 +323,8 @@ export default function HouseholdMembersScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title: t('hhMembersTitle'),
-          headerShown: true,
-          headerLeft: () => <BackButton color={colors.text} fallback="/(tabs)/household" />,
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('hhMembersTitle')} fallback="/(tabs)/household" />
 
       <View style={styles.topBar}>
         <View style={{ flex: 1, minWidth: 0 }}>

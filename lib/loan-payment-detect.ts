@@ -21,4 +21,6 @@ export function isLoanPaymentText(...parts: Array<string | null | undefined>): b
   );
 }
 
-export const LOAN_PAYMENT_CATEGORY = 'Splátky úvěrů';
+/** Hlavní kategorie pro splátky (dříve „Splátky úvěrů“). */
+export const LOAN_PAYMENT_CATEGORY = 'Úvěry';
+export const LOAN_PAYMENT_SUBCATEGORY = 'Půjčka';

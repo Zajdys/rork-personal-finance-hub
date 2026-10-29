@@ -11,17 +11,14 @@ import {
   Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { useSplitGroupsStore } from '@/store/split-groups-store';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 export default function JoinSplitGroupScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { t } = useLanguageStore();
   const { user } = useAuth();
@@ -69,20 +66,7 @@ export default function JoinSplitGroupScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerRow}>
-          <BackButton color="white" size={24} style={styles.headerBtn} />
-          <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>{t('splitGroupsJoinTitle')}</Text>
-          </View>
-          <View style={styles.headerBtn} />
-        </View>
-      </LinearGradient>
+      <ScreenHeader title={t('splitGroupsJoinTitle')} variant="gradient" />
 
       <View style={styles.body}>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>{t('splitGroupsJoinHint')}</Text>

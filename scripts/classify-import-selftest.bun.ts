@@ -63,10 +63,10 @@ assert(normalizeMerchantKey('PAYPAL *SOMESTORE') === 'PAYPAL SOMESTORE', 'paypal
 assert(normalizeMerchantKey('COMGATE *SHOP') === 'COMGATE SHOP', 'comgate');
 
 
-assert(lookupMerchantDictionary('APPLE.COM') === 'Elektronika', 'apple dict → Elektronika');
-assert(lookupMerchantDictionary('APPLE') === 'Elektronika', 'apple dict2');
-assert(lookupMerchantDictionary('NETFLIX') === 'Předplatné', 'netflix stays sub');
-assert(lookupMerchantDictionary('SPOTIFY') === 'Předplatné', 'spotify stays sub');
+assert(lookupMerchantDictionary('APPLE.COM')?.category === 'Nákupy', 'apple dict → Elektronika');
+assert(lookupMerchantDictionary('APPLE')?.category === 'Nákupy', 'apple dict2');
+assert(lookupMerchantDictionary('NETFLIX')?.category === 'Předplatné', 'netflix stays sub');
+assert(lookupMerchantDictionary('SPOTIFY')?.category === 'Předplatné', 'spotify stays sub');
 
 // Short name: CS MILOVICE is NOT short
 assert(merchantNameLetterCount('CS MILOVICE') >= 3, 'cs milovice letters');
@@ -86,13 +86,13 @@ const csFuel = classifyImportRow({
   description: 'CS MILOVICE',
   merchantRaw: 'CS MILOVICE',
 });
-assert(csFuel.category === 'Doprava', `cs fuel ${csFuel.category} src=${csFuel.source}`);
+assert(csFuel.category === 'Auto a doprava', `cs fuel ${csFuel.category} src=${csFuel.source}`);
 
-assert(lookupMerchantKeywords('RAJ KURAKU') === 'Jídlo a nápoje', 'kurak');
-assert(lookupMerchantKeywords('ESPORTARENA PLZEN') === 'Zábava a kultura', 'arena infix');
-assert(lookupMerchantKeywords('DOLNIMORAVA PARK') === 'Zábava a kultura', 'dolnimorava');
-assert(lookupMerchantKeywords('DETSKY PARK') === 'Zábava a kultura', 'detsky park');
-assert(lookupMerchantKeywords('CERPACI STANICE ORLEN') === 'Doprava', 'cerpaci');
+assert(lookupMerchantKeywords('RAJ KURAKU')?.category === 'Jídlo', 'kurak');
+assert(lookupMerchantKeywords('ESPORTARENA PLZEN')?.category === 'Volný čas', 'arena infix');
+assert(lookupMerchantKeywords('DOLNIMORAVA PARK')?.category === 'Volný čas', 'dolnimorava');
+assert(lookupMerchantKeywords('DETSKY PARK')?.category === 'Volný čas', 'detsky park');
+assert(lookupMerchantKeywords('CERPACI STANICE ORLEN')?.category === 'Auto a doprava', 'cerpaci');
 
 assert(classifyUnknown('X') === null, 'stub');
 
@@ -124,7 +124,7 @@ const appleOnce = classifyImportRow({
   description: 'APPLE.COM/BILL',
   merchantRaw: 'APPLE.COM/BILL',
 });
-assert(appleOnce.category === 'Elektronika', `apple once ${appleOnce.category}`);
+assert(appleOnce.category === 'Nákupy', `apple once ${appleOnce.category}`);
 assert(appleOnce.source === 'dictionary', appleOnce.source);
 
 // buildSubscriptionMerchantKeys deprecated — empty

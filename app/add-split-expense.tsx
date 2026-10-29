@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Check } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -29,7 +28,7 @@ import {
 import { syncSplitExpenseReceipt } from '@/lib/split-expense-receipt-sync';
 import { SplitExpenseReceiptField } from '@/components/SplitExpenseReceiptField';
 import { safeGoBack } from '@/lib/safe-back';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { parseMoneyInput } from '@/lib/parse-money-input';
 import {
   useSplitGroupsStore,
@@ -346,25 +345,11 @@ export default function AddSplitExpenseScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerRow}>
-          <BackButton color="white" size={24} style={styles.headerBtn} />
-          <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>
-              {isEdit ? t('splitGroupsEditExpense') : t('splitGroupsNewExpense')}
-            </Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {group?.name ?? t('splitGroups')}
-            </Text>
-          </View>
-          <View style={styles.headerBtn} />
-        </View>
-      </LinearGradient>
+      <ScreenHeader
+        title={isEdit ? t('splitGroupsEditExpense') : t('splitGroupsNewExpense')}
+        subtitle={group?.name ?? t('splitGroups')}
+        variant="gradient"
+      />
 
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}

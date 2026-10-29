@@ -50,6 +50,7 @@ import {
   isTransferLikeTransaction,
   type Transaction,
 } from '@/store/finance-store';
+import { mainCategoryName } from '@/lib/category-normalize';
 import { useSettingsStore } from '@/store/settings-store';
 import { useTheme } from '@/hooks/use-theme';
 import { usePremium } from '@/hooks/usePremium';
@@ -58,7 +59,6 @@ import type { PremiumFeatureId } from '@/constants/premium';
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 import { useLanguageStore } from '@/store/language-store';
 import { safePush } from '@/lib/safe-navigate';
-import { LifeEventModeIndicator } from '@/components/LifeEventModeIndicator';
 import { SwipeableTransactionRow } from '@/components/SwipeableTransactionRow';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -236,13 +236,12 @@ function sumSpentForSpendingLimitCategory(
   monthTx: Transaction[],
   goalCategory: string | undefined,
 ): number {
-  const cat = (goalCategory ?? 'Ostatní').trim() || 'Ostatní';
+  const cat = mainCategoryName(goalCategory ?? 'Ostatní');
   return monthTx
     .filter((t) => {
       if ((t as { type?: string }).type === 'transfer' || isTransferLikeTransaction(t)) return false;
       if (t.type !== 'expense') return false;
-      const tCat = (t.category ?? '').trim() || 'Ostatní';
-      return tCat === cat;
+      return mainCategoryName(t.category, t.subcategory) === cat;
     })
     .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 }
@@ -778,7 +777,7 @@ export default function DashboardScreen() {
         });
       }
       // Podíl jen z „variabilních“ výdajů — bez fixních Splátky úvěrů / Bydlení.
-      const highCategoryExcluded = new Set(['Splátky úvěrů', 'Bydlení']);
+      const highCategoryExcluded = new Set(['Úvěry', 'Bydlení']);
       const variableCategories = currentMonthReport.categoryBreakdown.filter(
         (c) => !highCategoryExcluded.has(c.category),
       );
@@ -1268,8 +1267,6 @@ export default function DashboardScreen() {
     >
       {!isIOS ? <View style={{ height: scrollDistance }} collapsable={false} /> : null}
       <View style={{ maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }}>
-      <LifeEventModeIndicator />
-
       {remoteLoadError ? (
         <View
           style={{
@@ -1551,7 +1548,7 @@ export default function DashboardScreen() {
             icon={PlusCircle}
             title={t('addTransaction')}
             color={['#10B981', '#059669']}
-            onPress={() => safePush('/add')}
+            onPress={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
             cardStyle={isDesktop ? styles.quickActionCardDesktop : undefined}
           />
           <QuickActionCard
@@ -1709,7 +1706,7 @@ export default function DashboardScreen() {
             description={t('startAddingTransactions')}
             icon={<DollarSign color={colors.textSecondary} size={48} />}
             actionLabel={t('addTransaction')}
-            onAction={() => safePush('/add')}
+            onAction={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
           />
         ) : (
           recentTransactions.map((transaction) => (
@@ -1862,7 +1859,7 @@ export default function DashboardScreen() {
             description={t('startAddingTransactions')}
             icon={<DollarSign color={colors.textSecondary} size={48} />}
             actionLabel={t('addTransaction')}
-            onAction={() => safePush('/add')}
+            onAction={() => safePush({ pathname: '/add', params: { type: 'expense' } })}
           />
         ) : (
           recentTransactions.map((transaction) => (

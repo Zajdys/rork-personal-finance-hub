@@ -6,9 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { Check } from 'lucide-react-native';
 import { useSettingsStore, CURRENCIES, Currency } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -20,32 +19,11 @@ export default function CurrencySettingsScreen() {
   const currencyList = Object.values(CURRENCIES);
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('appCurrency'),
-          headerStyle: { backgroundColor: '#667eea' },
-          headerTintColor: 'white',
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold' },
-        }}
-      />
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={t('appCurrency')} subtitle={t('appCurrencySubtitle')} variant="gradient" />
 
-      <ScrollView
-        style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}
-      >
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>{t('appCurrency')}</Text>
-          <Text style={styles.headerSubtitle}>{t('appCurrencySubtitle')}</Text>
-        </LinearGradient>
-
+      <ScrollView style={styles.scroll}>
         <View style={styles.content}>
           <Text style={[styles.sectionTitle, { color: isDarkMode ? 'white' : '#1F2937' }]}>
             {t('currencySettings.currencyTitle')}
@@ -72,11 +50,14 @@ export default function CurrencySettingsScreen() {
           ))}
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },

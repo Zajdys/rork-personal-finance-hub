@@ -1,10 +1,12 @@
 import { Link, Stack } from "expo-router";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { StyleSheet, Text, View } from "react-native";
 
 export default function NotFoundScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: "Oops!" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Oops!" fallback="/" />
       <View style={styles.container}>
         <Text style={styles.title}>This screen doesn&apos;t exist.</Text>
 

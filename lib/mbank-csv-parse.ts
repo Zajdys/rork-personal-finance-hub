@@ -314,7 +314,7 @@ export function parseMbankCzCsv(
       const mk = normalizeMerchantKey(merchantOrName || description);
       const fromDict = mk ? lookupMerchantDictionary(mk) : null;
       if (fromDict) {
-        category = fromDict;
+        category = fromDict.category;
         bucket = classifyDescription(merchantOrName || description);
       } else {
         bucket = classifyDescription(merchantOrName || description);

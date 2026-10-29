@@ -60,7 +60,7 @@ import {
   type SavingsGoal,
 } from '@/store/savings-goals-store';
 import { daysUntilDeadline } from '@/lib/savings-goal-utils';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { parseMoneyInput } from '@/lib/parse-money-input';
@@ -72,16 +72,20 @@ type TranslateFn = (key: keyof typeof TRANSLATIONS.cs, params?: Record<string, s
 const FINANCIAL_GOAL_ORDER_KEY = 'financial_goal_order';
 
 const GOAL_CATEGORIES = {
-  'Bydlení': { icon: Home, color: '#8B5CF6', emoji: '🏠' },
+  Bydlení: { icon: Home, color: '#7C3AED', emoji: '🏠' },
+  Jídlo: { icon: Utensils, color: '#EF4444', emoji: '🍽️' },
+  'Auto a doprava': { icon: Car, color: '#10B981', emoji: '🚗' },
+  Nákupy: { icon: ShoppingBag, color: '#EC4899', emoji: '🛍️' },
+  'Volný čas': { icon: Target, color: '#DB2777', emoji: '🎬' },
+  Spoření: { icon: PiggyBank, color: '#06B6D4', emoji: '💰' },
+  Investice: { icon: TrendingUp, color: '#8B5CF6', emoji: '📈' },
+  Ostatní: { icon: Target, color: '#6B7280', emoji: '🎯' },
+  // legacy klíče (starší cíle / překlady)
   'Jídlo a nápoje': { icon: Utensils, color: '#EF4444', emoji: '🍽️' },
-  'Doprava': { icon: Car, color: '#10B981', emoji: '🚗' },
-  'Benzín': { icon: Fuel, color: '#F59E0B', emoji: '⛽' },
-  'Nákupy': { icon: ShoppingBag, color: '#EC4899', emoji: '🛍️' },
+  Doprava: { icon: Car, color: '#10B981', emoji: '🚗' },
+  Benzín: { icon: Fuel, color: '#F59E0B', emoji: '⛽' },
   'Telefon/Internet': { icon: Smartphone, color: '#3B82F6', emoji: '📱' },
-  'Energie': { icon: Zap, color: '#FBBF24', emoji: '⚡' },
-  'Spoření': { icon: PiggyBank, color: '#06B6D4', emoji: '💰' },
-  'Investice': { icon: TrendingUp, color: '#8B5CF6', emoji: '📈' },
-  'Ostatní': { icon: Target, color: '#6B7280', emoji: '🎯' },
+  Energie: { icon: Zap, color: '#FBBF24', emoji: '⚡' },
 };
 
 type InspirationTemplate = {
@@ -123,7 +127,7 @@ const SAVING_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
     emoji: '🚗',
     titleKey: 'fgTplCarTitle',
     descKey: 'fgTplCarDesc',
-    category: 'Doprava',
+    category: 'Auto a doprava',
     type: 'saving',
   },
   {
@@ -142,7 +146,7 @@ const LIMIT_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
     emoji: '🛒',
     titleKey: 'fgTplFoodTitle',
     descKey: 'fgTplFoodDesc',
-    category: 'Jídlo a nápoje',
+    category: 'Jídlo',
     type: 'spending_limit',
   },
   {
@@ -150,7 +154,7 @@ const LIMIT_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
     emoji: '⚡',
     titleKey: 'fgTplEnergyTitle',
     descKey: 'fgTplEnergyDesc',
-    category: 'Energie',
+    category: 'Bydlení',
     type: 'spending_limit',
   },
   {
@@ -158,7 +162,7 @@ const LIMIT_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
     emoji: '🚇',
     titleKey: 'fgTplTransportTitle',
     descKey: 'fgTplTransportDesc',
-    category: 'Doprava',
+    category: 'Auto a doprava',
     type: 'spending_limit',
   },
   {
@@ -166,7 +170,7 @@ const LIMIT_INSPIRATION_TEMPLATES: InspirationTemplate[] = [
     emoji: '🎉',
     titleKey: 'fgTplFunTitle',
     descKey: 'fgTplFunDesc',
-    category: 'Ostatní',
+    category: 'Volný čas',
     type: 'spending_limit',
   },
   {
@@ -185,10 +189,13 @@ type AddPickerSheet = 'chooser' | 'templates';
 function translateGoalCategory(cat: string, t: TranslateFn): string {
   const keyMap: Record<string, keyof typeof TRANSLATIONS.cs> = {
     Bydlení: 'fgCatHousing',
+    Jídlo: 'fgCatFoodDrinks',
     'Jídlo a nápoje': 'fgCatFoodDrinks',
+    'Auto a doprava': 'transport',
     Doprava: 'transport',
     Benzín: 'fgCatGas',
     Nákupy: 'shopping',
+    'Volný čas': 'other',
     'Telefon/Internet': 'fgCatPhoneInternet',
     Energie: 'hhCatEnergy',
     Spoření: 'fgCatSavings',
@@ -706,21 +713,11 @@ function FinancialGoalsScreenContent() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.backButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('financialGoals')}</Text>
-            <Text style={styles.headerSubtitle}>{t('profileGoalsSubtitle')}</Text>
-          </View>
-          <View style={styles.headerSpacer} />
-        </View>
-      </LinearGradient>
+      <ScreenHeader
+        title={t('financialGoals')}
+        subtitle={t('profileGoalsSubtitle')}
+        variant="gradient"
+      />
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}

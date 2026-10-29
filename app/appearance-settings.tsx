@@ -6,9 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
-import { StackHeaderBackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { Check, Sun, Moon, Smartphone } from 'lucide-react-native';
 import { useLanguageStore, LANGUAGES, Language } from '@/store/language-store';
 import { useSettingsStore, CURRENCIES, Currency, Theme } from '@/store/settings-store';
@@ -41,30 +40,15 @@ export default function AppearanceSettingsScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: t('profileAppearanceTitle'),
-          headerStyle: { backgroundColor: colors.gradientStart },
-          headerTintColor: 'white',
-          headerLeft: ({ tintColor }) => (
-            <StackHeaderBackButton tintColor={tintColor ?? 'white'} />
-          ),
-          headerTitleStyle: { fontWeight: 'bold' },
-        }}
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader
+        title={t('profileAppearanceTitle')}
+        subtitle={t('profileAppearanceSubtitle')}
+        variant="gradient"
       />
 
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          style={styles.header}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.headerTitle}>{t('profileAppearanceTitle')}</Text>
-          <Text style={styles.headerSubtitle}>{t('profileAppearanceSubtitle')}</Text>
-        </LinearGradient>
-
+      <ScrollView style={styles.scroll}>
         <View style={styles.content}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('language')}</Text>
           {languageList.map((languageItem) => {
@@ -159,12 +143,13 @@ export default function AppearanceSettingsScreen() {
           })}
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  scroll: { flex: 1 },
   header: {
     paddingTop: 20,
     paddingBottom: 24,

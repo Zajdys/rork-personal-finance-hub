@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { useFinanceStore, EXPENSE_CATEGORIES, getMonthTransactions, isExpenseForReport, isRefundTransaction, isTransferLikeTransaction, netExpenseAmount, type Transaction } from '@/store/finance-store';
+import { mainCategoryName } from '@/lib/category-normalize';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { appLocale } from '@/lib/app-locale';
@@ -27,7 +28,7 @@ import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { useAuth } from '@/store/auth-store';
 import { useRouter, Stack } from 'expo-router';
 import { filterTransactionsByPeriod, filterTransfersByPeriod } from '@/lib/period-transactions';
-import { BackButton } from '@/components/BackButton';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
@@ -144,7 +145,7 @@ export default function ExpenseDetailScreen() {
     const total = periodTotalExpenses;
     const totals: Record<string, number> = {};
     for (const t of periodExpenseTransactions) {
-      const c = t.category || 'Ostatní';
+      const c = mainCategoryName(t.category, t.subcategory);
       if (isRefundTransaction(t)) {
         totals[c] = (totals[c] || 0) - t.amount;
       } else {
@@ -241,7 +242,7 @@ export default function ExpenseDetailScreen() {
 
     // Doporučení na základě kategorií
     ranked.forEach((category) => {
-      if (category.category === 'Jídlo a nápoje' && category.percentage > 30) {
+      if (category.category === 'Jídlo' && category.percentage > 30) {
         analysis.warnings.push(t('expenseWarnFood'));
         analysis.recommendations.push(t('expenseRecCookHome'));
       }
@@ -418,26 +419,21 @@ export default function ExpenseDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: pageBg }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#EF4444', '#DC2626']}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <BackButton color="white" size={24} style={styles.backButton} />
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>{t('detailTotalExpenses')}</Text>
-            <Text style={styles.headerAmount}>
-              {loadPending ? '…' : formatMoneyWithSymbol(displayTotalExpenses, numberLocale, currency.symbol)}
-            </Text>
-            <OverviewFilterBadge onAccent style={{ marginTop: 8 }} />
-          </View>
+      <ScreenHeader
+        title={t('detailTotalExpenses')}
+        variant="gradient"
+        gradientColors={['#EF4444', '#DC2626']}
+        right={
           <View style={styles.headerIcon}>
             <TrendingDown color="white" size={28} />
           </View>
-        </View>
-      </LinearGradient>
+        }
+      >
+        <Text style={styles.headerAmount}>
+          {loadPending ? '…' : formatMoneyWithSymbol(displayTotalExpenses, numberLocale, currency.symbol)}
+        </Text>
+        <OverviewFilterBadge onAccent style={{ marginTop: 8 }} />
+      </ScreenHeader>
       <ScrollView
         style={[styles.scrollView, { flex: 1, backgroundColor: pageBg }]}
         showsVerticalScrollIndicator={false}
@@ -457,7 +453,9 @@ export default function ExpenseDetailScreen() {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addExpenseButton}
-            onPress={() => router.push('/(tabs)/add')}
+            onPress={() =>
+              router.push({ pathname: '/(tabs)/add', params: { type: 'expense' } })
+            }
           >
             <Plus color="white" size={20} />
             <Text style={styles.addExpenseButtonText}>{t('addExpense')}</Text>
