@@ -186,6 +186,8 @@ export interface RescheduleAllParams {
   subscriptions: SubscriptionItem[];
   loans: LoanItem[];
   currencyLabel: string;
+  /** Jen z akce uživatele (Nastavení notifikací, rychlé nastavení…) smí vyskočit systémová žádost o povolení. */
+  allowPermissionPrompt?: boolean;
 }
 
 /**
@@ -202,7 +204,7 @@ export async function rescheduleAllLocalNotifications(params: RescheduleAllParam
 
   const { status: existing } = await Notifications.getPermissionsAsync();
   let final = existing;
-  if (existing !== 'granted') {
+  if (existing !== 'granted' && params.allowPermissionPrompt) {
     const { status } = await Notifications.requestPermissionsAsync();
     final = status;
   }
@@ -593,7 +595,9 @@ async function scheduleDailyTipNotification(prefs: { time: string }): Promise<vo
 }
 
 /** Pro volání z finance-store bez user kontextu (např. po úpravě předplatného). */
-export async function rescheduleAllLocalNotificationsIfPushEnabled(): Promise<void> {
+export async function rescheduleAllLocalNotificationsIfPushEnabled(
+  opts: { allowPermissionPrompt?: boolean } = {},
+): Promise<void> {
   if (Platform.OS === 'web') return;
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData?.session?.user?.id;
@@ -608,5 +612,22 @@ export async function rescheduleAllLocalNotificationsIfPushEnabled(): Promise<vo
     subscriptions: st.subscriptions,
     loans: st.loans,
     currencyLabel: sym,
+    allowPermissionPrompt: opts.allowPermissionPrompt,
   });
+}
+
+/**
+ * Kontextová žádost o notifikace — volat po akci, kde mají smysl
+ * (rychlé nastavení s platbami/rozpočty, nová pravidelná platba, nový rozpočet).
+ * Ptá se jen jednou (iOS stejně zobrazí systémový dialog jen poprvé).
+ */
+export async function askNotificationsInContext(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status === 'granted' || status === 'denied') return;
+    await rescheduleAllLocalNotificationsIfPushEnabled({ allowPermissionPrompt: true });
+  } catch (e) {
+    console.warn('[notif] askNotificationsInContext', e);
+  }
 }

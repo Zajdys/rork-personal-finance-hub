@@ -125,6 +125,12 @@ export function useAddTransaction() {
             );
             return { ok: false, reason: 'unknown' };
           }
+          // Pravidelná platba = chvíle, kdy dává smysl požádat o notifikace (připomínky).
+          setTimeout(() => {
+            void import('@/lib/reschedule-all-local-notifications').then((m) =>
+              m.askNotificationsInContext(),
+            );
+          }, 1200);
           addTransactions(
             [
               {
@@ -160,23 +166,6 @@ export function useAddTransaction() {
           });
         }
 
-        if (input.type === 'expense' && category !== 'Převod') {
-          try {
-            const userId = await getAuthUserId();
-            if (userId) {
-              const { error } = await upsertUserCategoryRule(
-                userId,
-                resolvedTitle,
-                category,
-                subcategory,
-              );
-              if (error) console.warn('[useAddTransaction] category rule', error.message);
-            }
-          } catch (e) {
-            console.warn('[useAddTransaction] category rule', e);
-          }
-        }
-
         addPoints(5);
 
         const displayAmt = `${amountCzk.toLocaleString('cs-CZ')} Kč`;
@@ -192,22 +181,42 @@ export function useAddTransaction() {
               : `✓ Výdaj ${displayAmt} · ${catLabel}`,
         });
 
-        try {
-          const uid = await getAuthUserId();
-          if (uid) {
-            const { runAfterTransactionsSideEffects } = await import(
-              '@/lib/after-transactions-side-effects'
-            );
-            const latest = useFinanceStore.getState().transactions;
-            const newTx = latest[latest.length - 1];
-            await runAfterTransactionsSideEffects({
-              userId: uid,
-              newTransactions: newTx ? [newTx] : undefined,
-            });
+        // Učení kategorie + párování plateb + rozpočty běží na pozadí,
+        // ať se formulář zavře hned po uložení transakce.
+        const latestTxs = useFinanceStore.getState().transactions;
+        const newTxSnapshot = latestTxs[latestTxs.length - 1];
+        void (async () => {
+          if (input.type === 'expense' && category !== 'Převod') {
+            try {
+              const userId = await getAuthUserId();
+              if (userId) {
+                const { error } = await upsertUserCategoryRule(
+                  userId,
+                  resolvedTitle,
+                  category,
+                  subcategory,
+                );
+                if (error) console.warn('[useAddTransaction] category rule', error.message);
+              }
+            } catch (e) {
+              console.warn('[useAddTransaction] category rule', e);
+            }
           }
-        } catch (e) {
-          console.warn('[useAddTransaction] side effects', e);
-        }
+          try {
+            const uid = await getAuthUserId();
+            if (uid) {
+              const { runAfterTransactionsSideEffects } = await import(
+                '@/lib/after-transactions-side-effects'
+              );
+              await runAfterTransactionsSideEffects({
+                userId: uid,
+                newTransactions: newTxSnapshot ? [newTxSnapshot] : undefined,
+              });
+            }
+          } catch (e) {
+            console.warn('[useAddTransaction] side effects', e);
+          }
+        })();
 
         return { ok: true };
       } catch (e) {

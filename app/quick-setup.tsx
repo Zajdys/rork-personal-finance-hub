@@ -20,6 +20,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth-store';
 import { useFinanceStore } from '@/store/finance-store';
 import { showToast } from '@/store/toast-store';
+import { askNotificationsInContext } from '@/lib/reschedule-all-local-notifications';
 import { parseMoneyInput } from '@/lib/parse-money-input';
 import { upsertUserBudgetByCategory, fetchUserBudgets } from '@/lib/supabase-plan';
 import {
@@ -237,19 +238,26 @@ export default function QuickSetupScreen() {
         { category: 'Nákupy', raw: budget.shopping },
         { category: 'Volný čas', raw: budget.entertainment },
       ];
-      for (const spec of budgetSpecs) {
-        const amt = parseMoneyInput(spec.raw);
-        if (amt == null || amt <= 0) continue;
-        await upsertUserBudgetByCategory({
-          userId: user.id,
-          category: spec.category,
-          amount: amt,
-        });
-      }
-
-      await markQuickSetupCompleted(user.id);
+      // Rozpočty paralelně (dřív se ukládaly jeden po druhém → pomalé „Hotovo“).
+      const budgetWrites = budgetSpecs
+        .map((spec) => ({ spec, amt: parseMoneyInput(spec.raw) }))
+        .filter((x) => x.amt != null && (x.amt as number) > 0)
+        .map((x) =>
+          upsertUserBudgetByCategory({
+            userId: user.id,
+            category: x.spec.category,
+            amount: x.amt as number,
+          }),
+        );
+      await Promise.all([...budgetWrites, markQuickSetupCompleted(user.id)]);
       showToast({ type: 'success', message: '✓ Appka je nastavená' });
       goTabs();
+      // Notifikace mají smysl až teď (připomínky splatností, hlídání rozpočtů).
+      if (newLoans.length > 0 || budgetWrites.length > 0) {
+        setTimeout(() => {
+          void askNotificationsInContext();
+        }, 1200);
+      }
     } catch (e) {
       console.warn('[quick-setup] save', e);
       showToast({ type: 'error', message: 'Nepodařilo se uložit nastavení' });
@@ -590,14 +598,14 @@ export default function QuickSetupScreen() {
           },
         ]}
       >
-        <TouchableOpacity
-          onPress={() => (step === 0 ? void handleSkip() : setStep((s) => s - 1))}
-          style={[styles.footerBtnSecondary, { borderColor: colors.border }]}
-        >
-          <Text style={{ color: colors.text, fontWeight: '700' }}>
-            {step === 0 ? 'Přeskočit' : 'Zpět'}
-          </Text>
-        </TouchableOpacity>
+        {step > 0 ? (
+          <TouchableOpacity
+            onPress={() => setStep((s) => s - 1)}
+            style={[styles.footerBtnSecondary, { borderColor: colors.border }]}
+          >
+            <Text style={{ color: colors.text, fontWeight: '700' }}>Zpět</Text>
+          </TouchableOpacity>
+        ) : null}
         {step < STEPS - 1 ? (
           <TouchableOpacity
             onPress={() => setStep((s) => Math.min(STEPS - 1, s + 1))}

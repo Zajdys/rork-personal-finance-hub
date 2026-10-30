@@ -303,16 +303,9 @@ export default function WelcomeTourScreen() {
       if (busy) return;
       setBusy(true);
       try {
-        const { skipWelcomePaywall } = (
-          await import('@/store/register-intent-store')
-        ).useRegisterIntentStore.getState();
-        // Po registraci s intent=premium už paywall proběhl — neukazovat znovu.
-        if (href === '/(tabs)' && !getIsPremiumSnapshot() && !skipWelcomePaywall) {
-          const { suppressNextTabsRedirect } = await import('@/lib/nav-guards');
-          suppressNextTabsRedirect();
-          await completeWelcomeTour();
-          router.replace({ pathname: '/choose-subscription', params: { from: 'welcome' } });
-        } else {
+        // Paywall po průvodci NEukazujeme: kdo chtěl Premium, viděl ho po registraci;
+        // kdo zvolil „Začít zdarma“, jde rovnou na rychlé nastavení / Přehled.
+        {
           await completeWelcomeTour();
           if (href === '/(tabs)/add') {
             router.replace({ pathname: '/(tabs)/add', params: { type: 'expense' } });

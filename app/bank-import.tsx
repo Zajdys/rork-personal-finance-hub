@@ -111,6 +111,14 @@ function bankImportSuggestOwnTitle(
   return t('bankImportSuggestOwnTitleTpl', { count, noun, which });
 }
 
+const SUGGEST_PREVIEW_COUNT = 3;
+
+/** "2026-02-11" → "11. 2. 2026" */
+function formatSuggestDate(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd ?? ''));
+  return m ? `${Number(m[3])}. ${Number(m[2])}. ${m[1]}` : String(ymd ?? '');
+}
+
 export default function BankImportScreen() {
   const { colors } = useTheme();
   const { t, language } = useLanguageStore();
@@ -153,6 +161,8 @@ export default function BankImportScreen() {
     [],
   );
   const [selectedPooledIds, setSelectedPooledIds] = useState<Set<string>>(new Set());
+  const [pooledExpanded, setPooledExpanded] = useState(false);
+  const [revolutCardExpanded, setRevolutCardExpanded] = useState(false);
   const [revolutCardCandidates, setRevolutCardCandidates] = useState<RevolutCardTopupCandidate[]>(
     [],
   );
@@ -993,7 +1003,7 @@ export default function BankImportScreen() {
                 service: pooledTransferCandidates[0]?.serviceLabel ?? 'Revolut',
               })}
             </Text>
-            {pooledTransferCandidates.map((c) => {
+            {(pooledExpanded ? pooledTransferCandidates : pooledTransferCandidates.slice(0, SUGGEST_PREVIEW_COUNT)).map((c) => {
               const checked = selectedPooledIds.has(c.id);
               return (
                 <TouchableOpacity
@@ -1021,12 +1031,33 @@ export default function BankImportScreen() {
                     {checked ? <Text style={styles.suggestCheckMark}>✓</Text> : null}
                   </View>
                   <Text style={[styles.suggestRowText, { color: colors.text }]}>
-                    {c.date} · {c.type === 'income' ? '+' : '−'}
+                    {formatSuggestDate(c.date)} · {c.type === 'income' ? '+' : '−'}
                     {c.amount.toLocaleString('cs-CZ')} Kč — {c.title}
                   </Text>
                 </TouchableOpacity>
               );
             })}
+            {pooledTransferCandidates.length > SUGGEST_PREVIEW_COUNT ? (
+              <View style={styles.suggestMoreRow}>
+                <TouchableOpacity onPress={() => setPooledExpanded((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
+                    {pooledExpanded ? 'Skrýt ▴' : `Zobrazit všech ${pooledTransferCandidates.length} ▾`}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() =>
+                    setSelectedPooledIds((prev) =>
+                      prev.size === pooledTransferCandidates.length ? new Set() : new Set(pooledTransferCandidates.map((c) => c.id)),
+                    )
+                  }
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
+                    {selectedPooledIds.size === pooledTransferCandidates.length ? 'Zrušit výběr' : 'Vybrat vše'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <View style={styles.suggestActions}>
               <TouchableOpacity
                 style={[
@@ -1080,7 +1111,7 @@ export default function BankImportScreen() {
             <Text style={[styles.suggestBody, { color: colors.textSecondary }]}>
               {t('bankImportRevolutCardBody')}
             </Text>
-            {revolutCardCandidates.map((c) => {
+            {(revolutCardExpanded ? revolutCardCandidates : revolutCardCandidates.slice(0, SUGGEST_PREVIEW_COUNT)).map((c) => {
               const checked = selectedRevolutCardIds.has(c.id);
               return (
                 <TouchableOpacity
@@ -1108,11 +1139,32 @@ export default function BankImportScreen() {
                     {checked ? <Text style={styles.suggestCheckMark}>✓</Text> : null}
                   </View>
                   <Text style={[styles.suggestRowText, { color: colors.text }]}>
-                    {c.date} · {c.amount.toLocaleString('cs-CZ')} Kč — {c.title}
+                    {formatSuggestDate(c.date)} · {c.amount.toLocaleString('cs-CZ')} Kč — {c.title}
                   </Text>
                 </TouchableOpacity>
               );
             })}
+            {revolutCardCandidates.length > SUGGEST_PREVIEW_COUNT ? (
+              <View style={styles.suggestMoreRow}>
+                <TouchableOpacity onPress={() => setRevolutCardExpanded((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
+                    {revolutCardExpanded ? 'Skrýt ▴' : `Zobrazit všech ${revolutCardCandidates.length} ▾`}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() =>
+                    setSelectedRevolutCardIds((prev) =>
+                      prev.size === revolutCardCandidates.length ? new Set() : new Set(revolutCardCandidates.map((c) => c.id)),
+                    )
+                  }
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
+                    {selectedRevolutCardIds.size === revolutCardCandidates.length ? 'Zrušit výběr' : 'Vybrat vše'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <View style={styles.suggestActions}>
               <TouchableOpacity
                 style={[
@@ -1585,6 +1637,13 @@ export default function BankImportScreen() {
 }
 
 const styles = StyleSheet.create({
+  suggestMoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  suggestMoreText: { fontSize: 14, fontWeight: '700' },
   root: { flex: 1 },
   scroll: { paddingBottom: 40 },
   hero: { paddingTop: 24, paddingBottom: 28, paddingHorizontal: 20 },

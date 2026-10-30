@@ -124,6 +124,7 @@ export default function HouseholdNotificationSettingsScreen() {
       const { subscriptions, loans } = useFinanceStore.getState();
       const sym = useSettingsStore.getState().getCurrentCurrency().symbol;
       await rescheduleAllLocalNotifications({
+        allowPermissionPrompt: true,
         userId: user.id,
         subscriptions,
         loans,

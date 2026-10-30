@@ -33,6 +33,7 @@ import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
+import { usePlanStore } from '@/store/plan-store';
 
 const EXPENSE_CATEGORY_ORDER_KEY = 'expense_category_order';
 const EXCLUDED_FROM_TOTAL_COLOR = '#9CA3AF';
@@ -231,43 +232,122 @@ export default function ExpenseDetailScreen() {
   const averageExpense =
     periodExpenseTransactions.length > 0 ? periodTotalExpenses / periodExpenseTransactions.length : 0;
 
-  // Analýza výdajů
-  const getExpenseAnalysis = () => {
+  /** Průměr za den v období; u aktuálního měsíce i odhad do konce měsíce. */
+  const dailyStats = useMemo(() => {
+    const now = new Date();
+    let days: number;
+    let projection: number | null = null;
+    if (selectedPeriod === 'week') {
+      days = 7;
+    } else if (selectedPeriod === 'year') {
+      const isThisYear = yearNum === now.getFullYear();
+      const start = new Date(yearNum, 0, 1);
+      days = isThisYear
+        ? Math.max(1, Math.ceil((now.getTime() - start.getTime()) / 86400000))
+        : 365;
+    } else {
+      const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+      const isThisMonth = yearNum === now.getFullYear() && monthNum === now.getMonth() + 1;
+      days = isThisMonth ? Math.max(1, now.getDate()) : daysInMonth;
+      if (isThisMonth && now.getDate() < daysInMonth) {
+        projection = (periodTotalExpenses / days) * daysInMonth;
+      }
+    }
+    return { perDay: periodTotalExpenses / days, projection };
+  }, [selectedPeriod, yearNum, monthNum, periodTotalExpenses]);
+
+  // Postřehy — jen z reálných dat, žádné obecné rady při málo transakcích.
+  const planBudgets = usePlanStore((st) => st.budgets);
+  const prevMonthTotal = useMemo(() => {
+    if (selectedPeriod !== 'month') return null;
+    const py = monthNum === 1 ? yearNum - 1 : yearNum;
+    const pm = monthNum === 1 ? 12 : monthNum - 1;
+    const list = getMonthTransactions(remoteTransactions, py, pm).filter(
+      (tx) => isExpenseForReport(tx) || isRefundTransaction(tx),
+    );
+    return list.length >= 5 ? netExpenseAmount(list) : null;
+  }, [selectedPeriod, remoteTransactions, yearNum, monthNum]);
+
+  type Insight = {
+    kind: 'warning' | 'tip' | 'info';
+    title: string;
+    text: string;
+    cta?: { label: string; onPress: () => void };
+  };
+  const MIN_TX_FOR_INSIGHTS = 5;
+  const insights = useMemo<Insight[]>(() => {
+    const out: Insight[] = [];
+    if (periodExpenseTransactions.length < MIN_TX_FOR_INSIGHTS) return out;
+    const fmt = (n: number) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
     const ranked = periodCategoryExpenses.filter((c) => !c.excludedFromTotal);
-    const analysis = {
-      highestCategory: ranked[0] || null,
-      totalTransactions: periodExpenseTransactions.length,
-      averagePerTransaction: averageExpense,
-      recommendations: [] as string[],
-      warnings: [] as string[],
-    };
+    const top = ranked[0];
 
-    // Doporučení na základě kategorií
-    ranked.forEach((category) => {
-      if (category.category === 'Jídlo' && category.percentage > 30) {
-        analysis.warnings.push(t('expenseWarnFood'));
-        analysis.recommendations.push(t('expenseRecCookHome'));
+    // 1) Rozpočty v tomto měsíci (jen měsíční pohled)
+    if (selectedPeriod === 'month') {
+      for (const b of planBudgets) {
+        const spent = periodExpenseTransactions
+          .filter(
+            (tx) =>
+              mainCategoryName(tx.category, tx.subcategory) === b.category &&
+              (!b.subcategory || tx.subcategory === b.subcategory),
+          )
+          .reduce((sum, tx) => sum + (isRefundTransaction(tx) ? -tx.amount : tx.amount), 0);
+        const label = b.label?.trim() || (b.subcategory ? `${b.category} › ${b.subcategory}` : b.category);
+        if (spent > b.amount) {
+          out.push({
+            kind: 'warning',
+            title: `${label}: rozpočet přečerpán`,
+            text: `Utraceno ${fmt(spent)} z ${fmt(b.amount)} – o ${fmt(spent - b.amount)} víc.`,
+            cta: { label: 'Otevřít Plán', onPress: () => router.push('/(tabs)/plan') },
+          });
+        } else if (b.amount > 0 && spent / b.amount >= 0.8) {
+          out.push({
+            kind: 'warning',
+            title: `${label}: blížíš se k limitu`,
+            text: `Utraceno ${fmt(spent)} z ${fmt(b.amount)}, zbývá ${fmt(b.amount - spent)}.`,
+          });
+        }
       }
-      if (category.category === 'Zábava' && category.percentage > 20) {
-        analysis.warnings.push(t('expenseWarnEntertainment'));
-        analysis.recommendations.push(t('expenseRecCheaperFun'));
-      }
-      if (category.category === 'Oblečení' && category.percentage > 15) {
-        analysis.warnings.push(t('expenseWarnClothing'));
-        analysis.recommendations.push(t('expenseRecClothingNeed'));
-      }
-    });
-
-    // Obecná doporučení
-    if (analysis.recommendations.length === 0) {
-      analysis.recommendations.push(t('expenseRecBalanced'));
-      analysis.recommendations.push(t('expenseRecSetBudget'));
     }
 
-    return analysis;
-  };
+    // 2) Srovnání s minulým měsícem
+    if (prevMonthTotal != null && prevMonthTotal > 0) {
+      const diff = periodTotalExpenses - prevMonthTotal;
+      const pct = Math.round((diff / prevMonthTotal) * 100);
+      if (Math.abs(pct) >= 10) {
+        out.push({
+          kind: pct > 0 ? 'warning' : 'tip',
+          title: pct > 0 ? `O ${pct} % víc než minulý měsíc` : `O ${Math.abs(pct)} % méně než minulý měsíc`,
+          text:
+            pct > 0
+              ? `Zatím ${fmt(periodTotalExpenses)} oproti ${fmt(prevMonthTotal)} za celý minulý měsíc.`
+              : `Zatím ${fmt(periodTotalExpenses)} oproti ${fmt(prevMonthTotal)} minule. Dobrá práce.`,
+        });
+      }
+    }
 
-  const analysis = getExpenseAnalysis();
+    // 3) Největší kategorie + nabídka rozpočtu, pokud žádný nemá
+    if (top && top.percentage >= 25) {
+      const hasBudget = planBudgets.some((b) => b.category === top.category);
+      out.push({
+        kind: 'info',
+        title: `Nejvíc jde na ${top.category}`,
+        text: `${fmt(top.amount)} – ${top.percentage} % všech výdajů v tomto období.`,
+        cta: hasBudget
+          ? undefined
+          : { label: 'Nastavit rozpočet', onPress: () => router.push('/(tabs)/plan') },
+      });
+    }
+    return out.slice(0, 3);
+  }, [
+    periodExpenseTransactions,
+    periodCategoryExpenses,
+    planBudgets,
+    prevMonthTotal,
+    periodTotalExpenses,
+    selectedPeriod,
+    router,
+  ]);
 
   const PeriodButton = ({ period, label }: { period: 'week' | 'month' | 'year', label: string }) => (
     <TouchableOpacity
@@ -477,7 +557,7 @@ export default function ExpenseDetailScreen() {
           <View style={styles.statsGrid}>
             <StatCard
               title={t('detailTransactionCount')}
-              value={analysis.totalTransactions}
+              value={periodExpenseTransactions.length}
               icon={BarChart3}
               color="#6366F1"
               subtitle={
@@ -489,10 +569,15 @@ export default function ExpenseDetailScreen() {
               }
             />
             <StatCard
-              title={t('detailAvgPerTransaction')}
-              value={formatMoneyWithSymbol(analysis.averagePerTransaction, numberLocale, currency.symbol)}
+              title="Průměrně za den"
+              value={formatMoneyWithSymbol(dailyStats.perDay, numberLocale, currency.symbol)}
               icon={Target}
               color="#8B5CF6"
+              subtitle={
+                dailyStats.projection != null
+                  ? `odhad za měsíc ${formatMoneyWithSymbol(dailyStats.projection, numberLocale, currency.symbol)}`
+                  : undefined
+              }
             />
           </View>
         </View>
@@ -505,57 +590,44 @@ export default function ExpenseDetailScreen() {
           ))}
         </View>
 
-        {/* Analysis & Recommendations */}
+        {/* Postřehy */}
         <View style={styles.analysisContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>{t('detailAnalysisRecommendations')}</Text>
-          
-          {/* Warnings */}
-          {analysis.warnings.map((warning, index) => (
-            <RecommendationCard
-              key={`warning-${index}`}
-              type="warning"
-              title={t('detailWarning')}
-              description={warning}
-              icon={AlertTriangle}
-            />
-          ))}
-
-          {/* Recommendations */}
-          {analysis.recommendations.map((recommendation, index) => (
-            <RecommendationCard
-              key={`tip-${index}`}
-              type="tip"
-              title={t('detailSavingTip')}
-              description={recommendation}
-              icon={Lightbulb}
-            />
-          ))}
-        </View>
-
-        {/* Tip */}
-        <View style={styles.insightsContainer}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.insightsGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.insightsTitle}>{t('detailTipLabel')}</Text>
-            <Text style={styles.insightsText}>
-              {analysis.highestCategory 
-                ? t('detailExpenseTipWithCategory', {
-                    category: analysis.highestCategory.category.toLowerCase(),
-                    percentage: analysis.highestCategory.percentage,
-                  })
-                : t('detailExpenseTipEmpty')}
-            </Text>
-            <TouchableOpacity 
-              style={styles.chatButton}
-              onPress={() => router.push('/bank-import')}
-            >
-              <Text style={styles.chatButtonText}>{t('detailImportBankStatement')}</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>Postřehy</Text>
+          {insights.length === 0 ? (
+            <View style={[styles.insightEmpty, { backgroundColor: mutedBg }]}>
+              <Text style={{ color: textMain, fontSize: 15, fontWeight: '600', marginBottom: 4 }}>
+                Zatím málo dat
+              </Text>
+              <Text style={{ color: textSec, fontSize: 14, lineHeight: 20 }}>
+                {`Postřehy se ukážou od ${MIN_TX_FOR_INSIGHTS} výdajů v období. Nejrychleji je doplníš nahráním výpisu z banky.`}
+              </Text>
+              <TouchableOpacity
+                style={[styles.insightCta, { borderColor: '#8B5CF6' }]}
+                onPress={() => router.push('/bank-import')}
+              >
+                <Text style={{ color: '#8B5CF6', fontWeight: '700' }}>Nahrát výpis</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            insights.map((ins, index) => (
+              <View key={`insight-${index}`}>
+                <RecommendationCard
+                  type={ins.kind === 'warning' ? 'warning' : 'tip'}
+                  title={ins.title}
+                  description={ins.text}
+                  icon={ins.kind === 'warning' ? AlertTriangle : Lightbulb}
+                />
+                {ins.cta ? (
+                  <TouchableOpacity
+                    style={[styles.insightCta, { borderColor: '#8B5CF6', marginTop: -4, marginBottom: 12 }]}
+                    onPress={ins.cta.onPress}
+                  >
+                    <Text style={{ color: '#8B5CF6', fontWeight: '700' }}>{ins.cta.label}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
       <QuickAddTransactionSheet
@@ -792,6 +864,18 @@ const styles = StyleSheet.create({
   recommendationDescription: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  insightEmpty: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  insightCta: {
+    alignSelf: 'flex-start',
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 12,
   },
   insightsContainer: {
     marginHorizontal: 20,

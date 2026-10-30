@@ -132,6 +132,28 @@ export default function IncomeDetailScreen() {
 
   const displayTotalIncome = periodTotalIncome;
 
+  /** Srovnání s předchozím obdobím (měsíc → minulý měsíc, rok → minulý rok, týden → minulý týden). */
+  const prevPeriodIncome = useMemo(() => {
+    if (selectedPeriod === 'month') {
+      const py = monthNum === 1 ? yearNum - 1 : yearNum;
+      const pm = monthNum === 1 ? 12 : monthNum - 1;
+      const list = getMonthTransactions(remoteTransactions, py, pm).filter(isIncomeForReport);
+      return list.length ? list.reduce((sum, tx) => sum + tx.amount, 0) : null;
+    }
+    const ref = new Date(referenceInMonth);
+    if (selectedPeriod === 'week') ref.setDate(ref.getDate() - 7);
+    else ref.setFullYear(ref.getFullYear() - 1);
+    const list = filterTransactionsByPeriod(remoteTransactions, 'income', selectedPeriod, ref);
+    return list.length ? list.reduce((sum, tx) => sum + tx.amount, 0) : null;
+  }, [selectedPeriod, remoteTransactions, yearNum, monthNum, referenceInMonth]);
+
+  const incomeChange = useMemo(() => {
+    if (prevPeriodIncome == null || prevPeriodIncome <= 0) return null;
+    return Math.round(((periodTotalIncome - prevPeriodIncome) / prevPeriodIncome) * 100);
+  }, [prevPeriodIncome, periodTotalIncome]);
+  const prevLabel =
+    selectedPeriod === 'month' ? 'minulý měsíc' : selectedPeriod === 'week' ? 'minulý týden' : 'minulý rok';
+
   const categoryIncomes = useMemo(() => {
     const categoryTotals: { [key: string]: number } = {};
     for (const transaction of periodIncomeTransactions) {
@@ -423,10 +445,15 @@ export default function IncomeDetailScreen() {
               }
             />
             <StatCard
-              title={t('detailAvgPerTransaction')}
-              value={formatMoneyWithSymbol(analysis.averagePerTransaction, numberLocale, currency.symbol)}
+              title={`Oproti ${selectedPeriod === 'month' ? 'minulému měsíci' : selectedPeriod === 'week' ? 'minulému týdnu' : 'minulému roku'}`}
+              value={incomeChange == null ? '—' : `${incomeChange > 0 ? '+' : ''}${incomeChange} %`}
               icon={Target}
-              color="#8B5CF6"
+              color={incomeChange == null ? '#8B5CF6' : incomeChange >= 0 ? '#10B981' : '#EF4444'}
+              subtitle={
+                prevPeriodIncome == null
+                  ? `${prevLabel} bez dat`
+                  : `${prevLabel} ${formatMoneyWithSymbol(prevPeriodIncome, numberLocale, currency.symbol)}`
+              }
             />
           </View>
         </View>

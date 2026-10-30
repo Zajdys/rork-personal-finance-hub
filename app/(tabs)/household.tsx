@@ -45,7 +45,9 @@ import {
 } from '@/hooks/household/useHouseholdSwitcher';
 import { useRecurringExpenses } from '@/hooks/household/useRecurringExpenses';
 import { useSharedExpenses } from '@/hooks/household/useSharedExpenses';
-import { PremiumGateScreen } from '@/components/PremiumGate';
+import { PremiumGateScreen, openPaywall } from '@/components/PremiumGate';
+import { usePremium } from '@/hooks/usePremium';
+import { useRouter } from 'expo-router';
 
 function HouseholdTabScreenContent() {
   const { colors, isDark } = useTheme();
@@ -58,6 +60,8 @@ function HouseholdTabScreenContent() {
   const insets = useSafeAreaInsets();
 
   const householdId = useHouseholdActiveStore((s) => s.activeHouseholdId);
+  const { isHouseholdPremium, loading: premiumLoading } = usePremium();
+  const router = useRouter();
 
   const mainScrollRef = useRef<ScrollView>(null);
   const scrollContentRef = useRef<View>(null);
@@ -263,7 +267,14 @@ function HouseholdTabScreenContent() {
 
           <TouchableOpacity
             style={emptyStyles.primaryBtn}
-            onPress={switcher.openCreateHouseholdModal}
+            onPress={() => {
+              // Založit domácnost = Premium; připojit se kódem jde zdarma (sdílené Premium partnera).
+              if (!isHouseholdPremium) {
+                openPaywall(router, 'household');
+                return;
+              }
+              switcher.openCreateHouseholdModal();
+            }}
             activeOpacity={0.9}
           >
             <LinearGradient
@@ -345,6 +356,14 @@ function HouseholdTabScreenContent() {
       </>
     );
   }
+  if (!premiumLoading && !isHouseholdPremium) {
+    return (
+      <PremiumGateScreen feature="household" showBack={false}>
+        <View />
+      </PremiumGateScreen>
+    );
+  }
+
 
   const s = summary.data;
   const r = recurring.data;
@@ -691,11 +710,8 @@ function HouseholdTabScreenContent() {
 }
 
 export default function HouseholdTabScreen() {
-  return (
-    <PremiumGateScreen feature="household" showBack={false}>
-      <HouseholdTabScreenContent />
-    </PremiumGateScreen>
-  );
+  // Prázdný stav (vysvětlení + připojení kódem) je vidět i bez Premium; obsah domácnosti hlídá gate uvnitř.
+  return <HouseholdTabScreenContent />;
 }
 
 const emptyStyles = StyleSheet.create({

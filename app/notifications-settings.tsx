@@ -147,13 +147,14 @@ export default function NotificationsSettingsScreen() {
     const uid = user?.id;
     if (uid) {
       await rescheduleAllLocalNotifications({
+        allowPermissionPrompt: true,
         userId: uid,
         subscriptions,
         loans,
         currencyLabel: currencySymbol,
       });
     } else {
-      await rescheduleAllLocalNotificationsIfPushEnabled();
+      await rescheduleAllLocalNotificationsIfPushEnabled({ allowPermissionPrompt: true });
     }
   }, [user?.id, subscriptions, loans, currencySymbol]);
 

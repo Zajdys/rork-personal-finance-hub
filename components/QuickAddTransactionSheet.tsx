@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Keyboard,
   KeyboardAvoidingView,
+  InputAccessoryView,
   Platform,
   PanResponder,
   ActivityIndicator,
@@ -28,6 +29,8 @@ import {
 } from '@/components/RecurringFrequencyField';
 import { useAddTransaction } from '@/hooks/useAddTransaction';
 import { toYyyyMmDd } from '@/lib/transaction-date';
+
+const QUICK_ADD_ACCESSORY_ID = 'quick-add-keyboard-done';
 import { appLocale } from '@/lib/app-locale';
 
 export type QuickAddTransactionSheetProps = {
@@ -176,7 +179,7 @@ export function QuickAddTransactionSheet({
               },
             ]}
           >
-            <View {...panResponder.panHandlers}>
+            <View {...panResponder.panHandlers} onTouchEnd={() => Keyboard.dismiss()}>
               <View style={styles.handle} />
               <View style={styles.headerRow}>
                 <View style={styles.headerSpacer} />
@@ -196,7 +199,9 @@ export function QuickAddTransactionSheet({
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
+              style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
             >
               {allowTypeToggle ? (
@@ -246,6 +251,8 @@ export function QuickAddTransactionSheet({
                   placeholder="0"
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="decimal-pad"
+                  returnKeyType="done"
+                  inputAccessoryViewID={Platform.OS === 'ios' ? QUICK_ADD_ACCESSORY_ID : undefined}
                   style={[styles.amountInput, { color: colors.text }]}
                   testID="quick-add-amount"
                 />
@@ -258,6 +265,10 @@ export function QuickAddTransactionSheet({
               <TextInput
                 value={title}
                 onChangeText={setTitle}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={() => Keyboard.dismiss()}
+                inputAccessoryViewID={Platform.OS === 'ios' ? QUICK_ADD_ACCESSORY_ID : undefined}
                 placeholder={t('description')}
                 placeholderTextColor={colors.textSecondary}
                 style={[
@@ -341,6 +352,15 @@ export function QuickAddTransactionSheet({
 
           </View>
         </KeyboardAvoidingView>
+        {Platform.OS === 'ios' ? (
+          <InputAccessoryView nativeID={QUICK_ADD_ACCESSORY_ID}>
+            <View style={[styles.accessoryBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+              <TouchableOpacity onPress={() => Keyboard.dismiss()} hitSlop={10}>
+                <Text style={[styles.accessoryDone, { color: colors.primary }]}>Hotovo</Text>
+              </TouchableOpacity>
+            </View>
+          </InputAccessoryView>
+        ) : null}
       </View>
     </Modal>
   );
@@ -386,7 +406,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scroll: { flexShrink: 1 },
   scrollContent: { paddingBottom: 16 },
+  accessoryBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  accessoryDone: { fontSize: 16, fontWeight: '700' },
   typeToggle: {
     flexDirection: 'row',
     borderRadius: 12,

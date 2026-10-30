@@ -26,6 +26,7 @@ import { getMonthTransactions, useFinanceStore, type LoanItem } from '@/store/fi
 import { usePlanStore } from '@/store/plan-store';
 import { PremiumGate, openPaywall } from '@/components/PremiumGate';
 import { usePremium } from '@/hooks/usePremium';
+import { askNotificationsInContext } from '@/lib/reschedule-all-local-notifications';
 import { FREE_BUDGET_LIMIT } from '@/constants/premium';
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { EmptyState } from '@/components/EmptyState';
@@ -219,6 +220,7 @@ export default function PlanScreen() {
   const [viewY, setViewY] = useState(now.getFullYear());
   const [viewM, setViewM] = useState(now.getMonth());
   const [expectedIncome, setExpectedIncome] = useState(0);
+  const [incomeLoaded, setIncomeLoaded] = useState(false);
   const [upcoming, setUpcoming] = useState<UpcomingPay[]>([]);
   const [recurringRules, setRecurringRules] = useState<PersonalRecurringRule[]>([]);
   const [recurringMonthly, setRecurringMonthly] = useState(0);
@@ -250,6 +252,7 @@ export default function PlanScreen() {
     await loadPlan(user.id);
     const status = await loadQuickSetupStatus(user.id);
     setExpectedIncome(status.expectedMonthlyIncome ?? 0);
+    setIncomeLoaded(true);
 
     const { rules } = await fetchPersonalRecurringRules(user.id);
     const activeExp = (rules ?? []).filter((r) => r.active && r.type === 'expense');
@@ -310,10 +313,12 @@ export default function PlanScreen() {
     setUpcoming(items);
   }, [user?.id, loadPlan, loans]);
 
-  useFocusRefresh(reload);
+  const { notifyRefreshed } = useFocusRefresh(reload);
+  // První načtení + při změně závazků; focus-refresh pak do 30 s neopakuje (dřív se vše načítalo 2×).
   useEffect(() => {
+    notifyRefreshed();
     void reload();
-  }, [reload]);
+  }, [reload, notifyRefreshed]);
 
   const monthTx = useMemo(
     () => getMonthTransactions(filteredTx, viewY, viewM + 1),
@@ -462,6 +467,7 @@ export default function PlanScreen() {
     }
     setBudgetSheet(false);
     showToast({ type: 'success', message: 'Rozpočet uložen' });
+    if (!editBudgetId) setTimeout(() => void askNotificationsInContext(), 1000);
   };
 
   const deleteBudgetFromSheet = () => {
@@ -738,7 +744,11 @@ export default function PlanScreen() {
               </TouchableOpacity>
             </View>
 
-            {expectedIncome <= 0 ? (
+            {!incomeLoaded ? (
+              <View style={{ paddingVertical: 28, alignItems: 'center' }}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : expectedIncome <= 0 ? (
               <EmptyState
                 title="Nastav příjem"
                 description="Bez očekávaného příjmu neumíme spočítat volné peníze."

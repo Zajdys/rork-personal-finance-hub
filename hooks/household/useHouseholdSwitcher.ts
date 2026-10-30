@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
   hasSupabaseSession,
@@ -46,6 +47,7 @@ export function useHouseholdSwitcher({
   loadHouseholdDataRef,
 }: UseHouseholdSwitcherParams) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useLanguageStore();
   const { user } = useAuth();
 
@@ -489,6 +491,8 @@ export function useHouseholdSwitcher({
       await setActiveHouseholdId(user.id, householdIdJoined);
       await loadHouseholdData(householdIdJoined, user.id);
       notifyHouseholdRefreshed();
+      // Po připojení k domácnosti s Premium se má hned odemknout (sdílené Premium).
+      void queryClient.invalidateQueries({ queryKey: ['household-premium'] });
     } catch (e) {
       Alert.alert(t('error'), friendlyCatchMessage('household', e));
     } finally {

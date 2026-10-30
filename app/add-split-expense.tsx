@@ -8,6 +8,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
+  Keyboard,
+  InputAccessoryView,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Check } from 'lucide-react-native';
@@ -36,6 +39,7 @@ import {
   type SplitExpense,
 } from '@/store/split-groups-store';
 
+const SPLIT_ACCESSORY_ID = 'split-expense-keyboard-done';
 const SPLIT_TYPES: SplitExpenseSplitType[] = ['equal', 'exact', 'percentage', 'shares'];
 
 function prefillFromExpense(expense: SplitExpense): {
@@ -351,7 +355,7 @@ export default function AddSplitExpenseScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <ScreenHeader
-        title={isEdit ? t('splitGroupsEditExpense') : t('splitGroupsNewExpense')}
+        title={isEdit ? t('splitGroupsEditExpense') : t('splitGroupsNewExpense').replace(/^\+\s*/, '')}
         subtitle={group?.name ?? t('splitGroups')}
         variant="gradient"
       />
@@ -359,6 +363,7 @@ export default function AddSplitExpenseScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('amount')}</Text>
         <TextInput
@@ -374,6 +379,7 @@ export default function AddSplitExpenseScreen() {
           value={amount}
           onChangeText={setAmount}
           keyboardType="decimal-pad"
+          inputAccessoryViewID={Platform.OS === 'ios' ? SPLIT_ACCESSORY_ID : undefined}
           placeholder="0"
           placeholderTextColor={colors.textSecondary}
         />
@@ -601,6 +607,15 @@ export default function AddSplitExpenseScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+      {Platform.OS === 'ios' ? (
+        <InputAccessoryView nativeID={SPLIT_ACCESSORY_ID}>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+            <TouchableOpacity onPress={() => Keyboard.dismiss()} hitSlop={10}>
+              <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>Hotovo</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      ) : null}
     </View>
   );
 }

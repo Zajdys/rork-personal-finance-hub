@@ -57,3 +57,4 @@ node_modules
 .expo
 # Supabase CLI local cache
 supabase/.temp/
+tsc.out.txt
