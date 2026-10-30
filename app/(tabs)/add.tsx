@@ -35,8 +35,7 @@ import { randomUUID } from '@/lib/random-uuid';
 import { useTheme } from '@/hooks/use-theme';
 import { toYyyyMmDd, transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
 import * as ImagePicker from 'expo-image-picker';
-// TODO(App Store): nahradit vlastní AI pipeline a odstranit @rork-ai/toolkit-sdk (+ withRorkMetro).
-import { generateObject } from '@rork-ai/toolkit-sdk';
+import { scanDocumentImage } from '@/lib/scan-document';
 import { z } from 'zod';
 import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
@@ -352,24 +351,7 @@ export default function AddTransactionScreen() {
             console.log('Calling AI for receipt with image size:', base64Data.length);
             
             receiptResult = await Promise.race<ReceiptResult>([
-              generateObject({
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Analyzuj tuto účtenku a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. VŽDY použij CELKOVOU cenu položky (pokud je 4 jednotky à 50Kč, amount musí být 200, ne 50)\n2. Do title dej název produktu/služby (+ množství) — NIKDY do category\n3. category musí být PŘESNĚ jedna z: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní\n4. NIKDY nedávej do category obchodníka ani popis (špatně: "ČEZ elektřina", "Lidl"; správně category "Bydlení"/"Jídlo")\n5. Zpracuj VŠECHNY položky; ignoruj mezisoučty DPH/Celkem\n\nPříklady:\n- Mléko → title "Mléko 2 ks", category "Jídlo", subcategory "Potraviny"\n- Benzín → title "Benzín Natural 95", category "Auto a doprava", subcategory "Benzín a nafta"\n- Elektřina ČEZ → title "ČEZ elektřina", category "Bydlení", subcategory "Energie"',
-                      },
-                      {
-                        type: 'image',
-                        image: base64Data,
-                      },
-                    ],
-                  },
-                ],
-                schema,
-              }),
+              scanDocumentImage(uri, 'receipt') as Promise<any>,
               new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
               )
@@ -527,24 +509,7 @@ export default function AddTransactionScreen() {
             console.log('Calling AI for invoice with image size:', base64Data.length);
             
             invoiceResult = await Promise.race<InvoiceResult>([
-              generateObject({
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Analyzuj tuto fakturu a vrať VŠECHNY položky. DŮLEŽITÉ PRAVIDLA:\n\n1. CELKOVÁ cena položky (ne jednotková)\n2. title = název služby/produktu; category NIKDY nesmí být obchodník ani popis faktury\n3. category PŘESNĚ jedna z: Jídlo, Bydlení, Úvěry, Auto a doprava, Nákupy, Volný čas, Cestování, Zdraví, Předplatné, Vzdělání, Děti, Zvířata, Poplatky a hotovost, Platby lidem, Ostatní\n4. Špatně: category "ČEZ elektřina" / "Služby". Správně: title "ČEZ elektřina", category "Bydlení", subcategory "Energie"\n5. Ignoruj DPH/mezisoučty\n\nPříklady:\n- Hosting → title "Webový hosting 12 měsíců", category "Nákupy"\n- Licence Office → title "Licence Microsoft Office", category "Nákupy", subcategory "Elektronika"',
-                      },
-                      {
-                        type: 'image',
-                        image: base64Data,
-                      },
-                    ],
-                  },
-                ],
-                schema,
-              }),
+              scanDocumentImage(uri, 'invoice') as Promise<any>,
               new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Request timeout after 60 seconds')), 60000)
               )

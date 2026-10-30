@@ -58,7 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-router',
       {
-        origin: 'https://rork.com/',
+        origin: 'https://moneybuddy.cz/',
       },
     ],
     [
@@ -91,7 +91,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     router: {
-      origin: 'https://rork.com/',
+      origin: 'https://moneybuddy.cz/',
     },
     eas: {
       projectId: '963a849f-979e-4af6-b328-9d8d6364a293',

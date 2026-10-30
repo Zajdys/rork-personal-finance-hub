@@ -128,6 +128,7 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>Supabase (infrastruktura, databáze, autentizace) — EU</Bullet>
           <Bullet colors={colors}>RevenueCat (předplatné a ověření nákupů App Store / Google Play)</Bullet>
           <Bullet colors={colors}>Expo (doručování push notifikací)</Bullet>
+          <Bullet colors={colors}>Anthropic (AI rozpoznání položek z vyfocené účtenky či faktury — jen když skenování sám spustíš; fotka se neukládá ani nepoužívá k trénování)</Bullet>
           <Bullet colors={colors}>Brevo (odesílání e-mailů — obnova hesla, uvítací e-mail a novinky, pokud k nim dáš souhlas) — EU</Bullet>
           <Bullet colors={colors}>ČNB (veřejné kurzy měn; neodesíláme osobní údaje)</Bullet>
           <Bullet colors={colors}>Yahoo Finance (tržní ceny; neodesíláme osobní údaje)</Bullet>
