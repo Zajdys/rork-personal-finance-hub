@@ -126,6 +126,33 @@ export default function NotificationsSettingsScreen() {
   const [hhTimeStr, setHhTimeStr] = useState('09:00');
   const [hhSaving, setHhSaving] = useState(false);
   const [hhLoaded, setHhLoaded] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('marketing_consent')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (!cancelled) setMarketingConsent(Boolean((data as { marketing_consent?: boolean } | null)?.marketing_consent));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const toggleMarketing = async (v: boolean) => {
+    if (!user?.id) return;
+    setMarketingConsent(v);
+    const { error } = await supabase
+      .from('users')
+      .update({ marketing_consent: v, marketing_consent_at: new Date().toISOString() })
+      .eq('id', user.id);
+    if (error) setMarketingConsent(!v);
+  };
 
   const hhDayOptions = useMemo(
     () => [
@@ -803,6 +830,27 @@ export default function NotificationsSettingsScreen() {
               <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 10 }]}>
                 {t('hhNotifFooter')}
               </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* E-maily s novinkami (GDPR souhlas, kdykoli odvolatelný) */}
+        {user?.id && marketingConsent !== null ? (
+          <View style={cardStyle}>
+            <Text style={[styles.sectionHeading, { color: colors.text }]}>E-maily</Text>
+            <View style={styles.row}>
+              <View style={styles.textBlock}>
+                <Text style={[styles.title, { color: colors.text }]}>Tipy, novinky a nabídky</Text>
+                <Text style={[styles.sub, { color: colors.textSecondary }]}>
+                  Občas ti pošleme e-mail s novinkami v aplikaci a nabídkami. Důležité e-maily k účtu (např. obnova hesla) chodí vždy.
+                </Text>
+              </View>
+              <Switch
+                value={marketingConsent}
+                onValueChange={(v) => void toggleMarketing(v)}
+                trackColor={{ false: '#9CA3AF', true: '#86EFAC' }}
+                thumbColor={Platform.OS === 'android' ? (marketingConsent ? '#fff' : '#f4f3f4') : undefined}
+              />
             </View>
           </View>
         ) : null}

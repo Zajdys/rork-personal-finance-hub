@@ -189,6 +189,7 @@ function RootLayoutNav() {
       rootSegment === 'landing' ||
       rootSegment === 'auth' ||
       rootSegment === 'register' ||
+      rootSegment === 'forgot-password' ||
       rootSegment === 'privacy-policy';
 
     if (!isAuthenticated) {
@@ -289,6 +290,7 @@ function RootLayoutNav() {
         <Stack.Screen name="landing" options={{ title: t('moneyBuddy') }} />
         <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
         <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
         <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: false }} />
       </Stack>
     );

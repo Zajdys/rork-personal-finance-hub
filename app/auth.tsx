@@ -35,6 +35,28 @@ import { useAsyncAction } from '@/hooks/use-async-action';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
 import { useRegisterIntentStore } from '@/store/register-intent-store';
 
+/** Souhlas s marketingem (GDPR) — uloží se k uživateli s datem souhlasu. */
+async function saveMarketingConsent(value: boolean): Promise<void> {
+  try {
+    const { supabase } = await import('@/lib/supabase');
+    const { data } = await supabase.auth.getUser();
+    const uid = data.user?.id;
+    if (!uid) return;
+    // Řádek v `users` může vzniknout až chvilku po registraci → max. 3 pokusy.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data: rows } = await supabase
+        .from('users')
+        .update({ marketing_consent: value, marketing_consent_at: new Date().toISOString() })
+        .eq('id', uid)
+        .select('id');
+      if (rows && rows.length > 0) return;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  } catch (e) {
+    console.warn('[auth] marketing consent', e);
+  }
+}
+
 const GRADIENT_BG: [string, string, string] = ['#1a0533', '#120a3d', '#0d1b4b'];
 const TEXT_PRIMARY = '#FFFFFF';
 const TEXT_MUTED = 'rgba(255,255,255,0.55)';
@@ -131,6 +153,7 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [ageOk, setAgeOk] = useState(false);
   const [termsOk, setTermsOk] = useState(false);
+  const [marketingOk, setMarketingOk] = useState(false);
 
   const { login, register } = useAuth();
   const { t } = useLanguageStore();
@@ -172,6 +195,9 @@ export default function AuthScreen() {
       } else {
         const result = await register(email, password, name);
         if (result.success) {
+          if (marketingOk) {
+            void saveMarketingConsent(true);
+          }
           // intent=premium: gate → paywall; jinak welcome-tour
           if (useRegisterIntentStore.getState().intent !== 'premium') {
             router.replace('/welcome-tour');
@@ -267,6 +293,18 @@ export default function AuthScreen() {
               autoCorrect={false}
             />
 
+            {isLogin ? (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({ pathname: '/forgot-password', params: email ? { email } : {} } as never)
+                }
+                style={styles.forgotBtn}
+                hitSlop={8}
+              >
+                <Text style={styles.forgotText}>Zapomněl jsi heslo?</Text>
+              </TouchableOpacity>
+            ) : null}
+
             {!isLogin && (
               <View style={styles.consentBlock}>
                 <Pressable style={styles.checkRow} onPress={() => setAgeOk((v) => !v)}>
@@ -294,6 +332,14 @@ export default function AuthScreen() {
                     >
                       {t('auth.privacyLink')}
                     </Text>
+                  </Text>
+                </Pressable>
+                <Pressable style={styles.checkRow} onPress={() => setMarketingOk((v) => !v)}>
+                  <View style={[styles.checkbox, marketingOk && styles.checkboxOn]}>
+                    {marketingOk ? <Check color="#fff" size={14} strokeWidth={3} /> : null}
+                  </View>
+                  <Text style={styles.checkLabel}>
+                    Chci dostávat tipy, novinky a nabídky MoneyBuddy e-mailem (nepovinné, odhlásíš se kdykoli)
                   </Text>
                 </Pressable>
               </View>
@@ -349,6 +395,8 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
+  forgotBtn: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 12 },
+  forgotText: { color: '#C4B5FD', fontSize: 14, fontWeight: '600' },
   root: {
     flex: 1,
     backgroundColor: '#0d1b4b',

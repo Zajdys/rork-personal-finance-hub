@@ -97,6 +97,9 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>
             <Text style={styles.bold}>Notifikace:</Text> push token zařízení (Expo)
           </Bullet>
+          <Bullet colors={colors}>
+            <Text style={styles.bold}>E-maily s novinkami:</Text> jen s tvým výslovným souhlasem (zaškrtnutí při registraci nebo v Profil → Notifikace). Souhlas můžeš kdykoli odvolat tamtéž nebo odkazem v patičce každého e-mailu.
+          </Bullet>
         </Section>
 
         <Section title="3. Proč údaje zpracováváme" colors={colors}>
@@ -125,6 +128,7 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>Supabase (infrastruktura, databáze, autentizace) — EU</Bullet>
           <Bullet colors={colors}>RevenueCat (předplatné a ověření nákupů App Store / Google Play)</Bullet>
           <Bullet colors={colors}>Expo (doručování push notifikací)</Bullet>
+          <Bullet colors={colors}>Brevo (odesílání e-mailů — obnova hesla, uvítací e-mail a novinky, pokud k nim dáš souhlas) — EU</Bullet>
           <Bullet colors={colors}>ČNB (veřejné kurzy měn; neodesíláme osobní údaje)</Bullet>
           <Bullet colors={colors}>Yahoo Finance (tržní ceny; neodesíláme osobní údaje)</Bullet>
           <Bullet colors={colors}>Apple / Google (technické údaje a platby přes obchod s aplikacemi)</Bullet>
