@@ -14,7 +14,7 @@ import { Swipeable, TouchableOpacity as GHTouchableOpacity } from 'react-native-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
-import { splitExpenseCategoryEmoji } from '@/lib/split-expense-categories';
+import { splitExpenseCategoryEmoji, splitExpenseCategoryLabel } from '@/lib/split-expense-categories';
 import { resolveSplitReceiptDisplayUrl } from '@/lib/split-receipt-upload';
 import type { SplitExpense } from '@/lib/split-groups';
 
@@ -36,7 +36,7 @@ export function SwipeableSplitExpenseRow({
   onDelete,
 }: Props) {
   const { colors } = useTheme();
-  const { t } = useLanguageStore();
+  const { t, language } = useLanguageStore();
   const insets = useSafeAreaInsets();
   const swipeRef = useRef<Swipeable>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
@@ -134,9 +134,17 @@ export function SwipeableSplitExpenseRow({
     maximumFractionDigits: 2,
   })} ${currencyLabel}`;
 
-  const titleText = expense.description?.trim()
-    ? expense.description.trim()
-    : t('splitGroupsUntitledExpense');
+  const rawDesc = expense.description?.trim() ?? '';
+  const isGenericDesc = !rawDesc || rawDesc === 'Výdaj' || rawDesc === 'Expense';
+  const titleText = isGenericDesc
+    ? splitExpenseCategoryLabel(expense.category, language === 'en' ? 'en' : 'cs')
+    : rawDesc;
+  const dateText = (() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(expense.date ?? ''));
+    if (!m) return String(expense.date ?? '');
+    const sameYear = Number(m[1]) === new Date().getFullYear();
+    return `${Number(m[3])}. ${Number(m[2])}.${sameYear ? '' : ` ${m[1]}`}`;
+  })();
   const categoryEmoji = splitExpenseCategoryEmoji(expense.category);
 
   const inner = (
@@ -154,7 +162,7 @@ export function SwipeableSplitExpenseRow({
         <Text style={[styles.amount, { color: colors.text }]}>{amountText}</Text>
       </View>
       <Text style={[styles.meta, { color: colors.textSecondary }]}>
-        {paidByLabel} · {expense.date}
+        {paidByLabel} · {dateText}
       </Text>
       {receiptPreviewUrl ? (
         <Pressable onPress={openReceiptFullscreen} style={styles.receiptThumbWrap}>

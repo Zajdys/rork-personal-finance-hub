@@ -18,6 +18,7 @@ export type PremiumFeatureId =
   | 'household'
   | 'subscriptions'
   | 'financial_goals'
+  | 'budgets'
   | 'save'
   | 'monthly_report'
   | 'investments'
@@ -44,6 +45,10 @@ export const PREMIUM_FEATURE_META: Record<
     titleKey: 'premium.featureGoalsTitle',
     blurbKey: 'premium.featureGoalsBlurb',
   },
+  budgets: {
+    titleKey: 'premium.featureBudgetsTitle',
+    blurbKey: 'premium.featureBudgetsBlurb',
+  },
   save: {
     titleKey: 'premium.featureSaveTitle',
     blurbKey: 'premium.featureSaveBlurb',
@@ -65,3 +70,6 @@ export const PREMIUM_FEATURE_META: Record<
     blurbKey: 'premium.featureImportsBlurb',
   },
 };
+
+/** Free uživatel má až tolik rozpočtů (quick-setup nabízí 4 kategorie). */
+export const FREE_BUDGET_LIMIT = 4;

@@ -37,15 +37,24 @@ import {
   type SplitExpense,
 } from '@/store/split-groups-store';
 
-const MEMBER_AVATARS = ['😀', '🧑', '👩', '🧔', '👱', '👩‍🦱'] as const;
+const MEMBER_AVATAR_COLORS = ['#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899', '#14B8A6', '#6366F1'] as const;
 
-/** Stabilní emoji avatar podle member.id (stejné napříč reloady). */
-function memberAvatarEmoji(memberId: string): string {
+/** Stabilní barva avataru podle member.id (stejná napříč reloady). */
+function memberAvatarColor(memberId: string): string {
   let hash = 0;
   for (let i = 0; i < memberId.length; i += 1) {
     hash = (hash * 31 + memberId.charCodeAt(i)) >>> 0;
   }
-  return MEMBER_AVATARS[hash % MEMBER_AVATARS.length];
+  return MEMBER_AVATAR_COLORS[hash % MEMBER_AVATAR_COLORS.length];
+}
+
+/** Iniciály ze jména: "Jan Hájek" → "JH", "Petr" → "P". */
+function memberInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0][0] ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '';
+  return (first + last).toUpperCase();
 }
 
 function currencySymbol(code: string): string {
@@ -96,9 +105,12 @@ export default function SplitGroupDetailScreen() {
 
   const group = groups.find((g) => g.id === groupId);
   const isArchived = group?.is_archived === true;
+  const allMembers = useSplitGroupsStore((s) => s.members);
   const members = useMemo(
     () => (groupId ? membersForGroup(groupId) : []),
-    [groupId, membersForGroup],
+    // allMembers: přepočet po přidání/odebrání člena (membersForGroup je stabilní funkce)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groupId, membersForGroup, allMembers],
   );
   const expenses = groupId ? expensesByGroupId[groupId] ?? [] : [];
   const settlements = groupId ? settlementsByGroupId[groupId] ?? [] : [];
@@ -356,7 +368,9 @@ export default function SplitGroupDetailScreen() {
               return (
                 <View key={b.memberId} style={styles.balanceRow}>
                   <View style={styles.balanceNameRow}>
-                    <Text style={styles.balanceAvatar}>{memberAvatarEmoji(b.memberId)}</Text>
+                    <View style={[styles.balanceAvatar, { backgroundColor: memberAvatarColor(b.memberId) }]}>
+                      <Text style={styles.balanceAvatarText}>{memberInitials(b.displayName)}</Text>
+                    </View>
                     <Text style={[styles.balanceName, { color: colors.text }]} numberOfLines={1}>
                       {b.displayName}
                     </Text>
@@ -400,7 +414,7 @@ export default function SplitGroupDetailScreen() {
           activeOpacity={0.9}
         >
           <Plus color={colors.onPrimary} size={22} />
-          <Text style={[styles.fabLabel, { color: colors.onPrimary }]}>{t('splitGroupsNewExpense')}</Text>
+          <Text style={[styles.fabLabel, { color: colors.onPrimary }]}>{t('splitGroupsNewExpense').replace(/^\+\s*/, '')}</Text>
         </TouchableOpacity>
       ) : null}
 
@@ -626,7 +640,14 @@ const styles = StyleSheet.create({
     gap: 8,
     minWidth: 0,
   },
-  balanceAvatar: { fontSize: 18 },
+  balanceAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  balanceAvatarText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   balanceName: { flex: 1, fontSize: 15, fontWeight: '600' },
   balanceAmount: { fontSize: 15, fontWeight: '700' },
   fab: {

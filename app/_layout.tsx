@@ -239,6 +239,12 @@ function RootLayoutNav() {
       return;
     }
 
+    // Paywall / děkovná obrazovka otevřené z appky (Profil, Plán, zámky…) — nikdy nezavírat gate-em.
+    if (rootSegment === 'choose-subscription' || rootSegment === 'premium-success') {
+      console.log('[nav] gate skip (paywall/success opened in app)', rootSegment);
+      return;
+    }
+
     // Quick-setup po tour — nenech gate přesměrovat pryč.
     if (rootSegment === 'quick-setup') {
       console.log('[nav] gate skip (quick-setup)');

@@ -1840,8 +1840,7 @@ export default function DashboardScreen() {
       </View>
           </View>
         </View>
-      {goalsSection}
-      {investiceSection}
+      {/* Plán a Investice: přístup přes dolní lištu a rychlé akce */}
       {categoriesSection}
       </>
       ) : (
@@ -1940,8 +1939,7 @@ export default function DashboardScreen() {
         </PremiumGate>
       </View>
 
-      {goalsSection}
-      {investiceSection}
+      {/* Plán a Investice: přístup přes dolní lištu a rychlé akce */}
       {categoriesSection}
 
       <View style={styles.transactionsContainer}>

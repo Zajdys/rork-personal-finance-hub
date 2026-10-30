@@ -17,6 +17,7 @@ import { useLanguageStore } from '@/store/language-store';
 import {
   DEFAULT_SPLIT_EXPENSE_CATEGORY,
   SPLIT_EXPENSE_CATEGORIES,
+  splitExpenseCategoryLabel,
   type SplitExpenseCategoryId,
 } from '@/lib/split-expense-categories';
 import {
@@ -80,9 +81,11 @@ export default function AddSplitExpenseScreen() {
   const setExpenseReceiptUrl = useSplitGroupsStore((s) => s.setExpenseReceiptUrl);
 
   const group = groups.find((g) => g.id === groupId);
+  const allMembers = useSplitGroupsStore((s) => s.members);
   const members = useMemo(
     () => (groupId ? membersForGroup(groupId) : []),
-    [groupId, membersForGroup],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groupId, membersForGroup, allMembers],
   );
   const existingExpense =
     isEdit && groupId && expenseId
@@ -288,7 +291,9 @@ export default function AddSplitExpenseScreen() {
       groupId,
       paidBy,
       amount: parsedAmount,
-      description: description.trim() || t('splitGroupsUntitledExpense'),
+      description:
+        description.trim() ||
+        splitExpenseCategoryLabel(category, language === 'en' ? 'en' : 'cs'),
       date: existingExpense?.date,
       splitType,
       category,
@@ -467,6 +472,21 @@ export default function AddSplitExpenseScreen() {
             );
           })}
         </ScrollView>
+        <Text style={[styles.hint, { color: colors.textSecondary, marginTop: 6 }]}>
+          {language === 'en'
+            ? {
+                equal: 'Everyone pays the same amount.',
+                exact: 'Enter an exact amount for each person (must add up to the total).',
+                percentage: 'Enter a percentage for each person (must add up to 100 %).',
+                shares: 'Enter a ratio, e.g. 2 nights vs. 1 night – someone with 2 shares pays double.',
+              }[splitType]
+            : {
+                equal: 'Každý zaplatí stejnou částku.',
+                exact: 'Každému zadáš konkrétní částku (součet musí sedět s celkem).',
+                percentage: 'Každému zadáš procenta (dohromady 100 %).',
+                shares: 'Zadáš poměr, např. 2 noci vs. 1 noc – kdo má 2 díly, platí dvakrát víc.',
+              }[splitType]}
+        </Text>
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('splitExpenseParticipants')}</Text>
         {shareHint ? (

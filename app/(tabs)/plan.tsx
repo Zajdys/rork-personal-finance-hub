@@ -24,7 +24,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth-store';
 import { getMonthTransactions, useFinanceStore, type LoanItem } from '@/store/finance-store';
 import { usePlanStore } from '@/store/plan-store';
-import { PremiumGate } from '@/components/PremiumGate';
+import { PremiumGate, openPaywall } from '@/components/PremiumGate';
+import { usePremium } from '@/hooks/usePremium';
+import { FREE_BUDGET_LIMIT } from '@/constants/premium';
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { EmptyState } from '@/components/EmptyState';
 import { RecurringFrequencyField } from '@/components/RecurringFrequencyField';
@@ -193,6 +195,7 @@ export default function PlanScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isHouseholdPremium } = usePremium();
   const { user } = useAuth();
 
   const loans = useFinanceStore((s) => s.loans);
@@ -399,6 +402,10 @@ export default function PlanScreen() {
   };
 
   const openAddBudget = () => {
+    if (!isHouseholdPremium && budgets.length >= FREE_BUDGET_LIMIT) {
+      openPaywall(router, 'budgets');
+      return;
+    }
     setEditBudgetId(null);
     setBudgetCat('');
     setBudgetSub(null);
@@ -771,7 +778,7 @@ export default function PlanScreen() {
 
           {/* Rozpočty */}
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Rozpočty</Text>
-          <PremiumGate feature="financial_goals">
+          <>
             {budgets.length === 0 ? (
               <EmptyState
                 title="Žádné rozpočty"
@@ -830,9 +837,14 @@ export default function PlanScreen() {
                   <Plus color={colors.primary} size={18} />
                   <Text style={[styles.addRowText, { color: colors.primary }]}>Přidat rozpočet</Text>
                 </TouchableOpacity>
+                {!isHouseholdPremium ? (
+                  <Text style={{ color: muted, fontSize: 12, textAlign: 'center', paddingBottom: 8 }}>
+                    {`Zdarma ${Math.min(budgets.length, FREE_BUDGET_LIMIT)} z ${FREE_BUDGET_LIMIT} rozpočtů · neomezeně a s upozorněním v Premium`}
+                  </Text>
+                ) : null}
               </View>
             )}
-          </PremiumGate>
+          </>
 
           {/* Spořicí cíle */}
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Spořicí cíle</Text>

@@ -380,7 +380,7 @@ export function HouseholdOverlayModals(p: HouseholdOverlayModalsProps) {
             activeOpacity={0.85}
           >
             <PlusCircle color={colors.primary} size={20} />
-            <Text style={[styles.switcherCreateText, { color: colors.primary }]}>{t('hhNewHousehold')}</Text>
+            <Text style={[styles.switcherCreateText, { color: colors.primary }]}>{t('hhNewHousehold').replace(/^\+\s*/, '')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.switcherCreateRow, { borderColor: colors.border, marginTop: 8 }]}

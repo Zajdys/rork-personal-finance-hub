@@ -155,7 +155,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
     label: 'Rozpočty',
     icon: Wallet,
     color: '#3B82F6',
-    premium: true,
+    premium: false,
     premiumFeature: 'financial_goals',
     kind: 'route',
     route: '/(tabs)/plan',

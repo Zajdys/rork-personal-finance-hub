@@ -1601,7 +1601,7 @@ function ImportToolbar({
         >
           <Plus size={18} color={colors.primary} strokeWidth={2.2} />
           <Text style={[styles.addTxBtnText, { color: colors.text }]}>
-            {t('investAddTransaction')}
+            {t('investAddTransaction').replace(/^\+\s*/, '')}
           </Text>
         </TouchableOpacity>
       ) : null}
