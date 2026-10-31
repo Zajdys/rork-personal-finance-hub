@@ -124,7 +124,9 @@ export function transactionToRow(t: Transaction, userId: string) {
       date: t.date,
       amount: t.amount,
       description,
-      bankTransactionId,
+      // Ručně zadané výdaje: dvě stejné kávy ve stejný den jsou 2 různé transakce → klíč podle id.
+      bankTransactionId:
+        bankTransactionId ?? (source === 'manual' && !t.recurringId ? `manual:${t.id}` : null),
     }),
   };
 }
@@ -291,6 +293,25 @@ export async function upsertTransactionsRemote(
     if (error) return { error: new Error(error.message) };
   }
   return { error: null };
+}
+
+/**
+ * Hromadné vložení ručně přidaných transakcí (např. položky z účtenky) jedním požadavkem.
+ * Duplicity (stejný user_id + unique_key, např. opakovaný import) se tiše přeskočí.
+ * Vrací id skutečně vložených řádků.
+ */
+export async function insertManualTransactionsBatch(
+  transactions: Transaction[],
+  userId: string,
+): Promise<{ insertedIds: string[]; error: Error | null }> {
+  if (!transactions.length) return { insertedIds: [], error: null };
+  const rows = transactions.map((t) => transactionToRow(t, userId));
+  const { data, error } = await supabase
+    .from('transactions')
+    .upsert(rows, { onConflict: 'user_id,unique_key', ignoreDuplicates: true })
+    .select('id');
+  if (error) return { insertedIds: [], error: new Error(error.message) };
+  return { insertedIds: (data ?? []).map((r: { id: string }) => r.id), error: null };
 }
 
 /**

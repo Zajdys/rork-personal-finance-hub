@@ -156,8 +156,10 @@ export default function AddTransactionScreen() {
 
   const {
     addTransaction,
+    addTransactions,
     addCustomCategory,
   } = useFinanceStore();
+  const [importingPreview, setImportingPreview] = useState<boolean>(false);
   const { addPoints, showBuddyMessage } = useBuddyStore();
   const { t, language } = useLanguageStore();
   const { saveTransaction, isSaving: isSavingTx } = useAddTransaction();
@@ -228,9 +230,11 @@ export default function AddTransactionScreen() {
 
 
   const confirmImport = useCallback(() => {
+    if (importingPreview) return;
+    setImportingPreview(true);
     void (async () => {
       try {
-        const created = [];
+        const candidates = [];
         for (const p of preview) {
           const resolved = resolveCategoryFieldsForWrite({
             category: p.category,
@@ -248,9 +252,17 @@ export default function AddTransactionScreen() {
             date: p.date,
             source: 'manual' as const,
           };
-          await addTransaction(tx);
-          created.push(tx);
+          candidates.push(tx);
         }
+        // Jedním požadavkem (dřív 1 požadavek na položku → u účtenky s 12 položkami ~1 min).
+        const { getAuthUserId: getUid, insertManualTransactionsBatch } = await import('@/lib/supabase-transactions');
+        const uidForInsert = await getUid();
+        if (!uidForInsert) throw new Error('Nejsi přihlášený.');
+        const { insertedIds, error: insertErr } = await insertManualTransactionsBatch(candidates, uidForInsert);
+        if (insertErr) throw insertErr;
+        const insertedSet = new Set(insertedIds);
+        const created = candidates.filter((c) => insertedSet.has(c.id));
+        if (created.length) addTransactions(created, { fromRemote: true });
         const count = created.length;
         setPreview([]);
         setPreviewOpen(false);
@@ -279,9 +291,11 @@ export default function AddTransactionScreen() {
       } catch (e) {
         console.error('confirmImport error', e);
         Alert.alert(t('error'), t('addTransaction.importFailed'));
+      } finally {
+        setImportingPreview(false);
       }
     })();
-  }, [preview, addTransaction, addPoints, showBuddyMessage, t, language]);
+  }, [preview, importingPreview, addTransactions, addPoints, showBuddyMessage, t, language]);
 
   const scanInvoiceWithCamera = useCallback(async () => {
     setInvoiceScanOpen(true);
@@ -1114,8 +1128,12 @@ export default function AddTransactionScreen() {
               <TouchableOpacity style={[styles.modalButton, styles.modalCancel]} onPress={() => setPreviewOpen(false)} testID="cancel-import">
                 <Text style={styles.modalButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.modalConfirm]} onPress={confirmImport} testID="confirm-import">
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>{t('addTransaction.importButton')}</Text>
+              <TouchableOpacity style={[styles.modalButton, styles.modalConfirm]} onPress={confirmImport} disabled={importingPreview} testID="confirm-import">
+                {importingPreview ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={[styles.modalButtonText, { color: '#fff' }]}>{t('addTransaction.importButton')}</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

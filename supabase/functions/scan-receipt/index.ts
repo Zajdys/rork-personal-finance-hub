@@ -34,10 +34,11 @@ const PROMPTS: Record<'receipt' | 'invoice', string> = {
     'Pravidla:\n' +
     '1. amount = CELKOVÁ cena položky v měně účtenky (4 ks à 50 → 200).\n' +
     '2. title = název produktu/služby (+ množství). NIKDY nedávej obchodníka do category.\n' +
-    '3. Ignoruj mezisoučty, DPH, „Celkem“, zaokrouhlení a slevové řádky započítej do položky, ke které patří.\n' +
+    '3. SLEVY: řádky se zápornou částkou (sleva, Clubcard/CC, kupón, akce) ODEČTI od položky, ke které patří – amount je cena PO slevě. Ignoruj mezisoučty, DPH a zaokrouhlení.\n' +
+    '3b. total = částka skutečně zaplacená (řádek CELKEM / K úhradě / Platební karta). Součet amount všech položek se musí rovnat total.\n' +
     '4. Pokud obrázek není účtenka nebo je nečitelný, vrať prázdný seznam.\n' +
     '5. Účtenka může být v jakémkoli jazyce. title napiš česky (přelož), category urči podle VÝZNAMU položky (hračky → Děti, léky → Zdraví, alkohol a jídlo → Jídlo).\n' +
-    '6. currency = ISO kód měny účtenky (Kč → CZK, € → EUR, zł → PLN…); date = datum nákupu YYYY-MM-DD, pokud je čitelné, jinak null.\n' +
+    '6. currency = ISO kód měny účtenky (Kč → CZK, € → EUR, zł → PLN…). date = datum nákupu z účtenky (bývá dole, např. „19.10.2026 13:03“ → 2026-10-19), jinak null.\n' +
     'Příklady: Mléko → title „Mléko 2 ks“, category „Jídlo“, subcategory „Potraviny“; ' +
     'Benzín → „Benzín Natural 95“, „Auto a doprava“, „Benzín a nafta“.',
   invoice:
@@ -77,6 +78,7 @@ const TOOL = {
       },
       currency: { type: 'string', description: 'ISO 4217 kód měny dokladu, např. CZK, EUR, USD, PLN' },
       date: { type: ['string', 'null'], description: 'Datum nákupu YYYY-MM-DD nebo null' },
+      total: { type: ['number', 'null'], description: 'Celková zaplacená částka dokladu (po slevách) nebo null' },
     },
     required: ['items', 'currency'],
   },
@@ -165,6 +167,23 @@ Deno.serve(async (req) => {
       subcategory: typeof it.subcategory === 'string' && it.subcategory.trim() ? it.subcategory.trim().slice(0, 60) : null,
     }))
     .filter((it: { amount: number; title: string }) => it.amount > 0 && it.title);
+
+
+  // Pojistka na slevy: když součet položek přesahuje zaplacenou částku, rozpočítej rozdíl poměrně.
+  const total = Number(toolUse?.input?.total);
+  const sum = items.reduce((a: number, it: { amount: number }) => a + it.amount, 0);
+  if (Number.isFinite(total) && total > 0 && sum - total > 0.5 && sum > 0) {
+    const ratio = total / sum;
+    let acc = 0;
+    items.forEach((it: { amount: number }, i: number) => {
+      if (i === items.length - 1) {
+        it.amount = Math.round((total - acc) * 100) / 100;
+      } else {
+        it.amount = Math.round(it.amount * ratio * 100) / 100;
+        acc += it.amount;
+      }
+    });
+  }
 
   const rawCcy = String(toolUse?.input?.currency ?? 'CZK').trim().toUpperCase();
   const currency = /^[A-Z]{3}$/.test(rawCcy) ? rawCcy : 'CZK';
