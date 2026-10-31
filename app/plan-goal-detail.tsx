@@ -326,7 +326,7 @@ export default function PlanGoalDetailScreen() {
                     {c.note ? ` · ${c.note}` : ''}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {new Date(c.createdAt).toLocaleString('cs-CZ')}
+                    {new Date(c.createdAt).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' })}
                   </Text>
                 </View>
                 <Text

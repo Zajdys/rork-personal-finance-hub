@@ -3,7 +3,7 @@
  *
  * POST { image_base64: string, media_type?: 'image/jpeg'|'image/png'|'image/webp', kind: 'receipt'|'invoice' }
  * Authorization: Bearer <user JWT>  (verify_jwt = true)
- * → { items: [{ title, amount, category, subcategory|null }] }
+ * → { items: [{ title, amount, category, subcategory|null }], currency: 'CZK'|'EUR'|…, date: 'YYYY-MM-DD'|null }
  *
  * Secrets: ANTHROPIC_API_KEY (+ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)
  * Limit: zdarma 3 / Premium 10 skenů denně (RPC ai_scan_try_consume, tabulka ai_scan_usage).
@@ -32,19 +32,23 @@ const PROMPTS: Record<'receipt' | 'invoice', string> = {
   receipt:
     'Analyzuj tuto účtenku a vrať VŠECHNY položky přes nástroj save_items.\n' +
     'Pravidla:\n' +
-    '1. amount = CELKOVÁ cena položky v Kč (4 ks à 50 Kč → 200).\n' +
+    '1. amount = CELKOVÁ cena položky v měně účtenky (4 ks à 50 → 200).\n' +
     '2. title = název produktu/služby (+ množství). NIKDY nedávej obchodníka do category.\n' +
     '3. Ignoruj mezisoučty, DPH, „Celkem“, zaokrouhlení a slevové řádky započítej do položky, ke které patří.\n' +
     '4. Pokud obrázek není účtenka nebo je nečitelný, vrať prázdný seznam.\n' +
+    '5. Účtenka může být v jakémkoli jazyce. title napiš česky (přelož), category urči podle VÝZNAMU položky (hračky → Děti, léky → Zdraví, alkohol a jídlo → Jídlo).\n' +
+    '6. currency = ISO kód měny účtenky (Kč → CZK, € → EUR, zł → PLN…); date = datum nákupu YYYY-MM-DD, pokud je čitelné, jinak null.\n' +
     'Příklady: Mléko → title „Mléko 2 ks“, category „Jídlo“, subcategory „Potraviny“; ' +
     'Benzín → „Benzín Natural 95“, „Auto a doprava“, „Benzín a nafta“.',
   invoice:
     'Analyzuj tuto fakturu a vrať VŠECHNY fakturované položky přes nástroj save_items.\n' +
     'Pravidla:\n' +
-    '1. amount = CELKOVÁ cena položky v Kč včetně DPH (ne jednotková cena).\n' +
+    '1. amount = CELKOVÁ cena položky v měně faktury včetně DPH (ne jednotková cena).\n' +
     '2. title = název služby/produktu; category NIKDY není dodavatel ani popis faktury.\n' +
     '3. Ignoruj mezisoučty a rekapitulaci DPH.\n' +
     '4. Pokud obrázek není faktura nebo je nečitelný, vrať prázdný seznam.\n' +
+    '5. Faktura může být v jakémkoli jazyce. title napiš česky, category urči podle významu položky.\n' +
+    '6. currency = ISO kód měny faktury; date = datum vystavení / zdanitelného plnění YYYY-MM-DD, nebo null.\n' +
     'Příklady: ČEZ elektřina → title „ČEZ elektřina“, category „Bydlení“, subcategory „Energie“; ' +
     'Hosting → „Webový hosting 12 měsíců“, „Nákupy“.',
 };
@@ -61,7 +65,7 @@ const TOOL = {
           type: 'object',
           properties: {
             title: { type: 'string', description: 'Název položky včetně množství' },
-            amount: { type: 'number', description: 'Celková částka položky v Kč' },
+            amount: { type: 'number', description: 'Celková částka položky v měně dokladu' },
             category: { type: 'string', enum: CATEGORIES },
             subcategory: {
               type: ['string', 'null'],
@@ -71,8 +75,10 @@ const TOOL = {
           required: ['title', 'amount', 'category'],
         },
       },
+      currency: { type: 'string', description: 'ISO 4217 kód měny dokladu, např. CZK, EUR, USD, PLN' },
+      date: { type: ['string', 'null'], description: 'Datum nákupu YYYY-MM-DD nebo null' },
     },
-    required: ['items'],
+    required: ['items', 'currency'],
   },
 };
 
@@ -160,5 +166,16 @@ Deno.serve(async (req) => {
     }))
     .filter((it: { amount: number; title: string }) => it.amount > 0 && it.title);
 
-  return json(200, { items });
+  const rawCcy = String(toolUse?.input?.currency ?? 'CZK').trim().toUpperCase();
+  const currency = /^[A-Z]{3}$/.test(rawCcy) ? rawCcy : 'CZK';
+  const rawDate = String(toolUse?.input?.date ?? '');
+  let date: string | null = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+    const d = new Date(rawDate + 'T12:00:00Z');
+    const now = Date.now();
+    // jen rozumné datum: ne v budoucnu, max. rok zpátky
+    if (!isNaN(d.getTime()) && d.getTime() <= now + 86_400_000 && d.getTime() >= now - 366 * 86_400_000) date = rawDate;
+  }
+
+  return json(200, { items, currency, date });
 });

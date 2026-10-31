@@ -13,7 +13,9 @@ import {
   Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Pause, Play, Pencil, Trash2, MoreHorizontal } from 'lucide-react-native';
+import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus } from 'lucide-react-native';
+import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
+import { TouchableOpacity as AddButton } from 'react-native';
 import { useAuth } from '@/store/auth-store';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
@@ -87,6 +89,14 @@ export default function PersonalRecurringScreen() {
     setRules(next);
     setLoading(false);
   }, [user?.id]);
+
+  // Rychlé přidání přímo na této obrazovce (globální sheet z tabů se přes stack na iOS nezobrazí)
+  const [addOpen, setAddOpen] = useState(false);
+  const [addType, setAddType] = useState<'income' | 'expense'>('expense');
+  const closeAdd = useCallback(() => {
+    setAddOpen(false);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -167,6 +177,27 @@ export default function PersonalRecurringScreen() {
         title={t('personalRecurring.title')}
         subtitle={t('personalRecurring.subtitle')}
         variant="gradient"
+        right={
+          <AddButton
+            onPress={() => {
+              setAddType('expense');
+              setAddOpen(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Přidat pravidelnou platbu"
+            hitSlop={10}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Plus color="#fff" size={20} />
+          </AddButton>
+        }
       />
 
       {loading ? (
@@ -314,6 +345,14 @@ export default function PersonalRecurringScreen() {
           </View>
         </View>
       </Modal>
+      <QuickAddTransactionSheet
+        visible={addOpen}
+        onClose={closeAdd}
+        type={addType}
+        allowTypeToggle
+        onTypeChange={setAddType}
+        defaultFrequency="monthly"
+      />
     </View>
   );
 }

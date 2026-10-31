@@ -1011,7 +1011,7 @@ export default function PlanScreen() {
                 value={budgetAmount}
                 onChangeText={(t) => setBudgetAmount(formatKčGrouped(t))}
                 keyboardType="number-pad"
-                placeholder="5 000"
+                placeholder="např. 5 000 Kč"
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
@@ -1075,7 +1075,7 @@ export default function PlanScreen() {
               <TextInput
                 value={goalName}
                 onChangeText={setGoalName}
-                placeholder="Dovolená"
+                placeholder="např. Dovolená"
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
@@ -1087,7 +1087,7 @@ export default function PlanScreen() {
                 value={goalTarget}
                 onChangeText={(t) => setGoalTarget(formatKčGrouped(t))}
                 keyboardType="number-pad"
-                placeholder="50 000"
+                placeholder="např. 50 000 Kč"
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,

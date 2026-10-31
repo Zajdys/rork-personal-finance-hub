@@ -43,6 +43,8 @@ export type QuickAddTransactionSheetProps = {
   /** Odkaz „Nahrát výpis“ + další možnosti → bank-import / add. */
   showMoreOptions?: boolean;
   defaultCategory?: string;
+  /** Předvyplněná frekvence opakování (např. z obrazovky Pravidelné platby). */
+  defaultFrequency?: PersonalRecurringChoice;
   defaultSubcategory?: string | null;
   /** Po úspěšném uložení (sheet už se zavírá) */
   onSaved?: () => void;
@@ -56,6 +58,7 @@ export function QuickAddTransactionSheet({
   onTypeChange,
   showMoreOptions = false,
   defaultCategory,
+  defaultFrequency,
   defaultSubcategory,
   onSaved,
 }: QuickAddTransactionSheetProps) {
@@ -74,7 +77,7 @@ export function QuickAddTransactionSheet({
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [date, setDate] = useState(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [frequency, setFrequency] = useState<PersonalRecurringChoice>(null);
+  const [frequency, setFrequency] = useState<PersonalRecurringChoice>(defaultFrequency ?? null);
 
   const resetForm = useCallback(() => {
     setAmount('');
@@ -83,8 +86,8 @@ export function QuickAddTransactionSheet({
     setSelectedSubcategory(defaultSubcategory ?? null);
     setDate(new Date());
     setShowDatePicker(false);
-    setFrequency(null);
-  }, [defaultCategory, defaultSubcategory]);
+    setFrequency(defaultFrequency ?? null);
+  }, [defaultCategory, defaultSubcategory, defaultFrequency]);
 
   useEffect(() => {
     if (!visible) return;

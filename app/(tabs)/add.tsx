@@ -425,7 +425,7 @@ export default function AddTransactionScreen() {
               title: resolved.title,
               category: resolved.category,
               subcategory: resolved.subcategory,
-              date: toYyyyMmDd(new Date()),
+              date: item.date || toYyyyMmDd(new Date()),
             };
           });
           
@@ -583,7 +583,7 @@ export default function AddTransactionScreen() {
               title: resolved.title,
               category: resolved.category,
               subcategory: resolved.subcategory,
-              date: toYyyyMmDd(new Date()),
+              date: item.date || toYyyyMmDd(new Date()),
             };
           });
           

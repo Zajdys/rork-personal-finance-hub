@@ -49,9 +49,10 @@ export function useAddTransaction() {
     async (input: AddTransactionInput): Promise<AddTransactionResult> => {
       if (isSaving) return { ok: false, reason: 'unknown' };
 
-      const title = input.title.trim();
       const categoryRaw = input.category.trim();
-      if (!input.amount || !title || !categoryRaw) {
+      // Popis je nepovinný – bez něj použijeme podkategorii / kategorii (např. „Streaming“).
+      const title = input.title.trim() || (input.subcategory ?? '').trim() || categoryRaw;
+      if (!input.amount || !categoryRaw) {
         Alert.alert(t('errorMessage'), t('fillAllFields'));
         return { ok: false, reason: 'validation' };
       }
