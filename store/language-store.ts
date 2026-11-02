@@ -1568,7 +1568,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.privacyLink': 'Zásady ochrany osobních údajů',
 
     // Dashboard (index)
-    dashboardLiabilities: 'Závazky',
+    dashboardLiabilities: 'Pravidelné platby',
     dashboardAddLiability: 'Přidat závazek',
     dashboardLiabilitiesPerMonth: '{{amount}} / měs.',
     dashboardAllOk: '✓ Vše OK',
@@ -4205,7 +4205,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.privacyLink': 'Privacy Policy',
 
     // Dashboard (index)
-    dashboardLiabilities: 'Liabilities',
+    dashboardLiabilities: 'Regular payments',
     dashboardAddLiability: 'Add liability',
     dashboardLiabilitiesPerMonth: '{{amount}} / mo.',
     dashboardAllOk: '✓ All OK',

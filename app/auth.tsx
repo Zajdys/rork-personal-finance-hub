@@ -135,7 +135,7 @@ function PremiumInput({
 }
 
 export default function AuthScreen() {
-  const { mode, intent } = useLocalSearchParams<{ mode?: string; intent?: string }>();
+  const { mode, intent, email: emailParam } = useLocalSearchParams<{ mode?: string; intent?: string; email?: string }>();
   const [isLogin, setIsLogin] = useState(() => mode !== 'register');
 
   useEffect(() => {
@@ -147,7 +147,7 @@ export default function AuthScreen() {
       useRegisterIntentStore.getState().setIntent('premium');
     }
   }, [intent]);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(typeof emailParam === 'string' ? emailParam : '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');

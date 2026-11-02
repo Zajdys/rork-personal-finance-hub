@@ -32,6 +32,7 @@ import { CategoryPicker } from '@/components/CategoryPicker';
 import { EmptyState } from '@/components/EmptyState';
 import { RecurringFrequencyField } from '@/components/RecurringFrequencyField';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
+import { useMonthPlan } from '@/hooks/use-month-plan';
 import { loadQuickSetupStatus, formatKčGrouped } from '@/lib/quick-setup';
 import { monthlySavingsNeed, recurringToMonthly, type UserBudget } from '@/lib/supabase-plan';
 import { mainCategoryName, normalizeCategory } from '@/lib/category-normalize';
@@ -249,12 +250,15 @@ export default function PlanScreen() {
 
   const reload = useCallback(async () => {
     if (!user?.id) return;
-    await loadPlan(user.id);
-    const status = await loadQuickSetupStatus(user.id);
+    // Paralelně — dřív se příjem načítal až po celém plánu (karta se točila desítky sekund).
+    const [, status, { rules }] = await Promise.all([
+      loadPlan(user.id),
+      loadQuickSetupStatus(user.id),
+      fetchPersonalRecurringRules(user.id),
+    ]);
     setExpectedIncome(status.expectedMonthlyIncome ?? 0);
     setIncomeLoaded(true);
 
-    const { rules } = await fetchPersonalRecurringRules(user.id);
     const activeExp = (rules ?? []).filter((r) => r.active && r.type === 'expense');
     setRecurringRules(activeExp);
     setRecurringMonthly(
@@ -311,6 +315,7 @@ export default function PlanScreen() {
 
     items.sort((a, b) => a.date.getTime() - b.date.getTime());
     setUpcoming(items);
+    setPlanRefreshKey((k) => k + 1);
   }, [user?.id, loadPlan, loans]);
 
   const { notifyRefreshed } = useFocusRefresh(reload);
@@ -320,75 +325,19 @@ export default function PlanScreen() {
     void reload();
   }, [reload, notifyRefreshed]);
 
-  const monthTx = useMemo(
-    () => getMonthTransactions(filteredTx, viewY, viewM + 1),
-    [filteredTx, viewY, viewM],
+  const [planRefreshKey, setPlanRefreshKey] = useState(0);
+  const { plan } = useMonthPlan({
+    transactions: filteredTx,
+    year: viewY,
+    month: viewM + 1,
+    expectedIncome,
+    recurringRules,
+    refreshKey: planRefreshKey,
+  });
+  const budgetRowById = useMemo(
+    () => new Map(plan.budgetRows.map((r) => [r.budget.id, r])),
+    [plan.budgetRows],
   );
-
-  const actualIncome = useMemo(
-    () =>
-      monthTx
-        .filter((t) => t.type === 'income')
-        .reduce((s, t) => s + (Number(t.amount) || 0), 0),
-    [monthTx],
-  );
-
-  const spentForBudget = useCallback(
-    (b: UserBudget) => {
-      let sum = 0;
-      for (const t of monthTx) {
-        if (t.type !== 'expense') continue;
-        const n = normalizeCategory(t.category, t.subcategory);
-        if (n.category !== b.category) continue;
-        if (b.subcategory) {
-          if ((n.subcategory ?? null) !== b.subcategory) continue;
-        }
-        sum += Number(t.amount) || 0;
-      }
-      return sum;
-    },
-    [monthTx],
-  );
-
-  const totalSpentMonth = useMemo(
-    () =>
-      monthTx
-        .filter((t) => t.type === 'expense')
-        .reduce((s, t) => s + (Number(t.amount) || 0), 0),
-    [monthTx],
-  );
-
-  const loansMonthly = useMemo(
-    () => (loans ?? []).reduce((s, l) => s + (Number(l.monthlyPayment) || 0), 0),
-    [loans],
-  );
-
-  const budgetsSum = useMemo(
-    () => budgets.reduce((s, b) => s + (Number(b.amount) || 0), 0),
-    [budgets],
-  );
-
-  const savingsMonthlySum = useMemo(() => {
-    let sum = 0;
-    for (const g of goals) {
-      const cur = goalCurrentAmount(g.id);
-      const need = monthlySavingsNeed(g.targetAmount, cur, g.deadline);
-      if (need != null && need > 0) sum += need;
-    }
-    return sum;
-  }, [goals, goalCurrentAmount]);
-
-  const regularPayments = loansMonthly + recurringMonthly;
-  const freeMoney =
-    expectedIncome > 0
-      ? expectedIncome - regularPayments - budgetsSum - savingsMonthlySum
-      : null;
-
-  const daysInMonth = new Date(viewY, viewM + 1, 0).getDate();
-  const isCurrentMonth = viewY === now.getFullYear() && viewM === now.getMonth();
-  const daysLeft = isCurrentMonth ? Math.max(0, daysInMonth - now.getDate()) : 0;
-  const planSpendCap =
-    expectedIncome > 0 ? expectedIncome - regularPayments - savingsMonthlySum : budgetsSum;
 
   const sortedGoals = useMemo(() => {
     const active = [...goals];
@@ -748,39 +697,119 @@ export default function PlanScreen() {
               <View style={{ paddingVertical: 28, alignItems: 'center' }}>
                 <ActivityIndicator color={colors.primary} />
               </View>
-            ) : expectedIncome <= 0 ? (
+            ) : !plan.hasIncomePlan && plan.incomeActual <= 0 ? (
               <EmptyState
                 title="Nastav příjem"
-                description="Bez očekávaného příjmu neumíme spočítat volné peníze."
+                description="Bez příjmu neumíme spočítat, kolik můžeš utratit."
                 icon={<Wallet color={colors.primary} size={28} />}
                 actionLabel="Nastav příjem"
-                onAction={() => router.push('/quick-setup')}
+                onAction={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
               />
             ) : (
               <>
-                <PlanLine
-                  label="Příjem plán"
-                  value={formatKc(expectedIncome)}
-                  hint={actualIncome > 0 ? `reálně ${formatKc(actualIncome)}` : undefined}
+                <Text style={[styles.heroLabel, { color: muted }]}>
+                  {plan.isCurrentMonth ? 'Zbývá utratit' : plan.leftToSpend >= 0 ? 'Zůstalo' : 'Přečerpáno'}
+                </Text>
+                <Text
+                  style={[
+                    styles.heroValue,
+                    { color: plan.leftToSpend >= 0 ? '#10B981' : '#EF4444' },
+                  ]}
+                >
+                  {plan.leftToSpend < 0 && plan.isCurrentMonth ? '−' : ''}
+                  {formatKc(Math.abs(plan.leftToSpend))}
+                </Text>
+                <Text style={[styles.heroSub, { color: muted }]}>
+                  {plan.isCurrentMonth
+                    ? plan.perDay != null
+                      ? `≈ ${formatKc(plan.perDay)} na den · ${formatZbyvaDni(plan.daysLeft)}`
+                      : `přečerpáno · ${formatZbyvaDni(plan.daysLeft)}`
+                    : 'za celý měsíc'}
+                </Text>
+                {plan.variableCap > 0 ? (
+                  <>
+                    <View style={[styles.barBg, { backgroundColor: colors.muted, marginTop: 12 }]}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          {
+                            width: `${Math.min(100, (plan.variableSpent / plan.variableCap) * 100)}%`,
+                            backgroundColor: budgetBarColor((plan.variableSpent / plan.variableCap) * 100),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.progressHint, { color: muted, marginTop: 6 }]}>
+                      Běžné výdaje {formatKc(plan.variableSpent)} z {formatKc(plan.variableCap)}
+                    </Text>
+                  </>
+                ) : null}
+
+                <View style={[styles.divider, { backgroundColor: colors.border, marginTop: 14 }]} />
+                <View style={styles.planRow}>
+                  <Text style={[styles.planRowLabel, { color: muted }]} />
+                  <Text style={[styles.planRowHead, { color: muted }]}>Plán</Text>
+                  <Text style={[styles.planRowHead, { color: muted }]}>Skutečnost</Text>
+                </View>
+                <PlanRow
+                  label="Příjem"
+                  planned={plan.hasIncomePlan ? formatKc(plan.incomePlanned) : '–'}
+                  actual={formatKc(plan.incomeActual)}
+                  hint={plan.hasIncomePlan ? undefined : 'počítáme ze skutečného příjmu'}
                   color={colors.text}
                   muted={muted}
                 />
-                <PlanLine label="− Pravidelné platby" value={formatKc(regularPayments)} color={colors.text} muted={muted} />
-                <PlanLine label="− Rozpočty" value={formatKc(budgetsSum)} color={colors.text} muted={muted} />
-                <PlanLine label="− Spoření" value={formatKc(savingsMonthlySum)} color={colors.text} muted={muted} />
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <PlanLine
-                  label="= Volné peníze"
-                  value={formatKc(freeMoney ?? 0)}
-                  color={(freeMoney ?? 0) >= 0 ? '#10B981' : '#EF4444'}
+                <PlanRow
+                  label="Pravidelné platby"
+                  planned={formatKc(plan.fixedPlanned)}
+                  actual={formatKc(plan.fixedPaid)}
+                  hint={
+                    plan.fixedRemaining > 0 && plan.isCurrentMonth
+                      ? `ještě odejde ${formatKc(plan.fixedRemaining)}`
+                      : 'nájem, energie, úvěry…'
+                  }
+                  color={colors.text}
                   muted={muted}
-                  bold
+                  onPress={() => router.push('/personal-recurring')}
                 />
-                {planSpendCap > 0 ? (
-                  <Text style={[styles.progressHint, { color: muted }]}>
-                    Utraceno {formatKc(totalSpentMonth)} z {formatKc(planSpendCap)}
-                    {isCurrentMonth && daysLeft > 0 ? ` · ${formatZbyvaDni(daysLeft)}` : ''}
+                <PlanRow
+                  label="Rozpočty"
+                  planned={formatKc(plan.budgetsPlanned)}
+                  actual={formatKc(plan.budgetsSpent)}
+                  actualColor={plan.budgetsSpent > plan.budgetsPlanned && plan.budgetsPlanned > 0 ? '#EF4444' : undefined}
+                  color={colors.text}
+                  muted={muted}
+                />
+                <PlanRow
+                  label="Ostatní výdaje"
+                  planned="–"
+                  actual={formatKc(plan.otherSpent)}
+                  hint="mimo rozpočty"
+                  color={colors.text}
+                  muted={muted}
+                />
+                <PlanRow
+                  label="Spoření"
+                  planned={formatKc(plan.savingsPlanned)}
+                  actual="–"
+                  hint={plan.savingsPlanned > 0 ? 'podle cílů' : undefined}
+                  color={colors.text}
+                  muted={muted}
+                />
+                {plan.hasIncomePlan && plan.unallocated < 0 ? (
+                  <Text style={[styles.progressHint, { color: '#EF4444' }]}>
+                    Plán je o {formatKc(Math.abs(plan.unallocated))} vyšší než příjem. Uber z rozpočtů nebo spoření.
                   </Text>
+                ) : plan.hasIncomePlan && plan.unallocated > 0 ? (
+                  <Text style={[styles.progressHint, { color: muted }]}>
+                    Mimo rozpočty ti v plánu zbývá {formatKc(plan.unallocated)}.
+                  </Text>
+                ) : !plan.hasIncomePlan ? (
+                  <TouchableOpacity onPress={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}>
+                    <Text style={[styles.progressHint, { color: colors.primary, fontWeight: '700' }]}>
+                      Nastav očekávaný příjem →
+                    </Text>
+                  </TouchableOpacity>
                 ) : null}
               </>
             )}
@@ -800,8 +829,9 @@ export default function PlanScreen() {
             ) : (
               <View style={[styles.card, { backgroundColor: cardBg, paddingVertical: 8 }]}>
                 {budgets.map((b) => {
-                  const spent = spentForBudget(b);
-                  const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0;
+                  const row = budgetRowById.get(b.id);
+                  const spent = row?.spent ?? 0;
+                  const pct = row?.pct ?? 0;
                   const bar = budgetBarColor(pct);
                   const remain = b.amount - spent;
                   return (
@@ -1232,6 +1262,44 @@ function PlanLine({
   );
 }
 
+function PlanRow({
+  label,
+  planned,
+  actual,
+  hint,
+  color,
+  muted,
+  actualColor,
+  onPress,
+}: {
+  label: string;
+  planned: string;
+  actual: string;
+  hint?: string;
+  color: string;
+  muted: string;
+  actualColor?: string;
+  onPress?: () => void;
+}) {
+  const body = (
+    <View style={styles.planRow}>
+      <View style={styles.planRowLabel}>
+        <Text style={{ color, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+        {hint ? <Text style={{ color: muted, fontSize: 11, marginTop: 1 }}>{hint}</Text> : null}
+      </View>
+      <Text style={[styles.planRowValue, { color: muted }]}>{planned}</Text>
+      <Text style={[styles.planRowValue, { color: actualColor ?? color, fontWeight: '700' }]}>{actual}</Text>
+    </View>
+  );
+  return onPress ? (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      {body}
+    </TouchableOpacity>
+  ) : (
+    body
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
@@ -1263,6 +1331,13 @@ const styles = StyleSheet.create({
   planLineLabel: { fontSize: 14 },
   planLineValue: { fontSize: 16 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: 8 },
+  heroLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 4 },
+  heroValue: { fontSize: 34, fontWeight: '800', textAlign: 'center', marginTop: 2 },
+  heroSub: { fontSize: 13, textAlign: 'center', marginTop: 2 },
+  planRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, gap: 8 },
+  planRowLabel: { flex: 1.3 },
+  planRowHead: { flex: 1, textAlign: 'right', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  planRowValue: { flex: 1, textAlign: 'right', fontSize: 14 },
   progressHint: { fontSize: 13, marginTop: 10, fontWeight: '500' },
   sectionTitle: {
     fontSize: 18,

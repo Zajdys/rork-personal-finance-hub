@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   TextInput,
+  Pressable,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { safePush } from '@/lib/safe-navigate';
@@ -140,33 +141,6 @@ export default function LoansScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <TouchableOpacity
-            style={[styles.refiCard, { backgroundColor: cardBg, marginBottom: 12 }]}
-            onPress={() => safePush('/personal-recurring')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.refiHeaderRow}>
-              <View style={styles.refiHeaderLeft}>
-                <View style={[styles.refiIconWrap, { backgroundColor: isDarkMode ? '#4B5563' : '#EEF2FF' }]}>
-                  <Text style={{ fontSize: 18 }}>🔁</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.refiTitle, { color: primary }]}>
-                    {t('personalRecurring.title')}
-                  </Text>
-                  <Text style={{ color: subtle, fontSize: 13, marginTop: 2 }}>
-                    {t('personalRecurring.menuSubtitle')}
-                  </Text>
-                </View>
-              </View>
-              <ChevronDown
-                color={subtle}
-                size={22}
-                style={{ transform: [{ rotate: '-90deg' }] }}
-              />
-            </View>
-          </TouchableOpacity>
-
           {loans.length > 0 && (
             <View style={[styles.refiCard, { backgroundColor: cardBg }]}>
               <TouchableOpacity
@@ -321,7 +295,7 @@ export default function LoansScreen() {
               const loanName = loan.name || getLoanTypeLabel(loan.loanType);
 
               return (
-                <View
+                <Pressable
                   key={loan.id}
                   style={[styles.loanCard, { backgroundColor: isDarkMode ? '#374151' : 'white' }]}
                   delayLongPress={500}
@@ -435,7 +409,7 @@ export default function LoansScreen() {
                     )}
                   </View>
                   </View>
-                </View>
+                </Pressable>
               );
             })
           )}

@@ -41,15 +41,15 @@ export async function fetchUserProfileFromSupabase(userId: string): Promise<User
 export async function updateUserProfileFields(
   userId: string,
   fields: {
-    first_name: string | null;
-    last_name: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
     avatar_url?: string | null;
   },
 ): Promise<{ error: Error | null }> {
-  const payload: Record<string, unknown> = {
-    first_name: fields.first_name,
-    last_name: fields.last_name,
-  };
+  // Jen předaná pole — změna fotky nesmí přepsat jméno.
+  const payload: Record<string, unknown> = {};
+  if (fields.first_name !== undefined) payload.first_name = fields.first_name;
+  if (fields.last_name !== undefined) payload.last_name = fields.last_name;
   if (fields.avatar_url !== undefined) {
     payload.avatar_url = fields.avatar_url;
   }

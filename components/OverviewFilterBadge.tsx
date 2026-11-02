@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useOverviewFilterLabel } from '@/hooks/use-filtered-transactions';
+import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -12,6 +13,9 @@ type Props = {
 export function OverviewFilterBadge({ style, onAccent = false }: Props) {
   const label = useOverviewFilterLabel();
   const { colors, isDark } = useTheme();
+  const hasFilter = useOverviewFiltersStore((s) => s.selectedSourceFilters.length > 0);
+  // Bez aktivního filtru bank štítek nic neříká („Všechny banky“ i bez napojené banky) → skrýt.
+  if (!hasFilter) return null;
 
   const bg = onAccent
     ? 'rgba(255,255,255,0.2)'

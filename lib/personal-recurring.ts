@@ -114,6 +114,39 @@ export async function fetchPersonalRecurringRules(
 }
 
 /**
+ * Jen pravidlo bez první transakce — první výskyt = startDate (např. nejbližší splatnost).
+ * Transakci vytvoří materializeDueRecurring v den splatnosti, nebo se spáruje s importem z výpisu.
+ */
+export async function createPersonalRecurringRuleOnly(
+  userId: string,
+  input: PersonalRecurringInput,
+): Promise<{ error: Error | null }> {
+  const resolved = resolveCategoryFieldsForWrite({
+    category: input.category,
+    subcategory: input.subcategory,
+    title: input.title,
+    type: input.type,
+  });
+  const startDate = input.startDate.slice(0, 10);
+  const { error } = await supabase.from('personal_recurring_transactions').insert({
+    id: randomUUID(),
+    user_id: userId,
+    type: input.type,
+    title: resolved.title,
+    amount: input.amount,
+    currency: (input.currency || 'CZK').trim() || 'CZK',
+    category: resolved.category,
+    subcategory: resolved.subcategory,
+    frequency: normalizeFrequency(input.frequency),
+    start_date: startDate,
+    next_date: startDate,
+    end_date: null,
+    active: true,
+  });
+  return { error: error ? new Error(error.message) : null };
+}
+
+/**
  * Vytvoří pravidlo + první transakci (s recurring_id) pro start_date.
  * next_date = start_date + 1 perioda.
  */

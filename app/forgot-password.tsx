@@ -88,8 +88,11 @@ export default function ForgotPasswordScreen() {
       setError('Heslo se nepodařilo změnit. Zkus to prosím znovu.');
       return;
     }
-    showToast({ type: 'success', message: '✓ Heslo změněno, jsi přihlášený' });
-    router.replace('/(tabs)');
+    // Odhlásit a poslat na přihlášení s vyplněným e-mailem (jinak gate během načítání profilu hodí /landing).
+    const cleanEmail = email.trim().toLowerCase();
+    await supabase.auth.signOut().catch(() => {});
+    showToast({ type: 'success', message: '✓ Heslo změněno. Přihlas se novým heslem.' });
+    router.replace({ pathname: '/auth', params: { mode: 'login', email: cleanEmail } } as never);
   };
 
   return (

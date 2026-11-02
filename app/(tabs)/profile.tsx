@@ -382,7 +382,7 @@ export default function ProfileScreen() {
           ) : null}
 
           <View style={styles.heroActions}>
-            {isPremium ? (
+            {isHouseholdPremium ? (
               <TouchableOpacity
                 style={styles.premiumBtn}
                 onPress={() => router.push('/account')}
@@ -420,7 +420,7 @@ export default function ProfileScreen() {
           </View>
         </LinearGradient>
 
-        {!isPremium ? (
+        {!isHouseholdPremium ? (
           <TouchableOpacity
             style={styles.tryPremiumCard}
             onPress={() => router.push('/choose-subscription')}
@@ -441,15 +441,9 @@ export default function ProfileScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionMyMoney')}</Text>
           <MenuButton
             icon={Wallet}
-            title="Příjem a rozpočty"
-            subtitle="Rychlé nastavení příjmu, závazků a limitů"
+            title="Upravit plán"
+            subtitle="Příjem, nájem a energie, úvěry a rozpočty"
             onPress={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
-          />
-          <MenuButton
-            icon={Target}
-            title="Plán"
-            subtitle="Rozpočty, spoření a měsíční plán"
-            onPress={() => router.push('/(tabs)/plan')}
           />
           <MenuButton
             icon={Landmark}

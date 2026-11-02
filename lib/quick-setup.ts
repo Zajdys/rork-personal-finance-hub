@@ -289,13 +289,66 @@ function dueDayToStartDate(dueDayRaw: string): Date {
   return new Date(y, m, d, 12, 0, 0, 0);
 }
 
+/** Nájem, energie, telefon = běžné měsíční výdaje → Pravidelné platby (ne úvěry). */
+export const RECURRING_COMMITMENT_KEYS: ReadonlySet<QuickSetupCommitmentKey> = new Set<QuickSetupCommitmentKey>([
+  'rent',
+  'energy',
+  'phone',
+]);
+
+/** Nejbližší splatnost (dnes nebo později) pro den v měsíci. */
+function nextDueYmd(dueDayRaw: string): string {
+  const day = Math.min(31, Math.max(1, parseInt(dueDayRaw, 10) || 15));
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (let add = 0; add < 2; add++) {
+    const y = now.getFullYear();
+    const m = now.getMonth() + add;
+    const last = new Date(y, m + 1, 0).getDate();
+    const d = new Date(y, m, Math.min(day, last));
+    if (d >= today) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+  const d = new Date(now.getFullYear(), now.getMonth() + 1, Math.min(day, 28));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export type QuickSetupRecurringDraft = {
+  title: string;
+  amount: number;
+  category: string;
+  subcategory: string | null;
+  startDate: string;
+};
+
+export function buildQuickSetupRecurring(drafts: QuickSetupCommitmentDraft[]): QuickSetupRecurringDraft[] {
+  const out: QuickSetupRecurringDraft[] = [];
+  for (const draft of drafts) {
+    if (!draft.enabled || !RECURRING_COMMITMENT_KEYS.has(draft.key)) continue;
+    const meta = COMMITMENT_META[draft.key];
+    const monthly = parseMoneyInput(draft.amount);
+    if (monthly == null || monthly <= 0) continue;
+    const [category, subcategory] = meta.categoryTag.split(' › ');
+    out.push({
+      title: meta.name,
+      amount: monthly,
+      category: category ?? 'Bydlení',
+      subcategory: subcategory ?? null,
+      startDate: nextDueYmd(draft.dueDay),
+    });
+  }
+  return out;
+}
+
 /**
- * Závazky (loans) — NE transakce, NE personal_recurring.
+ * Úvěry (loans) — jen hypotéka a leasing/půjčka. NE transakce.
  */
 export function buildQuickSetupLoans(drafts: QuickSetupCommitmentDraft[]): LoanItem[] {
   const out: LoanItem[] = [];
   for (const draft of drafts) {
     if (!draft.enabled) continue;
+    if (RECURRING_COMMITMENT_KEYS.has(draft.key)) continue;
     const meta = COMMITMENT_META[draft.key];
     const rows =
       draft.key === 'leasing' && draft.extras?.length

@@ -103,6 +103,7 @@ import { appLocale, formatYyyyMmTitle } from '@/lib/app-locale';
 import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
+import { useMonthPlan } from '@/hooks/use-month-plan';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
@@ -678,6 +679,7 @@ export default function DashboardScreen() {
     });
   }, [loans, getLoanProgress, t, numberLocale, currentCurrency.symbol]);
 
+  void liabilitiesCardAmount;
   const todayYm = yyyyMmLocalToday();
   const canGoNextMonth = selectedMonth < todayYm;
 
@@ -727,27 +729,36 @@ export default function DashboardScreen() {
     if (user?.id) void loadPlan(user.id);
   }, [user?.id, loadPlan]);
 
-  const planBudgetStats = useMemo(() => {
-    let ok = 0;
-    let over = 0;
-    for (const b of planBudgets) {
-      const spent = selectedMonthTransactions
-        .filter(
-          (t) =>
-            t.type === 'expense' &&
-            mainCategoryName(t.category, t.subcategory) === b.category,
-        )
-        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-      if (b.amount > 0 && spent > b.amount) over += 1;
-      else ok += 1;
-    }
-    return { ok, over, count: planBudgets.length };
-  }, [planBudgets, selectedMonthTransactions]);
-
+  // Stejný výpočet jako záložka Plán (lib/month-plan.ts) — všude stejné „zbývá utratit“.
+  const [planYear, planMonth] = useMemo(() => {
+    const [y, m] = selectedMonth.split('-').map((x) => parseInt(x, 10));
+    return [Number.isFinite(y) ? y : new Date().getFullYear(), Number.isFinite(m) ? m : new Date().getMonth() + 1];
+  }, [selectedMonth]);
+  const planInputsKeyRef = useRef(0);
+  const planInputsKey = useMemo(() => {
+    planInputsKeyRef.current += 1;
+    return planInputsKeyRef.current;
+  }, [remoteDashboardTransactions]);
+  const { plan: monthPlan } = useMonthPlan({
+    transactions: remoteDashboardTransactions,
+    year: planYear,
+    month: planMonth,
+    expectedIncome: expectedMonthlyIncome,
+    refreshKey: planInputsKey,
+  });
+  const planBudgetStats = {
+    ok: monthPlan.okBudgetCount,
+    over: monthPlan.overBudgetCount,
+    count: monthPlan.budgetRows.length,
+  };
   const planRemainToSpend =
-    expectedMonthlyIncome > 0
-      ? expectedMonthlyIncome - liabilitiesMonthlySum - totalExpenses
-      : null;
+    monthPlan.hasIncomePlan || monthPlan.incomeActual > 0 ? monthPlan.leftToSpend : null;
+  const regularPaymentsCardAmount =
+    monthPlan.fixedPlanned > 0
+      ? t('dashboardLiabilitiesPerMonth', {
+          amount: formatMoneyWithSymbol(Math.round(monthPlan.fixedPlanned), numberLocale, currentCurrency.symbol),
+        })
+      : 'Přidat';
   const balance = dashboardReport.balance;
 
   const investPortfolios = useInvestmentStore((s) => s.portfolios);
@@ -827,15 +838,10 @@ export default function DashboardScreen() {
   const currentMonthReport = dashboardReport;
   const categoryExpenses = dashboardCategoryExpenses;
 
-  const overspentSpendingLimits = useMemo(() => {
-    return financialGoals
-      .filter((goal) => {
-        if (goal.type !== 'spending_limit') return false;
-        const spent = sumSpentForSpendingLimitCategory(selectedMonthTransactions, goal.category);
-        return spent > goal.targetAmount;
-      })
-      .sort((a, b) => a.id.localeCompare(b.id));
-  }, [financialGoals, selectedMonthTransactions]);
+  const overspentBudgets = useMemo(
+    () => monthPlan.budgetRows.filter((r) => r.budget.amount > 0 && r.spent > r.budget.amount),
+    [monthPlan.budgetRows],
+  );
 
   const dashboardAlertSlides = useMemo(() => {
     const slides: {
@@ -847,7 +853,13 @@ export default function DashboardScreen() {
       icon: string;
     }[] = [];
     if (notifications.budgetWarnings !== false) {
-      if (isAllSourcesSelected && currentMonthReport.balance < 0) {
+      // Na začátku měsíce (výplata ještě nepřišla) není záporná bilance problém, pokud plán vychází.
+      const salaryPending =
+        monthPlan.hasIncomePlan &&
+        monthPlan.isCurrentMonth &&
+        monthPlan.incomeActual < monthPlan.incomePlanned &&
+        monthPlan.leftToSpend >= 0;
+      if (isAllSourcesSelected && currentMonthReport.balance < 0 && !salaryPending) {
         slides.push({
           id: 'alert-balance',
           sortKey: 100,
@@ -859,16 +871,15 @@ export default function DashboardScreen() {
           icon: '🚨',
         });
       }
-      overspentSpendingLimits.forEach((goal, idx) => {
-        const spent = sumSpentForSpendingLimitCategory(selectedMonthTransactions, goal.category);
+      overspentBudgets.forEach((row, idx) => {
         slides.push({
-          id: `alert-limit-${goal.id}`,
+          id: `alert-limit-${row.budget.id}`,
           sortKey: 200 + idx,
           variant: 'danger',
           title: t('dashboardLimitExceededTitle'),
           message: t('dashboardLimitExceededMessage', {
-            title: goal.title,
-            amount: formatMoney(spent - goal.targetAmount, numberLocale),
+            title: row.budget.label?.trim() || row.budget.category,
+            amount: formatMoney(row.spent - row.budget.amount, numberLocale),
           }),
           icon: '🎯',
         });
@@ -927,7 +938,8 @@ export default function DashboardScreen() {
   }, [
     notifications.budgetWarnings,
     currentMonthReport,
-    overspentSpendingLimits,
+    overspentBudgets,
+    monthPlan,
     selectedMonthTransactions,
     numberLocale,
     t,
@@ -1159,36 +1171,66 @@ export default function DashboardScreen() {
     );
   }, [txSelectedIds, deleteTransactions, exitTxSelection, t]);
 
+  const planCardPct =
+    monthPlan.variableCap > 0 ? Math.min(100, (monthPlan.variableSpent / monthPlan.variableCap) * 100) : 0;
   const goalsSection = (
     <TouchableOpacity
-      style={[styles.planSummaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.planSummaryCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 16, marginBottom: 12 }]}
       onPress={() => safePush('/(tabs)/plan')}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Otevřít plán"
     >
-      <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Plán</Text>
-      <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4, lineHeight: 20 }}>
-        {planRemainToSpend != null ? (
-          <>
-            zbývá utratit{' '}
-            <Text
-              style={{
-                fontWeight: '700',
-                color: planRemainToSpend >= 0 ? '#10B981' : '#EF4444',
-              }}
-            >
-              {planRemainToSpend.toLocaleString(numberLocale)} Kč
+      {planRemainToSpend != null ? (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
+              {monthPlan.isCurrentMonth ? 'Zbývá utratit podle plánu' : planRemainToSpend >= 0 ? 'Zůstalo podle plánu' : 'Přečerpáno podle plánu'}
             </Text>
+            <ChevronRight color={colors.textSecondary} size={18} />
+          </View>
+          <Text
+            style={{
+              fontSize: 26,
+              fontWeight: '800',
+              marginTop: 2,
+              color: planRemainToSpend >= 0 ? '#10B981' : '#EF4444',
+            }}
+          >
+            {planRemainToSpend < 0 ? '−' : ''}
+            {Math.round(Math.abs(planRemainToSpend)).toLocaleString(numberLocale)} Kč
+            {monthPlan.perDay != null ? (
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>
+                {`  ≈ ${Math.round(monthPlan.perDay).toLocaleString(numberLocale)} Kč/den`}
+              </Text>
+            ) : null}
+          </Text>
+          {monthPlan.variableCap > 0 ? (
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, marginTop: 10, overflow: 'hidden' }}>
+              <View
+                style={{
+                  height: 6,
+                  width: `${planCardPct}%`,
+                  backgroundColor: planCardPct > 100 || planRemainToSpend < 0 ? '#EF4444' : planCardPct >= 75 ? '#F59E0B' : '#10B981',
+                }}
+              />
+            </View>
+          ) : null}
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 17 }}>
+            {`Pravidelné platby ${Math.round(monthPlan.fixedPaid).toLocaleString(numberLocale)} z ${Math.round(monthPlan.fixedPlanned).toLocaleString(numberLocale)} Kč`}
             {planBudgetStats.count > 0
-              ? ` · ${planBudgetStats.ok} rozpočt${planBudgetStats.ok === 1 ? '' : planBudgetStats.ok >= 2 && planBudgetStats.ok <= 4 ? 'y' : 'ů'} v pořádku`
+              ? ` · ${planBudgetStats.over > 0 ? `${planBudgetStats.over} ${planBudgetStats.over === 1 ? 'rozpočet přečerpaný' : planBudgetStats.over <= 4 ? 'rozpočty přečerpané' : 'rozpočtů přečerpaných'}` : 'rozpočty v pořádku'}`
               : ''}
-            {planBudgetStats.over > 0
-              ? ` · ${planBudgetStats.over} přečerpan${planBudgetStats.over === 1 ? 'ý' : 'é'}`
-              : ''}
-          </>
-        ) : (
-          'Nastav příjem a rozpočty'
-        )}
-      </Text>
+          </Text>
+        </>
+      ) : (
+        <>
+          <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Nastav si plán</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4, lineHeight: 20 }}>
+            Zadej příjem a pravidelné platby — ukážeme ti, kolik můžeš utratit.
+          </Text>
+        </>
+      )}
     </TouchableOpacity>
   );
 
@@ -1532,7 +1574,7 @@ export default function DashboardScreen() {
           <Text style={[styles.sectionTitle, styles.overviewTitleText, { color: colors.text }]}>
             {t('financialOverview')}
           </Text>
-          {availableTransactionSources.length > 0 ? (
+          {(bankSourceFilters.length > 0 && availableTransactionSources.length > 1) || !isAllSourcesSelected ? (
             <TouchableOpacity
               onPress={openSourceFilterModal}
               style={styles.sourceFilterIconBtn}
@@ -1600,6 +1642,8 @@ export default function DashboardScreen() {
 
       <OverviewFilterBadge style={{ marginHorizontal: 16, marginBottom: 8 }} />
 
+      {goalsSection}
+
       <View style={[styles.financeGrid, isDesktop && styles.financeGridDesktop]}>
         <TouchableOpacity
           onPress={() => safePush({ pathname: '/income-detail', params: { month: selectedMonth } })}
@@ -1626,10 +1670,10 @@ export default function DashboardScreen() {
             color="#EF4444"
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => safePush('/loans')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
+        <TouchableOpacity onPress={() => safePush('/personal-recurring')} style={[styles.financeCardWrapper, isDesktop && styles.financeCardWrapperDesktop]}>
           <FinanceCard
             title={liabilitiesLabel}
-            amount={liabilitiesCardAmount}
+            amount={regularPaymentsCardAmount}
             emoji="💳"
             trend={null}
             color="#8B5CF6"

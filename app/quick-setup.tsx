@@ -25,6 +25,7 @@ import { parseMoneyInput } from '@/lib/parse-money-input';
 import { upsertUserBudgetByCategory, fetchUserBudgets } from '@/lib/supabase-plan';
 import {
   buildQuickSetupLoans,
+  buildQuickSetupRecurring,
   DEFAULT_COMMITMENTS,
   EMPTY_BUDGET,
   employmentChipToDb,
@@ -103,6 +104,32 @@ export default function QuickSetupScreen() {
           }
           if (profile.payday != null) setPayday(String(profile.payday));
           setEmployment(employmentDbToChip(profile.employmentType));
+        }
+
+        // Prefill nájem/energie/telefon z pravidelných plateb (editace)
+        if (!cancelled) {
+          const { fetchPersonalRecurringRules } = await import('@/lib/personal-recurring');
+          const { rules } = await fetchPersonalRecurringRules(user.id);
+          const titleToKey: Record<string, QuickSetupCommitmentKey> = {
+            'Nájem': 'rent',
+            'Energie': 'energy',
+            'Telefon a internet': 'phone',
+          };
+          const hits = (rules ?? []).filter((r) => r.active && titleToKey[r.title]);
+          if (!cancelled && hits.length > 0) {
+            setCommitments((prev) =>
+              prev.map((c) => {
+                const r = hits.find((h) => titleToKey[h.title] === c.key);
+                if (!r || c.enabled) return c;
+                return {
+                  ...c,
+                  enabled: true,
+                  amount: formatKčGrouped(String(Math.round(r.amount))),
+                  dueDay: String(parseInt(r.nextDate.slice(8, 10), 10) || 15),
+                };
+              }),
+            );
+          }
         }
 
         // Prefill závazků z existujících loans (editace)
@@ -209,8 +236,8 @@ export default function QuickSetupScreen() {
         employmentType: employmentChipToDb(employment),
       });
 
-      // Závazky = loans (ne transakce). Při editaci smaž předchozí quick-setup-ish podle jména.
-      if (isEdit) {
+      // Úvěry = loans (ne transakce). Předchozí položky z rychlého nastavení vždy nahradit (jinak duplicity při opakování).
+      {
         const setupNames = new Set(
           ['Hypotéka', 'Nájem', 'Energie', 'Telefon a internet', 'Leasing / půjčka'].flatMap((n) => [
             n,
@@ -230,6 +257,31 @@ export default function QuickSetupScreen() {
       const newLoans = buildQuickSetupLoans(commitments);
       for (const loan of newLoans) {
         addLoan(loan);
+      }
+
+      // Nájem / energie / telefon → Pravidelné platby (měsíčně), bez okamžité transakce.
+      const recurringDrafts = buildQuickSetupRecurring(commitments);
+      {
+        const pr = await import('@/lib/personal-recurring');
+        const { rules } = await pr.fetchPersonalRecurringRules(user.id);
+        const setupTitles = new Set(['Nájem', 'Energie', 'Telefon a internet']);
+        // Editace: stará pravidla z rychlého nastavení nahradíme (transakce zůstanou).
+        for (const r of rules ?? []) {
+          if (setupTitles.has(r.title)) await pr.deletePersonalRecurringRule(user.id, r.id);
+        }
+        for (const d of recurringDrafts) {
+          const { error: recErr } = await pr.createPersonalRecurringRuleOnly(user.id, {
+            type: 'expense',
+            title: d.title,
+            amount: d.amount,
+            currency: 'CZK',
+            category: d.category,
+            subcategory: d.subcategory,
+            frequency: 'monthly',
+            startDate: d.startDate,
+          });
+          if (recErr) console.warn('[quick-setup] recurring', recErr.message);
+        }
       }
 
       const budgetSpecs: { category: string; raw: string }[] = [
@@ -253,7 +305,7 @@ export default function QuickSetupScreen() {
       showToast({ type: 'success', message: '✓ Appka je nastavená' });
       goTabs();
       // Notifikace mají smysl až teď (připomínky splatností, hlídání rozpočtů).
-      if (newLoans.length > 0 || budgetWrites.length > 0) {
+      if (newLoans.length > 0 || recurringDrafts.length > 0 || budgetWrites.length > 0) {
         setTimeout(() => {
           void askNotificationsInContext();
         }, 1200);
@@ -383,7 +435,7 @@ export default function QuickSetupScreen() {
             <View>
               <Text style={[styles.headline, { color: colors.text }]}>Pravidelné platby</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Uložíme je jako závazky s připomínkou — ne jako transakce (kvůli importu výpisů).
+                Nájem, energie a telefon uložíme do Pravidelných plateb, hypotéku a leasing do Úvěrů. Až nahraješ výpis, platby se samy spárují.
               </Text>
               {commitments.map((c) => {
                 const meta = getCommitmentMeta(c.key);
