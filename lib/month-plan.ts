@@ -101,7 +101,7 @@ function normTitle(s: string | undefined | null): string {
 }
 
 /** Výdaj odpovídá pravidelné platbě: stejná hlavní kategorie a částka ±15 %, nebo shodný název. */
-function matchesRule(t: Transaction, r: PersonalRecurringRule): boolean {
+export function matchesRule(t: Transaction, r: PersonalRecurringRule): boolean {
   const amt = Number(t.amount) || 0;
   const ra = Number(r.amount) || 0;
   const amountOk = ra > 0 && Math.abs(amt - ra) <= Math.max(1, ra * 0.15);

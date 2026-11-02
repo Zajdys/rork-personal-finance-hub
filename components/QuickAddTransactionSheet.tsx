@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { X } from 'lucide-react-native';
+import { X, FileUp, ChevronRight } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
@@ -207,6 +207,30 @@ export function QuickAddTransactionSheet({
               style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
             >
+              {showMoreOptions ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    close();
+                    router.push('/bank-import');
+                  }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Nahrát výpis z banky"
+                  style={[styles.importBanner, { backgroundColor: colors.muted, borderColor: colors.primary }]}
+                >
+                  <View style={[styles.importIcon, { backgroundColor: colors.primary }]}>
+                    <FileUp color="#fff" size={20} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>Nahrát výpis z banky</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                      Načte všechny platby najednou (PDF nebo CSV)
+                    </Text>
+                  </View>
+                  <ChevronRight color={colors.textSecondary} size={20} />
+                </TouchableOpacity>
+              ) : null}
+
               {allowTypeToggle ? (
                 <View style={[styles.typeToggle, { backgroundColor: colors.muted }]}>
                   {(['expense', 'income'] as const).map((tab) => {
@@ -290,6 +314,7 @@ export function QuickAddTransactionSheet({
                 description={title}
                 onChange={onCategoryChange}
                 layout="chips"
+                allowCreateCategory
               />
 
               <Text style={[styles.label, { color: colors.textSecondary }]}>{t('date')}</Text>
@@ -319,15 +344,6 @@ export function QuickAddTransactionSheet({
 
               {showMoreOptions ? (
                 <View style={styles.moreOptions}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      close();
-                      router.push('/bank-import');
-                    }}
-                  >
-                    <Text style={[styles.moreLink, { color: colors.primary }]}>Nahrát výpis</Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: colors.textSecondary }}> · </Text>
                   <TouchableOpacity
                     onPress={() => {
                       close();
@@ -433,6 +449,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typeToggleText: { fontSize: 14, fontWeight: '700' },
+  importBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  importIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   moreOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',

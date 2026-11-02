@@ -38,6 +38,11 @@ if (!__DEV__) {
   console.warn = () => {};
   console.error = () => {};
 }
+else {
+  // Ve vývoji (simulátor bez App Store) RevenueCat hlásí chybu nabídek — nezakrývat tím appku.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('react-native').LogBox.ignoreLogs(['[RevenueCat]']);
+}
 
 
 const queryClient = new QueryClient();
@@ -121,8 +126,9 @@ function HouseholdRecurringNotificationsRunner() {
     if (!isAuthenticated || !user?.id) return;
     const runPersonalRecurring = async () => {
       try {
-        const { materializeDueRecurring } = await import('@/lib/personal-recurring');
-        const { created } = await materializeDueRecurring(user.id);
+        // Pravidelné platby se už nezapisují samy (dělalo duplicity s importem výpisů) —
+        // uživatel je odškrtne v Pravidelných platbách, nebo se spárují s výpisem.
+        const created = 0;
         if (created > 0) {
           await useFinanceStore.getState().loadTransactionsFromSupabase();
           const { runAfterTransactionsSideEffects } = await import(

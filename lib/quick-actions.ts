@@ -66,6 +66,7 @@ export type QuickActionDef = {
 export const QUICK_ACTIONS_SKIPPED_NO_ROUTE = ['categories'] as const;
 
 export const DEFAULT_QUICK_ACTION_IDS: QuickActionId[] = [
+  'import',
   'investice',
   'save',
   'split',

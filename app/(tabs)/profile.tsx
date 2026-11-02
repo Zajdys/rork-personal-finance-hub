@@ -446,12 +446,6 @@ export default function ProfileScreen() {
             onPress={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
           />
           <MenuButton
-            icon={Landmark}
-            title={t('profileReserveTitle')}
-            subtitle={t('profileReserveSubtitle')}
-            onPress={() => router.push('/reserve-detail')}
-          />
-          <MenuButton
             icon={TrendingUp}
             title="Investice (beta)"
             subtitle="Portfolia a pozice"

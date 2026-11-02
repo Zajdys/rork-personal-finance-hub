@@ -328,6 +328,65 @@ export default function NotificationsSettingsScreen() {
     </View>
   );
 
+  /** Jedno „kdy a v kolik“ pro všechny připomínky plateb (domácnost, předplatné, splátky). */
+  const setReminderTiming = async (partial: { daysBefore?: DaysBefore; time?: string }) => {
+    if (!payments || !subsPref || !mortgage) return;
+    const db = partial.daysBefore ?? payments.daysBefore;
+    const tm = partial.time ?? payments.time;
+    const p = { ...payments, daysBefore: db, time: tm };
+    const sp = { ...subsPref, daysBefore: db, time: tm };
+    const mp = { ...mortgage, daysBefore: db, time: tm };
+    setPayments(p);
+    setSubsPref(sp);
+    setMortgage(mp);
+    await saveNotifSubscriptionsPrefs(sp);
+    await saveNotifMortgagePrefs(mp);
+    if (user?.id) {
+      await saveHousehold({ notification_days_before: db, notification_time: tm });
+    } else {
+      await saveNotifPaymentsPrefs(p);
+      await runReschedule();
+    }
+  };
+
+  const SwitchRow = ({
+    title,
+    sub,
+    value,
+    disabled,
+    onChange,
+    onSubPress,
+  }: {
+    title: string;
+    sub?: string;
+    value: boolean;
+    disabled?: boolean;
+    onChange: (v: boolean) => void;
+    onSubPress?: () => void;
+  }) => (
+    <View style={[styles.row, { paddingVertical: 10 }]}>
+      <View style={styles.textBlock}>
+        <Text style={[styles.title, { color: colors.text, marginBottom: sub ? 2 : 0 }]}>{title}</Text>
+        {sub ? (
+          onSubPress ? (
+            <TouchableOpacity onPress={onSubPress} hitSlop={6}>
+              <Text style={[styles.sub, { color: colors.primary, fontWeight: '600' }]}>{sub} · změnit</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[styles.sub, { color: colors.textSecondary }]}>{sub}</Text>
+          )
+        ) : null}
+      </View>
+      <Switch
+        value={value}
+        disabled={disabled}
+        onValueChange={(v) => void onChange(v)}
+        trackColor={{ false: '#E5E7EB', true: '#10B981' }}
+        thumbColor={value ? 'white' : '#9CA3AF'}
+      />
+    </View>
+  );
+
   if (
     loading ||
     !payments ||
@@ -390,51 +449,64 @@ export default function NotificationsSettingsScreen() {
           ) : null}
         </View>
 
-        {/* Platby a výdaje */}
+        {/* Připomínky plateb — jedno nastavení „kdy“ pro všechny platby */}
         <View style={[...cardStyle, dimStyle]}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-              <BellRing color={colors.primary} size={22} />
-            </View>
-            <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>{t('notificationsSettings.paymentsTitle')}</Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                {t('notificationsSettings.paymentsSubtitle')}
-              </Text>
-            </View>
-            <Switch
-              value={payments.enabled}
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>Připomínky plateb</Text>
+          <Text style={[styles.sub, { color: colors.textSecondary, marginBottom: 6 }]}>
+            Upozorníme tě, než má odejít platba.
+          </Text>
+          {hhLoaded ? (
+            <SwitchRow
+              title="Pravidelné platby a domácnost"
+              value={hhEnabled && payments.enabled}
+              disabled={subRowsDisabled || hhSaving}
+              onChange={async (v) => {
+                setPayments({ ...payments, enabled: v });
+                await saveHousehold({ recurring_expense_notifications_enabled: v });
+              }}
+            />
+          ) : null}
+          <SwitchRow
+            title="Předplatné"
+            value={subsPref.enabled}
+            disabled={subRowsDisabled}
+            onChange={async (v) => {
+              const next = { ...subsPref, enabled: v };
+              setSubsPref(next);
+              await saveNotifSubscriptionsPrefs(next);
+              await runReschedule();
+            }}
+          />
+          {hasMortgage || loans.length > 0 ? (
+            <SwitchRow
+              title="Splátky úvěrů a hypotéky"
+              value={mortgage.enabled}
               disabled={subRowsDisabled}
-              onValueChange={async (v) => {
-                const next = { ...payments, enabled: v };
-                setPayments(next);
-                await saveNotifPaymentsPrefs(next);
+              onChange={async (v) => {
+                const next = { ...mortgage, enabled: v };
+                setMortgage(next);
+                await saveNotifMortgagePrefs(next);
                 await runReschedule();
               }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor={payments.enabled ? 'white' : '#9CA3AF'}
             />
-          </View>
-          {payments.enabled && masterOn ? (
+          ) : null}
+          {masterOn && (subsPref.enabled || mortgage.enabled || (hhEnabled && payments.enabled)) ? (
             <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
-              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{t('notificationsSettings.whenNotify')}</Text>
+              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Kdy připomenout</Text>
               <PillRow
                 value={payments.daysBefore}
                 disabled={false}
-                onChange={async (d) => {
-                  const next = { ...payments, daysBefore: d };
-                  setPayments(next);
-                  await saveNotifPaymentsPrefs(next);
-                  await runReschedule();
-                }}
+                onChange={(d) => void setReminderTiming({ daysBefore: d })}
               />
-              <Text style={[styles.subLabel, { color: colors.textSecondary, marginTop: 12 }]}>{t('notificationsSettings.time')}</Text>
-              <TouchableOpacity
-                style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
-                onPress={() => setShowPayTime(true)}
-              >
-                <Text style={[styles.timeBtnText, { color: colors.text }]}>{payments.time}</Text>
-              </TouchableOpacity>
+              <View style={[styles.row, { marginTop: 12 }]}>
+                <Text style={[styles.subLabel, { color: colors.textSecondary, marginBottom: 0, flex: 1 }]}>V kolik</Text>
+                <TouchableOpacity
+                  style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
+                  onPress={() => setShowPayTime((x) => !x)}
+                >
+                  <Text style={[styles.timeBtnText, { color: colors.text }]}>{payments.time}</Text>
+                </TouchableOpacity>
+              </View>
               {showPayTime && (
                 <DateTimePicker
                   value={parseTimeToDate(payments.time)}
@@ -443,15 +515,7 @@ export default function NotificationsSettingsScreen() {
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={(_, date) => {
                     if (Platform.OS !== 'ios') setShowPayTime(false);
-                    if (date) {
-                      const s = formatTimeFromDate(date);
-                      void (async () => {
-                        const next = { ...payments, time: s };
-                        setPayments(next);
-                        await saveNotifPaymentsPrefs(next);
-                        await runReschedule();
-                      })();
-                    }
+                    if (date) void setReminderTiming({ time: formatTimeFromDate(date) });
                   }}
                 />
               )}
@@ -459,380 +523,86 @@ export default function NotificationsSettingsScreen() {
           ) : null}
         </View>
 
-        {/* Předplatné */}
+        {/* Rozpočty */}
         <View style={[...cardStyle, dimStyle]}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-              <CreditCard color={colors.primary} size={22} />
-            </View>
-            <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>{t('notificationsSettings.subscriptionsTitle')}</Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                {t('notificationsSettings.subscriptionsSubtitle')}
-              </Text>
-            </View>
-            <Switch
-              value={subsPref.enabled}
-              disabled={subRowsDisabled}
-              onValueChange={async (v) => {
-                const next = { ...subsPref, enabled: v };
-                setSubsPref(next);
-                await saveNotifSubscriptionsPrefs(next);
-                await runReschedule();
-              }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor={subsPref.enabled ? 'white' : '#9CA3AF'}
-            />
-          </View>
-          {subsPref.enabled && masterOn ? (
-            <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
-              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{t('notificationsSettings.whenNotify')}</Text>
-              <PillRow
-                value={subsPref.daysBefore}
-                disabled={false}
-                onChange={async (d) => {
-                  const next = { ...subsPref, daysBefore: d };
-                  setSubsPref(next);
-                  await saveNotifSubscriptionsPrefs(next);
-                  await runReschedule();
-                }}
-              />
-              <Text style={[styles.subLabel, { color: colors.textSecondary, marginTop: 12 }]}>{t('notificationsSettings.time')}</Text>
-              <TouchableOpacity
-                style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
-                onPress={() => setShowSubTime(true)}
-              >
-                <Text style={[styles.timeBtnText, { color: colors.text }]}>{subsPref.time}</Text>
-              </TouchableOpacity>
-              {showSubTime && (
-                <DateTimePicker
-                  value={parseTimeToDate(subsPref.time)}
-                  mode="time"
-                  is24Hour
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(_, date) => {
-                    if (Platform.OS !== 'ios') setShowSubTime(false);
-                    if (date) {
-                      const s = formatTimeFromDate(date);
-                      void (async () => {
-                        const next = { ...subsPref, time: s };
-                        setSubsPref(next);
-                        await saveNotifSubscriptionsPrefs(next);
-                        await runReschedule();
-                      })();
-                    }
-                  }}
-                />
-              )}
-            </View>
-          ) : null}
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>Rozpočty</Text>
+          <SwitchRow
+            title="Blížíš se k limitu"
+            sub="Při 80 % a 100 % rozpočtu"
+            value={budgetAlerts.enabled}
+            disabled={subRowsDisabled}
+            onChange={async (v) => {
+              const next = { ...budgetAlerts, enabled: v };
+              setBudgetAlerts(next);
+              await saveNotifBudgetAlertsPrefs(next);
+              await runReschedule();
+            }}
+          />
+          <SwitchRow
+            title="Týdenní souhrn"
+            sub="Každý pátek v 18:00"
+            value={budgetWeekly.enabled}
+            disabled={subRowsDisabled}
+            onChange={async (v) => {
+              const next = { ...budgetWeekly, enabled: v };
+              setBudgetWeekly(next);
+              await saveNotifBudgetWeeklyPrefs(next);
+              await runReschedule();
+            }}
+          />
         </View>
 
-        {/* Rozděl útratu — server-side push (Supabase users.notify_split_expenses) */}
-        <View style={cardStyle}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-              <UsersRound color={colors.primary} size={22} />
-            </View>
-            <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {t('notificationsSettings.splitExpensesTitle')}
-              </Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                {t('notificationsSettings.splitExpensesSubtitle')}
-              </Text>
-            </View>
-            <Switch
-              value={splitExpensesNotif}
-              disabled={!user?.id || splitSaving}
-              onValueChange={async (v) => {
-                if (!user?.id) return;
-                const prev = splitExpensesNotif;
-                setSplitExpensesNotif(v);
-                setSplitSaving(true);
-                const { error } = await updateNotifySplitExpenses(user.id, v);
-                setSplitSaving(false);
-                if (error) {
-                  setSplitExpensesNotif(prev);
-                  Alert.alert(t('error'), error.message);
+        {/* Ostatní */}
+        <View style={[...cardStyle, dimStyle]}>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>Ostatní</Text>
+          <SwitchRow
+            title="Denní tip"
+            sub={tip.enabled ? `Každý den v ${tip.time}` : 'Krátký finanční tip'}
+            value={tip.enabled}
+            disabled={subRowsDisabled}
+            onSubPress={tip.enabled && masterOn ? () => setShowTipTime((x) => !x) : undefined}
+            onChange={async (v) => {
+              const next = { ...tip, enabled: v };
+              setTip(next);
+              await saveNotifTipPrefs(next);
+              await runReschedule();
+            }}
+          />
+          {showTipTime && tip.enabled ? (
+            <DateTimePicker
+              value={parseTimeToDate(tip.time)}
+              mode="time"
+              is24Hour
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(_, date) => {
+                if (Platform.OS !== 'ios') setShowTipTime(false);
+                if (date) {
+                  const next = { ...tip, time: formatTimeFromDate(date) };
+                  setTip(next);
+                  void saveNotifTipPrefs(next).then(() => runReschedule());
                 }
               }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor={splitExpensesNotif ? 'white' : '#9CA3AF'}
             />
-          </View>
-        </View>
-
-        {/* Upozornění na rozpočty */}
-        <View style={[...cardStyle, dimStyle]}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-              <PieChart color={colors.primary} size={22} />
-            </View>
-            <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {t('notificationsSettings.budgetAlertsTitle')}
-              </Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                {t('notificationsSettings.budgetAlertsSubtitle')}
-              </Text>
-            </View>
-            <Switch
-              value={budgetAlerts.enabled}
-              disabled={subRowsDisabled}
-              onValueChange={async (v) => {
-                const next = { enabled: v };
-                setBudgetAlerts(next);
-                await saveNotifBudgetAlertsPrefs(next);
-              }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor={budgetAlerts.enabled ? 'white' : '#9CA3AF'}
-            />
-          </View>
-        </View>
-
-        {/* Týdenní souhrn rozpočtů */}
-        <View style={[...cardStyle, dimStyle]}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-              <PieChart color={colors.primary} size={22} />
-            </View>
-            <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {t('notificationsSettings.budgetWeeklyTitle')}
-              </Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                {t('notificationsSettings.budgetWeeklySubtitle')}
-              </Text>
-            </View>
-            <Switch
-              value={budgetWeekly.enabled}
-              disabled={subRowsDisabled}
-              onValueChange={async (v) => {
-                const next = { enabled: v };
-                setBudgetWeekly(next);
-                await saveNotifBudgetWeeklyPrefs(next);
-                await runReschedule();
-              }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor={budgetWeekly.enabled ? 'white' : '#9CA3AF'}
-            />
-          </View>
-        </View>
-
-        {/* Denní tip */}
-        <View style={[...cardStyle, dimStyle]}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-              <Lightbulb color={colors.primary} size={22} />
-            </View>
-            <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>{t('notificationsSettings.tipTitle')}</Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                {t('notificationsSettings.tipSubtitle')}
-              </Text>
-            </View>
-            <Switch
-              value={tip.enabled}
-              disabled={subRowsDisabled}
-              onValueChange={async (v) => {
-                const next = { ...tip, enabled: v };
-                setTip(next);
-                await saveNotifTipPrefs(next);
-                await runReschedule();
-              }}
-              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-              thumbColor={tip.enabled ? 'white' : '#9CA3AF'}
-            />
-          </View>
-          {tip.enabled && masterOn ? (
-            <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
-              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{t('notificationsSettings.time')}</Text>
-              <TouchableOpacity
-                style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
-                onPress={() => setShowTipTime(true)}
-              >
-                <Text style={[styles.timeBtnText, { color: colors.text }]}>{tip.time}</Text>
-              </TouchableOpacity>
-              {showTipTime && (
-                <DateTimePicker
-                  value={parseTimeToDate(tip.time)}
-                  mode="time"
-                  is24Hour
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(_, date) => {
-                    if (Platform.OS !== 'ios') setShowTipTime(false);
-                    if (date) {
-                      const s = formatTimeFromDate(date);
-                      void (async () => {
-                        const next = { ...tip, time: s };
-                        setTip(next);
-                        await saveNotifTipPrefs(next);
-                        await runReschedule();
-                      })();
-                    }
-                  }}
-                />
-              )}
-            </View>
           ) : null}
+          <SwitchRow
+            title="Nové výdaje v Rozděl útratu"
+            sub="Když někdo přidá výdaj do skupiny"
+            value={splitExpensesNotif}
+            disabled={!user?.id || splitSaving}
+            onChange={async (v) => {
+              if (!user?.id) return;
+              const prev = splitExpensesNotif;
+              setSplitExpensesNotif(v);
+              setSplitSaving(true);
+              const { error } = await updateNotifySplitExpenses(user.id, v);
+              setSplitSaving(false);
+              if (error) {
+                setSplitExpensesNotif(prev);
+                Alert.alert(t('error'), error.message);
+              }
+            }}
+          />
         </View>
-
-        {/* Hypotéka */}
-        {hasMortgage ? (
-          <View style={[...cardStyle, dimStyle]}>
-            <View style={styles.row}>
-              <View style={[styles.iconWrap, { backgroundColor: colors.muted }]}>
-                <Home color={colors.primary} size={22} />
-              </View>
-              <View style={styles.textBlock}>
-                <Text style={[styles.title, { color: colors.text }]}>{t('notificationsSettings.mortgageTitle')}</Text>
-                <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                  {t('notificationsSettings.mortgageSubtitle')}
-                </Text>
-              </View>
-              <Switch
-                value={mortgage.enabled}
-                disabled={subRowsDisabled}
-                onValueChange={async (v) => {
-                  const next = { ...mortgage, enabled: v };
-                  setMortgage(next);
-                  await saveNotifMortgagePrefs(next);
-                  await runReschedule();
-                }}
-                trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-                thumbColor={mortgage.enabled ? 'white' : '#9CA3AF'}
-              />
-            </View>
-            {mortgage.enabled && masterOn ? (
-              <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
-                <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{t('notificationsSettings.whenNotify')}</Text>
-                <PillRow
-                  value={mortgage.daysBefore}
-                  disabled={false}
-                  onChange={async (d) => {
-                    const next = { ...mortgage, daysBefore: d };
-                    setMortgage(next);
-                    await saveNotifMortgagePrefs(next);
-                    await runReschedule();
-                  }}
-                />
-                <Text style={[styles.subLabel, { color: colors.textSecondary, marginTop: 12 }]}>{t('notificationsSettings.time')}</Text>
-                <TouchableOpacity
-                  style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
-                  onPress={() => setShowMortTime(true)}
-                >
-                  <Text style={[styles.timeBtnText, { color: colors.text }]}>{mortgage.time}</Text>
-                </TouchableOpacity>
-                {showMortTime && (
-                  <DateTimePicker
-                    value={parseTimeToDate(mortgage.time)}
-                    mode="time"
-                    is24Hour
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={(_, date) => {
-                      if (Platform.OS !== 'ios') setShowMortTime(false);
-                      if (date) {
-                        const s = formatTimeFromDate(date);
-                        void (async () => {
-                          const next = { ...mortgage, time: s };
-                          setMortgage(next);
-                          await saveNotifMortgagePrefs(next);
-                          await runReschedule();
-                        })();
-                      }
-                    }}
-                  />
-                )}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Domácnost — dříve samostatná obrazovka household-notification-settings */}
-        {user?.id && hhLoaded ? (
-          <View style={cardStyle}>
-            <Text style={[styles.sectionHeading, { color: colors.text }]}>
-              {t('profileSectionHousehold')}
-            </Text>
-            <Text style={[styles.sub, { color: colors.textSecondary, marginBottom: 12 }]}>
-              {t('hhNotifExpenseAlerts')}
-            </Text>
-            <View style={styles.row}>
-              <View style={styles.textBlock}>
-                <Text style={[styles.title, { color: colors.text }]}>{t('hhNotifEnabled')}</Text>
-              </View>
-              <Switch
-                value={hhEnabled}
-                onValueChange={(v) => {
-                  setHhEnabled(v);
-                  void saveHousehold({ recurring_expense_notifications_enabled: v });
-                }}
-                trackColor={{ false: '#9CA3AF', true: '#86EFAC' }}
-                thumbColor={Platform.OS === 'android' ? (hhEnabled ? '#fff' : '#f4f3f4') : undefined}
-              />
-            </View>
-            <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
-              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{t('hhNotifWhen')}</Text>
-              {hhDayOptions.map((opt) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.hhOption,
-                    {
-                      borderColor: hhDaysBefore === opt.value ? colors.primary : colors.border,
-                      backgroundColor:
-                        hhDaysBefore === opt.value
-                          ? isDark
-                            ? '#312E81'
-                            : '#EEF2FF'
-                          : 'transparent',
-                    },
-                  ]}
-                  onPress={() => {
-                    setHhDaysBefore(opt.value);
-                    void saveHousehold({ notification_days_before: opt.value });
-                  }}
-                >
-                  <Text style={[styles.hhOptionText, { color: colors.text }]}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-              <Text style={[styles.subLabel, { color: colors.textSecondary, marginTop: 12 }]}>
-                {t('hhNotifTime')}
-              </Text>
-              <TouchableOpacity
-                style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
-                onPress={() => setShowHhTime(true)}
-              >
-                <Text style={[styles.timeBtnText, { color: colors.text }]}>{hhTimeStr}</Text>
-              </TouchableOpacity>
-              {showHhTime ? (
-                <DateTimePicker
-                  value={parseTimeToDate(hhTimeStr)}
-                  mode="time"
-                  is24Hour
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(_, date) => {
-                    setShowHhTime(Platform.OS === 'ios');
-                    if (date) {
-                      const s = formatTimeFromDate(date);
-                      setHhTimeStr(s);
-                      void saveHousehold({ notification_time: s });
-                    }
-                  }}
-                />
-              ) : null}
-              {hhSaving ? (
-                <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 8 }]}>
-                  {t('hhNotifSaving')}
-                </Text>
-              ) : null}
-              <Text style={[styles.sub, { color: colors.textSecondary, marginTop: 10 }]}>
-                {t('hhNotifFooter')}
-              </Text>
-            </View>
-          </View>
-        ) : null}
 
         {/* E-maily s novinkami (GDPR souhlas, kdykoli odvolatelný) */}
         {user?.id && marketingConsent !== null ? (

@@ -38,6 +38,7 @@ import {
   SlidersHorizontal,
   Check,
   Lock,
+  Sparkles,
 } from 'lucide-react-native';
 import { useDraggableList } from '@/lib/use-draggable-list';
 import {
@@ -312,6 +313,8 @@ export default function DashboardScreen() {
   const { isHouseholdPremium } = usePremium();
   const [showQuickSetupBanner, setShowQuickSetupBanner] = useState(false);
   const [expectedMonthlyIncome, setExpectedMonthlyIncome] = useState(0);
+  /** Dokud nevíme plánovaný příjem, nehlásit „Záporný zůstatek“ (jinak problikne při startu). */
+  const [incomeStatusLoaded, setIncomeStatusLoaded] = useState(false);
   const [quickActionIds, setQuickActionIds] = useState<QuickActionId[]>([
     ...DEFAULT_QUICK_ACTION_IDS,
   ]);
@@ -355,6 +358,7 @@ export default function DashboardScreen() {
     setExpectedMonthlyIncome(
       status.expectedMonthlyIncome > 0 ? status.expectedMonthlyIncome : 0,
     );
+    setIncomeStatusLoaded(true);
   }, [user?.id]);
 
   useEffect(() => {
@@ -859,7 +863,7 @@ export default function DashboardScreen() {
         monthPlan.isCurrentMonth &&
         monthPlan.incomeActual < monthPlan.incomePlanned &&
         monthPlan.leftToSpend >= 0;
-      if (isAllSourcesSelected && currentMonthReport.balance < 0 && !salaryPending) {
+      if (incomeStatusLoaded && isAllSourcesSelected && currentMonthReport.balance < 0 && !salaryPending) {
         slides.push({
           id: 'alert-balance',
           sortKey: 100,
@@ -940,6 +944,7 @@ export default function DashboardScreen() {
     currentMonthReport,
     overspentBudgets,
     monthPlan,
+    incomeStatusLoaded,
     selectedMonthTransactions,
     numberLocale,
     t,
@@ -1171,8 +1176,15 @@ export default function DashboardScreen() {
     );
   }, [txSelectedIds, deleteTransactions, exitTxSelection, t]);
 
-  const planCardPct =
-    monthPlan.variableCap > 0 ? Math.min(100, (monthPlan.variableSpent / monthPlan.variableCap) * 100) : 0;
+  const budgetCard = useMemo(() => {
+    const planned = monthPlan.budgetRows.reduce((acc, r) => acc + (Number(r.budget.amount) || 0), 0);
+    const spent = monthPlan.budgetRows.reduce((acc, r) => acc + r.spent, 0);
+    const left = planned - spent;
+    const perDay = monthPlan.isCurrentMonth && left > 0 ? left / Math.max(1, monthPlan.daysLeft) : null;
+    return { planned, spent, left, perDay, pct: planned > 0 ? Math.min(100, (spent / planned) * 100) : 0 };
+  }, [monthPlan.budgetRows, monthPlan.isCurrentMonth, monthPlan.daysLeft]);
+  const fmtKc = (n: number) => `${Math.round(n).toLocaleString(numberLocale)} Kč`;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const goalsSection = (
     <TouchableOpacity
       style={[styles.planSummaryCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 16, marginBottom: 12 }]}
@@ -1181,53 +1193,45 @@ export default function DashboardScreen() {
       accessibilityRole="button"
       accessibilityLabel="Otevřít plán"
     >
-      {planRemainToSpend != null ? (
+      {budgetCard.planned > 0 ? (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
-              {monthPlan.isCurrentMonth ? 'Zbývá utratit podle plánu' : planRemainToSpend >= 0 ? 'Zůstalo podle plánu' : 'Přečerpáno podle plánu'}
+              {budgetCard.left >= 0 ? 'V rozpočtech zbývá' : 'Rozpočty přečerpány o'}
             </Text>
             <ChevronRight color={colors.textSecondary} size={18} />
           </View>
           <Text
-            style={{
-              fontSize: 26,
-              fontWeight: '800',
-              marginTop: 2,
-              color: planRemainToSpend >= 0 ? '#10B981' : '#EF4444',
-            }}
+            style={{ fontSize: 26, fontWeight: '800', marginTop: 2, color: budgetCard.left >= 0 ? '#10B981' : '#EF4444' }}
           >
-            {planRemainToSpend < 0 ? '−' : ''}
-            {Math.round(Math.abs(planRemainToSpend)).toLocaleString(numberLocale)} Kč
-            {monthPlan.perDay != null ? (
+            {fmtKc(Math.abs(budgetCard.left))}
+            {budgetCard.perDay != null ? (
               <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>
-                {`  ≈ ${Math.round(monthPlan.perDay).toLocaleString(numberLocale)} Kč/den`}
+                {`  ≈ ${fmtKc(budgetCard.perDay)} na den`}
               </Text>
             ) : null}
           </Text>
-          {monthPlan.variableCap > 0 ? (
-            <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, marginTop: 10, overflow: 'hidden' }}>
-              <View
-                style={{
-                  height: 6,
-                  width: `${planCardPct}%`,
-                  backgroundColor: planCardPct > 100 || planRemainToSpend < 0 ? '#EF4444' : planCardPct >= 75 ? '#F59E0B' : '#10B981',
-                }}
-              />
-            </View>
-          ) : null}
-          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 17 }}>
-            {`Pravidelné platby ${Math.round(monthPlan.fixedPaid).toLocaleString(numberLocale)} z ${Math.round(monthPlan.fixedPlanned).toLocaleString(numberLocale)} Kč`}
-            {planBudgetStats.count > 0
-              ? ` · ${planBudgetStats.over > 0 ? `${planBudgetStats.over} ${planBudgetStats.over === 1 ? 'rozpočet přečerpaný' : planBudgetStats.over <= 4 ? 'rozpočty přečerpané' : 'rozpočtů přečerpaných'}` : 'rozpočty v pořádku'}`
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, marginTop: 10, overflow: 'hidden' }}>
+            <View
+              style={{
+                height: 6,
+                width: `${budgetCard.pct}%`,
+                backgroundColor: budgetCard.left < 0 ? '#EF4444' : budgetCard.pct >= 75 ? '#F59E0B' : '#10B981',
+              }}
+            />
+          </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>
+            {`Utraceno ${fmtKc(budgetCard.spent)} z ${fmtKc(budgetCard.planned)}`}
+            {planBudgetStats.over > 0
+              ? ` · ${planBudgetStats.over} ${planBudgetStats.over === 1 ? 'rozpočet přečerpaný' : planBudgetStats.over <= 4 ? 'rozpočty přečerpané' : 'rozpočtů přečerpaných'}`
               : ''}
           </Text>
         </>
       ) : (
         <>
-          <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Nastav si plán</Text>
+          <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Nastav si rozpočty</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4, lineHeight: 20 }}>
-            Zadej příjem a pravidelné platby — ukážeme ti, kolik můžeš utratit.
+            Urči si, kolik chceš měsíčně utratit za jídlo, dopravu nebo zábavu — tady uvidíš, kolik ti zbývá.
           </Text>
         </>
       )}
@@ -1347,6 +1351,15 @@ export default function DashboardScreen() {
                   {todayDateLabel}
                 </Text>
               </View>
+              <TouchableOpacity
+                style={[styles.headerAvatar, { marginRight: 10 }]}
+                onPress={() => safePush('/help-chat')}
+                accessibilityRole="button"
+                accessibilityLabel="Zeptej se MoneyBuddy"
+                hitSlop={8}
+              >
+                <Sparkles color="#FFFFFF" size={18} />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.headerAvatar}
                 onPress={() => safePush('/(tabs)/profile')}
@@ -1604,6 +1617,40 @@ export default function DashboardScreen() {
             <Text style={styles.balanceAmount}>
               {formatMoneyWithSymbol(balance, numberLocale, currentCurrency.symbol)}
             </Text>
+            {budgetCard.planned > 0 ? (
+              <TouchableOpacity
+                onPress={() => safePush('/(tabs)/plan')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Otevřít plán"
+                style={{
+                  alignSelf: 'stretch',
+                  marginTop: 14,
+                  paddingTop: 12,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: 'rgba(255,255,255,0.35)',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
+                    {budgetCard.left >= 0
+                      ? `Rozpočty: zbývá ${fmtKc(budgetCard.left)}`
+                      : `Rozpočty: přečerpáno o ${fmtKc(Math.abs(budgetCard.left))}`}
+                  </Text>
+                  <ChevronRight color="#fff" size={18} />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 10 }}>
+                  <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' }}>
+                    <View style={{ height: 6, width: `${budgetCard.pct}%`, backgroundColor: '#fff' }} />
+                  </View>
+                  <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600' }}>
+                    {budgetCard.perDay != null
+                      ? `≈ ${fmtKc(budgetCard.perDay)} na den`
+                      : `utraceno ${fmtKc(budgetCard.spent)} z ${fmtKc(budgetCard.planned)}`}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -1642,7 +1689,6 @@ export default function DashboardScreen() {
 
       <OverviewFilterBadge style={{ marginHorizontal: 16, marginBottom: 8 }} />
 
-      {goalsSection}
 
       <View style={[styles.financeGrid, isDesktop && styles.financeGridDesktop]}>
         <TouchableOpacity

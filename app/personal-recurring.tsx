@@ -13,7 +13,13 @@ import {
   Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus } from 'lucide-react-native';
+import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus, Check } from 'lucide-react-native';
+import { useFinanceStore, type Transaction } from '@/store/finance-store';
+import {
+  findPaymentInMonth,
+  markRecurringPaidOn,
+  occurrenceInMonth,
+} from '@/lib/recurring-checklist';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 import { TouchableOpacity as AddButton } from 'react-native';
 import { useAuth } from '@/store/auth-store';
@@ -77,13 +83,14 @@ export default function PersonalRecurringScreen() {
   const [editFrequency, setEditFrequency] = useState<PersonalRecurringChoice>('monthly');
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user?.id) {
       setRules([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Při obnově po zaškrtnutí / úpravě seznam nemizí (bez celoobrazovkového načítání).
+    if (!opts?.silent) setLoading(true);
     const { rules: next, error } = await fetchPersonalRecurringRules(user.id);
     if (error) console.warn('[personal-recurring] list', error.message);
     setRules(next);
@@ -95,7 +102,7 @@ export default function PersonalRecurringScreen() {
   const [addType, setAddType] = useState<'income' | 'expense'>('expense');
   const closeAdd = useCallback(() => {
     setAddOpen(false);
-    void load();
+    void load({ silent: true });
   }, [load]);
 
   useEffect(() => {
@@ -129,7 +136,7 @@ export default function PersonalRecurringScreen() {
       return;
     }
     setEditRule(null);
-    void load();
+    void load({ silent: true });
   };
 
   const togglePause = async (rule: PersonalRecurringRule) => {
@@ -139,7 +146,7 @@ export default function PersonalRecurringScreen() {
       active: !rule.active,
     });
     if (error) Alert.alert(t('errorMessage'), error.message);
-    else void load();
+    else void load({ silent: true });
   };
 
   const confirmDelete = (rule: PersonalRecurringRule) => {
@@ -154,7 +161,7 @@ export default function PersonalRecurringScreen() {
             if (!user?.id) return;
             const { error } = await deletePersonalRecurringRule(user.id, rule.id);
             if (error) Alert.alert(t('errorMessage'), error.message);
-            else void load();
+            else void load({ silent: true });
           })();
         },
       },
@@ -168,6 +175,86 @@ export default function PersonalRecurringScreen() {
         return a.nextDate.localeCompare(b.nextDate);
       }),
     [rules],
+  );
+
+  // --- Zaplaceno tento měsíc (jako v Domácnosti) ---
+  const transactions = useFinanceStore((st) => st.transactions);
+  const addTransactions = useFinanceStore((st) => st.addTransactions);
+  const deleteTransaction = useFinanceStore((st) => st.deleteTransaction);
+  const nowD = new Date();
+  const curY = nowD.getFullYear();
+  const curM = nowD.getMonth() + 1;
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const monthStatus = useMemo(() => {
+    const used = new Set<string>();
+    const map = new Map<string, { due: string; paid: Transaction | null }>();
+    for (const r of sorted) {
+      if (!r.active || r.type !== 'expense') continue;
+      const due = occurrenceInMonth(r, curY, curM);
+      const paid = findPaymentInMonth(r, transactions, curY, curM, used);
+      if (paid) used.add(paid.id);
+      if (!due && !paid) continue;
+      map.set(r.id, { due: due ?? String(paid?.date ?? '').slice(0, 10), paid });
+    }
+    return map;
+  }, [sorted, transactions, curY, curM]);
+
+  const paidCount = useMemo(
+    () => Array.from(monthStatus.values()).filter((v) => v.paid).length,
+    [monthStatus],
+  );
+
+  const fmtDay = (ymd: string) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    if (!y || !m || !d) return ymd;
+    return new Date(y, m - 1, d).toLocaleDateString(numberLocale, { day: 'numeric', month: 'numeric' });
+  };
+
+  const togglePaid = useCallback(
+    async (rule: PersonalRecurringRule) => {
+      if (!user?.id) return;
+      const st = monthStatus.get(rule.id);
+      if (!st) return;
+      if (st.paid) {
+        if (st.paid.recurringId !== rule.id) {
+          Alert.alert(
+            'Zaplaceno podle výpisu',
+            `Spárováno s platbou „${st.paid.title ?? ''}“ (${fmtDay(String(st.paid.date).slice(0, 10))}). Pokud to nesedí, uprav kategorii té platby.`,
+          );
+          return;
+        }
+        Alert.alert('Označit jako nezaplacené?', `Smaže se výdaj ${rule.title} z ${fmtDay(String(st.paid.date).slice(0, 10))}.`, [
+          { text: 'Nechat zaplacené', style: 'cancel' },
+          {
+            text: 'Nezaplaceno',
+            style: 'destructive',
+            onPress: () => {
+              const paidYmd = String(st.paid!.date).slice(0, 10);
+              deleteTransaction(st.paid!.id);
+              // Platba je zase k zaplacení → vrátit splatnost, ať se ukáže i v „Co tě čeká“.
+              if (rule.nextDate.slice(0, 10) > paidYmd) {
+                void updatePersonalRecurringRule(user.id, rule.id, { nextDate: paidYmd }).then(() =>
+                  load({ silent: true }),
+                );
+              }
+            },
+          },
+        ]);
+        return;
+      }
+      setBusyId(rule.id);
+      const { tx, error } = await markRecurringPaidOn(user.id, rule, st.due);
+      setBusyId(null);
+      if (error) {
+        Alert.alert(t('errorMessage'), error.message);
+        return;
+      }
+      if (tx) addTransactions([tx], { fromRemote: true });
+      void load({ silent: true });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.id, monthStatus, addTransactions, deleteTransaction, load, t],
   );
 
   return (
@@ -212,6 +299,13 @@ export default function PersonalRecurringScreen() {
           data={sorted}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            monthStatus.size > 0 ? (
+              <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 10 }}>
+                {`${nowD.toLocaleDateString(numberLocale, { month: 'long' }).replace(/^./, (c) => c.toUpperCase())}: zaplaceno ${paidCount} z ${monthStatus.size}`}
+              </Text>
+            ) : null
+          }
           renderItem={({ item }) => {
             const nextLabel = (() => {
               try {
@@ -236,6 +330,28 @@ export default function PersonalRecurringScreen() {
                   },
                 ]}
               >
+                {monthStatus.has(item.id) ? (
+                  <TouchableOpacity
+                    onPress={() => void togglePaid(item)}
+                    disabled={busyId === item.id}
+                    hitSlop={10}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: Boolean(monthStatus.get(item.id)?.paid) }}
+                    accessibilityLabel={`${item.title} zaplaceno`}
+                    style={[
+                      styles.checkCircle,
+                      monthStatus.get(item.id)?.paid
+                        ? { backgroundColor: '#10B981', borderColor: '#10B981' }
+                        : { borderColor: colors.border },
+                    ]}
+                  >
+                    {busyId === item.id ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : monthStatus.get(item.id)?.paid ? (
+                      <Check color="#fff" size={16} strokeWidth={3} />
+                    ) : null}
+                  </TouchableOpacity>
+                ) : null}
                 <View style={styles.cardMain}>
                   <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
                     {item.title}
@@ -245,9 +361,13 @@ export default function PersonalRecurringScreen() {
                     {t(frequencyLabelKey(item.frequency))}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    {item.active
-                      ? t('personalRecurring.nextDate', { date: nextLabel })
-                      : t('personalRecurring.paused')}
+                    {!item.active
+                      ? t('personalRecurring.paused')
+                      : monthStatus.get(item.id)?.paid
+                        ? `✓ zaplaceno ${fmtDay(String(monthStatus.get(item.id)!.paid!.date).slice(0, 10))}`
+                        : monthStatus.has(item.id)
+                          ? `splatné ${fmtDay(monthStatus.get(item.id)!.due)} · odškrtni, až zaplatíš`
+                          : t('personalRecurring.nextDate', { date: nextLabel })}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -370,6 +490,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cardMain: { flex: 1, minWidth: 0 },
+  checkCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
   cardTitle: { fontSize: 16, fontWeight: '700' },
   moreBtn: {
     width: 36,

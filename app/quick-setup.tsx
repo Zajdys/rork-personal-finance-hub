@@ -211,10 +211,16 @@ export default function QuickSetupScreen() {
     router.replace('/(tabs)');
   }, [router]);
 
+  /** Po prvním nastavení rovnou nabídnout nahrání výpisu (s návodem). */
+  const goAfterSetup = useCallback(() => {
+    if (isEdit) router.replace('/(tabs)');
+    else router.replace({ pathname: '/import-guide', params: { onboarding: '1' } } as never);
+  }, [router, isEdit]);
+
   const handleSkip = useCallback(async () => {
     if (user?.id) await markQuickSetupAutoShown(user.id);
-    goTabs();
-  }, [user?.id, goTabs]);
+    goAfterSetup();
+  }, [user?.id, goAfterSetup]);
 
   const updateCommitment = (
     key: QuickSetupCommitmentKey,
@@ -303,7 +309,7 @@ export default function QuickSetupScreen() {
         );
       await Promise.all([...budgetWrites, markQuickSetupCompleted(user.id)]);
       showToast({ type: 'success', message: '✓ Appka je nastavená' });
-      goTabs();
+      goAfterSetup();
       // Notifikace mají smysl až teď (připomínky splatností, hlídání rozpočtů).
       if (newLoans.length > 0 || recurringDrafts.length > 0 || budgetWrites.length > 0) {
         setTimeout(() => {
@@ -329,6 +335,7 @@ export default function QuickSetupScreen() {
     deleteLoan,
     addLoan,
     goTabs,
+    goAfterSetup,
   ]);
 
   const progress = (step + 1) / STEPS;

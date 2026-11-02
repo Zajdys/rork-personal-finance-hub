@@ -865,6 +865,16 @@ export default function BankImportScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          onPress={() => router.push('/import-guide' as never)}
+          style={{ alignSelf: 'center', paddingVertical: 10 }}
+          accessibilityRole="link"
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
+            Jak stáhnout výpis z banky?
+          </Text>
+        </TouchableOpacity>
+
         {!isPremium && freeQuota ? (
           <Text style={[styles.freeQuotaHint, { color: colors.textSecondary }]}>
             {freeQuota.isFirstImport

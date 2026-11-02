@@ -334,6 +334,11 @@ export default function PlanScreen() {
     recurringRules,
     refreshKey: planRefreshKey,
   });
+  const budgetsTotals = useMemo(() => {
+    const planned = plan.budgetRows.reduce((acc, r) => acc + (Number(r.budget.amount) || 0), 0);
+    const spent = plan.budgetRows.reduce((acc, r) => acc + r.spent, 0);
+    return { planned, spent, pct: planned > 0 ? (spent / planned) * 100 : 0 };
+  }, [plan.budgetRows]);
   const budgetRowById = useMemo(
     () => new Map(plan.budgetRows.map((r) => [r.budget.id, r])),
     [plan.budgetRows],
@@ -697,119 +702,84 @@ export default function PlanScreen() {
               <View style={{ paddingVertical: 28, alignItems: 'center' }}>
                 <ActivityIndicator color={colors.primary} />
               </View>
-            ) : !plan.hasIncomePlan && plan.incomeActual <= 0 ? (
+            ) : !plan.hasIncomePlan ? (
               <EmptyState
                 title="Nastav příjem"
-                description="Bez příjmu neumíme spočítat, kolik můžeš utratit."
+                description="Zadej, kolik ti měsíčně přichází — spočítáme, kolik ti po platbách a rozpočtech zůstane."
                 icon={<Wallet color={colors.primary} size={28} />}
                 actionLabel="Nastav příjem"
                 onAction={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
               />
             ) : (
               <>
-                <Text style={[styles.heroLabel, { color: muted }]}>
-                  {plan.isCurrentMonth ? 'Zbývá utratit' : plan.leftToSpend >= 0 ? 'Zůstalo' : 'Přečerpáno'}
-                </Text>
-                <Text
-                  style={[
-                    styles.heroValue,
-                    { color: plan.leftToSpend >= 0 ? '#10B981' : '#EF4444' },
-                  ]}
-                >
-                  {plan.leftToSpend < 0 && plan.isCurrentMonth ? '−' : ''}
-                  {formatKc(Math.abs(plan.leftToSpend))}
-                </Text>
-                <Text style={[styles.heroSub, { color: muted }]}>
-                  {plan.isCurrentMonth
-                    ? plan.perDay != null
-                      ? `≈ ${formatKc(plan.perDay)} na den · ${formatZbyvaDni(plan.daysLeft)}`
-                      : `přečerpáno · ${formatZbyvaDni(plan.daysLeft)}`
-                    : 'za celý měsíc'}
-                </Text>
-                {plan.variableCap > 0 ? (
+                <PlanLine
+                  label="Příjem"
+                  value={formatKc(plan.incomePlanned)}
+                  hint={plan.incomeActual > 0 ? `přišlo ${formatKc(plan.incomeActual)}` : undefined}
+                  color={colors.text}
+                  muted={muted}
+                />
+                <PlanLine
+                  label="− Pravidelné platby"
+                  value={formatKc(plan.fixedPlanned)}
+                  hint={plan.fixedPaid > 0 ? `zaplaceno ${formatKc(plan.fixedPaid)}` : 'nájem, energie, úvěry…'}
+                  color={colors.text}
+                  muted={muted}
+                  onPress={() => router.push('/personal-recurring')}
+                />
+                <PlanLine
+                  label="− Rozpočty"
+                  value={formatKc(plan.budgetsPlanned)}
+                  color={colors.text}
+                  muted={muted}
+                />
+                <PlanLine
+                  label="− Spoření"
+                  value={formatKc(plan.savingsPlanned)}
+                  hint={plan.savingsPlanned > 0 ? 'podle cílů' : undefined}
+                  color={colors.text}
+                  muted={muted}
+                />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <PlanLine
+                  label="= Volné peníze"
+                  value={formatKc(plan.incomePlanned - plan.fixedPlanned - plan.budgetsPlanned - plan.savingsPlanned)}
+                  color={
+                    plan.incomePlanned - plan.fixedPlanned - plan.budgetsPlanned - plan.savingsPlanned >= 0
+                      ? '#10B981'
+                      : '#EF4444'
+                  }
+                  muted={muted}
+                  bold
+                />
+                {plan.incomePlanned - plan.fixedPlanned - plan.budgetsPlanned - plan.savingsPlanned < 0 ? (
+                  <Text style={[styles.progressHint, { color: '#EF4444' }]}>
+                    Plán je vyšší než příjem — uber z rozpočtů nebo spoření.
+                  </Text>
+                ) : null}
+                {budgetsTotals.planned > 0 ? (
                   <>
-                    <View style={[styles.barBg, { backgroundColor: colors.muted, marginTop: 12 }]}>
+                    <View style={[styles.barBg, { backgroundColor: colors.muted, marginTop: 14 }]}>
                       <View
                         style={[
                           styles.barFill,
                           {
-                            width: `${Math.min(100, (plan.variableSpent / plan.variableCap) * 100)}%`,
-                            backgroundColor: budgetBarColor((plan.variableSpent / plan.variableCap) * 100),
+                            width: `${Math.min(100, budgetsTotals.pct)}%`,
+                            backgroundColor: budgetBarColor(budgetsTotals.pct),
                           },
                         ]}
                       />
                     </View>
                     <Text style={[styles.progressHint, { color: muted, marginTop: 6 }]}>
-                      Běžné výdaje {formatKc(plan.variableSpent)} z {formatKc(plan.variableCap)}
+                      Z rozpočtů utraceno {formatKc(budgetsTotals.spent)} z {formatKc(budgetsTotals.planned)}
+                      {plan.isCurrentMonth ? ` · ${formatZbyvaDni(plan.daysLeft)}` : ''}
                     </Text>
                   </>
                 ) : null}
-
-                <View style={[styles.divider, { backgroundColor: colors.border, marginTop: 14 }]} />
-                <View style={styles.planRow}>
-                  <Text style={[styles.planRowLabel, { color: muted }]} />
-                  <Text style={[styles.planRowHead, { color: muted }]}>Plán</Text>
-                  <Text style={[styles.planRowHead, { color: muted }]}>Skutečnost</Text>
-                </View>
-                <PlanRow
-                  label="Příjem"
-                  planned={plan.hasIncomePlan ? formatKc(plan.incomePlanned) : '–'}
-                  actual={formatKc(plan.incomeActual)}
-                  hint={plan.hasIncomePlan ? undefined : 'počítáme ze skutečného příjmu'}
-                  color={colors.text}
-                  muted={muted}
-                />
-                <PlanRow
-                  label="Pravidelné platby"
-                  planned={formatKc(plan.fixedPlanned)}
-                  actual={formatKc(plan.fixedPaid)}
-                  hint={
-                    plan.fixedRemaining > 0 && plan.isCurrentMonth
-                      ? `ještě odejde ${formatKc(plan.fixedRemaining)}`
-                      : 'nájem, energie, úvěry…'
-                  }
-                  color={colors.text}
-                  muted={muted}
-                  onPress={() => router.push('/personal-recurring')}
-                />
-                <PlanRow
-                  label="Rozpočty"
-                  planned={formatKc(plan.budgetsPlanned)}
-                  actual={formatKc(plan.budgetsSpent)}
-                  actualColor={plan.budgetsSpent > plan.budgetsPlanned && plan.budgetsPlanned > 0 ? '#EF4444' : undefined}
-                  color={colors.text}
-                  muted={muted}
-                />
-                <PlanRow
-                  label="Ostatní výdaje"
-                  planned="–"
-                  actual={formatKc(plan.otherSpent)}
-                  hint="mimo rozpočty"
-                  color={colors.text}
-                  muted={muted}
-                />
-                <PlanRow
-                  label="Spoření"
-                  planned={formatKc(plan.savingsPlanned)}
-                  actual="–"
-                  hint={plan.savingsPlanned > 0 ? 'podle cílů' : undefined}
-                  color={colors.text}
-                  muted={muted}
-                />
-                {plan.hasIncomePlan && plan.unallocated < 0 ? (
-                  <Text style={[styles.progressHint, { color: '#EF4444' }]}>
-                    Plán je o {formatKc(Math.abs(plan.unallocated))} vyšší než příjem. Uber z rozpočtů nebo spoření.
+                {plan.otherSpent > 0 ? (
+                  <Text style={[styles.progressHint, { color: muted, marginTop: 4 }]}>
+                    Mimo rozpočty utraceno {formatKc(plan.otherSpent)}
                   </Text>
-                ) : plan.hasIncomePlan && plan.unallocated > 0 ? (
-                  <Text style={[styles.progressHint, { color: muted }]}>
-                    Mimo rozpočty ti v plánu zbývá {formatKc(plan.unallocated)}.
-                  </Text>
-                ) : !plan.hasIncomePlan ? (
-                  <TouchableOpacity onPress={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}>
-                    <Text style={[styles.progressHint, { color: colors.primary, fontWeight: '700' }]}>
-                      Nastav očekávaný příjem →
-                    </Text>
-                  </TouchableOpacity>
                 ) : null}
               </>
             )}
@@ -1241,6 +1211,7 @@ function PlanLine({
   color,
   muted,
   bold,
+  onPress,
 }: {
   label: string;
   value: string;
@@ -1248,7 +1219,15 @@ function PlanLine({
   color: string;
   muted: string;
   bold?: boolean;
+  onPress?: () => void;
 }) {
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        <PlanLine label={label} value={value} hint={hint} color={color} muted={muted} bold={bold} />
+      </TouchableOpacity>
+    );
+  }
   return (
     <View style={styles.planLine}>
       <View style={{ flex: 1 }}>

@@ -336,6 +336,7 @@ export const TRANSLATIONS = {
     
     // Receipt scanning
     scanReceipt: 'Naskenovat účtenku',
+    attachReceiptPhoto: 'Přiložit fotku účtenky',
     photoReceipt: 'Vyfotit účtenku',
     uploadReceipt: 'Nahrát účtenku',
     selectScanMethod: 'Vyber způsob skenování účtenky',
@@ -2973,6 +2974,7 @@ export const TRANSLATIONS = {
     
     // Receipt scanning
     scanReceipt: 'Scan Receipt',
+    attachReceiptPhoto: 'Attach receipt photo',
     photoReceipt: 'Photo Receipt',
     uploadReceipt: 'Upload Receipt',
     selectScanMethod: 'Select receipt scanning method',

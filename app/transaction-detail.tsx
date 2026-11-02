@@ -628,7 +628,7 @@ export default function TransactionDetailScreen() {
               <ActivityIndicator color="#667eea" />
             ) : (
               <Text style={[styles.addReceiptBtnText, { color: isDarkMode ? '#E5E7EB' : '#374151' }]}>
-                📷 {t('scanReceipt')}
+                📷 {t('attachReceiptPhoto')}
               </Text>
             )}
           </TouchableOpacity>
