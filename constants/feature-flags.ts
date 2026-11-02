@@ -36,5 +36,5 @@ export const BANK_SYNC_ENABLED = __DEV__;
  * Skenování účtenek / faktur přes vlastní edge funkci `scan-receipt` (Claude Haiku).
  * false = tlačítka skrytá.
  */
-export const RECEIPT_SCAN_ENABLED = true;
+export const RECEIPT_SCAN_ENABLED = false;
 

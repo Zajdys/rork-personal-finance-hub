@@ -58,6 +58,8 @@ type ParsedTxn = {
   category: string;
   subcategory?: string | null;
   date: string;
+  /** Lokální fotka účtenky — po importu se přiloží k transakci */
+  receiptUri?: string;
 };
 
 const MANUAL_CURRENCIES = ['CZK', 'EUR', 'USD', 'GBP', 'CHF', 'PLN'] as const;
@@ -235,6 +237,7 @@ export default function AddTransactionScreen() {
     void (async () => {
       try {
         const candidates = [];
+        const receiptByTxId = new Map<string, string>();
         for (const p of preview) {
           const resolved = resolveCategoryFieldsForWrite({
             category: p.category,
@@ -253,6 +256,7 @@ export default function AddTransactionScreen() {
             source: 'manual' as const,
           };
           candidates.push(tx);
+          if (p.receiptUri) receiptByTxId.set(tx.id, p.receiptUri);
         }
         // Jedním požadavkem (dřív 1 požadavek na položku → u účtenky s 12 položkami ~1 min).
         const { getAuthUserId: getUid, insertManualTransactionsBatch } = await import('@/lib/supabase-transactions');
@@ -263,6 +267,32 @@ export default function AddTransactionScreen() {
         const insertedSet = new Set(insertedIds);
         const created = candidates.filter((c) => insertedSet.has(c.id));
         if (created.length) addTransactions(created, { fromRemote: true });
+        // Fotka účtenky → Storage + receipt_url (na pozadí, import nečeká).
+        for (const c of created) {
+          const localUri = receiptByTxId.get(c.id);
+          if (!localUri) continue;
+          void (async () => {
+            try {
+              const { uploadReceiptToStorage } = await import('@/lib/receipt-upload');
+              const { publicUrl, error: upErr } = await uploadReceiptToStorage({
+                userId: uidForInsert,
+                transactionId: c.id,
+                localUri,
+              });
+              if (upErr || !publicUrl) throw upErr ?? new Error('upload');
+              const { supabase: sb } = await import('@/lib/supabase');
+              const { error: updErr } = await sb
+                .from('transactions')
+                .update({ receipt_url: publicUrl })
+                .eq('id', c.id)
+                .eq('user_id', uidForInsert);
+              if (updErr) throw updErr;
+              useFinanceStore.getState().updateTransaction(c.id, { receiptUrl: publicUrl });
+            } catch (upErr) {
+              console.warn('[confirmImport] receipt upload', upErr);
+            }
+          })();
+        }
         const count = created.length;
         setPreview([]);
         setPreviewOpen(false);
@@ -440,6 +470,7 @@ export default function AddTransactionScreen() {
               category: resolved.category,
               subcategory: resolved.subcategory,
               date: item.date || toYyyyMmDd(new Date()),
+              receiptUri: uri,
             };
           });
           

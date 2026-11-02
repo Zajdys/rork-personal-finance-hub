@@ -3,6 +3,7 @@
  *
  * POST { image_base64: string, media_type?: 'image/jpeg'|'image/png'|'image/webp', kind: 'receipt'|'invoice' }
  * Authorization: Bearer <user JWT>  (verify_jwt = true)
+ * receipt → 1 souhrnná položka (obchod + celkem); invoice → položky.
  * → { items: [{ title, amount, category, subcategory|null }], currency: 'CZK'|'EUR'|…, date: 'YYYY-MM-DD'|null }
  *
  * Secrets: ANTHROPIC_API_KEY (+ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)
@@ -30,17 +31,13 @@ function json(status: number, body: unknown): Response {
 
 const PROMPTS: Record<'receipt' | 'invoice', string> = {
   receipt:
-    'Analyzuj tuto účtenku a vrať VŠECHNY položky přes nástroj save_items.\n' +
+    'Přečti tuto účtenku a vrať JEDEN souhrnný výdaj přes nástroj save_receipt (NEROZEPISUJ položky).\n' +
     'Pravidla:\n' +
-    '1. amount = CELKOVÁ cena položky v měně účtenky (4 ks à 50 → 200).\n' +
-    '2. title = název produktu/služby (+ množství). NIKDY nedávej obchodníka do category.\n' +
-    '3. SLEVY: řádky se zápornou částkou (sleva, Clubcard/CC, kupón, akce) ODEČTI od položky, ke které patří – amount je cena PO slevě. Ignoruj mezisoučty, DPH a zaokrouhlení.\n' +
-    '3b. total = částka skutečně zaplacená (řádek CELKEM / K úhradě / Platební karta). Součet amount všech položek se musí rovnat total.\n' +
-    '4. Pokud obrázek není účtenka nebo je nečitelný, vrať prázdný seznam.\n' +
-    '5. Účtenka může být v jakémkoli jazyce. title napiš česky (přelož), category urči podle VÝZNAMU položky (hračky → Děti, léky → Zdraví, alkohol a jídlo → Jídlo).\n' +
-    '6. currency = ISO kód měny účtenky (Kč → CZK, € → EUR, zł → PLN…). date = datum nákupu z účtenky (bývá dole, např. „19.10.2026 13:03“ → 2026-10-19), jinak null.\n' +
-    'Příklady: Mléko → title „Mléko 2 ks“, category „Jídlo“, subcategory „Potraviny“; ' +
-    'Benzín → „Benzín Natural 95“, „Auto a doprava“, „Benzín a nafta“.',
+    '1. merchant = název obchodu/provozovny, krátce (např. „Tesco“, „Albert“, „Shell“, „Lidl“, „Restaurace U Zlatého lva“).\n' +
+    '2. total = částka skutečně zaplacená PO slevách (řádek CELKEM / K úhradě / Platební karta / Hotovost). Ignoruj mezisoučty, DPH a vrácené peníze.\n' +
+    '3. category = převažující typ nákupu (potraviny v supermarketu → Jídlo + subcategory „Potraviny“; restaurace → Jídlo + „Restaurace“; čerpací stanice s palivem → Auto a doprava + „Benzín a nafta“; lékárna → Zdraví; drogerie, elektro, oblečení → Nákupy).\n' +
+    '4. currency = ISO kód měny (Kč → CZK, € → EUR, zł → PLN…). date = datum nákupu (bývá dole, např. „19.10.2026 13:03“ → 2026-10-19), jinak null.\n' +
+    '5. Pokud obrázek není účtenka nebo celková částka není čitelná, vrať total = 0.',
   invoice:
     'Analyzuj tuto fakturu a vrať VŠECHNY fakturované položky přes nástroj save_items.\n' +
     'Pravidla:\n' +
@@ -52,6 +49,23 @@ const PROMPTS: Record<'receipt' | 'invoice', string> = {
     '6. currency = ISO kód měny faktury; date = datum vystavení / zdanitelného plnění YYYY-MM-DD, nebo null.\n' +
     'Příklady: ČEZ elektřina → title „ČEZ elektřina“, category „Bydlení“, subcategory „Energie“; ' +
     'Hosting → „Webový hosting 12 měsíců“, „Nákupy“.',
+};
+
+const RECEIPT_TOOL = {
+  name: 'save_receipt',
+  description: 'Uloží souhrn účtenky jako jeden výdaj.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      merchant: { type: 'string', description: 'Název obchodu' },
+      total: { type: 'number', description: 'Celková zaplacená částka po slevách v měně účtenky' },
+      category: { type: 'string', enum: CATEGORIES },
+      subcategory: { type: ['string', 'null'], description: 'Volitelná podkategorie (Potraviny, Restaurace, Benzín a nafta…) nebo null' },
+      currency: { type: 'string', description: 'ISO 4217 kód měny, např. CZK, EUR' },
+      date: { type: ['string', 'null'], description: 'Datum nákupu YYYY-MM-DD nebo null' },
+    },
+    required: ['merchant', 'total', 'category', 'currency'],
+  },
 };
 
 const TOOL = {
@@ -132,8 +146,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2048,
-        tools: [TOOL],
-        tool_choice: { type: 'tool', name: 'save_items' },
+        tools: [kind === 'receipt' ? RECEIPT_TOOL : TOOL],
+        tool_choice: { type: 'tool', name: kind === 'receipt' ? 'save_receipt' : 'save_items' },
         messages: [
           {
             role: 'user',
@@ -158,7 +172,16 @@ Deno.serve(async (req) => {
   }
   const out = await resp.json();
   const toolUse = (out?.content ?? []).find((c: { type?: string }) => c?.type === 'tool_use');
-  const rawItems = Array.isArray(toolUse?.input?.items) ? toolUse.input.items : [];
+  const inp = toolUse?.input ?? {};
+  // Účtenka → jedna položka „Obchod – celkem“ (staré buildy dostanou stejný tvar odpovědi).
+  const rawItems = kind === 'receipt'
+    ? [{
+        title: String(inp.merchant ?? '').trim() || 'Nákup',
+        amount: inp.total,
+        category: inp.category,
+        subcategory: inp.subcategory,
+      }]
+    : Array.isArray(inp.items) ? inp.items : [];
   const items = rawItems
     .map((it: Record<string, unknown>) => ({
       title: String(it.title ?? '').trim().slice(0, 120),
