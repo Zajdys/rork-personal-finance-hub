@@ -714,8 +714,16 @@ export default function PlanScreen() {
               <>
                 <PlanLine
                   label="Příjem"
-                  value={formatKc(plan.incomePlanned)}
-                  hint={plan.incomeActual > 0 ? `přišlo ${formatKc(plan.incomeActual)}` : undefined}
+                  value={formatKc(plan.incomeBase)}
+                  hint={
+                    plan.incomeSource === 'actual'
+                      ? Math.round(plan.incomeBase) !== Math.round(plan.incomePlanned)
+                        ? `skutečně přišlo · plán ${formatKc(plan.incomePlanned)}`
+                        : 'skutečně přišlo'
+                      : plan.incomeActual > 0
+                        ? `plán · zatím přišlo ${formatKc(plan.incomeActual)}`
+                        : 'plán · výplata ještě nepřišla'
+                  }
                   color={colors.text}
                   muted={muted}
                 />

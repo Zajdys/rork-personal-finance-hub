@@ -49,9 +49,16 @@ export type MonthPlanBudgetRow = {
 export type MonthPlan = {
   incomePlanned: number;
   incomeActual: number;
-  /** Základ pro výpočet: větší z plánovaného a skutečného příjmu (bez plánu jen skutečný). */
+  /**
+   * Základ pro výpočet. Před výplatou = plánovaný příjem (nebo víc, pokud už přišlo víc);
+   * po výplatě (a v minulých měsících) = skutečně přijato — i když je to méně než plán.
+   */
   incomeBase: number;
   hasIncomePlan: boolean;
+  /** Výplata v měsíci už přišla (příjem v kategorii Mzda, nebo ≥ 80 % plánu). */
+  salaryArrived: boolean;
+  /** Odkud je incomeBase: plán, nebo skutečnost. */
+  incomeSource: 'planned' | 'actual';
 
   fixedPlanned: number;
   fixedPaid: number;
@@ -128,6 +135,7 @@ export function computeMonthPlan(input: MonthPlanInput): MonthPlan {
   const monthTx = getMonthTransactions(input.transactions, input.year, input.month);
 
   let incomeActual = 0;
+  let salaryActual = 0;
   let fixedPaid = 0;
   let variableGross = 0;
   let refunds = 0;
@@ -156,6 +164,7 @@ export function computeMonthPlan(input: MonthPlanInput): MonthPlan {
     const amt = Number(t.amount) || 0;
     if (isIncomeForReport(t)) {
       incomeActual += amt;
+      if (mainCategoryName(t.category, t.subcategory) === 'Mzda') salaryActual += amt;
       continue;
     }
     if (isRefundTransaction(t)) {
@@ -216,8 +225,27 @@ export function computeMonthPlan(input: MonthPlanInput): MonthPlan {
   }
 
   const hasIncomePlan = input.expectedIncome > 0;
-  // Když přišlo víc, než je v plánu, počítáme se skutečností.
-  const incomeBase = hasIncomePlan ? Math.max(input.expectedIncome, incomeActual) : incomeActual;
+  const nowYm = now.getFullYear() * 12 + now.getMonth();
+  const monthYm = input.year * 12 + (input.month - 1);
+  const isPastMonth = monthYm < nowYm;
+  const salaryArrived =
+    salaryActual > 0 || (hasIncomePlan && incomeActual >= input.expectedIncome * 0.8);
+  // Proměnlivá výplata (±pár tisíc): jakmile přijde, počítáme se skutečnou částkou — i nižší než plán.
+  let incomeBase: number;
+  let incomeSource: 'planned' | 'actual';
+  if (!hasIncomePlan) {
+    incomeBase = incomeActual;
+    incomeSource = 'actual';
+  } else if ((isPastMonth && incomeActual > 0) || salaryArrived) {
+    incomeBase = incomeActual;
+    incomeSource = 'actual';
+  } else if (incomeActual > input.expectedIncome) {
+    incomeBase = incomeActual;
+    incomeSource = 'actual';
+  } else {
+    incomeBase = input.expectedIncome;
+    incomeSource = 'planned';
+  }
   const fixedEffective = Math.max(fixedPlanned, fixedPaid);
   const variableCap = incomeBase - fixedEffective - savingsPlanned;
   const leftToSpend = variableCap - variableSpent;
@@ -233,6 +261,8 @@ export function computeMonthPlan(input: MonthPlanInput): MonthPlan {
     incomeActual,
     incomeBase,
     hasIncomePlan,
+    salaryArrived,
+    incomeSource,
     fixedPlanned,
     fixedPaid,
     fixedRemaining: Math.max(0, fixedPlanned - fixedPaid),

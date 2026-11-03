@@ -22,6 +22,7 @@ import { useFinanceStore } from '@/store/finance-store';
 import { showToast } from '@/store/toast-store';
 import { askNotificationsInContext } from '@/lib/reschedule-all-local-notifications';
 import { parseMoneyInput } from '@/lib/parse-money-input';
+import { suggestIncomeFromSalary } from '@/lib/income-suggest';
 import { upsertUserBudgetByCategory, fetchUserBudgets } from '@/lib/supabase-plan';
 import {
   buildQuickSetupLoans,
@@ -203,6 +204,11 @@ export default function QuickSetupScreen() {
   }, [user?.id]);
 
   const incomeNum = parseMoneyInput(income) ?? 0;
+  const allTransactions = useFinanceStore((st) => st.transactions);
+  const incomeSuggestion = useMemo(() => suggestIncomeFromSalary(allTransactions), [allTransactions]);
+  const showIncomeSuggestion =
+    incomeSuggestion != null &&
+    Math.abs(incomeSuggestion.average - incomeNum) >= Math.max(500, incomeSuggestion.average * 0.03);
   const commitmentsSum = useMemo(() => sumCommitmentMonthly(commitments), [commitments]);
   const budgetSum = useMemo(() => sumBudgetMonthly(budget), [budget]);
   const remaining = incomeNum - commitmentsSum - budgetSum;
@@ -397,6 +403,37 @@ export default function QuickSetupScreen() {
                 />
                 <Text style={[styles.currency, { color: colors.textSecondary }]}>Kč</Text>
               </View>
+
+              {showIncomeSuggestion && incomeSuggestion ? (
+                <View
+                  style={[
+                    styles.suggestCard,
+                    { backgroundColor: colors.primary + '14', borderColor: colors.primary + '55' },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 }}>
+                      Podle výpisů ti chodí průměrně {formatKčGrouped(String(incomeSuggestion.average))} Kč
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                      Posledních {incomeSuggestion.monthly.length} výplat:{' '}
+                      {incomeSuggestion.monthly
+                        .map((m) => formatKčGrouped(String(Math.round(m.amount))))
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIncome(formatKčGrouped(String(incomeSuggestion.average)));
+                      if (!payday && incomeSuggestion.payday) setPayday(String(incomeSuggestion.payday));
+                    }}
+                    style={[styles.suggestBtn, { backgroundColor: colors.primary }]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Použít</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
               <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Typ příjmu</Text>
               <View style={styles.chipRow}>
@@ -729,6 +766,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   incomeInput: { flex: 1, fontSize: 32, fontWeight: '800', paddingVertical: 12 },
+  suggestCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 10 },
+  suggestBtn: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   currency: { fontSize: 20, fontWeight: '700', marginLeft: 8 },
   fieldLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },

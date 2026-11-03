@@ -864,7 +864,7 @@ export default function DashboardScreen() {
       const salaryPending =
         monthPlan.hasIncomePlan &&
         monthPlan.isCurrentMonth &&
-        monthPlan.incomeActual < monthPlan.incomePlanned &&
+        !monthPlan.salaryArrived &&
         monthPlan.leftToSpend >= 0;
       if (incomeStatusLoaded && isAllSourcesSelected && currentMonthReport.balance < 0 && !salaryPending) {
         slides.push({
