@@ -106,6 +106,7 @@ import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useMonthPlan } from '@/hooks/use-month-plan';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
+import { HelpChatIntroCard } from '@/components/HelpChatIntroCard';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
 const { width } = Dimensions.get('window');
@@ -1688,6 +1689,8 @@ export default function DashboardScreen() {
       </View>
 
       <OverviewFilterBadge style={{ marginHorizontal: 16, marginBottom: 8 }} />
+
+      <HelpChatIntroCard style={{ marginHorizontal: 16, marginBottom: 16 }} />
 
 
       <View style={[styles.financeGrid, isDesktop && styles.financeGridDesktop]}>

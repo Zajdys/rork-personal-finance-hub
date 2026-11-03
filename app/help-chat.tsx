@@ -2,7 +2,7 @@
  * „Zeptej se MoneyBuddy“ — AI průvodce aplikací (edge funkce help-chat).
  * Nevidí data uživatele, radí jen kde co v appce je.
  */
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,12 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Send, Sparkles, ChevronRight } from 'lucide-react-native';
+import { Send, ChevronRight } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/lib/supabase';
+import { BuddyAvatar } from '@/components/BuddyAvatar';
+import { markHelpChatIntroSeen } from '@/components/HelpChatIntroCard';
 
 type Msg = { role: 'user' | 'assistant'; content: string; actions?: string[] };
 
@@ -69,6 +71,9 @@ function renderRich(text: string) {
 export default function HelpChatScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  useEffect(() => {
+    void markHelpChatIntroSeen();
+  }, []);
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -137,18 +142,18 @@ export default function HelpChatScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.bubble, bubbleBot, { alignSelf: 'flex-start' }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <Sparkles color={colors.primary} size={14} />
-              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>MoneyBuddy průvodce</Text>
+          <View style={styles.botRow}>
+            <BuddyAvatar size={30} />
+            <View style={[styles.bubble, bubbleBot, { flexShrink: 1 }]}>
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12, marginBottom: 4 }}>MoneyBuddy průvodce</Text>
+              <Text style={[styles.text, { color: colors.text }]}>
+                Ahoj! Zeptej se mě, kde co v aplikaci najdeš nebo jak něco nastavit. Do tvých financí nevidím — radím jen s appkou.
+              </Text>
             </View>
-            <Text style={[styles.text, { color: colors.text }]}>
-              Ahoj! Zeptej se mě, kde co v aplikaci najdeš nebo jak něco nastavit. Do tvých financí nevidím — radím jen s appkou.
-            </Text>
           </View>
 
           {messages.length === 0 ? (
-            <View style={{ marginTop: 8, gap: 8 }}>
+            <View style={{ marginTop: 10, gap: 8, marginLeft: 38 }}>
               {SUGGESTIONS.map((s) => (
                 <TouchableOpacity
                   key={s}
@@ -164,12 +169,21 @@ export default function HelpChatScreen() {
           ) : null}
 
           {messages.map((m, i) => (
-            <View key={i} style={{ marginTop: 10, alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
-              <View style={[styles.bubble, m.role === 'user' ? bubbleUser : bubbleBot]}>
-                <Text style={[styles.text, { color: m.role === 'user' ? '#fff' : colors.text }]}>{renderRich(m.content)}</Text>
-              </View>
+            <View key={i} style={{ marginTop: 10, alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: m.role === 'user' ? '85%' : '100%' }}>
+              {m.role === 'user' ? (
+                <View style={[styles.bubble, bubbleUser]}>
+                  <Text style={[styles.text, { color: '#fff' }]}>{m.content}</Text>
+                </View>
+              ) : (
+                <View style={[styles.botRow, { paddingRight: 24 }]}>
+                  <BuddyAvatar size={30} />
+                  <View style={[styles.bubble, bubbleBot, { flexShrink: 1 }]}>
+                    <Text style={[styles.text, { color: colors.text }]}>{renderRich(m.content)}</Text>
+                  </View>
+                </View>
+              )}
               {m.actions?.length ? (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 38 }}>
                   {m.actions.map((k) => (
                     <TouchableOpacity
                       key={k}
@@ -186,8 +200,11 @@ export default function HelpChatScreen() {
           ))}
 
           {sending ? (
-            <View style={[styles.bubble, bubbleBot, { alignSelf: 'flex-start', marginTop: 10 }]}>
-              <ActivityIndicator size="small" color={colors.primary} />
+            <View style={[styles.botRow, { marginTop: 10 }]}>
+              <BuddyAvatar size={30} />
+              <View style={[styles.bubble, bubbleBot]}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
             </View>
           ) : null}
         </ScrollView>
@@ -230,6 +247,7 @@ export default function HelpChatScreen() {
 
 const styles = StyleSheet.create({
   bubble: { borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
+  botRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, alignSelf: 'flex-start' },
   text: { fontSize: 15, lineHeight: 21 },
   suggestion: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14 },
   actionBtn: { borderWidth: 1, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 12 },
