@@ -14,7 +14,7 @@ import { Stack, useRouter } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { Shield, Eye, Database, Trash2, ChevronRight, FileText, ShieldCheck, Smartphone } from 'lucide-react-native';
+import { Shield, Eye, Database, Trash2, ChevronRight, FileText, ShieldCheck, Smartphone, KeyRound } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
@@ -216,6 +216,16 @@ export default function PrivacySettingsScreen() {
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.content}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Účet</Text>
+          <PrivacyItem
+            icon={KeyRound}
+            title="Změnit heslo"
+            subtitle="Nastav si nové heslo k účtu"
+            onPress={() => router.push('/change-password')}
+          />
+
+          <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
+
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
             {t('privacySectionAppLock')}
           </Text>

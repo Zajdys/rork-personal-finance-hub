@@ -16,7 +16,10 @@ import { Stack } from 'expo-router';
 import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus, Check } from 'lucide-react-native';
 import { useFinanceStore, type Transaction } from '@/store/finance-store';
 import {
+  addUnmatchedPair,
   findPaymentInMonth,
+  linkedPaymentsInMonth,
+  loadUnmatchedPairs,
   markRecurringPaidOn,
   occurrenceInMonth,
 } from '@/lib/recurring-checklist';
@@ -185,6 +188,10 @@ export default function PersonalRecurringScreen() {
   const curY = nowD.getFullYear();
   const curM = nowD.getMonth() + 1;
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [unmatched, setUnmatched] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void loadUnmatchedPairs().then(setUnmatched);
+  }, []);
 
   const monthStatus = useMemo(() => {
     const used = new Set<string>();
@@ -192,13 +199,13 @@ export default function PersonalRecurringScreen() {
     for (const r of sorted) {
       if (!r.active || r.type !== 'expense') continue;
       const due = occurrenceInMonth(r, curY, curM);
-      const paid = findPaymentInMonth(r, transactions, curY, curM, used);
+      const paid = findPaymentInMonth(r, transactions, curY, curM, used, unmatched);
       if (paid) used.add(paid.id);
       if (!due && !paid) continue;
       map.set(r.id, { due: due ?? String(paid?.date ?? '').slice(0, 10), paid });
     }
     return map;
-  }, [sorted, transactions, curY, curM]);
+  }, [sorted, transactions, curY, curM, unmatched]);
 
   const paidCount = useMemo(
     () => Array.from(monthStatus.values()).filter((v) => v.paid).length,
@@ -218,29 +225,34 @@ export default function PersonalRecurringScreen() {
       if (!st) return;
       if (st.paid) {
         if (st.paid.recurringId !== rule.id) {
+          // Spárováno automaticky s platbou z výpisu / ručním výdajem.
+          const paidTx = st.paid;
           Alert.alert(
-            'Zaplaceno podle výpisu',
-            `Spárováno s platbou „${st.paid.title ?? ''}“ (${fmtDay(String(st.paid.date).slice(0, 10))}). Pokud to nesedí, uprav kategorii té platby.`,
+            'Odškrtnout platbu?',
+            `Platbu jsme spárovali s výdajem „${paidTx.title ?? ''}“ (${fmtDay(String(paidTx.date).slice(0, 10))}). Pokud to není ona, odškrtni ji — výdaj zůstane v přehledu.`,
+            [
+              { text: 'Nechat zaplacené', style: 'cancel' },
+              {
+                text: 'Odškrtnout',
+                style: 'destructive',
+                onPress: () => {
+                  void addUnmatchedPair(rule.id, paidTx.id).then(setUnmatched);
+                },
+              },
+            ],
           );
           return;
         }
-        Alert.alert('Označit jako nezaplacené?', `Smaže se výdaj ${rule.title} z ${fmtDay(String(st.paid.date).slice(0, 10))}.`, [
-          { text: 'Nechat zaplacené', style: 'cancel' },
-          {
-            text: 'Nezaplaceno',
-            style: 'destructive',
-            onPress: () => {
-              const paidYmd = String(st.paid!.date).slice(0, 10);
-              deleteTransaction(st.paid!.id);
-              // Platba je zase k zaplacení → vrátit splatnost, ať se ukáže i v „Co tě čeká“.
-              if (rule.nextDate.slice(0, 10) > paidYmd) {
-                void updatePersonalRecurringRule(user.id, rule.id, { nextDate: paidYmd }).then(() =>
-                  load({ silent: true }),
-                );
-              }
-            },
-          },
-        ]);
+        // Odškrtnutí vlastní fajfky: hned, bez dotazu (smaže výdaj vytvořený fajfkou, i případné duplicity).
+        const linked = linkedPaymentsInMonth(rule, transactions, curY, curM);
+        const paidYmd = String(st.paid.date).slice(0, 10);
+        for (const tx of linked) deleteTransaction(tx.id);
+        if (rule.nextDate.slice(0, 10) > paidYmd) {
+          setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, nextDate: paidYmd } : r)));
+          void updatePersonalRecurringRule(user.id, rule.id, { nextDate: paidYmd }).then(() =>
+            load({ silent: true }),
+          );
+        }
         return;
       }
       setBusyId(rule.id);
@@ -254,7 +266,7 @@ export default function PersonalRecurringScreen() {
       void load({ silent: true });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.id, monthStatus, addTransactions, deleteTransaction, load, t],
+    [user?.id, monthStatus, addTransactions, deleteTransaction, load, t, transactions, curY, curM],
   );
 
   return (
@@ -364,7 +376,7 @@ export default function PersonalRecurringScreen() {
                     {!item.active
                       ? t('personalRecurring.paused')
                       : monthStatus.get(item.id)?.paid
-                        ? `✓ zaplaceno ${fmtDay(String(monthStatus.get(item.id)!.paid!.date).slice(0, 10))}`
+                        ? `✓ zaplaceno ${fmtDay(String(monthStatus.get(item.id)!.paid!.date).slice(0, 10))}${monthStatus.get(item.id)!.paid!.recurringId === item.id ? '' : ' · podle výpisu'}`
                         : monthStatus.has(item.id)
                           ? `splatné ${fmtDay(monthStatus.get(item.id)!.due)} · odškrtni, až zaplatíš`
                           : t('personalRecurring.nextDate', { date: nextLabel })}

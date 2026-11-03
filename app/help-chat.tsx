@@ -45,6 +45,7 @@ const ACTIONS: Record<string, { label: string; href: string | { pathname: string
   report: { label: 'Měsíční report', href: '/monthly-report' },
   premium: { label: 'MoneyBuddy Premium', href: '/choose-subscription' },
   napoveda: { label: 'Nápověda', href: '/help-support' },
+  heslo: { label: 'Změnit heslo', href: '/change-password' },
 };
 
 const SUGGESTIONS = [

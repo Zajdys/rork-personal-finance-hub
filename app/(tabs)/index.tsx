@@ -11,6 +11,7 @@ import {
   Modal,
   Pressable,
   RefreshControl,
+  Image,
 } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -39,6 +40,7 @@ import {
   Check,
   Lock,
   Sparkles,
+  User as UserIcon,
 } from 'lucide-react-native';
 import { useDraggableList } from '@/lib/use-draggable-list';
 import {
@@ -1306,7 +1308,10 @@ export default function DashboardScreen() {
     () => formatDashboardTodayDate(numberLocale),
     [numberLocale, updateCounter],
   );
-  const avatarInitials = profileInitials(userProfile.firstName, userProfile.lastName);
+  const avatarInitialsRaw = profileInitials(userProfile.firstName, userProfile.lastName);
+  const emailInitial = (user?.email ?? '').trim().charAt(0).toUpperCase();
+  const avatarInitials = avatarInitialsRaw !== '?' ? avatarInitialsRaw : emailInitial;
+  const avatarPhoto = userProfile.avatarUrl && /^https?:\/\//.test(userProfile.avatarUrl) ? userProfile.avatarUrl : null;
 
   return (
     <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
@@ -1368,7 +1373,13 @@ export default function DashboardScreen() {
                 accessibilityLabel={t('profile')}
                 hitSlop={8}
               >
-                <Text style={styles.headerAvatarText}>{avatarInitials}</Text>
+                {avatarPhoto ? (
+                  <Image source={{ uri: avatarPhoto }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                ) : avatarInitials ? (
+                  <Text style={styles.headerAvatarText}>{avatarInitials}</Text>
+                ) : (
+                  <UserIcon color="#FFFFFF" size={20} />
+                )}
               </TouchableOpacity>
             </Animated.View>
           </View>

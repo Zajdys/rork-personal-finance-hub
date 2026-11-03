@@ -25,6 +25,7 @@ import {
 } from '@/lib/category-normalize';
 import { defaultSubcategoriesFor, getExpenseCategoryDef } from '@/constants/categories';
 import { classifyImportRow } from '@/lib/classify-import-category';
+import { CreateCategoryModal, type CreateCategoryResult } from '@/components/CreateCategoryModal';
 
 const DEFAULT_TOP_INCOME = ['Mzda', 'Freelance', 'Ostatní'] as const;
 
@@ -79,6 +80,7 @@ export function CategoryPicker({
   const [addingSubcategory, setAddingSubcategory] = useState(false);
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
   const [addingCustomMain, setAddingCustomMain] = useState(false);
+  const [createModal, setCreateModal] = useState<null | { parent: string | null }>(null);
   const [newCustomMainName, setNewCustomMainName] = useState('');
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -273,6 +275,33 @@ export function CategoryPicker({
     },
     [onChange],
   );
+
+  const handleModalCreate = (r: CreateCategoryResult) => {
+    const parent = createModal?.parent ?? null;
+    setCreateModal(null);
+    if (parent) {
+      const def = getExpenseCategoryDef(parent);
+      addCustomCategory({
+        id: Date.now().toString(),
+        name: r.name,
+        icon: def?.icon || '📦',
+        color: def?.color || '#6B7280',
+        type: 'expense',
+        parentCategory: parent,
+      });
+      setCategoryPickedManually(true);
+      setSuggestedCategory(null);
+      onChange(parent, r.name, true);
+    } else {
+      const exists = customCategories.some((c) => c.name.toLowerCase() === r.name.toLowerCase() && !c.parentCategory);
+      if (!exists) {
+        addCustomCategory({ id: Date.now().toString(), name: r.name, icon: r.icon, color: r.color, type, parentCategory: null });
+      }
+      setChipsExpanded(true);
+      pickCategory(r.name, true, null);
+    }
+    addPoints(1);
+  };
 
   const pickSuggested = () => {
     if (!suggestedCategory) return;
@@ -519,7 +548,7 @@ export function CategoryPicker({
                       if (onRequestCreateCategory) {
                         onRequestCreateCategory();
                       } else {
-                        setAddingCustomMain(true);
+                        setCreateModal({ parent: null });
                       }
                     }}
                   >
@@ -583,7 +612,7 @@ export function CategoryPicker({
                 styles.addCategoryCard,
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
-              onPress={() => onRequestCreateCategory?.()}
+              onPress={() => (onRequestCreateCategory ? onRequestCreateCategory() : setCreateModal({ parent: null }))}
             >
               <View style={[styles.categoryIcon, { backgroundColor: colors.muted }]}>
                 <Plus color={colors.textSecondary} size={24} />
@@ -660,7 +689,7 @@ export function CategoryPicker({
                   styles.subcategoryChip,
                   { backgroundColor: colors.muted, borderColor: colors.border },
                 ]}
-                onPress={() => setAddingSubcategory(true)}
+                onPress={() => setCreateModal({ parent: selectedCategory })}
               >
                 <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
                   {t('addTransaction.addSubcategory')}
@@ -680,6 +709,14 @@ export function CategoryPicker({
             {t('addTransaction.showAllCategories')}
           </Text>
         </TouchableOpacity>
+      ) : null}
+      {allowCreateCategory ? (
+        <CreateCategoryModal
+          visible={createModal !== null}
+          parentCategory={createModal?.parent ?? null}
+          onClose={() => setCreateModal(null)}
+          onCreate={handleModalCreate}
+        />
       ) : null}
     </View>
   );
