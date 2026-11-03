@@ -147,6 +147,7 @@ export async function markRecurringPaidOn(
     type: rule.type,
   });
   // Platíš dřív než ve splatnosti → zapíše se dnešní datum (ne budoucí).
+  const dueYmd = ymd;
   const today = toYyyyMmDd(new Date());
   if (ymd > today && ymd.slice(0, 7) === today.slice(0, 7)) ymd = today;
   const id = randomUUID();
@@ -173,8 +174,9 @@ export async function markRecurringPaidOn(
     category_source: 'user',
   });
   if (error && error.code !== '23505') return { tx: null, error: new Error(error.message) };
-  if (rule.nextDate.slice(0, 10) <= ymd) {
-    await updatePersonalRecurringRule(userId, rule.id, { nextDate: advanceRecurringDate(ymd, rule.frequency) });
+  // Další splatnost se posouvá od data splatnosti (ne od dne zaplacení), i když platíš dřív.
+  if (rule.nextDate.slice(0, 10) <= dueYmd) {
+    await updatePersonalRecurringRule(userId, rule.id, { nextDate: advanceRecurringDate(dueYmd, rule.frequency) });
   }
   if (error) {
     // Už existuje (dvojí ťuknutí / dřívější zápis) → vrať existující řádek, ať se fajfka ukáže.

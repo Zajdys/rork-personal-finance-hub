@@ -39,7 +39,6 @@ import {
   SlidersHorizontal,
   Check,
   Lock,
-  Sparkles,
   User as UserIcon,
 } from 'lucide-react-native';
 import { useDraggableList } from '@/lib/use-draggable-list';
@@ -109,6 +108,7 @@ import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useMonthPlan } from '@/hooks/use-month-plan';
 import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { HelpChatIntroCard } from '@/components/HelpChatIntroCard';
+import { BuddyAvatar } from '@/components/BuddyAvatar';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 
 const { width } = Dimensions.get('window');
@@ -1358,13 +1358,13 @@ export default function DashboardScreen() {
                 </Text>
               </View>
               <TouchableOpacity
-                style={[styles.headerAvatar, { marginRight: 10 }]}
+                style={[styles.headerAvatar, { marginRight: 10, borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)', overflow: 'hidden' }]}
                 onPress={() => safePush('/help-chat')}
                 accessibilityRole="button"
                 accessibilityLabel="Zeptej se MoneyBuddy"
                 hitSlop={8}
               >
-                <Sparkles color="#FFFFFF" size={18} />
+                <BuddyAvatar size={36} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.headerAvatar}
@@ -1413,6 +1413,7 @@ export default function DashboardScreen() {
     >
       {!isIOS ? <View style={{ height: scrollDistance }} collapsable={false} /> : null}
       <View style={{ maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }}>
+      <HelpChatIntroCard style={{ marginHorizontal: 16, marginTop: 10, marginBottom: 2 }} />
       {remoteLoadError ? (
         <View
           style={{
@@ -1701,7 +1702,6 @@ export default function DashboardScreen() {
 
       <OverviewFilterBadge style={{ marginHorizontal: 16, marginBottom: 8 }} />
 
-      <HelpChatIntroCard style={{ marginHorizontal: 16, marginBottom: 16 }} />
 
 
       <View style={[styles.financeGrid, isDesktop && styles.financeGridDesktop]}>

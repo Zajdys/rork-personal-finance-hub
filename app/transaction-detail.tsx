@@ -53,6 +53,7 @@ export default function TransactionDetailScreen() {
     deleteTransaction,
     getAllCategories,
     getCustomSubcategories,
+    customCategories,
   } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
   const { t, language } = useLanguageStore();
@@ -461,7 +462,11 @@ export default function TransactionDetailScreen() {
             .filter((name) =>
               transaction.type === 'income'
                 ? true
-                : isPickerExpenseCategory(name) || name === category || name === 'Převod' || name === 'Investice',
+                : isPickerExpenseCategory(name) ||
+                  name === category ||
+                  name === 'Převod' ||
+                  name === 'Investice' ||
+                  customCategories.some((c) => c.name === name && !c.parentCategory && c.type === 'expense'),
             )
             .map((name) => (
             <TouchableOpacity

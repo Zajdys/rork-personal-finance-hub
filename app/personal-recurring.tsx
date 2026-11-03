@@ -207,6 +207,15 @@ export default function PersonalRecurringScreen() {
     return map;
   }, [sorted, transactions, curY, curM, unmatched]);
 
+  // Pořadí v seznamu podle splatnosti v tomto měsíci — po zaškrtnutí položky neposkakují.
+  const displayRules = useMemo(() => {
+    const key = (r: PersonalRecurringRule) => monthStatus.get(r.id)?.due ?? r.nextDate.slice(0, 10);
+    return [...sorted].sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return key(a).localeCompare(key(b)) || a.title.localeCompare(b.title);
+    });
+  }, [sorted, monthStatus]);
+
   const paidCount = useMemo(
     () => Array.from(monthStatus.values()).filter((v) => v.paid).length,
     [monthStatus],
@@ -245,11 +254,12 @@ export default function PersonalRecurringScreen() {
         }
         // Odškrtnutí vlastní fajfky: hned, bez dotazu (smaže výdaj vytvořený fajfkou, i případné duplicity).
         const linked = linkedPaymentsInMonth(rule, transactions, curY, curM);
-        const paidYmd = String(st.paid.date).slice(0, 10);
+        // Vrátit splatnost na původní den v tomto měsíci (ne na den, kdy se odškrtlo).
+        const dueYmd = st.due || String(st.paid.date).slice(0, 10);
         for (const tx of linked) deleteTransaction(tx.id);
-        if (rule.nextDate.slice(0, 10) > paidYmd) {
-          setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, nextDate: paidYmd } : r)));
-          void updatePersonalRecurringRule(user.id, rule.id, { nextDate: paidYmd }).then(() =>
+        if (rule.nextDate.slice(0, 10) > dueYmd) {
+          setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, nextDate: dueYmd } : r)));
+          void updatePersonalRecurringRule(user.id, rule.id, { nextDate: dueYmd }).then(() =>
             load({ silent: true }),
           );
         }
@@ -308,7 +318,7 @@ export default function PersonalRecurringScreen() {
         />
       ) : (
         <FlatList
-          data={sorted}
+          data={displayRules}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           ListHeaderComponent={

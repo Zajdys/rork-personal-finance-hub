@@ -14,6 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Keyboard,
+  useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -51,6 +53,20 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
   const [icon, setIcon] = useState('🛒');
   const [color, setColor] = useState(CATEGORY_COLORS[0]!);
   const [customEmoji, setCustomEmoji] = useState('');
+  const { height: winH } = useWindowDimensions();
+  const [kbH, setKbH] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) =>
+      setKbH(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKbH(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  // Výška seznamu emoji tak, aby se okno vešlo i s klávesnicí (hlavička + tlačítka ≈ 230 pt).
+  const listMaxH = Math.max(150, Math.min(440, winH - kbH - 290));
 
   useEffect(() => {
     if (visible) {
@@ -80,7 +96,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
             <Text style={[styles.hint, { color: colors.textSecondary }]}>Patří pod: {parentCategory}</Text>
           ) : null}
 
-          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: 8 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: listMaxH }} contentContainerStyle={{ paddingBottom: 8 }}>
             {/* Náhled + název */}
             <View style={[styles.nameRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
               {!isSub ? (

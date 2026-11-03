@@ -86,16 +86,24 @@ export function CategoryPicker({
 
   const categoryData = getAllCategories(type);
 
+  /** Vlastní hlavní kategorie uživatele (např. „Zubař“) — v pickeru vždy viditelné. */
+  const customMainNames = useMemo(
+    () => new Set(customCategories.filter((c) => c.type === type && !c.parentCategory).map((c) => c.name)),
+    [customCategories, type],
+  );
+
   const pickerCategories = useMemo(() => {
     return Object.entries(categoryData)
-      .filter(([name]) => (type === 'expense' ? isPickerExpenseCategory(name) : name !== 'Převod'))
+      .filter(([name]) =>
+        customMainNames.has(name) || (type === 'expense' ? isPickerExpenseCategory(name) : name !== 'Převod'),
+      )
       .map(([name, data]) => ({
         id: name,
         name,
         color: data.color,
         icon: data.icon || '📦',
       }));
-  }, [categoryData, type]);
+  }, [categoryData, type, customMainNames]);
 
   /** Top 3 (chips) nebo top 6 (grid). */
   const topCategoryNames = useMemo(() => {
@@ -108,7 +116,7 @@ export function CategoryPicker({
     for (const tx of transactions) {
       if (tx.type !== type) continue;
       const cat = mainCategoryName(tx.category, tx.subcategory);
-      if (type === 'expense' && !isPickerExpenseCategory(cat)) continue;
+      if (type === 'expense' && !isPickerExpenseCategory(cat) && !customMainNames.has(cat)) continue;
       if (type === 'income' && cat === 'Převod') continue;
       counts.set(cat, (counts.get(cat) || 0) + 1);
     }
@@ -123,7 +131,7 @@ export function CategoryPicker({
       top.push(fill);
     }
     return top;
-  }, [transactions, type, layout]);
+  }, [transactions, type, layout, customMainNames]);
 
   const chipsCollapsedNames = useMemo(() => {
     const top = [...topCategoryNames].slice(0, 3);
@@ -632,36 +640,6 @@ export function CategoryPicker({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.subcategoryRow}
           >
-            {subcategoryChips.map((sub) => {
-              const active = selectedSubcategory === sub;
-              return (
-                <TouchableOpacity
-                  key={sub}
-                  style={[
-                    styles.subcategoryChip,
-                    {
-                      backgroundColor: active ? colors.primary + '22' : colors.surface,
-                      borderColor: active ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => {
-                    setCategoryPickedManually(true);
-                    setSuggestedCategory(null);
-                    onChange(selectedCategory, active ? null : sub, true);
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active ? colors.primary : colors.text,
-                      fontWeight: active ? '700' : '500',
-                      fontSize: 13,
-                    }}
-                  >
-                    {sub}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
             {addingSubcategory ? (
               <View
                 style={[
@@ -696,6 +674,36 @@ export function CategoryPicker({
                 </Text>
               </TouchableOpacity>
             )}
+            {subcategoryChips.map((sub) => {
+              const active = selectedSubcategory === sub;
+              return (
+                <TouchableOpacity
+                  key={sub}
+                  style={[
+                    styles.subcategoryChip,
+                    {
+                      backgroundColor: active ? colors.primary + '22' : colors.surface,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setCategoryPickedManually(true);
+                    setSuggestedCategory(null);
+                    onChange(selectedCategory, active ? null : sub, true);
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active ? colors.primary : colors.text,
+                      fontWeight: active ? '700' : '500',
+                      fontSize: 13,
+                    }}
+                  >
+                    {sub}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       ) : null}
