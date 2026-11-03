@@ -520,7 +520,8 @@ function extractFioCounterparty(
       if (opts.statementAccount && n === opts.statementAccount) continue;
       counterpartyAccount = n;
       const next = block[j + 1];
-      if (next && !/^\d/.test(next) && next.length > 2 && next.length < 80) {
+      // Ne částka („-193,60“) ani datum / číslo — jen jméno protistrany.
+      if (next && !/^\s*[-+]?\s*\d/.test(next) && next.trim().length > 2 && next.length < 80) {
         if (!isOpTypeLine(next) && !/^Nákup:/i.test(next) && !/^VS:/i.test(next)) {
           counterpartyName = next.trim();
         }

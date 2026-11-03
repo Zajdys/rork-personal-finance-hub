@@ -34,7 +34,30 @@ export const REVOLUT_HEADER =
 
 const SUPPORTED_CURRENCIES = new Set(['CZK', 'EUR', 'USD']);
 
-const SKIP_TYPES = new Set(['TEMP_BLOCK', 'CARD_CREDIT']);
+/** TEMP_BLOCK = jen blokace. CARD_CREDIT je skutečný příjem na kartu (např. výběr z Trading 212 / Coinbase) — zpracovat. */
+const SKIP_TYPES = new Set(['TEMP_BLOCK']);
+
+
+const COMPANY_HINT_RE =
+  /\b(ltd|limited|gmbh|s\.?r\.?o|a\.s|inc|llc|bv|ag|sa|plc|corp|company|markets|bank|exchange|trading|pay|wallet|card|revolut)\b/i;
+
+/** „ANNA MEDVEDOVA“, „Martin Hostek“ — 2–4 slova z písmen, ne firma. */
+function looksLikeRevolutPersonName(party: string): boolean {
+  const p = party.trim();
+  if (!p || COMPANY_HINT_RE.test(p) || /\d/.test(p)) return false;
+  const words = p.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 4) return false;
+  return words.every((w) => /^[A-Za-zÀ-žĀ-ſ.'-]{2,}$/.test(w));
+}
+
+function titleCaseName(n: string): string {
+  return n
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
 
 type PapaRow = Record<string, string>;
 
@@ -143,6 +166,7 @@ function pushMoneyRow(
     bankTransactionId: string;
     isRefund?: boolean;
     categorySource?: ParsedImportRow['categorySource'];
+    counterpartyName?: string;
   },
 ): void {
   const amount = Math.abs(opts.rawAmount);
@@ -160,6 +184,7 @@ function pushMoneyRow(
     bankTransactionId: opts.bankTransactionId,
     ...(opts.isRefund ? { isRefund: true } : {}),
     ...(opts.categorySource ? { categorySource: opts.categorySource } : {}),
+    ...(opts.counterpartyName ? { counterpartyName: opts.counterpartyName } : {}),
     ...(isCzk
       ? { originalAmount: null, originalCurrency: null }
       : {
@@ -243,15 +268,28 @@ export function parseRevolutCsv(
       let bucket: ImportBucket;
       let isRefund = false;
       let categorySource: ParsedImportRow['categorySource'] | undefined;
+      let counterpartyName: string | undefined;
 
       switch (revolutType) {
         case 'Topup':
         case 'Exchange':
-        case 'Transfer': {
+        case 'Transfer':
+        case 'CARD_CREDIT': {
           const cat = categorizeTransferLike(description, names);
           category = cat.category;
           bucket = cat.bucket;
           categorySource = cat.categorySource;
+          // „Transfer to ANNA MEDVEDOVA“ → Platby lidem (jako u českých bank s protiúčtem).
+          if (revolutType === 'Transfer' && category === 'Ostatní') {
+            const party = extractTransferPartyName(description);
+            if (party && looksLikeRevolutPersonName(party)) {
+              counterpartyName = titleCaseName(party);
+              if (type === 'expense') {
+                category = 'Platby lidem';
+                categorySource = 'keyword';
+              }
+            }
+          }
           break;
         }
         case 'Card Payment': {
@@ -315,6 +353,7 @@ export function parseRevolutCsv(
         }),
         isRefund,
         categorySource,
+        counterpartyName,
       });
     }
 

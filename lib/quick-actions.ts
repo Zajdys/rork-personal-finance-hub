@@ -65,12 +65,12 @@ export type QuickActionDef = {
 /** Akce bez existující routy — záměrně mimo katalog. */
 export const QUICK_ACTIONS_SKIPPED_NO_ROUTE = ['categories'] as const;
 
+/** Výchozí 4 rychlé akce pro nového uživatele (jedna řada) — dál si je každý upraví přes „Upravit“. */
 export const DEFAULT_QUICK_ACTION_IDS: QuickActionId[] = [
   'import',
-  'investice',
-  'save',
-  'split',
   'monthly_report',
+  'split',
+  'save',
 ];
 
 export const MAX_QUICK_ACTIONS = 8;

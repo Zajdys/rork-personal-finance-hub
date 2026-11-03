@@ -630,6 +630,26 @@ export const MERCHANT_DICTIONARY: MerchantDictionaryEntry[] = [
   { key: 'SUNNYSOFT', category: 'Nákupy', subcategory: 'Elektronika' },
   { key: 'NANU NANA', category: 'Nákupy' },
   { key: 'NANU', category: 'Nákupy' },
+  // Doplněno podle testu reálných výpisů (11/2026)
+  { key: 'CASINO', category: 'Volný čas', subcategory: 'Hry' },
+  { key: 'ALLWYN', category: 'Volný čas', subcategory: 'Hry' },
+  { key: 'BETANO', category: 'Volný čas', subcategory: 'Hry' },
+  { key: 'SKIN.CLUB', category: 'Volný čas', subcategory: 'Hry' },
+  { key: 'LUXDROP', category: 'Volný čas', subcategory: 'Hry' },
+  { key: 'G2A', category: 'Volný čas', subcategory: 'Hry' },
+  { key: 'IQLANDIA', category: 'Volný čas', subcategory: 'Kultura' },
+  { key: 'HEROHERO', category: 'Předplatné', subcategory: 'Aplikace' },
+  { key: 'FRAMER', category: 'Předplatné', subcategory: 'Aplikace' },
+  { key: 'RORK', category: 'Předplatné', subcategory: 'Aplikace' },
+  { key: 'AIVIDEO', category: 'Předplatné', subcategory: 'Aplikace' },
+  { key: 'MINIMARKET', category: 'Jídlo', subcategory: 'Potraviny' },
+  { key: 'DELIKOMAT', category: 'Jídlo', subcategory: 'Potraviny' },
+  { key: 'BOMBAY EXPRESS', category: 'Jídlo', subcategory: 'Restaurace' },
+  { key: 'PEKING DUCK', category: 'Jídlo', subcategory: 'Restaurace' },
+  { key: 'ALBI', category: 'Nákupy' },
+  { key: 'KNIHOBOT', category: 'Vzdělání' },
+  { key: 'SBERNY DVUR', category: 'Bydlení', subcategory: 'Údržba' },
+  { key: 'KVETINY', category: 'Nákupy' },
 ];
 
 const SORTED = [...MERCHANT_DICTIONARY].sort((a, b) => b.key.length - a.key.length);

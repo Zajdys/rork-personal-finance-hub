@@ -246,8 +246,20 @@ function isCardRefund(blockText: string, rawAmount: number, hasPk: boolean): boo
  * Řádek obchodníka „Název; City; CZE“ (po PK) → title.
  */
 export function extractRaiffeisenMerchant(line: string): string {
-  const beforeSemicolon = line.split(';')[0].trim();
-  return cleanMerchantName(beforeSemicolon, line);
+  const norm = stripRbForeignAmountPrefix(line);
+  const beforeSemicolon = norm.split(';')[0].trim();
+  return cleanMerchantName(beforeSemicolon, norm);
+}
+
+/** Terminál někdy pošle háček jako „#»R#“ (ST#»R#ELNICE → STŘELNICE). */
+function fixRbCaronMojibake(s: string): string {
+  const map: Record<string, string> = { R: 'Ř', r: 'ř', C: 'Č', c: 'č', S: 'Š', s: 'š', Z: 'Ž', z: 'ž', E: 'Ě', e: 'ě', N: 'Ň', n: 'ň', T: 'Ť', t: 'ť', D: 'Ď', d: 'ď' };
+  return s.replace(/#»([A-Za-z])#/g, (m, ch: string) => map[ch] ?? m);
+}
+
+/** Platba v cizí měně: „8,00 EUR;HEROHERO.CO; PRAGUE; CZE“ → „HEROHERO.CO; PRAGUE; CZE“. */
+export function stripRbForeignAmountPrefix(line: string): string {
+  return fixRbCaronMojibake(String(line ?? '')).replace(/^\s*-?\d[\d\s\u00a0]*[.,]\d{1,2}\s*[A-Z]{3}\s*;\s*/, '');
 }
 
 /** Odstraní číslo transakce zleva a osmici–dvanáctici VS/REF tokeny (slovní hranice). */
@@ -273,7 +285,7 @@ function rbHumanTitle(
 
   // PK + obchodník = karta (nákup, vratka) i bez „Platba kartou“ / „Platba na internetu“.
   if (merchantAfterPk) {
-    const rawLine = merchantAfterPk;
+    const rawLine = stripRbForeignAmountPrefix(merchantAfterPk);
     const cleaned = extractRaiffeisenMerchant(rawLine);
     const letters = cleaned.replace(/[^A-Za-zÁ-ž]/g, '');
     if (letters.length < 3) {

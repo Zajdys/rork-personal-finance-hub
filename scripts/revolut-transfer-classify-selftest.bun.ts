@@ -156,7 +156,7 @@ const expect: { desc: string; category: string; source?: string }[] = [
   { desc: 'Exchanged to EUR', category: 'Převod', source: 'transfer' },
   { desc: 'Apple Pay top-up by *1234', category: 'Převod', source: 'transfer' },
   { desc: `To ${OWNER}`, category: 'Převod', source: 'transfer' },
-  { desc: 'Transfer to Petra Nováková', category: 'Ostatní' }, // NE Převod
+  { desc: 'Transfer to Petra Nováková', category: 'Platby lidem' }, // NE Převod — platba osobě
   { desc: 'Payment from Acme s.r.o.', category: 'Ostatní' }, // NE Převod
   { desc: 'To XTB', category: 'Investice' },
   { desc: 'From Flexible Cash Funds', category: 'Investice' },

@@ -18,7 +18,14 @@ import { X, ChevronDown, Check } from 'lucide-react-native';
 import type { Transaction } from '@/store/finance-store';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/store/finance-store';
 import type { ParsedImportRow } from '@/lib/bank-statement-parser';
-import { classifyImportRow, buildCounterpartyNameByAccount, withBackfilledCounterpartyName } from '@/lib/classify-import-category';
+import {
+  classifyImportRow,
+  buildCounterpartyNameByAccount,
+  withBackfilledCounterpartyName,
+  detectSalaryPayerKeys,
+  salaryPayerKey,
+  isSalaryText,
+} from '@/lib/classify-import-category';
 import { mapClassifySourceToCategorySource, type CategorySource } from '@/lib/categorization';
 import { transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
 import { getAuthUserId } from '@/lib/supabase-transactions';
@@ -221,6 +228,39 @@ export default function BankStatementImportModal({
         });
 
         if (cancelled) return;
+
+        // Mzda: pravidelný příjem od firmy (2+ měsíce v importu nebo v už uložených transakcích).
+        const salaryKeys = detectSalaryPayerKeys([
+          ...rows.map((r) => ({
+            type: r.type,
+            amount: r.amount,
+            date: r.date,
+            counterpartyName: r.counterpartyName,
+            counterpartyAccount: r.counterpartyAccount,
+            description: r.description,
+            isRefund: r.isRefund,
+            category: r.category,
+          })),
+          ...existingSnapshot.map((t) => ({
+            type: t.type,
+            amount: Number(t.amount) || 0,
+            date: String(t.date ?? ''),
+            counterpartyName: t.counterpartyName,
+            counterpartyAccount: t.counterpartyAccount,
+            description: t.description ?? t.title,
+            isRefund: t.isRefund,
+            category: t.category,
+          })),
+        ]);
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i]!;
+          if (r.type !== 'income' || r.isRefund) continue;
+          if (r.category && r.category !== 'Ostatní') continue;
+          const key = salaryPayerKey(r);
+          if ((key && salaryKeys.has(key)) || isSalaryText(r)) {
+            rows[i] = { ...r, category: 'Mzda', categorySource: 'keyword' as CategorySource };
+          }
+        }
 
         // Přepočet ČNB stejně jako při uložení — náhled ukáže CZK + původní měnu
         const needsFx = rows.some(

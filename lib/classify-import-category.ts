@@ -123,6 +123,61 @@ function pickMerchantSource(input: ClassifyImportInput): string {
   ).trim();
 }
 
+// --- Mzda: pravidelná příjmová platba od firmy (např. „SERW, SPOL. S R.O.“) ---
+
+const COMPANY_NAME_RE =
+  /(\bs\.?\s?r\.?\s?o\b|\bspol\.|\ba\.\s?s\.?(?=\s|$|,)|\bs\.\s?p\.|\bv\.\s?o\.\s?s\.|\bk\.\s?s\.|\bz\.\s?s\.|\bo\.\s?p\.\s?s\.|\bgmbh\b|\bltd\b|\binc\b|\bs\.\s?a\.)/i;
+const SALARY_TEXT_RE = /\b(mzda|mzdy|vyplata|výplata|salary|payroll|odmena za praci|odměna za práci)\b/i;
+const SALARY_MIN_CZK = 8000;
+
+export type SalaryDetectRow = {
+  type: 'income' | 'expense';
+  amount: number;
+  date: string;
+  counterpartyName?: string | null;
+  counterpartyAccount?: string | null;
+  description?: string | null;
+  title?: string | null;
+  isRefund?: boolean;
+  category?: string | null;
+};
+
+export function salaryPayerKey(r: Pick<SalaryDetectRow, 'counterpartyName' | 'counterpartyAccount'>): string | null {
+  const acc = normalizeAccount(r.counterpartyAccount ?? undefined);
+  if (acc) return `acc:${acc}`;
+  const n = String(r.counterpartyName ?? '').trim().toLowerCase();
+  return n ? `name:${n}` : null;
+}
+
+/** Text výslovně říká mzda / výplata. */
+export function isSalaryText(r: Pick<SalaryDetectRow, 'description' | 'title' | 'counterpartyName'>): boolean {
+  const t = [r.description, r.title, r.counterpartyName].filter(Boolean).join(' ');
+  return SALARY_TEXT_RE.test(t);
+}
+
+/**
+ * Plátci mzdy: firma (s.r.o., a.s., …), příjem ≥ 8 000 Kč aspoň ve 2 různých měsících.
+ * Vstup = importované řádky + už uložené transakce (aby šla mzda poznat i z 1měsíčního výpisu).
+ */
+export function detectSalaryPayerKeys(rows: SalaryDetectRow[]): Set<string> {
+  const months = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (r.type !== 'income' || r.isRefund) continue;
+    if (r.category === 'Převod' || r.category === 'Investice') continue;
+    if (!(Number(r.amount) >= SALARY_MIN_CZK)) continue;
+    const name = String(r.counterpartyName ?? '');
+    if (!COMPANY_NAME_RE.test(name) && !isSalaryText(r)) continue;
+    const key = salaryPayerKey(r);
+    if (!key) continue;
+    const ym = String(r.date ?? '').slice(0, 7);
+    if (!months.has(key)) months.set(key, new Set());
+    months.get(key)!.add(ym);
+  }
+  const out = new Set<string>();
+  for (const [k, m] of months) if (m.size >= 2) out.add(k);
+  return out;
+}
+
 /**
  * Doplň counterparty_name z jiných řádků se stejným normalizovaným účtem.
  */

@@ -306,6 +306,16 @@ export default function WelcomeTourScreen() {
         // Paywall po průvodci NEukazujeme: kdo chtěl Premium, viděl ho po registraci;
         // kdo zvolil „Začít zdarma“, jde rovnou na rychlé nastavení / Přehled.
         {
+          if (href !== '/(tabs)') {
+            // Uživatel chce rovnou import / přidat výdaj → gate v _layout nesmí přesměrovat na otázky.
+            // Rychlé nastavení mu pak nabídne karta na Přehledu.
+            const { suppressNextTabsRedirect } = await import('@/lib/nav-guards');
+            const { markQuickSetupAutoShown } = await import('@/lib/quick-setup');
+            const { supabase } = await import('@/lib/supabase');
+            const { data } = await supabase.auth.getUser();
+            if (data.user?.id) await markQuickSetupAutoShown(data.user.id);
+            suppressNextTabsRedirect();
+          }
           await completeWelcomeTour();
           if (href === '/(tabs)/add') {
             router.replace({ pathname: '/(tabs)/add', params: { type: 'expense' } });

@@ -31,6 +31,7 @@ const COL = {
   counterpartyName: '#Plátce/Příjemce',
   counterpartyAccount: '#Číslo účtu plátce/příjemce',
   amount: '#Částka transakce',
+  balance: '#Účetní zůstatek po transakci',
 } as const;
 
 const TABLE_HEADER_MARKER = '#Datum zaúčtování transakce';
@@ -303,7 +304,10 @@ export function parseMbankCzCsv(
     const amount = Math.abs(rawAmount);
 
     const isOwn = isOwnCounterpartyAccount(counterpartyAccount, ownerNorm);
-    const treatAsTransfer = isOwn || (Boolean(counterpartyAccount) && isTransfer);
+    // Převod = jen vlastní účet. Platba cizímu účtu (nájem, kamarád) je normální výdaj/příjem —
+    // vlastní účty podle jména pak nabídne návrh „Je tohle tvůj účet?“ po importu.
+    const treatAsTransfer = isOwn;
+    void isTransfer;
 
     let category: string;
     let bucket: ImportBucket;
@@ -322,10 +326,17 @@ export function parseMbankCzCsv(
       }
     }
 
+    // mBank nemá ID transakce → otisk s účetním zůstatkem po transakci (rozliší 2 stejné nákupy v 1 dni).
+    const balanceRaw = String(rec[COL.balance] ?? '').trim();
+    const bankTransactionId = balanceRaw
+      ? `mbank|${date}|${rawAmount.toFixed(2)}|${parseAmount(balanceRaw).toFixed(2)}`
+      : undefined;
+
     rows.push({
       date,
       bookingDate,
       rawAmount,
+      ...(bankTransactionId ? { bankTransactionId } : {}),
       description: isOwn ? 'Převod mezi účty' : description,
       type,
       amount,

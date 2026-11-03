@@ -68,10 +68,10 @@ const EXPECT: Expect[] = [
   {
     file: 'eur.csv',
     currency: 'EUR',
-    completedMain: 448, // 457 COMPLETED − 9 CARD_CREDIT
+    completedMain: 457, // 457 COMPLETED vč. 9× CARD_CREDIT (výběr z Trading 212 / Coinbase na kartu = příjem)
     feeCount: 6,
     expenseWithFees: 22_906.12,
-    income: 21_382.73, // bez CARD_CREDIT
+    income: 22_906.12, // vč. CARD_CREDIT 1 523,39 € (sedí se zůstatkem ve výpisu)
     expenseMain: 22_903.6,
     byType: {
       Exchange: 190,
@@ -167,7 +167,7 @@ for (const exp of EXPECT) {
   for (const [t, n] of Object.entries(exp.byType)) {
     assert(byType[t] === n, `${exp.file} type ${t}: got ${byType[t]} want ${n}`);
   }
-  assert(!byType['CARD_CREDIT'], `${exp.file} CARD_CREDIT skipped`);
+  if (exp.file === 'eur.csv') assert(byType['CARD_CREDIT'] === 9, `${exp.file} CARD_CREDIT imported`);
   assert(!byType['TEMP_BLOCK'], `${exp.file} TEMP_BLOCK skipped`);
 
   // Sumy v původní měně
