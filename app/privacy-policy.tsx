@@ -45,7 +45,7 @@ function Bullet({ children, colors }: { children: React.ReactNode; colors: { tex
 
 export default function PrivacyPolicyScreen() {
   const { colors } = useTheme();
-  const { t } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
 
   const openUrl = (url: string) => {
     void Linking.openURL(url);
@@ -63,107 +63,186 @@ export default function PrivacyPolicyScreen() {
       >
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>MoneyBuddy – Czech Finance</Text>
         <Text style={[styles.updated, { color: colors.textSecondary }]}>
-          Poslední aktualizace: 29. 10. 2026
+          {tr('Poslední aktualizace: 29. 10. 2026', 'Last updated: 29 October 2026')}
         </Text>
+        {language === 'en' ? (
+          <Text style={[styles.updated, { color: colors.textSecondary, marginTop: -8 }]}>
+            This is a translation for convenience; the Czech version is legally binding.
+          </Text>
+        ) : null}
 
         <Pressable onPress={() => openUrl(PRIVACY_POLICY_URL)} style={styles.webLink}>
           <Text style={[styles.webLinkText, { color: colors.primary }]}>{PRIVACY_POLICY_URL}</Text>
         </Pressable>
 
-        <Section title="1. Správce osobních údajů" colors={colors}>
+        <Section title={tr('1. Správce osobních údajů', '1. Data controller')} colors={colors}>
           <Body colors={colors}>
-            {`Aplikaci MoneyBuddy provozuje Jan Hájek (dále jen „my“ nebo „správce“).`}
+            {tr(
+              'Aplikaci MoneyBuddy provozuje Jan Hájek (dále jen „my“ nebo „správce“).',
+              'The MoneyBuddy app is operated by Jan Hájek (“we” or the “controller”).',
+            )}
             {'\n'}
-            Kontakt:{' '}
+            {tr('Kontakt', 'Contact')}:{' '}
             <Text style={{ color: colors.primary }} onPress={() => openUrl('mailto:privacy@moneybuddy.cz')}>
               privacy@moneybuddy.cz
             </Text>
           </Body>
         </Section>
 
-        <Section title="2. Jaké údaje zpracováváme" colors={colors}>
+        <Section title={tr('2. Jaké údaje zpracováváme', '2. What data we process')} colors={colors}>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>Údaje účtu:</Text> e-mailová adresa, jméno (volitelné)
+            <Text style={styles.bold}>{tr('Údaje účtu:', 'Account data:')}</Text>{' '}
+            {tr('e-mailová adresa, jméno (volitelné)', 'e-mail address, name (optional)')}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>Finanční data:</Text> transakce, příjmy, výdaje, investice které sami zadáte
+            <Text style={styles.bold}>{tr('Finanční data:', 'Financial data:')}</Text>{' '}
+            {tr(
+              'transakce, příjmy, výdaje, investice které sami zadáte',
+              'transactions, income, expenses and investments you enter yourself',
+            )}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>Technické údaje:</Text> typ zařízení, verze OS, anonymní identifikátor
+            <Text style={styles.bold}>{tr('Technické údaje:', 'Technical data:')}</Text>{' '}
+            {tr('typ zařízení, verze OS, anonymní identifikátor', 'device type, OS version, anonymous identifier')}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>Předplatné:</Text> stav nákupu přes App Store / Google Play (RevenueCat)
+            <Text style={styles.bold}>{tr('Předplatné:', 'Subscription:')}</Text>{' '}
+            {tr(
+              'stav nákupu přes App Store / Google Play (RevenueCat)',
+              'purchase status via the App Store / Google Play (RevenueCat)',
+            )}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>Notifikace:</Text> push token zařízení (Expo)
+            <Text style={styles.bold}>{tr('Notifikace:', 'Notifications:')}</Text>{' '}
+            {tr('push token zařízení (Expo)', 'device push token (Expo)')}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>E-maily s novinkami:</Text> jen s tvým výslovným souhlasem (zaškrtnutí při registraci nebo v Profil → Notifikace). Souhlas můžeš kdykoli odvolat tamtéž nebo odkazem v patičce každého e-mailu.
+            <Text style={styles.bold}>{tr('E-maily s novinkami:', 'Newsletter e-mails:')}</Text>{' '}
+            {tr(
+              'jen s tvým výslovným souhlasem (zaškrtnutí při registraci nebo v Profil → Notifikace). Souhlas můžeš kdykoli odvolat tamtéž nebo odkazem v patičce každého e-mailu.',
+              'only with your explicit consent (a checkbox at sign-up or in Profile → Notifications). You can withdraw consent at any time in the same place or via the link in the footer of every e-mail.',
+            )}
           </Bullet>
         </Section>
 
-        <Section title="3. Proč údaje zpracováváme" colors={colors}>
-          <Bullet colors={colors}>Poskytování služeb aplikace (správa financí, synchronizace)</Bullet>
-          <Bullet colors={colors}>Sdílení dat v rámci domácnosti (pokud tuto funkci využíváte)</Bullet>
-          <Bullet colors={colors}>Správa předplatného a obnovení nákupů</Bullet>
-          <Bullet colors={colors}>Technická podpora a oprava chyb</Bullet>
-          <Bullet colors={colors}>Připomínky splatností a předplatného (pokud je povolíte)</Bullet>
+        <Section title={tr('3. Proč údaje zpracováváme', '3. Why we process data')} colors={colors}>
+          <Bullet colors={colors}>
+            {tr('Poskytování služeb aplikace (správa financí, synchronizace)', 'Providing the app’s services (managing finances, sync)')}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr('Sdílení dat v rámci domácnosti (pokud tuto funkci využíváte)', 'Sharing data within a household (if you use this feature)')}
+          </Bullet>
+          <Bullet colors={colors}>{tr('Správa předplatného a obnovení nákupů', 'Managing subscriptions and restoring purchases')}</Bullet>
+          <Bullet colors={colors}>{tr('Technická podpora a oprava chyb', 'Technical support and bug fixing')}</Bullet>
+          <Bullet colors={colors}>
+            {tr('Připomínky splatností a předplatného (pokud je povolíte)', 'Payment and subscription reminders (if you enable them)')}
+          </Bullet>
         </Section>
 
-        <Section title="4. Kde data ukládáme" colors={colors}>
+        <Section title={tr('4. Kde data ukládáme', '4. Where we store data')} colors={colors}>
           <Body colors={colors}>
-            Data jsou uložena na serverech Supabase (EU region).{'\n'}
-            Více informací:{' '}
+            {tr('Data jsou uložena na serverech Supabase (EU region).', 'Data is stored on Supabase servers (EU region).')}
+            {'\n'}
+            {tr('Více informací', 'More information')}:{' '}
             <Text style={{ color: colors.primary }} onPress={() => openUrl('https://supabase.com/privacy')}>
               supabase.com/privacy
             </Text>
           </Body>
         </Section>
 
-        <Section title="5. Sdílení dat / zpracovatelé" colors={colors}>
+        <Section title={tr('5. Sdílení dat / zpracovatelé', '5. Data sharing / processors')} colors={colors}>
           <Body colors={colors}>
-            Vaše data NESDÍLÍME s třetími stranami za účelem reklamy.{'\n'}
-            Zpracovatelé v rozsahu nutném pro provoz:
+            {tr(
+              'Vaše data NESDÍLÍME s třetími stranami za účelem reklamy.',
+              'We do NOT share your data with third parties for advertising.',
+            )}
+            {'\n'}
+            {tr('Zpracovatelé v rozsahu nutném pro provoz:', 'Processors, to the extent necessary to run the service:')}
           </Body>
-          <Bullet colors={colors}>Supabase (infrastruktura, databáze, autentizace) — EU</Bullet>
-          <Bullet colors={colors}>RevenueCat (předplatné a ověření nákupů App Store / Google Play)</Bullet>
-          <Bullet colors={colors}>Expo (doručování push notifikací)</Bullet>
-          <Bullet colors={colors}>Anthropic (AI průvodce „Zeptej se MoneyBuddy“ — zpracuje jen text otázky, kterou sám napíšeš, bez tvých finančních dat; nepoužívá se k trénování)</Bullet>
-          <Bullet colors={colors}>Brevo (odesílání e-mailů — obnova hesla, uvítací e-mail a novinky, pokud k nim dáš souhlas) — EU</Bullet>
-          <Bullet colors={colors}>ČNB (veřejné kurzy měn; neodesíláme osobní údaje)</Bullet>
-          <Bullet colors={colors}>Yahoo Finance (tržní ceny; neodesíláme osobní údaje)</Bullet>
-          <Bullet colors={colors}>Apple / Google (technické údaje a platby přes obchod s aplikacemi)</Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Supabase (infrastruktura, databáze, autentizace) — EU',
+              'Supabase (infrastructure, database, authentication) — EU',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'RevenueCat (předplatné a ověření nákupů App Store / Google Play)',
+              'RevenueCat (subscriptions and App Store / Google Play purchase verification)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>{tr('Expo (doručování push notifikací)', 'Expo (push notification delivery)')}</Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Anthropic (AI průvodce „Zeptej se MoneyBuddy“ — zpracuje jen text otázky, kterou sám napíšeš, bez tvých finančních dat; nepoužívá se k trénování)',
+              'Anthropic (the “Ask MoneyBuddy” AI guide — processes only the text of the question you type, without your financial data; not used for training)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Brevo (odesílání e-mailů — obnova hesla, uvítací e-mail a novinky, pokud k nim dáš souhlas) — EU',
+              'Brevo (sending e-mails — password reset, welcome e-mail and news if you consent) — EU',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr('ČNB (veřejné kurzy měn; neodesíláme osobní údaje)', 'Czech National Bank (public exchange rates; no personal data sent)')}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr('Yahoo Finance (tržní ceny; neodesíláme osobní údaje)', 'Yahoo Finance (market prices; no personal data sent)')}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Apple / Google (technické údaje a platby přes obchod s aplikacemi)',
+              'Apple / Google (technical data and payments via the app store)',
+            )}
+          </Bullet>
         </Section>
 
-        <Section title="6. Automatické napojení banky" colors={colors}>
+        <Section title={tr('6. Automatické napojení banky', '6. Automatic bank connection')} colors={colors}>
           <Body colors={colors}>
-            Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně
-            (PDF/CSV) nebo přes Fio API token.
+            {tr(
+              'Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token.',
+              'Automatic bank connection is in preparation; it isn’t used in the current version – you upload statements manually (PDF/CSV) or via a Fio API token.',
+            )}
           </Body>
         </Section>
 
-        <Section title="7. Vaše práva" colors={colors}>
-          <Body colors={colors}>Máte právo na:</Body>
-          <Bullet colors={colors}>Přístup ke svým datům (Profil → Soukromí a bezpečnost → Správa dat)</Bullet>
-          <Bullet colors={colors}>Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)</Bullet>
-          <Bullet colors={colors}>Opravu nesprávných údajů</Bullet>
+        <Section title={tr('7. Vaše práva', '7. Your rights')} colors={colors}>
+          <Body colors={colors}>{tr('Máte právo na:', 'You have the right to:')}</Body>
+          <Bullet colors={colors}>
+            {tr(
+              'Přístup ke svým datům (Profil → Soukromí a bezpečnost → Správa dat)',
+              'Access your data (Profile → Privacy & Security → Data management)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)',
+              'Delete your account and all data (Profile → Privacy & Security → Data management → Delete account)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>{tr('Opravu nesprávných údajů', 'Correct inaccurate data')}</Bullet>
         </Section>
 
-        <Section title="8. Bankovní výpisy (PDF / CSV)" colors={colors}>
+        <Section title={tr('8. Bankovní výpisy (PDF / CSV)', '8. Bank statements (PDF / CSV)')} colors={colors}>
           <Body colors={colors}>
-            PDF a CSV výpisy jsou zpracovány na našich serverech (Supabase Edge Function) nebo na zařízení
-            pouze za účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.
+            {tr(
+              'PDF a CSV výpisy jsou zpracovány na našich serverech (Supabase Edge Function) nebo na zařízení pouze za účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.',
+              'PDF and CSV statements are processed on our servers (Supabase Edge Function) or on your device solely to extract transactions. PDF files are not stored permanently.',
+            )}
           </Body>
         </Section>
 
-        <Section title="9. Investiční data" colors={colors}>
+        <Section title={tr('9. Investiční data', '9. Investment data')} colors={colors}>
           <Body colors={colors}>
-            Ceny akcií: Yahoo Finance API. Kurzy měn: veřejné API České národní banky (ČNB). Do těchto
-            služeb neodesíláme osobní údaje.
+            {tr(
+              'Ceny akcií: Yahoo Finance API. Kurzy měn: veřejné API České národní banky (ČNB). Do těchto služeb neodesíláme osobní údaje.',
+              'Stock prices: Yahoo Finance API. Exchange rates: the public API of the Czech National Bank (ČNB). We don’t send personal data to these services.',
+            )}
           </Body>
         </Section>
 
-        <Section title="10. Kontakt" colors={colors}>
+        <Section title={tr('10. Kontakt', '10. Contact')} colors={colors}>
           <Pressable onPress={() => openUrl('mailto:privacy@moneybuddy.cz')}>
             <Text style={[styles.contact, { color: colors.primary }]}>privacy@moneybuddy.cz</Text>
           </Pressable>
