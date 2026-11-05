@@ -48,7 +48,7 @@ function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.g
 
 export default function IncomeDetailScreen() {
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const numberLocale = appLocale(language);
   const currency = getCurrentCurrency();
   const { user } = useAuth();
@@ -153,7 +153,11 @@ export default function IncomeDetailScreen() {
     return Math.round(((periodTotalIncome - prevPeriodIncome) / prevPeriodIncome) * 100);
   }, [prevPeriodIncome, periodTotalIncome]);
   const prevLabel =
-    selectedPeriod === 'month' ? 'minulý měsíc' : selectedPeriod === 'week' ? 'minulý týden' : 'minulý rok';
+    selectedPeriod === 'month'
+      ? tr('minulý měsíc', 'last month')
+      : selectedPeriod === 'week'
+        ? tr('minulý týden', 'last week')
+        : tr('minulý rok', 'last year');
 
   const categoryIncomes = useMemo(() => {
     const categoryTotals: { [key: string]: number } = {};
@@ -446,13 +450,17 @@ export default function IncomeDetailScreen() {
               }
             />
             <StatCard
-              title={`Oproti ${selectedPeriod === 'month' ? 'minulému měsíci' : selectedPeriod === 'week' ? 'minulému týdnu' : 'minulému roku'}`}
+              title={
+                language === 'en'
+                  ? `vs. ${selectedPeriod === 'month' ? 'last month' : selectedPeriod === 'week' ? 'last week' : 'last year'}`
+                  : `Oproti ${selectedPeriod === 'month' ? 'minulému měsíci' : selectedPeriod === 'week' ? 'minulému týdnu' : 'minulému roku'}`
+              }
               value={incomeChange == null ? '—' : `${incomeChange > 0 ? '+' : ''}${incomeChange} %`}
               icon={Target}
               color={incomeChange == null ? '#8B5CF6' : incomeChange >= 0 ? '#10B981' : '#EF4444'}
               subtitle={
                 prevPeriodIncome == null
-                  ? `${prevLabel} bez dat`
+                  ? `${prevLabel} ${tr('bez dat', 'no data')}`
                   : `${prevLabel} ${formatMoneyWithSymbol(prevPeriodIncome, numberLocale, currency.symbol)}`
               }
             />

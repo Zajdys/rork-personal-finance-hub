@@ -1023,7 +1023,7 @@ export default function PlanScreen() {
                 value={budgetAmount}
                 onChangeText={(t) => setBudgetAmount(formatKčGrouped(t))}
                 keyboardType="number-pad"
-                placeholder={tr('např. 5 000 Kč', 'e.g. 5,000 CZK')}
+                placeholder={tr('např. 5 000 Kč', 'e.g. 5,000 Kč')}
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
@@ -1099,7 +1099,7 @@ export default function PlanScreen() {
                 value={goalTarget}
                 onChangeText={(t) => setGoalTarget(formatKčGrouped(t))}
                 keyboardType="number-pad"
-                placeholder={tr('např. 50 000 Kč', 'e.g. 50,000 CZK')}
+                placeholder={tr('např. 50 000 Kč', 'e.g. 50,000 Kč')}
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,

@@ -57,7 +57,7 @@ function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.g
 
 export default function ExpenseDetailScreen() {
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const numberLocale = appLocale(language);
   const currency = getCurrentCurrency();
   const { user } = useAuth();
@@ -293,19 +293,21 @@ export default function ExpenseDetailScreen() {
               (!b.subcategory || tx.subcategory === b.subcategory),
           )
           .reduce((sum, tx) => sum + (isRefundTransaction(tx) ? -tx.amount : tx.amount), 0);
-        const label = b.label?.trim() || (b.subcategory ? `${b.category} › ${b.subcategory}` : b.category);
+        const label =
+          b.label?.trim() ||
+          (b.subcategory ? `${categoryLabel(b.category)} › ${categoryLabel(b.subcategory)}` : categoryLabel(b.category));
         if (spent > b.amount) {
           out.push({
             kind: 'warning',
-            title: `${label}: rozpočet přečerpán`,
-            text: `Utraceno ${fmt(spent)} z ${fmt(b.amount)} – o ${fmt(spent - b.amount)} víc.`,
-            cta: { label: 'Otevřít Plán', onPress: () => router.push('/(tabs)/plan') },
+            title: tr(`${label}: rozpočet přečerpán`, `${label}: budget exceeded`),
+            text: tr(`Utraceno ${fmt(spent)} z ${fmt(b.amount)} – o ${fmt(spent - b.amount)} víc.`, `Spent ${fmt(spent)} of ${fmt(b.amount)} – ${fmt(spent - b.amount)} over.`),
+            cta: { label: tr('Otevřít Plán', 'Open Plan'), onPress: () => router.push('/(tabs)/plan') },
           });
         } else if (b.amount > 0 && spent / b.amount >= 0.8) {
           out.push({
             kind: 'warning',
-            title: `${label}: blížíš se k limitu`,
-            text: `Utraceno ${fmt(spent)} z ${fmt(b.amount)}, zbývá ${fmt(b.amount - spent)}.`,
+            title: tr(`${label}: blížíš se k limitu`, `${label}: approaching the limit`),
+            text: tr(`Utraceno ${fmt(spent)} z ${fmt(b.amount)}, zbývá ${fmt(b.amount - spent)}.`, `Spent ${fmt(spent)} of ${fmt(b.amount)}, ${fmt(b.amount - spent)} left.`),
           });
         }
       }
@@ -318,11 +320,11 @@ export default function ExpenseDetailScreen() {
       if (Math.abs(pct) >= 10) {
         out.push({
           kind: pct > 0 ? 'warning' : 'tip',
-          title: pct > 0 ? `O ${pct} % víc než minulý měsíc` : `O ${Math.abs(pct)} % méně než minulý měsíc`,
+          title: pct > 0 ? tr(`O ${pct} % víc než minulý měsíc`, `${pct} % more than last month`) : tr(`O ${Math.abs(pct)} % méně než minulý měsíc`, `${Math.abs(pct)} % less than last month`),
           text:
             pct > 0
-              ? `Zatím ${fmt(periodTotalExpenses)} oproti ${fmt(prevMonthTotal)} za celý minulý měsíc.`
-              : `Zatím ${fmt(periodTotalExpenses)} oproti ${fmt(prevMonthTotal)} minule. Dobrá práce.`,
+              ? tr(`Zatím ${fmt(periodTotalExpenses)} oproti ${fmt(prevMonthTotal)} za celý minulý měsíc.`, `So far ${fmt(periodTotalExpenses)} vs. ${fmt(prevMonthTotal)} for the whole of last month.`)
+              : tr(`Zatím ${fmt(periodTotalExpenses)} oproti ${fmt(prevMonthTotal)} minule. Dobrá práce.`, `So far ${fmt(periodTotalExpenses)} vs. ${fmt(prevMonthTotal)} last time. Nice work.`),
         });
       }
     }
@@ -332,11 +334,11 @@ export default function ExpenseDetailScreen() {
       const hasBudget = planBudgets.some((b) => b.category === top.category);
       out.push({
         kind: 'info',
-        title: `Nejvíc jde na ${top.category}`,
-        text: `${fmt(top.amount)} – ${top.percentage} % všech výdajů v tomto období.`,
+        title: tr(`Nejvíc jde na ${top.category}`, `Most goes to ${categoryLabel(top.category)}`),
+        text: tr(`${fmt(top.amount)} – ${top.percentage} % všech výdajů v tomto období.`, `${fmt(top.amount)} – ${top.percentage} % of all expenses in this period.`),
         cta: hasBudget
           ? undefined
-          : { label: 'Nastavit rozpočet', onPress: () => router.push('/(tabs)/plan') },
+          : { label: tr('Nastavit rozpočet', 'Set a budget'), onPress: () => router.push('/(tabs)/plan') },
       });
     }
     return out.slice(0, 3);
@@ -348,6 +350,7 @@ export default function ExpenseDetailScreen() {
     periodTotalExpenses,
     selectedPeriod,
     router,
+    tr,
   ]);
 
   const PeriodButton = ({ period, label }: { period: 'week' | 'month' | 'year', label: string }) => (
@@ -570,13 +573,13 @@ export default function ExpenseDetailScreen() {
               }
             />
             <StatCard
-              title="Průměrně za den"
+              title={tr('Průměrně za den', 'Average per day')}
               value={formatMoneyWithSymbol(dailyStats.perDay, numberLocale, currency.symbol)}
               icon={Target}
               color="#8B5CF6"
               subtitle={
                 dailyStats.projection != null
-                  ? `odhad za měsíc ${formatMoneyWithSymbol(dailyStats.projection, numberLocale, currency.symbol)}`
+                  ? tr(`odhad za měsíc ${formatMoneyWithSymbol(dailyStats.projection, numberLocale, currency.symbol)}`, `monthly estimate ${formatMoneyWithSymbol(dailyStats.projection, numberLocale, currency.symbol)}`)
                   : undefined
               }
             />
@@ -593,20 +596,20 @@ export default function ExpenseDetailScreen() {
 
         {/* Postřehy */}
         <View style={styles.analysisContainer}>
-          <Text style={[styles.sectionTitle, { color: textMain }]}>Postřehy</Text>
+          <Text style={[styles.sectionTitle, { color: textMain }]}>{tr('Postřehy', 'Insights')}</Text>
           {insights.length === 0 ? (
             <View style={[styles.insightEmpty, { backgroundColor: mutedBg }]}>
               <Text style={{ color: textMain, fontSize: 15, fontWeight: '600', marginBottom: 4 }}>
-                Zatím málo dat
+                {tr('Zatím málo dat', 'Not enough data yet')}
               </Text>
               <Text style={{ color: textSec, fontSize: 14, lineHeight: 20 }}>
-                {`Postřehy se ukážou od ${MIN_TX_FOR_INSIGHTS} výdajů v období. Nejrychleji je doplníš nahráním výpisu z banky.`}
+                {tr(`Postřehy se ukážou od ${MIN_TX_FOR_INSIGHTS} výdajů v období. Nejrychleji je doplníš nahráním výpisu z banky.`, `Insights appear from ${MIN_TX_FOR_INSIGHTS} expenses in the period. The fastest way is to upload a bank statement.`)}
               </Text>
               <TouchableOpacity
                 style={[styles.insightCta, { borderColor: '#8B5CF6' }]}
                 onPress={() => router.push('/bank-import')}
               >
-                <Text style={{ color: '#8B5CF6', fontWeight: '700' }}>Nahrát výpis</Text>
+                <Text style={{ color: '#8B5CF6', fontWeight: '700' }}>{tr('Nahrát výpis', 'Upload statement')}</Text>
               </TouchableOpacity>
             </View>
           ) : (

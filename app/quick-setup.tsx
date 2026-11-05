@@ -411,7 +411,7 @@ export default function QuickSetupScreen() {
                   placeholderTextColor={colors.textSecondary}
                   style={[styles.incomeInput, { color: colors.text }]}
                 />
-                <Text style={[styles.currency, { color: colors.textSecondary }]}>{tr('Kč', 'CZK')}</Text>
+                <Text style={[styles.currency, { color: colors.textSecondary }]}>Kč</Text>
               </View>
 
               {showIncomeSuggestion && incomeSuggestion ? (
@@ -423,7 +423,7 @@ export default function QuickSetupScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 }}>
-                      {tr(`Podle výpisů ti chodí průměrně ${formatKčGrouped(String(incomeSuggestion.average))} Kč`, `Based on your statements you earn ${formatKčGrouped(String(incomeSuggestion.average))} CZK on average`)}
+                      {tr(`Podle výpisů ti chodí průměrně ${formatKčGrouped(String(incomeSuggestion.average))} Kč`, `Based on your statements you earn ${formatKčGrouped(String(incomeSuggestion.average))} Kč on average`)}
                     </Text>
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                       {tr(`Posledních ${incomeSuggestion.monthly.length} výplat:`, `Last ${incomeSuggestion.monthly.length} salaries:`)}{' '}
@@ -667,7 +667,7 @@ export default function QuickSetupScreen() {
                       },
                     ]}
                   />
-                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>{tr('Kč', 'CZK')}</Text>
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Kč</Text>
                 </View>
               ))}
 
@@ -689,7 +689,7 @@ export default function QuickSetupScreen() {
                     { color: remaining >= 0 ? '#10B981' : '#EF4444' },
                   ]}
                 >
-                  {tr(`= zbývá ${remaining.toLocaleString(uiLocale())} Kč`, `= ${remaining.toLocaleString(uiLocale())} CZK left`)}
+                  {tr(`= zbývá ${remaining.toLocaleString(uiLocale())} Kč`, `= ${remaining.toLocaleString(uiLocale())} Kč left`)}
                 </Text>
               </View>
             </View>
