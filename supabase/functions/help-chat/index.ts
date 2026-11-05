@@ -1,7 +1,7 @@
 /**
  * „Zeptej se MoneyBuddy“ — AI průvodce aplikací (Claude Haiku).
  *
- * POST { messages: [{ role: 'user'|'assistant', content: string }] }  (posledních ~10)
+ * POST { messages: [{ role: 'user'|'assistant', content: string }], language?: 'cs'|'en' }  (posledních ~10)
  * Authorization: Bearer <user JWT> (verify_jwt = true)
  * → { reply: string, actions: string[] }   actions = klíče obrazovek k otevření
  *
@@ -29,7 +29,7 @@ const ACTION_KEYS = [
 const SYSTEM = `Jsi „MoneyBuddy průvodce“ — přátelský pomocník uvnitř české aplikace MoneyBuddy na osobní finance. Pomáháš lidem najít, kde co v aplikaci je a jak to funguje.
 
 PRAVIDLA
-- Odpovídej česky, tykej, stručně: 1–5 krátkých vět nebo krátký číslovaný postup. Bez nadpisů a markdownu kromě čísel kroků.
+- Tykej, piš stručně: 1–5 krátkých vět nebo krátký číslovaný postup. Bez nadpisů a markdownu kromě čísel kroků.
 - Cesty v appce piš se šipkami, např. „Profil → Pravidelné platby“.
 - Nevidíš data uživatele (transakce, zůstatky, účty). Když se ptá na svoje čísla, vysvětli, kde je v appce najde.
 - Nevymýšlej funkce, které nejsou níže. Když nevíš, řekni to a doporuč napsat na info@moneybuddy.cz.
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
   const uid = userData?.user?.id;
   if (userErr || !uid) return json(401, { error: 'unauthorized' });
 
-  let body: { messages?: { role?: string; content?: string }[] };
+  let body: { messages?: { role?: string; content?: string }[]; language?: string };
   try {
     body = await req.json();
   } catch {
@@ -112,6 +112,16 @@ Deno.serve(async (req) => {
   if (limitErr) return json(500, { error: 'limit check failed' });
   if (typeof used === 'number' && used < 0) return json(429, { error: 'daily limit', limit: -used });
 
+  const lang = body.language === 'en' ? 'en' : 'cs';
+  const langBlock =
+    lang === 'en'
+      ? 'LANGUAGE: The user has the app set to English. Reply in English (informal, friendly), even though the instructions above are in Czech. ' +
+        'Use the English screen names: Přehled = Overview, Plán = Plan, Domácnost = Household, Profil = Profile, Pravidelné platby = Regular payments, ' +
+        'Rychlé akce = Quick Actions, Upravit plán = Edit plan, Závazky a úvěry = Commitments & loans, Banky a účty = Banks & Accounts, Oznámení = Notifications, ' +
+        'Soukromí a bezpečnost = Privacy & Security, Rozděl útratu = Split expenses, Ušetři = Save, Investice = Investments, Měsíční report = Monthly report, ' +
+        'Můj účet = My account, Změnit heslo = Change password, Nahrát výpis = Upload statement. Keep the [[open:key]] keys unchanged.'
+      : 'JAZYK: Odpovídej česky (pokud se uživatel výslovně neptá v jiném jazyce).';
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30_000);
   let resp: Response;
@@ -123,7 +133,10 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 600,
-        system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+        system: [
+          { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: langBlock },
+        ],
         messages: msgs,
       }),
     });
@@ -152,5 +165,9 @@ Deno.serve(async (req) => {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return json(200, { reply: reply || 'Promiň, tohle teď nevím. Napiš nám prosím na info@moneybuddy.cz.', actions });
+  const fallback =
+    lang === 'en'
+      ? 'Sorry, I don’t know that right now. Please write to us at info@moneybuddy.cz.'
+      : 'Promiň, tohle teď nevím. Napiš nám prosím na info@moneybuddy.cz.';
+  return json(200, { reply: reply || fallback, actions });
 });

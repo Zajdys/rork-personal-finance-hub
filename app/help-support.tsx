@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
+import { useLanguageStore } from '@/store/language-store';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -113,7 +114,7 @@ const FAQ: FaqGroup[] = [
       },
       {
         q: 'Zapomněl jsem heslo.',
-        a: 'Na přihlašovací obrazovce klepni na „Zapomněl jsi heslo?“. Pošleme ti na e-mail kód, kterým si nastavíš nové heslo.',
+        a: 'Na přihlašovací obrazovce klepni na „Zapomněl jsi heslo?“. Pošleme ti na e-mail kód, kterým si nastavíš nové heslo. Když jsi přihlášený, změníš ho v Profil → Změnit heslo.',
       },
       {
         q: 'Jak si stáhnu svoje data?',
@@ -127,9 +128,103 @@ const FAQ: FaqGroup[] = [
   },
 ];
 
+const FAQ_EN: FaqGroup[] = [
+  {
+    title: 'Getting started',
+    items: [
+      {
+        q: 'How do I upload a bank statement?',
+        a: 'Tap + at the bottom centre → “Upload bank statement” (or Overview → Quick Actions → Upload statement). Pick a PDF or CSV from Files, check the preview and confirm. You can upload the same statement again — duplicates are skipped.',
+      },
+      {
+        q: 'Which banks are supported?',
+        a: 'PDF statements: Česká spořitelna, ČSOB, Komerční banka, Fio, Air Bank, Raiffeisenbank and MONETA. CSV: also mBank and Revolut. With Premium you can connect Fio automatically via an API token (Profile → Banks & Accounts).',
+      },
+      {
+        q: 'How do I add an expense manually?',
+        a: 'Tap + at the bottom centre and enter the amount, description and category. For payments that repeat (rent, Netflix), choose “Repeat” — they will be added to Regular payments.',
+      },
+      {
+        q: 'How do I change a payment’s category?',
+        a: 'Tap the payment in the list and pick another category or subcategory. You can create your own category with “+ Custom” in the category picker.',
+      },
+    ],
+  },
+  {
+    title: 'Plan & budgets',
+    items: [
+      {
+        q: 'How does the Plan work?',
+        a: 'The Plan calculates: income − regular payments − budgets − savings = free money. Set your income, rent, energy and loans in Profile → Edit plan; budgets and goals directly in the Plan.',
+      },
+      {
+        q: 'What does “Budgets: left” on the Overview mean?',
+        a: 'How much you still have left to spend in the budgets you set (food, transport…) and how much that is per day until the end of the month.',
+      },
+      {
+        q: 'How do I tick off a paid payment?',
+        a: 'Profile → Regular payments (or the Regular payments tile on the Overview). Tap the circle next to a payment — it is recorded as an expense. If you upload statements, payments from the statement are matched and ticked off automatically.',
+      },
+    ],
+  },
+  {
+    title: 'Household',
+    items: [
+      {
+        q: 'How do I invite my partner?',
+        a: 'On the Household tab tap the invite icon and send your partner an invitation or a code. Your partner installs MoneyBuddy, signs up and enters the code.',
+      },
+      {
+        q: 'What will my partner see?',
+        a: 'Only what you share in the Household — shared and regular expenses and settlements. Your personal payments and statements stay private.',
+      },
+    ],
+  },
+  {
+    title: 'Premium & subscription',
+    items: [
+      {
+        q: 'What do I get with Premium?',
+        a: 'Household with a partner, unlimited statement imports, automatic Fio sync, unlimited budgets with alerts, savings goals, Save, investments and monthly reports. New users get 14 days free. A Household unlocks Premium for both partners, even if only one pays.',
+      },
+      {
+        q: 'How do I cancel my subscription?',
+        a: 'Subscriptions are managed by Apple: Profile → My account → Manage subscription, or iPhone Settings → your name → Subscriptions → MoneyBuddy. You can cancel any time; Premium stays active until the end of the paid period.',
+      },
+      {
+        q: 'I bought Premium but don’t have it.',
+        a: 'Profile → My account → “Restore purchases”. The subscription belongs to your Apple ID — you must be signed in with the same Apple ID you paid with.',
+      },
+    ],
+  },
+  {
+    title: 'Account & security',
+    items: [
+      {
+        q: 'Is my data safe?',
+        a: 'Your data is encrypted and stored on servers in the EU. We don’t sell it or share it with anyone. You can also lock the app with a PIN or Face ID (Profile → Privacy & Security).',
+      },
+      {
+        q: 'I forgot my password.',
+        a: 'On the sign-in screen tap “Forgot password?”. We’ll e-mail you a code to set a new password. If you are signed in, you can change it in Profile → Change password.',
+      },
+      {
+        q: 'How do I download my data?',
+        a: 'Profile → Privacy & Security → Export data. You’ll get a file with all your data.',
+      },
+      {
+        q: 'How do I delete my account?',
+        a: 'Profile → Privacy & Security → Delete account. Deletion is permanent and removes all your data. An active subscription must be cancelled separately with Apple.',
+      },
+    ],
+  },
+];
+
 export default function HelpSupportScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { tr, language } = useLanguageStore();
+  const faq = language === 'en' ? FAQ_EN : FAQ;
   const [openKey, setOpenKey] = useState<string | null>(null);
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
@@ -139,32 +234,32 @@ export default function HelpSupportScreen() {
   }, []);
 
   const openMail = useCallback(() => {
-    void Linking.openURL('mailto:info@moneybuddy.cz?subject=MoneyBuddy%20podpora');
-  }, []);
+    void Linking.openURL(`mailto:info@moneybuddy.cz?subject=MoneyBuddy%20${language === 'en' ? 'support' : 'podpora'}`);
+  }, [language]);
 
   const quick: { icon: LucideIcon; title: string; sub: string; onPress: () => void }[] = [
     {
       icon: FileUp,
-      title: 'Jak stáhnout výpis',
-      sub: 'Návod pro tvoji banku',
+      title: tr('Jak stáhnout výpis', 'How to get a statement'),
+      sub: tr('Návod pro tvoji banku', 'Guide for your bank'),
       onPress: () => router.push('/import-guide' as never),
     },
     {
       icon: Mail,
-      title: 'Napiš nám',
+      title: tr('Napiš nám', 'Contact us'),
       sub: 'info@moneybuddy.cz',
       onPress: openMail,
     },
     {
       icon: CreditCard,
-      title: 'Předplatné',
-      sub: 'Spravovat u Applu',
+      title: tr('Předplatné', 'Subscription'),
+      sub: tr('Spravovat u Applu', 'Manage with Apple'),
       onPress: () => void Linking.openURL('https://apps.apple.com/account/subscriptions'),
     },
     {
       icon: ShieldCheck,
-      title: 'Zásady',
-      sub: 'Ochrana údajů a podmínky',
+      title: tr('Zásady', 'Policies'),
+      sub: tr('Ochrana údajů a podmínky', 'Privacy & terms'),
       onPress: () => router.push('/privacy-policy' as never),
     },
   ];
@@ -172,7 +267,11 @@ export default function HelpSupportScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Nápověda a podpora" subtitle="Rychlé odpovědi a kontakt" variant="gradient" />
+      <ScreenHeader
+        title={tr('Nápověda a podpora', 'Help & support')}
+        subtitle={tr('Rychlé odpovědi a kontakt', 'Quick answers and contact')}
+        variant="gradient"
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           onPress={() => router.push('/help-chat' as never)}
@@ -184,9 +283,9 @@ export default function HelpSupportScreen() {
             <Sparkles color="#fff" size={22} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>Zeptej se MoneyBuddy</Text>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>{tr('Zeptej se MoneyBuddy', 'Ask MoneyBuddy')}</Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 }}>
-              AI průvodce poradí, kde co v appce najdeš
+              {tr('AI průvodce poradí, kde co v appce najdeš', 'AI guide helps you find your way around the app')}
             </Text>
           </View>
           <ChevronRight color="#fff" size={20} />
@@ -215,9 +314,9 @@ export default function HelpSupportScreen() {
           })}
         </View>
 
-        {FAQ.map((group) => (
+        {faq.map((group) => (
           <View key={group.title} style={{ marginTop: 18 }}>
-            <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{group.title.toUpperCase()}</Text>
+            <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{group.title.toLocaleUpperCase(language === 'en' ? 'en' : 'cs')}</Text>
             <View style={[styles.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {group.items.map((item, i) => {
                 const key = `${group.title}-${i}`;
@@ -250,9 +349,9 @@ export default function HelpSupportScreen() {
         ))}
 
         <View style={[styles.contact, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.contactTitle, { color: colors.text }]}>Nenašel jsi odpověď?</Text>
+          <Text style={[styles.contactTitle, { color: colors.text }]}>{tr('Nenašel jsi odpověď?', 'Didn’t find an answer?')}</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 20, textAlign: 'center' }}>
-            Napiš nám — odpovídáme obvykle do 1–2 pracovních dnů.
+            {tr('Napiš nám — odpovídáme obvykle do 1–2 pracovních dnů.', 'Write to us — we usually reply within 1–2 business days.')}
           </Text>
           <TouchableOpacity
             style={[styles.mailBtn, { backgroundColor: colors.primary }]}
@@ -260,7 +359,7 @@ export default function HelpSupportScreen() {
             activeOpacity={0.9}
           >
             <Mail color="#fff" size={18} />
-            <Text style={styles.mailBtnText}>Napsat na info@moneybuddy.cz</Text>
+            <Text style={styles.mailBtnText}>{tr('Napsat na info@moneybuddy.cz', 'E-mail info@moneybuddy.cz')}</Text>
           </TouchableOpacity>
         </View>
 

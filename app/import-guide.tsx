@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { FileText, Upload, Smartphone, Laptop, ShieldCheck } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
+import { useLanguageStore } from '@/store/language-store';
 
 type BankGuide = {
   id: string;
@@ -110,13 +111,92 @@ const BANKS: BankGuide[] = [
   },
 ];
 
+/** Anglická verze formátu a kroků (podle id banky). */
+const BANKS_EN: Record<string, { format: string; steps: string[] }> = {
+  cs: {
+    format: 'PDF or CSV',
+    steps: [
+      'Open George (the app or george.csas.cz).',
+      'Choose your account and find “Výpisy” (Statements) — in the app usually under the account’s documents menu.',
+      'Download the PDF statement for the last month.',
+    ],
+  },
+  csob: {
+    format: 'PDF or CSV',
+    steps: [
+      'Open ČSOB Smart or internet banking.',
+      'Choose the account and go to “Výpisy” (Statements) or “Dokumenty” (Documents).',
+      'Download the PDF statement for the last month.',
+    ],
+  },
+  kb: {
+    format: 'PDF or CSV',
+    steps: [
+      'Open the KB+ app or KB internet banking.',
+      'Find “Výpisy” (Statements) in the account’s documents.',
+      'Download the PDF statement for the last month.',
+    ],
+  },
+  fio: {
+    format: 'PDF, CSV or automatic',
+    steps: [
+      'Easiest: connect Fio in MoneyBuddy with an API token (Profile → Banks & Accounts) and transactions load automatically.',
+      'Or in Fio internet banking open “Přehledy” (Overviews) → account transactions and export them to CSV.',
+      'PDF statements are in the “Výpisy” (Statements) section.',
+    ],
+  },
+  airbank: {
+    format: 'PDF',
+    steps: [
+      'Open the Air Bank app or internet banking.',
+      'Find “Výpisy” (Statements) under the account.',
+      'Download the PDF statement for the last month.',
+    ],
+  },
+  rb: {
+    format: 'PDF or CSV',
+    steps: [
+      'Open Raiffeisenbank mobile or online banking.',
+      'Find “Výpisy” (Statements) under the account.',
+      'Download the PDF statement for the last month.',
+    ],
+  },
+  moneta: {
+    format: 'PDF or CSV',
+    steps: [
+      'Open Smart Banka or Internet Banka.',
+      'Find “Výpisy” (Statements) under the account.',
+      'Download the PDF statement for the last month.',
+    ],
+  },
+  mbank: {
+    format: 'CSV',
+    steps: [
+      'Open mBank internet banking.',
+      'In the transaction history choose a period (e.g. the last month).',
+      'Export the history to CSV.',
+    ],
+  },
+  revolut: {
+    format: 'CSV',
+    steps: [
+      'In the Revolut app open your CZK (or other currency) account.',
+      'Find “Statement” and choose the Excel/CSV format.',
+      'Pick the period and generate the statement.',
+    ],
+  },
+};
+
 export default function ImportGuideScreen() {
   const { colors, isDark } = useTheme();
+  const { tr, language } = useLanguageStore();
   const router = useRouter();
   const params = useLocalSearchParams<{ onboarding?: string }>();
   const onboarding = params.onboarding === '1';
   const [bankId, setBankId] = useState<string | null>(null);
-  const bank = BANKS.find((b) => b.id === bankId) ?? null;
+  const bankCs = BANKS.find((b) => b.id === bankId) ?? null;
+  const bank =
+    bankCs && language === 'en' && BANKS_EN[bankCs.id] ? { ...bankCs, ...BANKS_EN[bankCs.id] } : bankCs;
 
   const goImport = () => {
     if (onboarding) {
@@ -134,22 +214,28 @@ export default function ImportGuideScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: !onboarding }} />
-      {onboarding ? null : <ScreenHeader title="Jak stáhnout výpis" />}
+      {onboarding ? null : <ScreenHeader title={tr('Jak stáhnout výpis', 'How to get a statement')} />}
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: onboarding ? 64 : 16, paddingBottom: 140 }}>
         {onboarding ? (
           <View style={{ marginBottom: 16 }}>
-            <Text style={[styles.h1, { color: colors.text }]}>Poslední krok: nahraj výpis</Text>
+            <Text style={[styles.h1, { color: colors.text }]}>{tr('Poslední krok: nahraj výpis', 'Last step: upload a statement')}</Text>
             <Text style={[styles.lead, { color: colors.textSecondary }]}>
-              MoneyBuddy z výpisu sám roztřídí platby do kategorií a ukáže ti, kam ti mizí peníze. Stačí výpis za poslední měsíc.
+              {tr(
+                'MoneyBuddy z výpisu sám roztřídí platby do kategorií a ukáže ti, kam ti mizí peníze. Stačí výpis za poslední měsíc.',
+                'MoneyBuddy sorts the payments from your statement into categories and shows you where your money goes. Last month’s statement is enough.',
+              )}
             </Text>
           </View>
         ) : (
           <Text style={[styles.lead, { color: colors.textSecondary, marginBottom: 16 }]}>
-            Výpis stáhneš v aplikaci nebo internetovém bankovnictví své banky. Stačí poslední měsíc — PDF nebo CSV.
+            {tr(
+              'Výpis stáhneš v aplikaci nebo internetovém bankovnictví své banky. Stačí poslední měsíc — PDF nebo CSV.',
+              'Download the statement in your bank’s app or internet banking. The last month is enough — PDF or CSV.',
+            )}
           </Text>
         )}
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Vyber svoji banku</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Vyber svoji banku', 'Choose your bank')}</Text>
         <View style={styles.chips}>
           {BANKS.map((b) => {
             const sel = b.id === bankId;
@@ -189,7 +275,7 @@ export default function ImportGuideScreen() {
               </View>
             ))}
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6 }}>
-              Názvy menu se mohou podle verze aplikace banky trochu lišit.
+              {tr('Názvy menu se mohou podle verze aplikace banky trochu lišit.', 'Menu names may differ slightly depending on your bank’s app version.')}
             </Text>
           </View>
         ) : null}
@@ -197,27 +283,36 @@ export default function ImportGuideScreen() {
         <View style={cardStyle}>
           <View style={styles.cardHead}>
             <Smartphone color={colors.primary} size={20} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Stahuješ v mobilu?</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{tr('Stahuješ v mobilu?', 'Downloading on your phone?')}</Text>
           </View>
           <Text style={[styles.stepText, { color: colors.text }]}>
-            Po stažení PDF zvol „Sdílet“ → „Uložit do Souborů“. V MoneyBuddy ho pak vybereš ze Souborů.
+            {tr(
+              'Po stažení PDF zvol „Sdílet“ → „Uložit do Souborů“. V MoneyBuddy ho pak vybereš ze Souborů.',
+              'After downloading the PDF choose “Share” → “Save to Files”. Then pick it from Files in MoneyBuddy.',
+            )}
           </Text>
         </View>
 
         <View style={cardStyle}>
           <View style={styles.cardHead}>
             <Laptop color={colors.primary} size={20} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Stahuješ v počítači?</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{tr('Stahuješ v počítači?', 'Downloading on a computer?')}</Text>
           </View>
           <Text style={[styles.stepText, { color: colors.text }]}>
-            Pošli si soubor do mobilu — přes iCloud Drive, AirDrop nebo e-mailem sám sobě — a ulož ho do Souborů.
+            {tr(
+              'Pošli si soubor do mobilu — přes iCloud Drive, AirDrop nebo e-mailem sám sobě — a ulož ho do Souborů.',
+              'Send the file to your phone — via iCloud Drive, AirDrop or by e-mailing yourself — and save it to Files.',
+            )}
           </Text>
         </View>
 
         <View style={[styles.privacy, { backgroundColor: colors.muted }]}>
           <ShieldCheck color={colors.primary} size={18} />
           <Text style={{ color: colors.textSecondary, fontSize: 13, flex: 1, lineHeight: 18 }}>
-            Výpis používáme jen k načtení tvých plateb. Data jsou šifrovaná a uložená v EU.
+            {tr(
+              'Výpis používáme jen k načtení tvých plateb. Data jsou šifrovaná a uložená v EU.',
+              'We use the statement only to load your payments. Data is encrypted and stored in the EU.',
+            )}
           </Text>
         </View>
       </ScrollView>
@@ -231,12 +326,12 @@ export default function ImportGuideScreen() {
             style={styles.primary}
           >
             <Upload color="#fff" size={20} />
-            <Text style={styles.primaryText}>Nahrát výpis</Text>
+            <Text style={styles.primaryText}>{tr('Nahrát výpis', 'Upload statement')}</Text>
           </LinearGradient>
         </TouchableOpacity>
         {onboarding ? (
           <TouchableOpacity onPress={skip} style={{ paddingVertical: 12, alignItems: 'center' }}>
-            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Teď ne, nahraju později</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>{tr('Teď ne, nahraju později', 'Not now, I’ll upload later')}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
