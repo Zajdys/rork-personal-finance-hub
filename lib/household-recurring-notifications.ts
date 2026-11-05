@@ -1,6 +1,7 @@
 import { Alert, Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import type { LoanItem, SubscriptionItem } from '@/store/finance-store';
+import { trNow } from '@/store/language-store';
 
 export type UserNotificationProfile = {
   recurring_expense_notifications_enabled: boolean;
@@ -45,7 +46,10 @@ export async function fetchOrCreateUserNotificationProfile(
   });
   if (insErr && insErr.code !== '23505') {
     console.warn('[household-notifications] insert profile', insErr.message);
-    Alert.alert('Upozornění', `Nepodařilo se vytvořit profil notifikací: ${insErr.message}`);
+    Alert.alert(
+      trNow('Upozornění', 'Notice'),
+      trNow(`Nepodařilo se vytvořit profil notifikací: ${insErr.message}`, `Couldn’t create the notification profile: ${insErr.message}`),
+    );
   }
   return { ...DEFAULT_PROFILE };
 }

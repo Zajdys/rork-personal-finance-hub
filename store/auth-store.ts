@@ -10,7 +10,7 @@ import { fetchTermsAccepted, upsertTermsConsent } from '@/lib/terms-consent';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
-import { useLanguageStore } from '@/store/language-store';
+import { useLanguageStore, trNow } from '@/store/language-store';
 import {
   planFromCustomerInfo,
   useRevenueCatStore,
@@ -236,7 +236,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     setIsLoading(false);
 
     router.replace('/auth');
-    Alert.alert('Session vypršela', 'Tvoje session vypršela. Přihlaš se prosím znova.');
+    Alert.alert(
+      trNow('Session vypršela', 'Session expired'),
+      trNow('Tvoje session vypršela. Přihlaš se prosím znova.', 'Your session has expired. Please sign in again.'),
+    );
   }, []);
 
   const recoverSession = useCallback(async (): Promise<boolean> => {

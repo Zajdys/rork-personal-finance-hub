@@ -363,9 +363,11 @@ export default function BankImportScreen() {
               collectedStatementOwner = fromStatement.trim();
             }
             const src = resolvePdfImportSource(pdfSource);
+            // Hlášky parserů / edge funkce jsou česky → v angličtině použij přeložené texty.
+            const msg = lang === 'en' ? undefined : message;
             if (statementIncomplete || (rows.length === 0 && message?.includes('načíst celý'))) {
               const warn =
-                message ||
+                msg ||
                 t('bankImportStatementIncomplete', {
                   parsed: parsedCount ?? 0,
                   expected: expectedCount ?? '?',
@@ -382,11 +384,11 @@ export default function BankImportScreen() {
               okFiles += 1;
               if (bankLabel) sourceLabels.push(bankLabel);
               parseWarningsRef.current.push(
-                `${asset.name || t('bankImportFileWord')}: ${message || t('bankImportEmptyStatement')}`,
+                `${asset.name || t('bankImportFileWord')}: ${msg || t('bankImportEmptyStatement')}`,
               );
             } else {
               errors.push(
-                `${asset.name || t('bankImportFileWord')}: ${message ?? t('bankImportNoTransactions')}`,
+                `${asset.name || t('bankImportFileWord')}: ${msg ?? t('bankImportNoTransactions')}`,
               );
               failedNames.push(asset.name || t('bankImportFileWord'));
             }
@@ -399,7 +401,7 @@ export default function BankImportScreen() {
             const msg =
               e instanceof Error && e.message === PDF_PARSE_LOGIN_REQUIRED
                 ? t('bankImportNotSignedIn')
-                : e instanceof Error
+                : e instanceof Error && lang !== 'en'
                   ? e.message
                   : logAndGetUserFacingError('bank-import-pdf', e);
             errors.push(`${asset.name || 'PDF'}: ${msg}`);
@@ -411,7 +413,9 @@ export default function BankImportScreen() {
             const text = await readCsvTextFromUri(asset.uri);
             const parsed = parseBankStatementCsv(text, ownerAccounts, ownerNames);
             if ('error' in parsed) {
-              errors.push(`${asset.name || 'CSV'}: ${parsed.error}`);
+              errors.push(
+                `${asset.name || 'CSV'}: ${lang === 'en' ? 'Couldn’t read this CSV — check that it’s an export from a supported bank.' : parsed.error}`,
+              );
               failedNames.push(asset.name || 'CSV');
             } else {
               const importFileKey = `file-${i}`;

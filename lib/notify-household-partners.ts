@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { trNow } from '@/store/language-store';
 
 export async function notifyHouseholdPartners(params: {
   householdId: string;
@@ -17,7 +18,7 @@ export async function notifyHouseholdPartners(params: {
 
   if (error) {
     console.warn('[save-notify] members', error.message);
-    Alert.alert('Upozornění partnera', error.message);
+    Alert.alert(trNow('Upozornění partnera', 'Partner alert'), error.message);
     return { error: new Error(error.message) };
   }
   if (!members?.length) return { error: null };
@@ -38,7 +39,7 @@ export async function notifyHouseholdPartners(params: {
   const { error: insErr } = await supabase.from('household_partner_alerts').insert(rows);
   if (insErr) {
     console.warn('[save-notify] insert', insErr.message);
-    Alert.alert('Upozornění partnera', insErr.message);
+    Alert.alert(trNow('Upozornění partnera', 'Partner alert'), insErr.message);
     return { error: new Error(insErr.message) };
   }
   return { error: null };

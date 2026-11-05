@@ -19,6 +19,9 @@ import {
   type PersonalRecurringFrequency,
 } from '@/lib/personal-recurring';
 import { showToast } from '@/store/toast-store';
+import { trNow } from '@/store/language-store';
+import { uiLocale } from '@/lib/app-locale';
+import { categoryLabel } from '@/lib/category-labels';
 
 export type AddTransactionInput = {
   type: 'income' | 'expense';
@@ -169,17 +172,17 @@ export function useAddTransaction() {
 
         addPoints(5);
 
-        const displayAmt = `${amountCzk.toLocaleString('cs-CZ')} Kč`;
+        const displayAmt = `${amountCzk.toLocaleString(uiLocale())} Kč`;
         const catLabel =
           input.type === 'expense'
             ? formatCategoryDisplay(category, subcategory, { withIcon: false }).replace(' · ', ' › ')
-            : category;
+            : categoryLabel(category);
         showToast({
           type: 'success',
           message:
             input.type === 'income'
-              ? `✓ Příjem ${displayAmt} · ${catLabel}`
-              : `✓ Výdaj ${displayAmt} · ${catLabel}`,
+              ? `✓ ${trNow('Příjem', 'Income')} ${displayAmt} · ${catLabel}`
+              : `✓ ${trNow('Výdaj', 'Expense')} ${displayAmt} · ${catLabel}`,
         });
 
         // Učení kategorie + párování plateb + rozpočty běží na pozadí,

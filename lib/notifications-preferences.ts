@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { trNow } from '@/store/language-store';
 
 export const NOTIF_STORAGE_KEYS = {
   payments: 'notif_payments',
@@ -226,7 +227,10 @@ async function fetchOrCreateUserProfileForMigration(userId: string): Promise<{
   });
   if (insErr && insErr.code !== '23505') {
     console.warn('[notif-prefs] insert profile', insErr.message);
-    Alert.alert('Upozornění', `Nepodařilo se vytvořit profil notifikací: ${insErr.message}`);
+    Alert.alert(
+      trNow('Upozornění', 'Notice'),
+      trNow(`Nepodařilo se vytvořit profil notifikací: ${insErr.message}`, `Couldn’t create the notification profile: ${insErr.message}`),
+    );
   }
   return defaults;
 }
