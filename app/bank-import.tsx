@@ -122,7 +122,7 @@ function formatSuggestDate(ymd: string): string {
 
 export default function BankImportScreen() {
   const { colors } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const lang = language === 'en' ? 'en' : 'cs';
   const { user } = useAuth();
   const router = useRouter();
@@ -795,7 +795,7 @@ export default function BankImportScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: sessionData } = await supabase.auth.getSession();
       if (!user?.id || !sessionData.session?.access_token) {
-        Alert.alert('Chyba', 'Přihlášení vypršelo, přihlas se znovu.');
+        Alert.alert(tr('Chyba', 'Error'), tr('Přihlášení vypršelo, přihlas se znovu.', 'Your session expired, please sign in again.'));
         return;
       }
       const result = await invokeFioSync({
@@ -809,7 +809,10 @@ export default function BankImportScreen() {
       const { showToast } = await import('@/store/toast-store');
       showToast({
         type: 'success',
-        message: `Importováno ${imported} ${pluralNovaTransakce(imported, 'cs')} z ${total} celkem`,
+        message: tr(
+          `Importováno ${imported} ${pluralNovaTransakce(imported, 'cs')} z ${total} celkem`,
+          `Imported ${imported} new ${imported === 1 ? 'transaction' : 'transactions'} of ${total} total`,
+        ),
       });
       if (imported > 0) {
         await useFinanceStore.getState().loadTransactionsFromSupabase();
@@ -823,7 +826,7 @@ export default function BankImportScreen() {
         }
       }
     } catch (e) {
-      Alert.alert('Chyba', logAndGetUserFacingError('fio-sync', e));
+      Alert.alert(tr('Chyba', 'Error'), logAndGetUserFacingError('fio-sync', e));
     }
   });
 
@@ -872,7 +875,7 @@ export default function BankImportScreen() {
           accessibilityRole="link"
         >
           <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
-            Jak stáhnout výpis z banky?
+            {tr('Jak stáhnout výpis z banky?', 'How to get a bank statement?')}
           </Text>
         </TouchableOpacity>
 
@@ -1052,7 +1055,7 @@ export default function BankImportScreen() {
               <View style={styles.suggestMoreRow}>
                 <TouchableOpacity onPress={() => setPooledExpanded((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
-                    {pooledExpanded ? 'Skrýt ▴' : `Zobrazit všech ${pooledTransferCandidates.length} ▾`}
+                    {pooledExpanded ? tr('Skrýt ▴', 'Hide ▴') : tr(`Zobrazit všech ${pooledTransferCandidates.length} ▾`, `Show all ${pooledTransferCandidates.length} ▾`)}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1064,7 +1067,7 @@ export default function BankImportScreen() {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
-                    {selectedPooledIds.size === pooledTransferCandidates.length ? 'Zrušit výběr' : 'Vybrat vše'}
+                    {selectedPooledIds.size === pooledTransferCandidates.length ? tr('Zrušit výběr', 'Deselect') : tr('Vybrat vše', 'Select all')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1159,7 +1162,7 @@ export default function BankImportScreen() {
               <View style={styles.suggestMoreRow}>
                 <TouchableOpacity onPress={() => setRevolutCardExpanded((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
-                    {revolutCardExpanded ? 'Skrýt ▴' : `Zobrazit všech ${revolutCardCandidates.length} ▾`}
+                    {revolutCardExpanded ? tr('Skrýt ▴', 'Hide ▴') : tr(`Zobrazit všech ${revolutCardCandidates.length} ▾`, `Show all ${revolutCardCandidates.length} ▾`)}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1171,7 +1174,7 @@ export default function BankImportScreen() {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={[styles.suggestMoreText, { color: colors.primary }]}>
-                    {selectedRevolutCardIds.size === revolutCardCandidates.length ? 'Zrušit výběr' : 'Vybrat vše'}
+                    {selectedRevolutCardIds.size === revolutCardCandidates.length ? tr('Zrušit výběr', 'Deselect') : tr('Vybrat vše', 'Select all')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1245,9 +1248,9 @@ export default function BankImportScreen() {
 
         <PremiumGate feature="fio_sync" requireOwnPremium compact>
         <View style={[styles.fioCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.fioTitle, { color: colors.text }]}>🏦 Fio banka — auto sync</Text>
+          <Text style={[styles.fioTitle, { color: colors.text }]}>{tr('🏦 Fio banka — auto sync', '🏦 Fio banka — auto sync')}</Text>
           <Text style={[styles.fioSub, { color: colors.textSecondary }]}>
-            Vlož API token z Fio internetového bankovnictví. Token najdeš v nastavení Fio účtu.
+            {tr('Vlož API token z Fio internetového bankovnictví. Token najdeš v nastavení Fio účtu.', 'Paste the API token from Fio internet banking. You’ll find it in your Fio account settings.')}
           </Text>
           <TextInput
             style={[styles.fioInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -1267,7 +1270,7 @@ export default function BankImportScreen() {
           >
             {fioSyncing
               ? <ActivityIndicator color="white" />
-              : <Text style={styles.fioBtnText}>{fioSaved ? '🔄 Synchronizovat' : '💾 Uložit a synchronizovat'}</Text>
+              : <Text style={styles.fioBtnText}>{fioSaved ? tr('🔄 Synchronizovat', '🔄 Sync') : tr('💾 Uložit a synchronizovat', '💾 Save and sync')}</Text>
             }
           </TouchableOpacity>
         </View>
