@@ -106,12 +106,12 @@ function formatEstimateMonthsLabel(
   const remaining = Math.max(0, target - totalSaved);
   const m = Math.ceil(remaining / avg);
   if (m == null || m <= 0) return t('goalCompleted');
-  return t('goalApproxMonths', { count: m, monthsWord: pluralMěsic(m) });
+  return t('goalApproxMonths', { count: m, monthsWord: pluralMěsic(m, useLanguageStore.getState().language) });
 }
 
 export default function InvestmentDetailScreen() {
   const { user } = useAuth();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -455,7 +455,7 @@ export default function InvestmentDetailScreen() {
                   >
                     <Text style={[styles.rowTitle, { color: colors.text }]}>{label}</Text>
                     <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
-                      Investováno: {formatKc(sum)} · Cíl: {formatKc(goal)}
+                      {tr('Investováno', 'Invested')}: {formatKc(sum)} · {tr('Cíl', 'Goal')}: {formatKc(goal)}
                     </Text>
                     <View style={styles.statusRow}>
                       {st === 'ok' ? (
@@ -549,7 +549,7 @@ export default function InvestmentDetailScreen() {
               style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
             />
             <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              Částka 0 smaže všechny záznamy v tomto měsíci. Uložením se měsíc sloučí do jednoho řádku (1. den měsíce).
+              {tr('Částka 0 smaže všechny záznamy v tomto měsíci. Uložením se měsíc sloučí do jednoho řádku (1. den měsíce).', 'An amount of 0 deletes all entries in this month. Saving merges the month into one row (1st day of the month).')}
             </Text>
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.modalBtnGhost, { borderColor: colors.border }]} onPress={() => setEditModalOpen(false)}>

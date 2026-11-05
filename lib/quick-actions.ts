@@ -23,6 +23,7 @@ import {
   Download,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { currentLanguage } from '@/store/language-store';
 import type { PremiumFeatureId } from '@/constants/premium';
 import type { Href } from 'expo-router';
 
@@ -50,6 +51,8 @@ export type QuickActionKind = 'route' | 'sheet';
 export type QuickActionDef = {
   id: QuickActionId;
   label: string;
+  /** Anglický popisek */
+  labelEn: string;
   icon: LucideIcon;
   color: string;
   premium: boolean;
@@ -79,6 +82,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'add_expense',
     label: 'Přidat výdaj',
+    labelEn: 'Add expense',
     icon: PlusCircle,
     color: '#EF4444',
     premium: false,
@@ -88,6 +92,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'add_income',
     label: 'Přidat příjem',
+    labelEn: 'Add income',
     icon: ArrowDownCircle,
     color: '#10B981',
     premium: false,
@@ -97,6 +102,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'import',
     label: 'Nahrát výpis',
+    labelEn: 'Upload statement',
     icon: Upload,
     color: '#6366F1',
     premium: false,
@@ -106,6 +112,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'investice',
     label: 'Investice',
+    labelEn: 'Investments',
     icon: TrendingUp,
     color: '#8B5CF6',
     premium: true,
@@ -116,6 +123,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'save',
     label: 'Ušetři',
+    labelEn: 'Save',
     icon: PiggyBank,
     color: '#EC4899',
     premium: true,
@@ -126,6 +134,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'split',
     label: 'Rozděl útratu',
+    labelEn: 'Split expenses',
     icon: UsersRound,
     color: '#14B8A6',
     premium: false,
@@ -135,6 +144,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'monthly_report',
     label: 'Měsíční report',
+    labelEn: 'Monthly report',
     icon: Calendar,
     color: '#F59E0B',
     premium: true,
@@ -145,6 +155,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'plan',
     label: 'Plán',
+    labelEn: 'Plan',
     icon: Target,
     color: '#8B5CF6',
     premium: false,
@@ -154,6 +165,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'budgets',
     label: 'Rozpočty',
+    labelEn: 'Budgets',
     icon: Wallet,
     color: '#3B82F6',
     premium: false,
@@ -164,6 +176,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'goals',
     label: 'Spořicí cíle',
+    labelEn: 'Savings goals',
     icon: Target,
     color: '#10B981',
     premium: true,
@@ -174,6 +187,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'emergency_fund',
     label: 'Rezerva',
+    labelEn: 'Emergency fund',
     icon: Landmark,
     color: '#059669',
     premium: true,
@@ -184,6 +198,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'recurring',
     label: 'Pravidelné platby',
+    labelEn: 'Regular payments',
     icon: Repeat,
     color: '#6366F1',
     premium: false,
@@ -193,6 +208,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'loans',
     label: 'Závazky a úvěry',
+    labelEn: 'Commitments & loans',
     icon: CreditCard,
     color: '#8B5CF6',
     premium: false,
@@ -202,6 +218,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'subscriptions',
     label: 'Předplatné',
+    labelEn: 'Subscriptions',
     icon: Tv,
     color: '#F97316',
     premium: true,
@@ -213,6 +230,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'household',
     label: 'Domácnost',
+    labelEn: 'Household',
     icon: Users,
     color: '#0EA5E9',
     premium: true,
@@ -223,6 +241,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'bank_accounts',
     label: 'Bankovní účty',
+    labelEn: 'Bank accounts',
     icon: Building2,
     color: '#64748B',
     premium: false,
@@ -232,6 +251,7 @@ export const QUICK_ACTIONS_CATALOG: QuickActionDef[] = [
   {
     id: 'export',
     label: 'Export dat',
+    labelEn: 'Export data',
     icon: Download,
     color: '#475569',
     premium: false,
@@ -340,4 +360,9 @@ export async function saveQuickActionIds(
     quick_actions: normalized,
   });
   return { error: upErr ? new Error(upErr.message) : null };
+}
+
+/** Popisek rychlé akce v aktuálním jazyce. */
+export function quickActionLabel(def: Pick<QuickActionDef, 'label' | 'labelEn'>): string {
+  return currentLanguage() === 'en' ? def.labelEn : def.label;
 }

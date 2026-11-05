@@ -47,6 +47,7 @@ import {
   loadQuickActionIds,
   resolveQuickActions,
   type QuickActionId,
+  quickActionLabel,
 } from '@/lib/quick-actions';
 import { QuickActionsEditSheet } from '@/components/QuickActionsEditSheet';
 import {
@@ -1797,7 +1798,7 @@ export default function DashboardScreen() {
                   style={[styles.quickActionTileLabel, { color: colors.text }]}
                   numberOfLines={2}
                 >
-                  {def.label}
+                  {quickActionLabel(def)}
                 </Text>
               </TouchableOpacity>
             );

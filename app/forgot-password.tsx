@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Mail, KeyRound, Lock } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { showToast } from '@/store/toast-store';
+import { useLanguageStore } from '@/store/language-store';
 
 const GRADIENT_BG: [string, string, string] = ['#1a0533', '#120a3d', '#0d1b4b'];
 const MUTED = 'rgba(255,255,255,0.55)';
@@ -28,6 +29,7 @@ const MUTED = 'rgba(255,255,255,0.55)';
  */
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { tr } = useLanguageStore();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ email?: string }>();
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -40,7 +42,7 @@ export default function ForgotPasswordScreen() {
   const sendCode = async () => {
     const e = email.trim().toLowerCase();
     if (!e.includes('@')) {
-      setError('Zadej platný e-mail.');
+      setError(tr('Zadej platný e-mail.', 'Enter a valid e-mail.'));
       return;
     }
     setBusy(true);
@@ -51,8 +53,8 @@ export default function ForgotPasswordScreen() {
       const msg = (err.message ?? '').toLowerCase();
       setError(
         msg.includes('rate') || msg.includes('seconds')
-          ? 'Kód jsme právě poslali. Zkus to znovu za minutu.'
-          : 'Nepodařilo se odeslat e-mail. Zkus to prosím znovu.',
+          ? tr('Kód jsme právě poslali. Zkus to znovu za minutu.', 'We just sent a code. Try again in a minute.')
+          : tr('Nepodařilo se odeslat e-mail. Zkus to prosím znovu.', 'Couldn’t send the e-mail. Please try again.'),
       );
       return;
     }
@@ -67,7 +69,7 @@ export default function ForgotPasswordScreen() {
       return;
     }
     if (password.length < 6) {
-      setError('Nové heslo musí mít aspoň 6 znaků.');
+      setError(tr('Nové heslo musí mít aspoň 6 znaků.', 'Your new password must have at least 6 characters.'));
       return;
     }
     setBusy(true);
@@ -79,19 +81,19 @@ export default function ForgotPasswordScreen() {
     });
     if (vErr) {
       setBusy(false);
-      setError('Kód není správný nebo už vypršel. Nech si poslat nový.');
+      setError(tr('Kód není správný nebo už vypršel. Nech si poslat nový.', 'The code is wrong or has expired. Request a new one.'));
       return;
     }
     const { error: uErr } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (uErr) {
-      setError('Heslo se nepodařilo změnit. Zkus to prosím znovu.');
+      setError(tr('Heslo se nepodařilo změnit. Zkus to prosím znovu.', 'Couldn’t change the password. Please try again.'));
       return;
     }
     // Odhlásit a poslat na přihlášení s vyplněným e-mailem (jinak gate během načítání profilu hodí /landing).
     const cleanEmail = email.trim().toLowerCase();
     await supabase.auth.signOut().catch(() => {});
-    showToast({ type: 'success', message: '✓ Heslo změněno. Přihlas se novým heslem.' });
+    showToast({ type: 'success', message: tr('✓ Heslo změněno. Přihlas se novým heslem.', '✓ Password changed. Sign in with your new password.') });
     router.replace({ pathname: '/auth', params: { mode: 'login', email: cleanEmail } } as never);
   };
 
@@ -108,16 +110,16 @@ export default function ForgotPasswordScreen() {
             onPress={() => (step === 'code' ? setStep('email') : router.back())}
             style={styles.backBtn}
             hitSlop={12}
-            accessibilityLabel="Zpět"
+            accessibilityLabel={tr('Zpět', 'Back')}
           >
             <ChevronLeft color="#fff" size={24} />
           </TouchableOpacity>
 
-          <Text style={styles.title}>{step === 'email' ? 'Zapomenuté heslo' : 'Nastav nové heslo'}</Text>
+          <Text style={styles.title}>{step === 'email' ? tr('Zapomenuté heslo', 'Forgot password') : tr('Nastav nové heslo', 'Set a new password')}</Text>
           <Text style={styles.subtitle}>
             {step === 'email'
-              ? 'Zadej e-mail, se kterým se přihlašuješ. Pošleme ti 6místný kód.'
-              : `Pokud k ${email.trim()} existuje účet, poslali jsme kód. Zkontroluj i spam.`}
+              ? tr('Zadej e-mail, se kterým se přihlašuješ. Pošleme ti 6místný kód.', 'Enter the e-mail you sign in with. We’ll send you a 6-digit code.')
+              : tr(`Pokud k ${email.trim()} existuje účet, poslali jsme kód. Zkontroluj i spam.`, `If an account exists for ${email.trim()}, we’ve sent a code. Check your spam too.`)}
           </Text>
 
           {step === 'email' ? (
@@ -142,7 +144,7 @@ export default function ForgotPasswordScreen() {
                 <KeyRound color="rgba(255,255,255,0.4)" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Kód z e-mailu"
+                  placeholder={tr('Kód z e-mailu', 'Code from e-mail')}
                   placeholderTextColor={MUTED}
                   value={code}
                   onChangeText={setCode}
@@ -156,7 +158,7 @@ export default function ForgotPasswordScreen() {
                 <Lock color="rgba(255,255,255,0.4)" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Nové heslo (min. 6 znaků)"
+                  placeholder={tr('Nové heslo (min. 6 znaků)', 'New password (min. 6 characters)')}
                   placeholderTextColor={MUTED}
                   value={password}
                   onChangeText={setPassword}
@@ -187,14 +189,14 @@ export default function ForgotPasswordScreen() {
               {busy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryText}>{step === 'email' ? 'Poslat kód' : 'Změnit heslo'}</Text>
+                <Text style={styles.primaryText}>{step === 'email' ? tr('Poslat kód', 'Send code') : tr('Změnit heslo', 'Change password')}</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
 
           {step === 'code' ? (
             <TouchableOpacity onPress={() => void sendCode()} disabled={busy} style={styles.linkBtn}>
-              <Text style={styles.linkText}>Poslat kód znovu</Text>
+              <Text style={styles.linkText}>{tr('Poslat kód znovu', 'Resend code')}</Text>
             </TouchableOpacity>
           ) : null}
         </ScrollView>

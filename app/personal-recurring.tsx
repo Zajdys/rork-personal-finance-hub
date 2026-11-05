@@ -72,7 +72,7 @@ function frequencyLabelKey(
 export default function PersonalRecurringScreen() {
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const { getCurrentCurrency } = useSettingsStore();
   const currency = getCurrentCurrency();
   const numberLocale = appLocale(language);
@@ -237,12 +237,12 @@ export default function PersonalRecurringScreen() {
           // Spárováno automaticky s platbou z výpisu / ručním výdajem.
           const paidTx = st.paid;
           Alert.alert(
-            'Odškrtnout platbu?',
-            `Platbu jsme spárovali s výdajem „${paidTx.title ?? ''}“ (${fmtDay(String(paidTx.date).slice(0, 10))}). Pokud to není ona, odškrtni ji — výdaj zůstane v přehledu.`,
+            tr('Odškrtnout platbu?', 'Untick payment?'),
+            tr(`Platbu jsme spárovali s výdajem „${paidTx.title ?? ''}“ (${fmtDay(String(paidTx.date).slice(0, 10))}). Pokud to není ona, odškrtni ji — výdaj zůstane v přehledu.`, `We matched this payment with the expense “${paidTx.title ?? ''}” (${fmtDay(String(paidTx.date).slice(0, 10))}). If that’s not it, untick it — the expense stays in your overview.`),
             [
-              { text: 'Nechat zaplacené', style: 'cancel' },
+              { text: tr('Nechat zaplacené', 'Keep as paid'), style: 'cancel' },
               {
-                text: 'Odškrtnout',
+                text: tr('Odškrtnout', 'Untick'),
                 style: 'destructive',
                 onPress: () => {
                   void addUnmatchedPair(rule.id, paidTx.id).then(setUnmatched);
@@ -293,7 +293,7 @@ export default function PersonalRecurringScreen() {
               setAddOpen(true);
             }}
             accessibilityRole="button"
-            accessibilityLabel="Přidat pravidelnou platbu"
+            accessibilityLabel={tr('Přidat pravidelnou platbu', 'Add regular payment')}
             hitSlop={10}
             style={{
               width: 36,
@@ -386,9 +386,12 @@ export default function PersonalRecurringScreen() {
                     {!item.active
                       ? t('personalRecurring.paused')
                       : monthStatus.get(item.id)?.paid
-                        ? `✓ zaplaceno ${fmtDay(String(monthStatus.get(item.id)!.paid!.date).slice(0, 10))}${monthStatus.get(item.id)!.paid!.recurringId === item.id ? '' : ' · podle výpisu'}`
+                        ? `✓ ${tr('zaplaceno', 'paid')} ${fmtDay(String(monthStatus.get(item.id)!.paid!.date).slice(0, 10))}${monthStatus.get(item.id)!.paid!.recurringId === item.id ? '' : tr(' · podle výpisu', ' · from statement')}`
                         : monthStatus.has(item.id)
-                          ? `splatné ${fmtDay(monthStatus.get(item.id)!.due)} · odškrtni, až zaplatíš`
+                          ? tr(
+                              `splatné ${fmtDay(monthStatus.get(item.id)!.due)} · odškrtni, až zaplatíš`,
+                              `due ${fmtDay(monthStatus.get(item.id)!.due)} · tick it off once paid`,
+                            )
                           : t('personalRecurring.nextDate', { date: nextLabel })}
                   </Text>
                 </View>

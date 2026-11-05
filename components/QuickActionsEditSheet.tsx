@@ -21,8 +21,10 @@ import {
   getQuickActionDef,
   saveQuickActionIds,
   type QuickActionId,
+  quickActionLabel,
 } from '@/lib/quick-actions';
 import { showToast } from '@/store/toast-store';
+import { useLanguageStore } from '@/store/language-store';
 
 type Props = {
   visible: boolean;
@@ -40,6 +42,7 @@ export function QuickActionsEditSheet({
   onSaved,
 }: Props) {
   const { colors } = useTheme();
+  const { tr } = useLanguageStore();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<QuickActionId[]>(selectedIds);
   const [saving, setSaving] = useState(false);
@@ -75,7 +78,7 @@ export function QuickActionsEditSheet({
 
   const add = (id: QuickActionId) => {
     if (draft.length >= MAX_QUICK_ACTIONS) {
-      showToast({ type: 'error', message: 'Max 8 akcí' });
+      showToast({ type: 'error', message: tr('Max 8 akcí', 'Max 8 actions') });
       return;
     }
     if (draft.includes(id)) return;
@@ -96,11 +99,11 @@ export function QuickActionsEditSheet({
     const { error } = await saveQuickActionIds(userId, draft);
     setSaving(false);
     if (error) {
-      showToast({ type: 'error', message: 'Nepodařilo se uložit' });
+      showToast({ type: 'error', message: tr('Nepodařilo se uložit', 'Couldn’t save') });
       return;
     }
     onSaved(draft);
-    showToast({ type: 'success', message: '✓ Rychlé akce uložené' });
+    showToast({ type: 'success', message: tr('✓ Rychlé akce uložené', '✓ Quick actions saved') });
     close();
   };
 
@@ -128,7 +131,7 @@ export function QuickActionsEditSheet({
             <View style={styles.headerRow}>
               <View style={styles.headerSpacer} />
               <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-                Upravit rychlé akce
+                {tr('Upravit rychlé akce', 'Edit quick actions')}
               </Text>
               <TouchableOpacity
                 onPress={close}
@@ -144,13 +147,13 @@ export function QuickActionsEditSheet({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollContent}
             >
-              <Text style={[styles.sectionLabel, { color: colors.text }]}>Na Přehledu</Text>
+              <Text style={[styles.sectionLabel, { color: colors.text }]}>{tr('Na Přehledu', 'On Overview')}</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Pořadí změníš šipkami · max {MAX_QUICK_ACTIONS}
+                {tr(`Pořadí změníš šipkami · max ${MAX_QUICK_ACTIONS}`, `Reorder with the arrows · max ${MAX_QUICK_ACTIONS}`)}
               </Text>
               {draft.length === 0 ? (
                 <Text style={[styles.empty, { color: colors.textSecondary }]}>
-                  Žádné vybrané akce
+                  {tr('Žádné vybrané akce', 'No actions selected')}
                 </Text>
               ) : (
                 draft.map((id, index) => {
@@ -169,7 +172,7 @@ export function QuickActionsEditSheet({
                         <Icon color={def.color} size={18} />
                       </View>
                       <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
-                        {def.label}
+                        {quickActionLabel(def)}
                       </Text>
                       <TouchableOpacity
                         onPress={() => move(index, -1)}
@@ -196,11 +199,11 @@ export function QuickActionsEditSheet({
               )}
 
               <Text style={[styles.sectionLabel, { color: colors.text, marginTop: 20 }]}>
-                Další akce
+                {tr('Další akce', 'More actions')}
               </Text>
               {available.length === 0 ? (
                 <Text style={[styles.empty, { color: colors.textSecondary }]}>
-                  Všechny akce jsou na Přehledu
+                  {tr('Všechny akce jsou na Přehledu', 'All actions are on the Overview')}
                 </Text>
               ) : (
                 available.map((def) => {
@@ -219,7 +222,7 @@ export function QuickActionsEditSheet({
                         <Icon color={def.color} size={18} />
                       </View>
                       <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
-                        {def.label}
+                        {quickActionLabel(def)}
                       </Text>
                       <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 18 }}>+</Text>
                     </TouchableOpacity>
@@ -229,7 +232,7 @@ export function QuickActionsEditSheet({
             </ScrollView>
 
             <TouchableOpacity onPress={resetDefault} style={styles.resetBtn}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>Obnovit výchozí</Text>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>{tr('Obnovit výchozí', 'Reset to default')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
