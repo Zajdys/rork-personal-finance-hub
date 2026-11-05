@@ -34,6 +34,8 @@ import {
   fetchQuickSetupProfile,
   formatKčGrouped,
   getCommitmentMeta,
+  commitmentName,
+  COMMITMENT_TITLE_TO_KEY,
   markQuickSetupAutoShown,
   markQuickSetupCompleted,
   saveQuickSetupProfileFields,
@@ -44,25 +46,29 @@ import {
   type QuickSetupCommitmentDraft,
   type QuickSetupCommitmentKey,
 } from '@/lib/quick-setup';
+import { useLanguageStore } from '@/store/language-store';
+import { categoryPathLabel } from '@/lib/category-labels';
+import { uiLocale } from '@/lib/app-locale';
 
 const STEPS = 3;
 
-const EMPLOYMENT_CHIPS: { id: Exclude<EmploymentChip, null>; label: string }[] = [
-  { id: 'employee', label: 'Zaměstnanec' },
-  { id: 'osvc', label: 'OSVČ' },
-  { id: 'student', label: 'Student' },
-  { id: 'other', label: 'Jiné' },
+const EMPLOYMENT_CHIPS: { id: Exclude<EmploymentChip, null>; label: string; labelEn: string }[] = [
+  { id: 'employee', label: 'Zaměstnanec', labelEn: 'Employee' },
+  { id: 'osvc', label: 'OSVČ', labelEn: 'Self-employed' },
+  { id: 'student', label: 'Student', labelEn: 'Student' },
+  { id: 'other', label: 'Jiné', labelEn: 'Other' },
 ];
 
 const BUDGET_FIELDS: {
   key: keyof QuickSetupBudgetDraft;
   emoji: string;
   label: string;
+  labelEn: string;
 }[] = [
-  { key: 'food', emoji: '🍽️', label: 'Jídlo' },
-  { key: 'transportation', emoji: '🚗', label: 'Auto a doprava' },
-  { key: 'shopping', emoji: '🛍️', label: 'Nákupy' },
-  { key: 'entertainment', emoji: '🎬', label: 'Volný čas' },
+  { key: 'food', emoji: '🍽️', label: 'Jídlo', labelEn: 'Food' },
+  { key: 'transportation', emoji: '🚗', label: 'Auto a doprava', labelEn: 'Car & transport' },
+  { key: 'shopping', emoji: '🛍️', label: 'Nákupy', labelEn: 'Shopping' },
+  { key: 'entertainment', emoji: '🎬', label: 'Volný čas', labelEn: 'Leisure' },
 ];
 
 export default function QuickSetupScreen() {
@@ -72,6 +78,7 @@ export default function QuickSetupScreen() {
   const params = useLocalSearchParams<{ edit?: string }>();
   const isEdit = params.edit === '1';
   const { user } = useAuth();
+  const { tr } = useLanguageStore();
   const { addLoan, loans, deleteLoan } = useFinanceStore();
 
   const [step, setStep] = useState(0);
@@ -111,11 +118,10 @@ export default function QuickSetupScreen() {
         if (!cancelled) {
           const { fetchPersonalRecurringRules } = await import('@/lib/personal-recurring');
           const { rules } = await fetchPersonalRecurringRules(user.id);
-          const titleToKey: Record<string, QuickSetupCommitmentKey> = {
-            'Nájem': 'rent',
-            'Energie': 'energy',
-            'Telefon a internet': 'phone',
-          };
+          // Názvy v obou jazycích (pravidla uložená v CZ i EN).
+          const titleToKey: Record<string, QuickSetupCommitmentKey> = Object.fromEntries(
+            Object.entries(COMMITMENT_TITLE_TO_KEY).filter(([, k]) => k === 'rent' || k === 'energy' || k === 'phone'),
+          ) as Record<string, QuickSetupCommitmentKey>;
           const hits = (rules ?? []).filter((r) => r.active && titleToKey[r.title]);
           if (!cancelled && hits.length > 0) {
             setCommitments((prev) =>
@@ -142,10 +148,10 @@ export default function QuickSetupScreen() {
               const name = (loan.name ?? '').toLowerCase();
               let key: QuickSetupCommitmentKey | null = null;
               if (loan.loanType === 'mortgage' || name.includes('hypot')) key = 'mortgage';
-              else if (name.includes('nájem') || name.includes('najem')) key = 'rent';
-              else if (name.includes('energie')) key = 'energy';
-              else if (name.includes('telefon') || name.includes('internet')) key = 'phone';
-              else if (loan.loanType === 'car' || name.includes('leasing') || name.includes('půjč'))
+              else if (name.includes('nájem') || name.includes('najem') || name === 'rent') key = 'rent';
+              else if (name.includes('energie') || name === 'energy') key = 'energy';
+              else if (name.includes('telefon') || name.includes('internet') || name.includes('phone')) key = 'phone';
+              else if (loan.loanType === 'car' || name.includes('leasing') || name.includes('půjč') || name.includes('loan'))
                 key = 'leasing';
               if (!key) continue;
               const row = byKey.get(key);
@@ -251,7 +257,7 @@ export default function QuickSetupScreen() {
       // Úvěry = loans (ne transakce). Předchozí položky z rychlého nastavení vždy nahradit (jinak duplicity při opakování).
       {
         const setupNames = new Set(
-          ['Hypotéka', 'Nájem', 'Energie', 'Telefon a internet', 'Leasing / půjčka'].flatMap((n) => [
+          Object.keys(COMMITMENT_TITLE_TO_KEY).flatMap((n) => [
             n,
             `${n} 2`,
             `${n} 3`,
@@ -276,7 +282,11 @@ export default function QuickSetupScreen() {
       {
         const pr = await import('@/lib/personal-recurring');
         const { rules } = await pr.fetchPersonalRecurringRules(user.id);
-        const setupTitles = new Set(['Nájem', 'Energie', 'Telefon a internet']);
+        const setupTitles = new Set(
+          Object.entries(COMMITMENT_TITLE_TO_KEY)
+            .filter(([, k]) => k === 'rent' || k === 'energy' || k === 'phone')
+            .map(([n]) => n),
+        );
         // Editace: stará pravidla z rychlého nastavení nahradíme (transakce zůstanou).
         for (const r of rules ?? []) {
           if (setupTitles.has(r.title)) await pr.deletePersonalRecurringRule(user.id, r.id);
@@ -314,7 +324,7 @@ export default function QuickSetupScreen() {
           }),
         );
       await Promise.all([...budgetWrites, markQuickSetupCompleted(user.id)]);
-      showToast({ type: 'success', message: '✓ Appka je nastavená' });
+      showToast({ type: 'success', message: tr('✓ Appka je nastavená', '✓ All set up') });
       goAfterSetup();
       // Notifikace mají smysl až teď (připomínky splatností, hlídání rozpočtů).
       if (newLoans.length > 0 || recurringDrafts.length > 0 || budgetWrites.length > 0) {
@@ -324,7 +334,7 @@ export default function QuickSetupScreen() {
       }
     } catch (e) {
       console.warn('[quick-setup] save', e);
-      showToast({ type: 'error', message: 'Nepodařilo se uložit nastavení' });
+      showToast({ type: 'error', message: tr('Nepodařilo se uložit nastavení', 'Could not save your setup') });
     } finally {
       setSaving(false);
     }
@@ -359,12 +369,12 @@ export default function QuickSetupScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHeader
-        title={isEdit ? 'Příjem a rozpočty' : 'Rychlé nastavení'}
-        subtitle={isEdit ? 'Uprav si plán' : 'Zvládneš to za minutu'}
+        title={isEdit ? tr('Příjem a rozpočty', 'Income & budgets') : tr('Rychlé nastavení', 'Quick setup')}
+        subtitle={isEdit ? tr('Uprav si plán', 'Adjust your plan') : tr('Zvládneš to za minutu', 'Takes about a minute')}
         variant="gradient"
         right={
           <TouchableOpacity onPress={() => void handleSkip()} hitSlop={10}>
-            <Text style={styles.skipText}>{isEdit ? 'Zavřít' : 'Přeskočit'}</Text>
+            <Text style={styles.skipText}>{isEdit ? tr('Zavřít', 'Close') : tr('Přeskočit', 'Skip')}</Text>
           </TouchableOpacity>
         }
       />
@@ -383,9 +393,9 @@ export default function QuickSetupScreen() {
         >
           {step === 0 ? (
             <View>
-              <Text style={[styles.headline, { color: colors.text }]}>Kolik ti měsíčně přijde?</Text>
+              <Text style={[styles.headline, { color: colors.text }]}>{tr('Kolik ti měsíčně přijde?', 'How much do you earn a month?')}</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Čistý měsíční příjem — pomůže naplánovat rozpočet.
+                {tr('Čistý měsíční příjem — pomůže naplánovat rozpočet.', 'Net monthly income — helps plan your budget.')}
               </Text>
               <View
                 style={[
@@ -401,7 +411,7 @@ export default function QuickSetupScreen() {
                   placeholderTextColor={colors.textSecondary}
                   style={[styles.incomeInput, { color: colors.text }]}
                 />
-                <Text style={[styles.currency, { color: colors.textSecondary }]}>Kč</Text>
+                <Text style={[styles.currency, { color: colors.textSecondary }]}>{tr('Kč', 'CZK')}</Text>
               </View>
 
               {showIncomeSuggestion && incomeSuggestion ? (
@@ -413,10 +423,10 @@ export default function QuickSetupScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontWeight: '700', fontSize: 14 }}>
-                      Podle výpisů ti chodí průměrně {formatKčGrouped(String(incomeSuggestion.average))} Kč
+                      {tr(`Podle výpisů ti chodí průměrně ${formatKčGrouped(String(incomeSuggestion.average))} Kč`, `Based on your statements you earn ${formatKčGrouped(String(incomeSuggestion.average))} CZK on average`)}
                     </Text>
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                      Posledních {incomeSuggestion.monthly.length} výplat:{' '}
+                      {tr(`Posledních ${incomeSuggestion.monthly.length} výplat:`, `Last ${incomeSuggestion.monthly.length} salaries:`)}{' '}
                       {incomeSuggestion.monthly
                         .map((m) => formatKčGrouped(String(Math.round(m.amount))))
                         .join(' · ')}
@@ -430,12 +440,12 @@ export default function QuickSetupScreen() {
                     style={[styles.suggestBtn, { backgroundColor: colors.primary }]}
                     accessibilityRole="button"
                   >
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Použít</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{tr('Použít', 'Use')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
 
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Typ příjmu</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{tr('Typ příjmu', 'Income type')}</Text>
               <View style={styles.chipRow}>
                 {EMPLOYMENT_CHIPS.map((c) => {
                   const on = employment === c.id;
@@ -451,7 +461,7 @@ export default function QuickSetupScreen() {
                       ]}
                     >
                       <Text style={{ color: on ? '#fff' : colors.text, fontWeight: '600', fontSize: 13 }}>
-                        {c.label}
+                        {tr(c.label, c.labelEn)}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -459,7 +469,7 @@ export default function QuickSetupScreen() {
               </View>
 
               <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-                Den výplaty (nepovinné)
+                {tr('Den výplaty (nepovinné)', 'Payday (optional)')}
               </Text>
               <TextInput
                 value={payday}
@@ -477,9 +487,9 @@ export default function QuickSetupScreen() {
 
           {step === 1 ? (
             <View>
-              <Text style={[styles.headline, { color: colors.text }]}>Pravidelné platby</Text>
+              <Text style={[styles.headline, { color: colors.text }]}>{tr('Pravidelné platby', 'Regular payments')}</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Nájem, energie a telefon uložíme do Pravidelných plateb, hypotéku a leasing do Úvěrů. Až nahraješ výpis, platby se samy spárují.
+                {tr('Nájem, energie a telefon uložíme do Pravidelných plateb, hypotéku a leasing do Úvěrů. Až nahraješ výpis, platby se samy spárují.', 'Rent, energy and phone go to Regular payments, mortgage and leasing to Loans. Once you upload a statement, payments are matched automatically.')}
               </Text>
               {commitments.map((c) => {
                 const meta = getCommitmentMeta(c.key);
@@ -494,8 +504,10 @@ export default function QuickSetupScreen() {
                     <View style={styles.commitmentHeader}>
                       <Text style={{ fontSize: 22 }}>{meta.emoji}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.commitmentTitle, { color: colors.text }]}>{meta.name}</Text>
-                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{meta.categoryTag}</Text>
+                        <Text style={[styles.commitmentTitle, { color: colors.text }]}>{commitmentName(c.key)}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                          {categoryPathLabel(meta.categoryTag.split(' › ')[0], meta.categoryTag.split(' › ')[1] ?? null).replace(' · ', ' › ')}
+                        </Text>
                       </View>
                       <Switch
                         value={c.enabled}
@@ -506,7 +518,7 @@ export default function QuickSetupScreen() {
                     {c.enabled ? (
                       <View style={styles.commitmentFields}>
                         <View style={{ flex: 1.4 }}>
-                          <Text style={[styles.miniLabel, { color: colors.textSecondary }]}>Částka</Text>
+                          <Text style={[styles.miniLabel, { color: colors.textSecondary }]}>{tr('Částka', 'Amount')}</Text>
                           <TextInput
                             value={c.amount}
                             onChangeText={(v) => updateCommitment(c.key, { amount: formatKčGrouped(v) })}
@@ -524,7 +536,7 @@ export default function QuickSetupScreen() {
                           />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.miniLabel, { color: colors.textSecondary }]}>Den</Text>
+                          <Text style={[styles.miniLabel, { color: colors.textSecondary }]}>{tr('Den', 'Day')}</Text>
                           <TextInput
                             value={c.dueDay}
                             onChangeText={(v) =>
@@ -559,7 +571,7 @@ export default function QuickSetupScreen() {
                                 updateCommitment('leasing', { extras });
                               }}
                               keyboardType="number-pad"
-                              placeholder="Částka"
+                              placeholder={tr('Částka', 'Amount')}
                               placeholderTextColor={colors.textSecondary}
                               style={[
                                 styles.smallInput,
@@ -582,7 +594,7 @@ export default function QuickSetupScreen() {
                                 updateCommitment('leasing', { extras });
                               }}
                               keyboardType="number-pad"
-                              placeholder="Den"
+                              placeholder={tr('Den', 'Day')}
                               placeholderTextColor={colors.textSecondary}
                               style={[
                                 styles.smallInput,
@@ -615,7 +627,7 @@ export default function QuickSetupScreen() {
                         >
                           <Plus color={colors.primary} size={16} />
                           <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
-                            Přidat další leasing / půjčku
+                            {tr('Přidat další leasing / půjčku', 'Add another leasing / loan')}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -629,15 +641,15 @@ export default function QuickSetupScreen() {
           {step === 2 ? (
             <View>
               <Text style={[styles.headline, { color: colors.text }]}>
-                Kolik zhruba utratíš za měsíc?
+                {tr('Kolik zhruba utratíš za měsíc?', 'Roughly how much do you spend a month?')}
               </Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Nepovinné — nastaví měsíční limity (rozpočty) na kategorie.
+                {tr('Nepovinné — nastaví měsíční limity (rozpočty) na kategorie.', 'Optional — sets monthly limits (budgets) for categories.')}
               </Text>
               {BUDGET_FIELDS.map((f) => (
                 <View key={f.key} style={styles.budgetRow}>
                   <Text style={{ fontSize: 22, width: 36 }}>{f.emoji}</Text>
-                  <Text style={[styles.budgetLabel, { color: colors.text }]}>{f.label}</Text>
+                  <Text style={[styles.budgetLabel, { color: colors.text }]}>{tr(f.label, f.labelEn)}</Text>
                   <TextInput
                     value={budget[f.key]}
                     onChangeText={(v) =>
@@ -655,7 +667,7 @@ export default function QuickSetupScreen() {
                       },
                     ]}
                   />
-                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Kč</Text>
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>{tr('Kč', 'CZK')}</Text>
                 </View>
               ))}
 
@@ -666,9 +678,10 @@ export default function QuickSetupScreen() {
                 ]}
               >
                 <Text style={[styles.summaryLine, { color: colors.textSecondary }]}>
-                  Příjem {incomeNum.toLocaleString('cs-CZ')} − pravidelné platby{' '}
-                  {commitmentsSum.toLocaleString('cs-CZ')} − plán výdajů{' '}
-                  {budgetSum.toLocaleString('cs-CZ')}
+                  {tr(
+                    `Příjem ${incomeNum.toLocaleString(uiLocale())} − pravidelné platby ${commitmentsSum.toLocaleString(uiLocale())} − plán výdajů ${budgetSum.toLocaleString(uiLocale())}`,
+                    `Income ${incomeNum.toLocaleString(uiLocale())} − regular payments ${commitmentsSum.toLocaleString(uiLocale())} − planned spending ${budgetSum.toLocaleString(uiLocale())}`,
+                  )}
                 </Text>
                 <Text
                   style={[
@@ -676,7 +689,7 @@ export default function QuickSetupScreen() {
                     { color: remaining >= 0 ? '#10B981' : '#EF4444' },
                   ]}
                 >
-                  = zbývá {remaining.toLocaleString('cs-CZ')} Kč
+                  {tr(`= zbývá ${remaining.toLocaleString(uiLocale())} Kč`, `= ${remaining.toLocaleString(uiLocale())} CZK left`)}
                 </Text>
               </View>
             </View>
@@ -699,7 +712,7 @@ export default function QuickSetupScreen() {
             onPress={() => setStep((s) => s - 1)}
             style={[styles.footerBtnSecondary, { borderColor: colors.border }]}
           >
-            <Text style={{ color: colors.text, fontWeight: '700' }}>Zpět</Text>
+            <Text style={{ color: colors.text, fontWeight: '700' }}>{tr('Zpět', 'Back')}</Text>
           </TouchableOpacity>
         ) : null}
         {step < STEPS - 1 ? (
@@ -713,7 +726,7 @@ export default function QuickSetupScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.footerBtnPrimaryText}>Další</Text>
+              <Text style={styles.footerBtnPrimaryText}>{tr('Další', 'Next')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         ) : (
@@ -731,7 +744,7 @@ export default function QuickSetupScreen() {
               {saving ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.footerBtnPrimaryText}>Hotovo</Text>
+                <Text style={styles.footerBtnPrimaryText}>{tr('Hotovo', 'Done')}</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>

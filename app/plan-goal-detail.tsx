@@ -31,9 +31,10 @@ import { parseMoneyInput } from '@/lib/parse-money-input';
 import { formatKčGrouped } from '@/lib/quick-setup';
 import { showToast } from '@/store/toast-store';
 import { safeGoBack } from '@/lib/safe-back';
+import { uiLocale } from '@/lib/app-locale';
 
 function formatKc(n: number): string {
-  return `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
+  return `${Math.round(n).toLocaleString(uiLocale())} Kč`;
 }
 
 function CircularProgress({
@@ -265,7 +266,7 @@ export default function PlanGoalDetailScreen() {
           {goal.deadline ? (
             <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
               do{' '}
-              {new Date(`${goal.deadline}T12:00:00`).toLocaleDateString('cs-CZ', {
+              {new Date(`${goal.deadline}T12:00:00`).toLocaleDateString(uiLocale(), {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
@@ -326,7 +327,7 @@ export default function PlanGoalDetailScreen() {
                     {c.note ? ` · ${c.note}` : ''}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                    {new Date(c.createdAt).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                    {new Date(c.createdAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'numeric', year: 'numeric' })}
                   </Text>
                 </View>
                 <Text

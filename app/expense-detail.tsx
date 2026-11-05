@@ -23,7 +23,7 @@ import { useFinanceStore, EXPENSE_CATEGORIES, getMonthTransactions, isExpenseFor
 import { mainCategoryName } from '@/lib/category-normalize';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
-import { appLocale } from '@/lib/app-locale';
+import { appLocale, uiLocale } from '@/lib/app-locale';
 import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { useAuth } from '@/store/auth-store';
 import { useRouter, Stack } from 'expo-router';
@@ -34,6 +34,7 @@ import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 import { usePlanStore } from '@/store/plan-store';
+import { categoryLabel } from '@/lib/category-labels';
 
 const EXPENSE_CATEGORY_ORDER_KEY = 'expense_category_order';
 const EXCLUDED_FROM_TOTAL_COLOR = '#9CA3AF';
@@ -278,7 +279,7 @@ export default function ExpenseDetailScreen() {
   const insights = useMemo<Insight[]>(() => {
     const out: Insight[] = [];
     if (periodExpenseTransactions.length < MIN_TX_FOR_INSIGHTS) return out;
-    const fmt = (n: number) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
+    const fmt = (n: number) => `${Math.round(n).toLocaleString(uiLocale())} Kč`;
     const ranked = periodCategoryExpenses.filter((c) => !c.excludedFromTotal);
     const top = ranked[0];
 
@@ -424,7 +425,7 @@ export default function ExpenseDetailScreen() {
             </View>
             <View style={styles.categoryDetailInfo}>
               <Text style={[styles.categoryDetailName, { color: isExcluded ? EXCLUDED_FROM_TOTAL_COLOR : textMain }]}>
-                {category.category}
+                {categoryLabel(category.category)}
               </Text>
               <Text style={[styles.categoryDetailCount, { color: textSec }]}>
                 {isExcluded

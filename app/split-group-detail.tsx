@@ -36,6 +36,7 @@ import {
   useSplitGroupsStore,
   type SplitExpense,
 } from '@/store/split-groups-store';
+import { uiLocale } from '@/lib/app-locale';
 
 const MEMBER_AVATAR_COLORS = ['#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899', '#14B8A6', '#6366F1'] as const;
 
@@ -74,7 +75,7 @@ function currencySymbol(code: string): string {
 
 function formatMoney(amount: number, currency: string) {
   const rounded = Math.round(amount * 100) / 100;
-  const num = rounded.toLocaleString('cs-CZ', {
+  const num = rounded.toLocaleString(uiLocale(), {
     minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
     maximumFractionDigits: 2,
   });

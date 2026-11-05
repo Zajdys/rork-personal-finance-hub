@@ -4876,9 +4876,9 @@ export const TRANSLATIONS = {
     bankImportFilesResultSummary: 'Imported {{ok}} of {{total}} {{statementsWord}}. {{failed}} could not be loaded: {{names}}.',
     bankImportFxBlocked: 'Could not load the CNB exchange rate. Import cannot start — please try again.',
     bankImportFxFailed: 'exchange rate could not be loaded',
-    bankImportLoanSuggestBody: 'Tyto protiúčty mají ve zprávě splátku úvěru / hypotéky / leasingu. Zařadit do Splátky úvěrů?',
-    bankImportLoanSuggestConfirm: 'Zařadit do Splátky úvěrů',
-    bankImportLoanSuggestTitle: 'Vypadá to na splátku úvěru',
+    bankImportLoanSuggestBody: 'These counterparties mention a loan / mortgage / leasing payment. Move them to Loan payments?',
+    bankImportLoanSuggestConfirm: 'Move to Loan payments',
+    bankImportLoanSuggestTitle: 'Looks like a loan payment',
     bankImportOwnAccountsAdd: 'Add account',
     bankImportOwnAccountsBankName: 'My accounts',
     bankImportOwnAccountsBody: 'If you enter your other account numbers (savings, second current, partner’s), transfers between them won’t count as expenses. Without that, reports show higher spending than you really have.',
@@ -5284,7 +5284,7 @@ export const TRANSLATIONS = {
     welcomeTourSkip: 'Skip',
     welcomeTourSplit: 'Split expenses with friends — they join with a code, no shared household needed.',
     welcomeTourSplitDemoDebt1Amount: '320 CZK',
-    welcomeTourSplitDemoDebt1Who: 'Jan → Klára',
+    welcomeTourSplitDemoDebt1Who: 'John → Clara',
     welcomeTourSplitDemoDebt2Amount: '180 CZK',
     welcomeTourSplitDemoDebt2Who: 'Petr → Eva',
     welcomeTourSplitDemoTitle: 'Dinner in Brno',
@@ -5302,6 +5302,8 @@ interface LanguageState {
   setLanguage: (language: Language) => void;
   loadLanguage: () => Promise<void>;
   t: (key: keyof typeof TRANSLATIONS.cs, params?: Record<string, string | number>) => string;
+  /** Inline dvojjazyčný text: tr('Uložit', 'Save'). Pro texty mimo tabulku TRANSLATIONS. */
+  tr: (cs: string, en: string) => string;
 }
 
 export const useLanguageStore = create<LanguageState>((set, get) => ({
@@ -5353,6 +5355,8 @@ export const useLanguageStore = create<LanguageState>((set, get) => ({
     }
   },
 
+  tr: (cs: string, en: string) => (get().language === 'en' ? en : cs),
+
   t: (key: keyof typeof TRANSLATIONS.cs, params?: Record<string, string | number>) => {
     const { language } = get();
     let translation = TRANSLATIONS[language]?.[key] || TRANSLATIONS.cs[key];
@@ -5365,3 +5369,13 @@ export const useLanguageStore = create<LanguageState>((set, get) => ({
     return translation;
   },
 }));
+
+/** Mimo React (lib, notifikace, alerty): text podle aktuálního jazyka appky. */
+export function trNow(cs: string, en: string): string {
+  return useLanguageStore.getState().language === 'en' ? en : cs;
+}
+
+/** Aktuální jazyk appky mimo React. */
+export function currentLanguage(): Language {
+  return useLanguageStore.getState().language;
+}

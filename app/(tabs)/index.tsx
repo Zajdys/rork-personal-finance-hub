@@ -110,6 +110,7 @@ import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { HelpChatIntroCard } from '@/components/HelpChatIntroCard';
 import { BuddyAvatar } from '@/components/BuddyAvatar';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
+import { categoryLabel } from '@/lib/category-labels';
 
 const { width } = Dimensions.get('window');
 /** Šířka slajdu = obrazovka minus `warningsContainer` okraje 16+16. */
@@ -1086,7 +1087,7 @@ export default function DashboardScreen() {
           <Text style={styles.categoryIcon}>{category.icon}</Text>
         </View>
         <View style={styles.categoryInfo}>
-          <Text style={[styles.categoryName, { color: colors.text }]}>{category.category}</Text>
+          <Text style={[styles.categoryName, { color: colors.text }]}>{categoryLabel(category.category)}</Text>
           <Text style={styles.categoryAmount}>
             {formatMoneyWithSymbol(category.amount, numberLocale, currentCurrency.symbol)}
           </Text>

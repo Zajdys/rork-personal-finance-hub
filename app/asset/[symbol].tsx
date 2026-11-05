@@ -16,6 +16,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { fetchYahooQuote, toYahooSymbol } from '@/lib/yahoo-ticker';
 import { fetchYahooDailySeries } from '@/lib/yahoo-historical';
+import { uiLocale } from '@/lib/app-locale';
 
 type ChartRange = '1M' | '1Y';
 
@@ -224,7 +225,7 @@ export default function AssetDetailScreen() {
           ) : null}
           <Text style={styles.muted}>
             {t('assetHoldingLine', {
-              shares: sharesNum.toLocaleString('cs-CZ', { maximumFractionDigits: 4 }),
+              shares: sharesNum.toLocaleString(uiLocale(), { maximumFractionDigits: 4 }),
               avgPrice: avgPriceNum.toFixed(2),
               currency: ccy ? ` ${ccy}` : '',
             })}
@@ -296,7 +297,7 @@ export default function AssetDetailScreen() {
           <View style={styles.stat}>
             <Text style={styles.label}>{t('assetShares')}</Text>
             <Text style={styles.value}>
-              {sharesNum.toLocaleString('cs-CZ', { maximumFractionDigits: 4 })}
+              {sharesNum.toLocaleString(uiLocale(), { maximumFractionDigits: 4 })}
             </Text>
           </View>
           <View style={styles.stat}>

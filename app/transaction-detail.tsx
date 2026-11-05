@@ -38,6 +38,8 @@ import { useAsyncAction } from '@/hooks/use-async-action';
 import { pluralTransakce } from '@/lib/plural-cs';
 import { defaultSubcategoriesFor } from '@/constants/categories';
 import { isPickerExpenseCategory, mainCategoryName } from '@/lib/category-normalize';
+import { categoryLabel } from '@/lib/category-labels';
+import { uiLocale } from '@/lib/app-locale';
 
 function paramId(raw: string | string[] | undefined): string | undefined {
   if (raw == null) return undefined;
@@ -244,7 +246,7 @@ export default function TransactionDetailScreen() {
     if (!transaction || !id) return;
     Alert.alert(
       t('transactionDeleteTitle'),
-      `${transaction.title} — ${transaction.amount.toLocaleString('cs-CZ')} ${currency.symbol}`,
+      `${transaction.title} — ${transaction.amount.toLocaleString(uiLocale())} ${currency.symbol}`,
       [
         { text: t('cancel'), style: 'cancel' },
         {
@@ -418,13 +420,13 @@ export default function TransactionDetailScreen() {
         transaction.originalAmount != null &&
         transaction.originalCurrency !== 'CZK' ? (
           <Text style={{ marginTop: -8, marginBottom: 12, color: isDarkMode ? '#9CA3AF' : '#6B7280', fontSize: 14 }}>
-            {transaction.originalAmount.toLocaleString('cs-CZ', {
+            {transaction.originalAmount.toLocaleString(uiLocale(), {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}{' '}
             {transaction.originalCurrency}
             {transaction.exchangeRate != null
-              ? ` · kurz ${transaction.exchangeRate.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+              ? ` · kurz ${transaction.exchangeRate.toLocaleString(uiLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
               : ''}
           </Text>
         ) : null}
@@ -489,7 +491,7 @@ export default function TransactionDetailScreen() {
                 ]}
               >
                 {categoryMap[name]?.icon ? `${categoryMap[name].icon} ` : ''}
-                {name}
+                {categoryLabel(name)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -542,7 +544,7 @@ export default function TransactionDetailScreen() {
                       subcategory === sub && styles.chipTextActive,
                     ]}
                   >
-                    {sub}
+                    {categoryLabel(sub)}
                   </Text>
                 </TouchableOpacity>
               ))}

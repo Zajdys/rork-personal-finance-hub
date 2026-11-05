@@ -35,6 +35,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { safeReplace } from '@/lib/safe-navigate';
+import { uiLocale } from '@/lib/app-locale';
 
 export default function AddLoanScreen() {
   const { addLoan } = useFinanceStore();
@@ -389,7 +390,7 @@ export default function AddLoanScreen() {
                 {t('addLoan.monthlyPreview')}{' '}
                 <Text style={{ color: primary, fontWeight: '700' }}>
                   {computedMonthlyPayment > 0
-                    ? `${computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
+                    ? `${computedMonthlyPayment.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
                     : '—'}
                 </Text>
               </Text>
@@ -409,7 +410,7 @@ export default function AddLoanScreen() {
                 onChangeText={setMonthlyPaymentManual}
                 placeholder={
                   computedMonthlyPayment > 0
-                    ? computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })
+                    ? computedMonthlyPayment.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })
                     : t('addLoan.monthlyPaymentManualHint')
                 }
                 keyboardType="decimal-pad"
@@ -755,7 +756,7 @@ export default function AddLoanScreen() {
               </Text>
               <Text style={[styles.summaryValue, { color: primary }]}>
                 {effectiveMonthlyPayment > 0 && numPrincipal > 0 && numTermMonths > 0
-                  ? `${effectiveMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
+                  ? `${effectiveMonthlyPayment.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
                   : '—'}
               </Text>
             </View>
@@ -765,7 +766,7 @@ export default function AddLoanScreen() {
               </Text>
               <Text style={[styles.summaryValue, { color: primary }]}>
                 {loanTotals.totalPaid > 0
-                  ? `${loanTotals.totalPaid.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
+                  ? `${loanTotals.totalPaid.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
                   : '—'}
               </Text>
             </View>
@@ -775,7 +776,7 @@ export default function AddLoanScreen() {
               </Text>
               <Text style={[styles.summaryValue, { color: primary }]}>
                 {numPrincipal > 0 && numTermMonths > 0 && effectiveMonthlyPayment > 0
-                  ? `${loanTotals.totalInterest.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
+                  ? `${loanTotals.totalInterest.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
                   : '—'}
               </Text>
             </View>

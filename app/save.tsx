@@ -38,6 +38,7 @@ import {
   type SavePendingItem,
 } from '@/store/save-pending-store';
 import { PremiumGateScreen } from '@/components/PremiumGate';
+import { uiLocale } from '@/lib/app-locale';
 
 const DEFAULT_ANNUAL_RETURN = 7;
 const DEFAULT_YEARS = 10;
@@ -51,7 +52,7 @@ const INTEREST_PRESETS = [
   { labelKey: 'savePresetSp500' as const, value: 10 },
 ] as const;
 
-const formatCurrency = (value: number) => value.toLocaleString('cs-CZ');
+const formatCurrency = (value: number) => value.toLocaleString(uiLocale());
 
 function hoursToHoursMinutes(hours: number): { h: number; m: number } {
   const totalM = Math.max(0, Math.round(hours * 60));
@@ -886,7 +887,7 @@ function SaveScreenContent() {
             const date = new Date(row.created_at);
             const dateStr = Number.isNaN(date.getTime())
               ? ''
-              : date.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' });
+              : date.toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' });
             return (
               <View
                 key={row.id}

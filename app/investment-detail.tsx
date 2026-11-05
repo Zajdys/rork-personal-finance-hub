@@ -42,13 +42,14 @@ import {
 } from '@/lib/investment-reserve-records';
 import { toYyyyMmDd } from '@/lib/transaction-date';
 import { parseMoneyInput } from '@/lib/parse-money-input';
+import { uiLocale } from '@/lib/app-locale';
 
 const PURPLE = ['#8B5CF6', '#5B21B6'] as const;
 
 type GraphMode = 'monthly' | 'total';
 
 function formatKc(n: number): string {
-  return `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
+  return `${Math.round(n).toLocaleString(uiLocale())} Kč`;
 }
 
 function monthStatusIcon(amount: number, goal: number): 'ok' | 'warn' | 'zero' {
@@ -507,7 +508,7 @@ export default function InvestmentDetailScreen() {
               style={[styles.dateBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
               onPress={() => setShowDate(true)}
             >
-              <Text style={{ color: colors.text }}>{pickedDate.toLocaleDateString('cs-CZ')}</Text>
+              <Text style={{ color: colors.text }}>{pickedDate.toLocaleDateString(uiLocale())}</Text>
             </TouchableOpacity>
             {showDate ? (
               <DateTimePicker value={pickedDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={onDateChange} />

@@ -33,6 +33,7 @@ import { safeGoBack } from '@/lib/safe-back';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
+import { uiLocale } from '@/lib/app-locale';
 
 export default function EditLoanScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -392,7 +393,7 @@ export default function EditLoanScreen() {
             {computedMonthlyPayment > 0 ? (
               <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
                 {t('addLoan.monthlyPreview')}{' '}
-                {computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })}{' '}
+                {computedMonthlyPayment.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })}{' '}
                 {currentCurrency.symbol}
               </Text>
             ) : null}
@@ -413,7 +414,7 @@ export default function EditLoanScreen() {
                 onChangeText={setMonthlyPaymentManual}
                 placeholder={
                   computedMonthlyPayment > 0
-                    ? computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })
+                    ? computedMonthlyPayment.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })
                     : '0'
                 }
                 keyboardType="decimal-pad"
@@ -522,7 +523,7 @@ export default function EditLoanScreen() {
             </Text>
             <Text style={[styles.computedValue, { color: isDarkMode ? 'white' : '#1F2937' }]}>
               {computedMonthlyPayment > 0
-                ? `${computedMonthlyPayment.toLocaleString('cs-CZ', { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
+                ? `${computedMonthlyPayment.toLocaleString(uiLocale(), { maximumFractionDigits: 0 })} ${currentCurrency.symbol}`
                 : '—'}
             </Text>
             <Text style={[styles.helperText, { color: isDarkMode ? '#9CA3AF' : '#6B7280', marginTop: 6 }]}>

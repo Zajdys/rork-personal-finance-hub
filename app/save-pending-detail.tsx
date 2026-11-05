@@ -22,8 +22,9 @@ import { insertSaveDecision } from '@/lib/save-decisions';
 import { safeGoBack } from '@/lib/safe-back';
 import { randomUUID } from '@/lib/random-uuid';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { uiLocale } from '@/lib/app-locale';
 
-const formatCurrency = (value: number) => value.toLocaleString('cs-CZ');
+const formatCurrency = (value: number) => value.toLocaleString(uiLocale());
 
 export default function SavePendingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

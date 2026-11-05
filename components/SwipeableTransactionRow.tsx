@@ -19,6 +19,7 @@ import { formatMoney, formatMoneyWithSymbol } from '@/lib/format-money';
 import { getTransactionDisplayTitle } from '@/lib/transaction-display';
 import { normalizeCategory } from '@/lib/category-normalize';
 import { getExpenseCategoryDef } from '@/constants/categories';
+import { categoryLabel } from '@/lib/category-labels';
 
 const RowTouchable = Platform.OS === 'web' ? RNTouchableOpacity : GHTouchableOpacity;
 
@@ -59,15 +60,15 @@ function CategorySubtitle({
     return (
       <Text style={[styles.subtitle, { color: muted }]} numberOfLines={1}>
         {prefix}
-        {n.category}
+        {categoryLabel(n.category)}
       </Text>
     );
   }
   return (
     <Text style={[styles.subtitle, { color: muted }]} numberOfLines={1}>
       {prefix}
-      {n.category}
-      <Text style={{ color: muted, opacity: 0.75 }}> · {n.subcategory}</Text>
+      {categoryLabel(n.category)}
+      <Text style={{ color: muted, opacity: 0.75 }}> · {categoryLabel(n.subcategory)}</Text>
     </Text>
   );
 }

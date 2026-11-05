@@ -74,6 +74,7 @@ import { LOAN_PAYMENT_CATEGORY } from '@/lib/loan-payment-detect';
 import { randomUUID } from '@/lib/random-uuid';
 
 import type { Transaction } from '@/store/finance-store';
+import { uiLocale } from '@/lib/app-locale';
 
 function isCsvFile(mimeType: string | undefined, fileName: string | undefined): boolean {
   const m = (mimeType ?? '').toLowerCase();
@@ -1042,7 +1043,7 @@ export default function BankImportScreen() {
                   </View>
                   <Text style={[styles.suggestRowText, { color: colors.text }]}>
                     {formatSuggestDate(c.date)} · {c.type === 'income' ? '+' : '−'}
-                    {c.amount.toLocaleString('cs-CZ')} Kč — {c.title}
+                    {c.amount.toLocaleString(uiLocale())} Kč — {c.title}
                   </Text>
                 </TouchableOpacity>
               );
@@ -1149,7 +1150,7 @@ export default function BankImportScreen() {
                     {checked ? <Text style={styles.suggestCheckMark}>✓</Text> : null}
                   </View>
                   <Text style={[styles.suggestRowText, { color: colors.text }]}>
-                    {formatSuggestDate(c.date)} · {c.amount.toLocaleString('cs-CZ')} Kč — {c.title}
+                    {formatSuggestDate(c.date)} · {c.amount.toLocaleString(uiLocale())} Kč — {c.title}
                   </Text>
                 </TouchableOpacity>
               );

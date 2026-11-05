@@ -22,6 +22,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth-store';
+import { useLanguageStore, trNow } from '@/store/language-store';
 import { getMonthTransactions, useFinanceStore, type LoanItem } from '@/store/finance-store';
 import { usePlanStore } from '@/store/plan-store';
 import { PremiumGate, openPaywall } from '@/components/PremiumGate';
@@ -60,6 +61,8 @@ import {
   recordManualPlanPaymentLink,
   recurringOccurrenceKey,
 } from '@/lib/plan-payment-match';
+import { uiLocale } from '@/lib/app-locale';
+import { categoryLabel } from '@/lib/category-labels';
 
 const BUDGET_EMOJI_OPTIONS: string[] = Array.from(new Set([
   ...SAVINGS_GOAL_EMOJI_OPTIONS,
@@ -77,12 +80,12 @@ const BUDGET_EMOJI_OPTIONS: string[] = Array.from(new Set([
 
 function ymLabel(y: number, m0: number): string {
   const d = new Date(y, m0, 1);
-  const s = d.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+  const s = d.toLocaleDateString(uiLocale(), { month: 'long', year: 'numeric' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function formatKc(n: number): string {
-  return `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
+  return `${Math.round(n).toLocaleString(uiLocale())} Kč`;
 }
 
 function startOfDay(d: Date): Date {
@@ -150,7 +153,7 @@ function budgetDisplayEmoji(b: UserBudget): string {
 
 function budgetDisplayLabel(b: UserBudget): string {
   if (b.label?.trim()) return b.label.trim();
-  return b.category;
+  return categoryLabel(b.category);
 }
 
 function nextLoanDueDate(loan: LoanItem, now: Date): Date | null {
@@ -199,6 +202,7 @@ export default function PlanScreen() {
   const router = useRouter();
   const { isHouseholdPremium } = usePremium();
   const { user } = useAuth();
+  const { tr, language } = useLanguageStore();
 
   const loans = useFinanceStore((s) => s.loans);
   const updateLoan = useFinanceStore((s) => s.updateLoan);
@@ -282,7 +286,7 @@ export default function PlanScreen() {
       items.push({
         id: `loan-${loan.id}`,
         sourceId: loan.id,
-        title: loan.name || 'Závazek',
+        title: loan.name || trNow('Závazek', 'Liability'),
         amount: pay,
         date: cand,
         kind: 'loan',
@@ -397,11 +401,11 @@ export default function PlanScreen() {
     const n = normalizeCategory(budgetCat, budgetSub);
     const amt = parseMoneyInput(budgetAmount);
     if (!n.category) {
-      Alert.alert('Chybí kategorie', 'Vyber kategorii rozpočtu.');
+      Alert.alert(tr('Chybí kategorie', 'Category missing'), tr('Vyber kategorii rozpočtu.', 'Choose a budget category.'));
       return;
     }
     if (amt == null || amt <= 0) {
-      Alert.alert('Neplatná částka', 'Zadej kladný měsíční limit.');
+      Alert.alert(tr('Neplatná částka', 'Invalid amount'), tr('Zadej kladný měsíční limit.', 'Enter a positive monthly limit.'));
       return;
     }
     setSavingSheet(true);
@@ -416,28 +420,28 @@ export default function PlanScreen() {
     });
     setSavingSheet(false);
     if (error) {
-      showToast({ type: 'error', message: 'Nepodařilo se uložit rozpočet' });
+      showToast({ type: 'error', message: tr('Nepodařilo se uložit rozpočet', 'Could not save the budget') });
       return;
     }
     setBudgetSheet(false);
-    showToast({ type: 'success', message: 'Rozpočet uložen' });
+    showToast({ type: 'success', message: tr('Rozpočet uložen', 'Budget saved') });
     if (!editBudgetId) setTimeout(() => void askNotificationsInContext(), 1000);
   };
 
   const deleteBudgetFromSheet = () => {
     if (!editBudgetId || !user?.id) return;
-    const label = budgetLabel.trim() || budgetCat || 'rozpočet';
-    Alert.alert('Smazat rozpočet?', label, [
-      { text: 'Zrušit', style: 'cancel' },
+    const label = budgetLabel.trim() || categoryLabel(budgetCat) || tr('rozpočet', 'budget');
+    Alert.alert(tr('Smazat rozpočet?', 'Delete budget?'), label, [
+      { text: tr('Zrušit', 'Cancel'), style: 'cancel' },
       {
         text: 'Smazat',
         style: 'destructive',
         onPress: () => {
           void removeBudget(user.id, editBudgetId).then(({ error }) => {
-            if (error) showToast({ type: 'error', message: 'Smazání selhalo' });
+            if (error) showToast({ type: 'error', message: tr('Smazání selhalo', 'Delete failed') });
             else {
               setBudgetSheet(false);
-              showToast({ type: 'success', message: 'Rozpočet smazán' });
+              showToast({ type: 'success', message: tr('Rozpočet smazán', 'Budget deleted') });
             }
           });
         },
@@ -449,11 +453,11 @@ export default function PlanScreen() {
     if (!user?.id) return;
     const amt = parseMoneyInput(goalTarget);
     if (!goalName.trim()) {
-      Alert.alert('Chybí název', 'Zadej název cíle.');
+      Alert.alert(tr('Chybí název', 'Name missing'), tr('Zadej název cíle.', 'Enter a goal name.'));
       return;
     }
     if (amt == null || amt <= 0) {
-      Alert.alert('Neplatná částka', 'Zadej cílovou částku.');
+      Alert.alert(tr('Neplatná částka', 'Invalid amount'), tr('Zadej cílovou částku.', 'Enter a target amount.'));
       return;
     }
     setSavingSheet(true);
@@ -467,14 +471,14 @@ export default function PlanScreen() {
     });
     setSavingSheet(false);
     if (error) {
-      showToast({ type: 'error', message: 'Nepodařilo se vytvořit cíl' });
+      showToast({ type: 'error', message: tr('Nepodařilo se vytvořit cíl', 'Could not create the goal') });
       return;
     }
     setGoalSheet(false);
     setGoalName('');
     setGoalTarget('');
     setGoalDeadline(null);
-    showToast({ type: 'success', message: 'Cíl vytvořen' });
+    showToast({ type: 'success', message: tr('Cíl vytvořen', 'Goal created') });
   };
 
   const openPaySheet = (p: UpcomingPay) => {
@@ -488,7 +492,7 @@ export default function PlanScreen() {
     if (!user?.id || !paySheet) return;
     const amt = parseMoneyInput(payAmount);
     if (amt == null || amt <= 0) {
-      Alert.alert('Neplatná částka');
+      Alert.alert(tr('Neplatná částka', 'Invalid amount'));
       return;
     }
     const day = Math.min(31, Math.max(1, parseInt(payDueDay, 10) || 15));
@@ -521,7 +525,7 @@ export default function PlanScreen() {
       showToast({ type: 'success', message: 'Platba upravena' });
       await reload();
     } catch {
-      showToast({ type: 'error', message: 'Uložení selhalo' });
+      showToast({ type: 'error', message: tr('Uložení selhalo', 'Save failed') });
     } finally {
       setSavingSheet(false);
     }
@@ -538,18 +542,18 @@ export default function PlanScreen() {
       if (paySheet.kind === 'loan') {
         markLoanPaymentPaid(paySheet.sourceId);
         await recordManualPlanPaymentLink(user.id, occKey, null);
-        showToast({ type: 'success', message: 'Splátka označena jako zaplacená' });
+        showToast({ type: 'success', message: tr('Splátka označena jako zaplacená', 'Payment marked as paid') });
       } else {
         const { error } = await markPersonalRecurringPaid(user.id, paySheet.sourceId);
         if (error) throw error;
         await recordManualPlanPaymentLink(user.id, occKey, null);
         await loadTransactionsFromSupabase();
-        showToast({ type: 'success', message: 'Platba zaznamenána' });
+        showToast({ type: 'success', message: tr('Platba zaznamenána', 'Payment recorded') });
       }
       setPaySheet(null);
       await reload();
     } catch {
-      showToast({ type: 'error', message: 'Nepodařilo se označit' });
+      showToast({ type: 'error', message: tr('Nepodařilo se označit', 'Could not mark as paid') });
     } finally {
       setSavingSheet(false);
     }
@@ -561,10 +565,10 @@ export default function PlanScreen() {
       setPaySheet(null);
       return;
     }
-    Alert.alert('Zrušit platbu?', 'Tento výskyt se přeskočí (bez transakce).', [
-      { text: 'Zpět', style: 'cancel' },
+    Alert.alert(tr('Zrušit platbu?', 'Skip this payment?'), tr('Tento výskyt se přeskočí (bez transakce).', 'This occurrence will be skipped (no transaction).'), [
+      { text: tr('Zpět', 'Back'), style: 'cancel' },
       {
-        text: 'Přeskočit',
+        text: tr('Přeskočit', 'Skip'),
         style: 'destructive',
         onPress: () => {
           void (async () => {
@@ -572,11 +576,11 @@ export default function PlanScreen() {
             const { error } = await skipPersonalRecurringOccurrence(user.id, paySheet.sourceId);
             setSavingSheet(false);
             if (error) {
-              showToast({ type: 'error', message: 'Přeskočení selhalo' });
+              showToast({ type: 'error', message: tr('Přeskočení selhalo', 'Skip failed') });
               return;
             }
             setPaySheet(null);
-            showToast({ type: 'success', message: 'Platba přeskočena' });
+            showToast({ type: 'success', message: tr('Platba přeskočena', 'Payment skipped') });
             await reload();
           })();
         },
@@ -618,7 +622,7 @@ export default function PlanScreen() {
               </Text>
               {need != null && need > 0 ? (
                 <Text style={[styles.goalNeed, { color: colors.primary, textAlign: 'left' }]}>
-                  Odkládej {formatKc(need)} měsíčně
+                  {tr(`Odkládej ${formatKc(need)} měsíčně`, `Save ${formatKc(need)} a month`)}
                 </Text>
               ) : null}
             </View>
@@ -650,13 +654,13 @@ export default function PlanScreen() {
             </Text>
             {need != null && need > 0 ? (
               <Text style={[styles.goalNeed, { color: colors.primary }]}>
-                Odkládej {formatKc(need)} měsíčně
+                {tr(`Odkládej ${formatKc(need)} měsíčně`, `Save ${formatKc(need)} a month`)}
               </Text>
             ) : null}
             {g.deadline ? (
               <Text style={[styles.goalDeadline, { color: muted }]}>
                 do{' '}
-                {new Date(`${g.deadline}T12:00:00`).toLocaleDateString('cs-CZ', {
+                {new Date(`${g.deadline}T12:00:00`).toLocaleDateString(uiLocale(), {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
@@ -681,8 +685,8 @@ export default function PlanScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.header, { paddingTop: insets.top + 12 }]}
         >
-          <Text style={styles.headerTitle}>Plán</Text>
-          <Text style={styles.headerSub}>Příjem, rozpočty a spoření na jednom místě</Text>
+          <Text style={styles.headerTitle}>{tr('Plán', 'Plan')}</Text>
+          <Text style={styles.headerSub}>{tr('Příjem, rozpočty a spoření na jednom místě', 'Income, budgets and savings in one place')}</Text>
         </LinearGradient>
 
         <View style={styles.scrollInner}>
@@ -704,53 +708,53 @@ export default function PlanScreen() {
               </View>
             ) : !plan.hasIncomePlan ? (
               <EmptyState
-                title="Nastav příjem"
-                description="Zadej, kolik ti měsíčně přichází — spočítáme, kolik ti po platbách a rozpočtech zůstane."
+                title={tr('Nastav příjem', 'Set your income')}
+                description={tr('Zadej, kolik ti měsíčně přichází — spočítáme, kolik ti po platbách a rozpočtech zůstane.', 'Enter your monthly income — we will work out what is left after payments and budgets.')}
                 icon={<Wallet color={colors.primary} size={28} />}
-                actionLabel="Nastav příjem"
+                actionLabel={tr('Nastav příjem', 'Set income')}
                 onAction={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
               />
             ) : (
               <>
                 <PlanLine
-                  label="Příjem"
+                  label={tr('Příjem', 'Income')}
                   value={formatKc(plan.incomeBase)}
                   hint={
                     plan.incomeSource === 'actual'
                       ? Math.round(plan.incomeBase) !== Math.round(plan.incomePlanned)
-                        ? `skutečně přišlo · plán ${formatKc(plan.incomePlanned)}`
-                        : 'skutečně přišlo'
+                        ? tr(`skutečně přišlo · plán ${formatKc(plan.incomePlanned)}`, `actually received · plan ${formatKc(plan.incomePlanned)}`)
+                        : tr('skutečně přišlo', 'actually received')
                       : plan.incomeActual > 0
-                        ? `plán · zatím přišlo ${formatKc(plan.incomeActual)}`
-                        : 'plán · výplata ještě nepřišla'
+                        ? tr(`plán · zatím přišlo ${formatKc(plan.incomeActual)}`, `plan · received so far ${formatKc(plan.incomeActual)}`)
+                        : tr('plán · výplata ještě nepřišla', 'plan · salary not received yet')
                   }
                   color={colors.text}
                   muted={muted}
                 />
                 <PlanLine
-                  label="− Pravidelné platby"
+                  label={tr('− Pravidelné platby', '− Regular payments')}
                   value={formatKc(plan.fixedPlanned)}
-                  hint={plan.fixedPaid > 0 ? `zaplaceno ${formatKc(plan.fixedPaid)}` : 'nájem, energie, úvěry…'}
+                  hint={plan.fixedPaid > 0 ? tr(`zaplaceno ${formatKc(plan.fixedPaid)}`, `paid ${formatKc(plan.fixedPaid)}`) : tr('nájem, energie, úvěry…', 'rent, energy, loans…')}
                   color={colors.text}
                   muted={muted}
                   onPress={() => router.push('/personal-recurring')}
                 />
                 <PlanLine
-                  label="− Rozpočty"
+                  label={tr('− Rozpočty', '− Budgets')}
                   value={formatKc(plan.budgetsPlanned)}
                   color={colors.text}
                   muted={muted}
                 />
                 <PlanLine
-                  label="− Spoření"
+                  label={tr('− Spoření', '− Savings')}
                   value={formatKc(plan.savingsPlanned)}
-                  hint={plan.savingsPlanned > 0 ? 'podle cílů' : undefined}
+                  hint={plan.savingsPlanned > 0 ? tr('podle cílů', 'from goals') : undefined}
                   color={colors.text}
                   muted={muted}
                 />
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <PlanLine
-                  label="= Volné peníze"
+                  label={tr('= Volné peníze', '= Free money')}
                   value={formatKc(plan.incomePlanned - plan.fixedPlanned - plan.budgetsPlanned - plan.savingsPlanned)}
                   color={
                     plan.incomePlanned - plan.fixedPlanned - plan.budgetsPlanned - plan.savingsPlanned >= 0
@@ -762,7 +766,7 @@ export default function PlanScreen() {
                 />
                 {plan.incomePlanned - plan.fixedPlanned - plan.budgetsPlanned - plan.savingsPlanned < 0 ? (
                   <Text style={[styles.progressHint, { color: '#EF4444' }]}>
-                    Plán je vyšší než příjem — uber z rozpočtů nebo spoření.
+                    {tr('Plán je vyšší než příjem — uber z rozpočtů nebo spoření.', 'Your plan is higher than your income — reduce budgets or savings.')}
                   </Text>
                 ) : null}
                 {budgetsTotals.planned > 0 ? (
@@ -779,14 +783,14 @@ export default function PlanScreen() {
                       />
                     </View>
                     <Text style={[styles.progressHint, { color: muted, marginTop: 6 }]}>
-                      Z rozpočtů utraceno {formatKc(budgetsTotals.spent)} z {formatKc(budgetsTotals.planned)}
-                      {plan.isCurrentMonth ? ` · ${formatZbyvaDni(plan.daysLeft)}` : ''}
+                      {tr(`Z rozpočtů utraceno ${formatKc(budgetsTotals.spent)} z ${formatKc(budgetsTotals.planned)}`, `Spent ${formatKc(budgetsTotals.spent)} of ${formatKc(budgetsTotals.planned)} in budgets`)}
+                      {plan.isCurrentMonth ? ` · ${formatZbyvaDni(plan.daysLeft, language)}` : ''}
                     </Text>
                   </>
                 ) : null}
                 {plan.otherSpent > 0 ? (
                   <Text style={[styles.progressHint, { color: muted, marginTop: 4 }]}>
-                    Mimo rozpočty utraceno {formatKc(plan.otherSpent)}
+                    {tr(`Mimo rozpočty utraceno ${formatKc(plan.otherSpent)}`, `Spent outside budgets ${formatKc(plan.otherSpent)}`)}
                   </Text>
                 ) : null}
               </>
@@ -794,14 +798,14 @@ export default function PlanScreen() {
           </View>
 
           {/* Rozpočty */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Rozpočty</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{tr('Rozpočty', 'Budgets')}</Text>
           <>
             {budgets.length === 0 ? (
               <EmptyState
-                title="Žádné rozpočty"
-                description="Nastav limity kategorií — jídlo, doprava, nákupy…"
+                title={tr('Žádné rozpočty', 'No budgets')}
+                description={tr('Nastav limity kategorií — jídlo, doprava, nákupy…', 'Set category limits — food, transport, shopping…')}
                 icon={<Target color={colors.primary} size={28} />}
-                actionLabel="Přidat rozpočet"
+                actionLabel={tr('Přidat rozpočet', 'Add budget')}
                 onAction={openAddBudget}
               />
             ) : (
@@ -844,8 +848,8 @@ export default function PlanScreen() {
                           ]}
                         >
                           {remain < 0
-                            ? `přečerpáno o ${formatKc(Math.abs(remain))}`
-                            : `zbývá ${formatKc(remain)}`}
+                            ? tr(`přečerpáno o ${formatKc(Math.abs(remain))}`, `over by ${formatKc(Math.abs(remain))}`)
+                            : tr(`zbývá ${formatKc(remain)}`, `${formatKc(remain)} left`)}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -853,11 +857,11 @@ export default function PlanScreen() {
                 })}
                 <TouchableOpacity style={styles.addRow} onPress={openAddBudget}>
                   <Plus color={colors.primary} size={18} />
-                  <Text style={[styles.addRowText, { color: colors.primary }]}>Přidat rozpočet</Text>
+                  <Text style={[styles.addRowText, { color: colors.primary }]}>{tr('Přidat rozpočet', 'Add budget')}</Text>
                 </TouchableOpacity>
                 {!isHouseholdPremium ? (
                   <Text style={{ color: muted, fontSize: 12, textAlign: 'center', paddingBottom: 8 }}>
-                    {`Zdarma ${Math.min(budgets.length, FREE_BUDGET_LIMIT)} z ${FREE_BUDGET_LIMIT} rozpočtů · neomezeně a s upozorněním v Premium`}
+                    {tr(`Zdarma ${Math.min(budgets.length, FREE_BUDGET_LIMIT)} z ${FREE_BUDGET_LIMIT} rozpočtů · neomezeně a s upozorněním v Premium`, `Free: ${Math.min(budgets.length, FREE_BUDGET_LIMIT)} of ${FREE_BUDGET_LIMIT} budgets · unlimited with alerts in Premium`)}
                   </Text>
                 ) : null}
               </View>
@@ -865,14 +869,14 @@ export default function PlanScreen() {
           </>
 
           {/* Spořicí cíle */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Spořicí cíle</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{tr('Spořicí cíle', 'Savings goals')}</Text>
           <PremiumGate feature="financial_goals">
             {sortedGoals.length === 0 ? (
               <EmptyState
-                title="Žádné cíle"
-                description="Rezerva, dovolená, nové auto — spoř s jasným cílem."
+                title={tr('Žádné cíle', 'No goals')}
+                description={tr('Rezerva, dovolená, nové auto — spoř s jasným cílem.', 'Emergency fund, holiday, a new car — save with a clear goal.')}
                 icon={<Target color={colors.primary} size={28} />}
-                actionLabel="Nový cíl"
+                actionLabel={tr('Nový cíl', 'New goal')}
                 onAction={() => setGoalSheet(true)}
               />
             ) : (
@@ -890,21 +894,21 @@ export default function PlanScreen() {
                 )}
                 <TouchableOpacity style={[styles.addRow, { marginTop: 8 }]} onPress={() => setGoalSheet(true)}>
                   <Plus color={colors.primary} size={18} />
-                  <Text style={[styles.addRowText, { color: colors.primary }]}>Nový cíl</Text>
+                  <Text style={[styles.addRowText, { color: colors.primary }]}>{tr('Nový cíl', 'New goal')}</Text>
                 </TouchableOpacity>
               </>
             )}
           </PremiumGate>
 
           {/* Co tě čeká */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Co tě čeká</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{tr('Co tě čeká', 'Coming up')}</Text>
           <Text style={[styles.sectionSub, { color: muted }]}>
-            Pravidelné platby v příštích 30 dnech
+            {tr('Pravidelné platby v příštích 30 dnech', 'Regular payments in the next 30 days')}
           </Text>
           <View style={[styles.card, { backgroundColor: cardBg, paddingVertical: 4 }]}>
             {upcoming.length === 0 ? (
               <Text style={[styles.emptyUpcoming, { color: muted }]}>
-                Žádné platby v příštích 30 dnech
+                {tr('Žádné platby v příštích 30 dnech', 'No payments in the next 30 days')}
               </Text>
             ) : (
               upcoming.map((p) => {
@@ -924,10 +928,10 @@ export default function PlanScreen() {
                         {p.title}
                       </Text>
                       <Text style={{ color: muted, fontSize: 12 }}>
-                        {formatZaDni(dLeft)}
+                        {formatZaDni(dLeft, language)}
                         <Text style={{ color: muted }}>
                           {' · '}
-                          {p.date.toLocaleDateString('cs-CZ', {
+                          {p.date.toLocaleDateString(uiLocale(), {
                             day: 'numeric',
                             month: 'short',
                           })}
@@ -944,13 +948,13 @@ export default function PlanScreen() {
               onPress={() => router.push('/personal-recurring')}
             >
               <Text style={{ color: colors.primary, fontWeight: '700' }}>
-                Všechny pravidelné platby
+                {tr('Všechny pravidelné platby', 'All regular payments')}
               </Text>
               <ChevronRightIcon color={colors.primary} size={18} />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.allLink, { marginTop: 0 }]} onPress={() => router.push('/loans')}>
               <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 13 }}>
-                Závazky a úvěry
+                {tr('Závazky a úvěry', 'Liabilities & loans')}
               </Text>
               <ChevronRightIcon color={colors.primary} size={16} />
             </TouchableOpacity>
@@ -971,7 +975,7 @@ export default function PlanScreen() {
               keyboardShouldPersistTaps="handled"
             >
               <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                {editBudgetId ? 'Upravit rozpočet' : 'Přidat rozpočet'}
+                {editBudgetId ? tr('Upravit rozpočet', 'Edit budget') : tr('Přidat rozpočet', 'Add budget')}
               </Text>
               <Text style={[styles.sheetLabel, { color: muted }]}>Emoji</Text>
               <View style={styles.emojiGrid}>
@@ -991,18 +995,18 @@ export default function PlanScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={[styles.sheetLabel, { color: muted }]}>Název</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Název', 'Name')}</Text>
               <TextInput
                 value={budgetLabel}
                 onChangeText={setBudgetLabel}
-                placeholder={budgetCat || 'Název kategorie'}
+                placeholder={categoryLabel(budgetCat) || tr('Název kategorie', 'Category name')}
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
                   { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
                 ]}
               />
-              <Text style={[styles.sheetLabel, { color: muted }]}>Kategorie</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Kategorie', 'Category')}</Text>
               <CategoryPicker
                 type="expense"
                 selectedCategory={budgetCat}
@@ -1014,12 +1018,12 @@ export default function PlanScreen() {
                 }}
                 layout="chips"
               />
-              <Text style={[styles.sheetLabel, { color: muted }]}>Měsíční limit</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Měsíční limit', 'Monthly limit')}</Text>
               <TextInput
                 value={budgetAmount}
                 onChangeText={(t) => setBudgetAmount(formatKčGrouped(t))}
                 keyboardType="number-pad"
-                placeholder="např. 5 000 Kč"
+                placeholder={tr('např. 5 000 Kč', 'e.g. 5,000 CZK')}
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
@@ -1031,11 +1035,11 @@ export default function PlanScreen() {
                 onPress={() => void saveBudget()}
                 disabled={savingSheet}
               >
-                <Text style={styles.sheetSaveText}>{savingSheet ? '…' : 'Uložit'}</Text>
+                <Text style={styles.sheetSaveText}>{savingSheet ? '…' : tr('Uložit', 'Save')}</Text>
               </TouchableOpacity>
               {editBudgetId ? (
                 <TouchableOpacity style={styles.deleteBtn} onPress={deleteBudgetFromSheet}>
-                  <Text style={{ color: '#EF4444', fontWeight: '700' }}>Smazat rozpočet</Text>
+                  <Text style={{ color: '#EF4444', fontWeight: '700' }}>{tr('Smazat rozpočet', 'Delete budget')}</Text>
                 </TouchableOpacity>
               ) : null}
             </ScrollView>
@@ -1053,7 +1057,7 @@ export default function PlanScreen() {
               contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
               keyboardShouldPersistTaps="handled"
             >
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>Nový cíl</Text>
+              <Text style={[styles.sheetTitle, { color: colors.text }]}>{tr('Nový cíl', 'New goal')}</Text>
               <Text style={[styles.sheetLabel, { color: muted }]}>Emoji</Text>
               <View style={styles.emojiGrid}>
                 {SAVINGS_GOAL_EMOJI_OPTIONS.map((e, i) => (
@@ -1079,30 +1083,30 @@ export default function PlanScreen() {
                   />
                 ))}
               </View>
-              <Text style={[styles.sheetLabel, { color: muted }]}>Název</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Název', 'Name')}</Text>
               <TextInput
                 value={goalName}
                 onChangeText={setGoalName}
-                placeholder="např. Dovolená"
+                placeholder={tr('např. Dovolená', 'e.g. Holiday')}
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
                   { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
                 ]}
               />
-              <Text style={[styles.sheetLabel, { color: muted }]}>Cílová částka</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Cílová částka', 'Target amount')}</Text>
               <TextInput
                 value={goalTarget}
                 onChangeText={(t) => setGoalTarget(formatKčGrouped(t))}
                 keyboardType="number-pad"
-                placeholder="např. 50 000 Kč"
+                placeholder={tr('např. 50 000 Kč', 'e.g. 50,000 CZK')}
                 placeholderTextColor={muted}
                 style={[
                   styles.sheetInput,
                   { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
                 ]}
               />
-              <Text style={[styles.sheetLabel, { color: muted }]}>Deadline (nepovinné)</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Deadline (nepovinné)', 'Deadline (optional)')}</Text>
               <TouchableOpacity
                 style={[
                   styles.sheetInput,
@@ -1111,12 +1115,12 @@ export default function PlanScreen() {
                 onPress={() => setShowGoalDate(true)}
               >
                 <Text style={{ color: goalDeadline ? colors.text : muted }}>
-                  {goalDeadline ? goalDeadline.toLocaleDateString('cs-CZ') : 'Bez data'}
+                  {goalDeadline ? goalDeadline.toLocaleDateString(uiLocale()) : tr('Bez data', 'No date')}
                 </Text>
               </TouchableOpacity>
               {goalDeadline ? (
                 <TouchableOpacity onPress={() => setGoalDeadline(null)}>
-                  <Text style={{ color: colors.primary, marginBottom: 8 }}>Odstranit datum</Text>
+                  <Text style={{ color: colors.primary, marginBottom: 8 }}>{tr('Odstranit datum', 'Remove date')}</Text>
                 </TouchableOpacity>
               ) : null}
               {showGoalDate ? (
@@ -1136,7 +1140,7 @@ export default function PlanScreen() {
                 onPress={() => void saveGoal()}
                 disabled={savingSheet}
               >
-                <Text style={styles.sheetSaveText}>{savingSheet ? '…' : 'Vytvořit'}</Text>
+                <Text style={styles.sheetSaveText}>{savingSheet ? '…' : tr('Vytvořit', 'Create')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -1157,7 +1161,7 @@ export default function PlanScreen() {
               <Text style={[styles.sheetTitle, { color: colors.text }]} numberOfLines={1}>
                 {paySheet?.emoji} {paySheet?.title}
               </Text>
-              <Text style={[styles.sheetLabel, { color: muted }]}>Částka</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Částka', 'Amount')}</Text>
               <TextInput
                 value={payAmount}
                 onChangeText={(t) => setPayAmount(formatKčGrouped(t))}
@@ -1167,7 +1171,7 @@ export default function PlanScreen() {
                   { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
                 ]}
               />
-              <Text style={[styles.sheetLabel, { color: muted }]}>Den v měsíci</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Den v měsíci', 'Day of month')}</Text>
               <TextInput
                 value={payDueDay}
                 onChangeText={setPayDueDay}
@@ -1185,14 +1189,14 @@ export default function PlanScreen() {
                   }}
                 />
               ) : (
-                <Text style={{ color: muted, fontSize: 13, marginTop: 8 }}>Frekvence: měsíčně</Text>
+                <Text style={{ color: muted, fontSize: 13, marginTop: 8 }}>{tr('Frekvence: měsíčně', 'Frequency: monthly')}</Text>
               )}
               <TouchableOpacity
                 style={[styles.sheetSave, { backgroundColor: colors.primary, opacity: savingSheet ? 0.7 : 1 }]}
                 onPress={() => void savePayEdits()}
                 disabled={savingSheet}
               >
-                <Text style={styles.sheetSaveText}>Uložit změny</Text>
+                <Text style={styles.sheetSaveText}>{tr('Uložit změny', 'Save changes')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sheetSave, { backgroundColor: '#10B981', opacity: savingSheet ? 0.7 : 1 }]}
@@ -1202,7 +1206,7 @@ export default function PlanScreen() {
                 <Text style={styles.sheetSaveText}>Zaplaceno ✓</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={() => void cancelPay()}>
-                <Text style={{ color: '#EF4444', fontWeight: '700' }}>Zrušit platbu</Text>
+                <Text style={{ color: '#EF4444', fontWeight: '700' }}>{tr('Zrušit platbu', 'Skip payment')}</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>

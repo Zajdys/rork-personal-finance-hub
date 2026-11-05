@@ -1,8 +1,13 @@
-import type { Language } from '@/store/language-store';
+import { useLanguageStore, type Language } from '@/store/language-store';
 import { transactionDateYmd, ymdToLocalDateNoon } from '@/lib/transaction-date';
 
 export function appLocale(language: Language): string {
   return language === 'en' ? 'en-US' : 'cs-CZ';
+}
+
+/** Locale pro formátování dat a čísel podle aktuálního jazyka appky (mimo React i v něm). */
+export function uiLocale(): string {
+  return appLocale(useLanguageStore.getState().language);
 }
 
 /** Zobrazí YYYY-MM jako „June 2026“ / „červen 2026“ (první písmeno velké). */

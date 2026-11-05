@@ -17,6 +17,7 @@ import { useLanguageStore } from '@/store/language-store';
 import { splitExpenseCategoryEmoji, splitExpenseCategoryLabel } from '@/lib/split-expense-categories';
 import { resolveSplitReceiptDisplayUrl } from '@/lib/split-receipt-upload';
 import type { SplitExpense } from '@/lib/split-groups';
+import { uiLocale } from '@/lib/app-locale';
 
 const RowTouchable = Platform.OS === 'web' ? RNTouchableOpacity : GHTouchableOpacity;
 
@@ -129,7 +130,7 @@ export function SwipeableSplitExpenseRow({
     [colors.primary, closeSwipe, onEdit, confirmDelete, t],
   );
 
-  const amountText = `${expense.amount.toLocaleString('cs-CZ', {
+  const amountText = `${expense.amount.toLocaleString(uiLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })} ${currencyLabel}`;

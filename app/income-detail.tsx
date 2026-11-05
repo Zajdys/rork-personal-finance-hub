@@ -31,6 +31,7 @@ import { OverviewFilterBadge } from '@/components/OverviewFilterBadge';
 import { useFilteredTransactions } from '@/hooks/use-filtered-transactions';
 import { useOverviewFiltersStore } from '@/store/overview-filters-store';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
+import { categoryLabel } from '@/lib/category-labels';
 
 const TRANSFER_CATEGORY = 'Převod';
 const TRANSFER_COLOR = '#9CA3AF';
@@ -297,7 +298,7 @@ export default function IncomeDetailScreen() {
           </View>
           <View style={styles.categoryDetailInfo}>
             <Text style={[styles.categoryDetailName, { color: isTransfer ? TRANSFER_COLOR : textMain }]}>
-              {category.category}
+              {categoryLabel(category.category)}
             </Text>
             <Text style={[styles.categoryDetailCount, { color: textSec }]}>
               {isTransfer

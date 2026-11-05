@@ -29,6 +29,7 @@ import { mainCategoryName, normalizeCategory } from '@/lib/category-normalize';
 import { QuickAddTransactionSheet } from '@/components/QuickAddTransactionSheet';
 import { usePlanStore } from '@/store/plan-store';
 import { Plus } from 'lucide-react-native';
+import { categoryLabel } from '@/lib/category-labels';
 
 function transactionsWord(count: number, t: ReturnType<typeof useLanguageStore.getState>['t']): string {
   const n100 = count % 100;
@@ -317,7 +318,7 @@ export default function CategoryDetailScreen() {
       />
       
       <ScreenHeader
-        title={category}
+        title={categoryLabel(category)}
         subtitle={
           listLoading
             ? t('categoryLoading')

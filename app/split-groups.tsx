@@ -21,6 +21,7 @@ import { useAuth } from '@/store/auth-store';
 import { useSplitGroupsStore } from '@/store/split-groups-store';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { pluralClen } from '@/lib/plural-cs';
+import { uiLocale } from '@/lib/app-locale';
 
 const GROUP_ICONS = ['👥', '✈️', '🏠', '🎉', '🍕', '⛰️', '🍻', '🏖️'];
 const BALANCE_EPS = 0.005;
@@ -42,7 +43,7 @@ function currencySymbol(code: string): string {
 
 function formatSignedBalance(amount: number, currency: string): string {
   const rounded = Math.round(Math.abs(amount) * 100) / 100;
-  const num = rounded.toLocaleString('cs-CZ', {
+  const num = rounded.toLocaleString(uiLocale(), {
     minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
     maximumFractionDigits: 2,
   });

@@ -40,6 +40,7 @@ import {
   yyyyMmLocalToday,
 } from '@/lib/transaction-date';
 import { PremiumGateScreen } from '@/components/PremiumGate';
+import { categoryLabel } from '@/lib/category-labels';
 
 type CategoryBarProps = { category: string; amount: number; percentage: number; color: string };
 
@@ -47,7 +48,7 @@ const CategoryBar = memo(function CategoryBar({ category, amount, percentage, co
   return (
     <View style={stylesRef.categoryBar} testID={`category-${category}`}>
       <View style={stylesRef.categoryInfo}>
-        <Text style={stylesRef.categoryName}>{category}</Text>
+        <Text style={stylesRef.categoryName}>{categoryLabel(category)}</Text>
         <Text style={stylesRef.categoryAmount}>{stylesRef._formatAmount(amount)}</Text>
       </View>
       <View style={stylesRef.progressBarContainer}>

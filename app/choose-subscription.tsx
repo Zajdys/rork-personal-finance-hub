@@ -43,6 +43,7 @@ import {
 } from '@/store/revenuecat-store';
 import { useRegisterIntentStore } from '@/store/register-intent-store';
 import { suppressNextTabsRedirect } from '@/lib/nav-guards';
+import { uiLocale } from '@/lib/app-locale';
 
 const STICKY_CTA_BLOCK = 132;
 
@@ -59,7 +60,7 @@ function formatMonthlyFromAnnual(annualPrice: number, currencyCode?: string | nu
   const monthly = Number(annualPrice) / 12;
   const code = String(currencyCode ?? 'CZK').trim().toUpperCase() || 'CZK';
   try {
-    return new Intl.NumberFormat('cs-CZ', {
+    return new Intl.NumberFormat(uiLocale(), {
       style: 'currency',
       currency: code,
       minimumFractionDigits: 0,

@@ -26,6 +26,7 @@ import {
 import { defaultSubcategoriesFor, getExpenseCategoryDef } from '@/constants/categories';
 import { classifyImportRow } from '@/lib/classify-import-category';
 import { CreateCategoryModal, type CreateCategoryResult } from '@/components/CreateCategoryModal';
+import { categoryLabel } from '@/lib/category-labels';
 
 const DEFAULT_TOP_INCOME = ['Mzda', 'Freelance', 'Ostatní'] as const;
 
@@ -161,24 +162,24 @@ export function CategoryPicker({
 
     for (const cat of pickerCategories) {
       const icon = cat.icon;
-      const nameFold = foldCategoryText(cat.name);
+      const nameFold = `${foldCategoryText(cat.name)} ${foldCategoryText(categoryLabel(cat.name, 'en'))}`;
       const syns = CATEGORY_SEARCH_SYNONYMS[cat.name];
       const mainHit =
         nameFold.includes(qFold) || Boolean(syns?.some((s) => s.includes(qFold) || qFold.includes(s)));
       if (mainHit) {
-        push(cat.name, null, `${icon} ${cat.name}`, cat.color);
+        push(cat.name, null, `${icon} ${categoryLabel(cat.name)}`, cat.color);
       }
       for (const sub of defaultSubcategoriesFor(cat.name)) {
-        const subFold = foldCategoryText(sub);
+        const subFold = `${foldCategoryText(sub)} ${foldCategoryText(categoryLabel(sub, 'en'))}`;
         const pathFold = foldCategoryText(`${cat.name} › ${sub}`);
         if (subFold.includes(qFold) || pathFold.includes(qFold)) {
-          push(cat.name, sub, `${icon} ${cat.name} › ${sub}`, cat.color);
+          push(cat.name, sub, `${icon} ${categoryLabel(cat.name)} › ${categoryLabel(sub)}`, cat.color);
         }
       }
       for (const c of getCustomSubcategories(cat.name) || []) {
         const sub = c.name;
         if (foldCategoryText(sub).includes(qFold)) {
-          push(cat.name, sub, `${icon} ${cat.name} › ${sub}`, cat.color);
+          push(cat.name, sub, `${icon} ${categoryLabel(cat.name)} › ${categoryLabel(sub)}`, cat.color);
         }
       }
     }
@@ -460,7 +461,7 @@ export function CategoryPicker({
                       }}
                       numberOfLines={1}
                     >
-                      {category.name}
+                      {categoryLabel(category.name)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -607,7 +608,7 @@ export function CategoryPicker({
                   ]}
                   numberOfLines={1}
                 >
-                  {category.name}
+                  {categoryLabel(category.name)}
                 </Text>
               </TouchableOpacity>
             );
@@ -699,7 +700,7 @@ export function CategoryPicker({
                       fontSize: 13,
                     }}
                   >
-                    {sub}
+                    {categoryLabel(sub)}
                   </Text>
                 </TouchableOpacity>
               );

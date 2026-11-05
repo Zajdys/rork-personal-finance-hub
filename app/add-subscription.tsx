@@ -25,6 +25,7 @@ import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { SUBSCRIPTION_CATEGORY } from '@/lib/subscription-brands';
+import { categoryLabel } from '@/lib/category-labels';
 
 function paramStr(v: string | string[] | undefined, fallback = ''): string {
   if (Array.isArray(v)) return v[0] ?? fallback;
@@ -270,7 +271,7 @@ export default function AddSubscriptionScreen() {
                         { color: isSelected ? 'white' : isDarkMode ? '#D1D5DB' : '#1F2937' },
                       ]}
                     >
-                      {category}
+                      {categoryLabel(category)}
                     </Text>
                     {isSelected && <Check color="white" size={16} style={styles.checkIcon} />}
                   </TouchableOpacity>

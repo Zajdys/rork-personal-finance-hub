@@ -15,6 +15,7 @@ import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
 import { useHouseholdRenamePrompt } from '@/hooks/use-household-rename-prompt';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { uiLocale } from '@/lib/app-locale';
 
 /**
  * Orphan stack screen — bez mock dat.
@@ -95,7 +96,7 @@ export default function HouseholdOverviewScreen() {
             <PiggyBank size={28} color="#8B5CF6" strokeWidth={2} />
             <Text style={styles.budgetLabel}>{t('hhOverviewTotalBudget')}</Text>
             <Text style={styles.budgetValue}>
-              {totalBudget.toLocaleString('cs-CZ')} {currency.symbol}
+              {totalBudget.toLocaleString(uiLocale())} {currency.symbol}
             </Text>
             <Text style={styles.budgetSubtext}>{t('hhOverviewSharedBudget')}</Text>
           </View>

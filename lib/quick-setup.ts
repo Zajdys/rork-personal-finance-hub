@@ -1,3 +1,4 @@
+import { currentLanguage } from '@/store/language-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { randomUUID } from '@/lib/random-uuid';
@@ -236,10 +237,11 @@ export function shouldShowQuickSetupBanner(status: QuickSetupStatus): boolean {
 
 const COMMITMENT_META: Record<
   QuickSetupCommitmentKey,
-  { name: string; emoji: string; color: string; loanType: LoanType; categoryTag: string }
+  { name: string; nameEn: string; emoji: string; color: string; loanType: LoanType; categoryTag: string }
 > = {
   mortgage: {
     name: 'Hypotéka',
+    nameEn: 'Mortgage',
     emoji: '🏦',
     color: '#10B981',
     loanType: 'mortgage',
@@ -247,6 +249,7 @@ const COMMITMENT_META: Record<
   },
   rent: {
     name: 'Nájem',
+    nameEn: 'Rent',
     emoji: '🏠',
     color: '#6366F1',
     loanType: 'other',
@@ -254,6 +257,7 @@ const COMMITMENT_META: Record<
   },
   energy: {
     name: 'Energie',
+    nameEn: 'Energy',
     emoji: '⚡',
     color: '#F59E0B',
     loanType: 'other',
@@ -261,6 +265,7 @@ const COMMITMENT_META: Record<
   },
   phone: {
     name: 'Telefon a internet',
+    nameEn: 'Phone & internet',
     emoji: '📱',
     color: '#3B82F6',
     loanType: 'other',
@@ -268,6 +273,7 @@ const COMMITMENT_META: Record<
   },
   leasing: {
     name: 'Leasing / půjčka',
+    nameEn: 'Leasing / loan',
     emoji: '🚗',
     color: '#8B5CF6',
     loanType: 'car',
@@ -278,6 +284,21 @@ const COMMITMENT_META: Record<
 export function getCommitmentMeta(key: QuickSetupCommitmentKey) {
   return COMMITMENT_META[key];
 }
+
+/** Název položky rychlého nastavení v jazyce appky (ukládá se jako název pravidla / úvěru). */
+export function commitmentName(key: QuickSetupCommitmentKey, lang?: 'cs' | 'en'): string {
+  const meta = COMMITMENT_META[key];
+  const l = lang ?? currentLanguage();
+  return l === 'en' ? meta.nameEn : meta.name;
+}
+
+/** Všechny názvy (cs i en) → klíč — pro rozpoznání dříve uložených položek v obou jazycích. */
+export const COMMITMENT_TITLE_TO_KEY: Record<string, QuickSetupCommitmentKey> = Object.fromEntries(
+  (Object.keys(COMMITMENT_META) as QuickSetupCommitmentKey[]).flatMap((k) => [
+    [COMMITMENT_META[k].name, k],
+    [COMMITMENT_META[k].nameEn, k],
+  ]),
+) as Record<string, QuickSetupCommitmentKey>;
 
 function dueDayToStartDate(dueDayRaw: string): Date {
   const day = Math.min(31, Math.max(1, parseInt(dueDayRaw, 10) || 15));
@@ -331,7 +352,7 @@ export function buildQuickSetupRecurring(drafts: QuickSetupCommitmentDraft[]): Q
     if (monthly == null || monthly <= 0) continue;
     const [category, subcategory] = meta.categoryTag.split(' › ');
     out.push({
-      title: meta.name,
+      title: commitmentName(draft.key),
       amount: monthly,
       category: category ?? 'Bydlení',
       subcategory: subcategory ?? null,
@@ -363,7 +384,7 @@ export function buildQuickSetupLoans(drafts: QuickSetupCommitmentDraft[]): LoanI
       out.push({
         id: randomUUID(),
         loanType: meta.loanType,
-        name: idx === 0 ? meta.name : `${meta.name} ${idx + 1}`,
+        name: idx === 0 ? commitmentName(draft.key) : `${commitmentName(draft.key)} ${idx + 1}`,
         emoji: meta.emoji,
         color: meta.color,
         loanAmount: monthly * remainingMonths,

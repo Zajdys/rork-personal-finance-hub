@@ -327,10 +327,20 @@ export function formatCategoryDisplay(
   const n = normalizeCategory(cat, sub);
   const def = getExpenseCategoryDef(n.category);
   const icon = opts?.withIcon === false ? '' : def?.icon ? `${def.icon} ` : '';
+  const label = (x: string) => {
+    try {
+      // Dynamicky — category-labels importuje language store (bez cyklu / RN závislostí v testech).
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { categoryLabel } = require('@/lib/category-labels') as typeof import('@/lib/category-labels');
+      return categoryLabel(x);
+    } catch {
+      return x;
+    }
+  };
   if (n.subcategory) {
-    return `${icon}${n.category} · ${n.subcategory}`;
+    return `${icon}${label(n.category)} · ${label(n.subcategory)}`;
   }
-  return `${icon}${n.category}`;
+  return `${icon}${label(n.category)}`;
 }
 
 /**
@@ -418,6 +428,13 @@ export function categoryMatchesQuery(categoryName: string, query: string): boole
   if (!q) return true;
   const nameFold = foldCategoryText(categoryName);
   if (nameFold.includes(q)) return true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { categoryLabel } = require('@/lib/category-labels') as typeof import('@/lib/category-labels');
+    if (foldCategoryText(categoryLabel(categoryName, 'en')).includes(q)) return true;
+  } catch {
+    /* ignore */
+  }
 
   for (const [legacy, mapped] of Object.entries(LEGACY_MAP)) {
     if (mapped.category === categoryName && foldCategoryText(legacy).includes(q)) return true;

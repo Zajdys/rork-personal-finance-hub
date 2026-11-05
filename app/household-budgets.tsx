@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseDecimalInput, parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
+import { uiLocale } from '@/lib/app-locale';
 
 const DEFAULT_CATEGORIES = [
   { id: 'housing', icon: '🏠', nameKey: 'hhBudgetHousingRent' as const },
@@ -193,7 +194,7 @@ export default function HouseholdBudgetsScreen() {
         type: 'success',
         message: t('hhBudgetSavedDetail', {
           name: getCategoryDisplayName(selectedCategory),
-          amount: limit.toLocaleString('cs-CZ'),
+          amount: limit.toLocaleString(uiLocale()),
           symbol: currency.symbol,
         }),
       });
@@ -242,7 +243,7 @@ export default function HouseholdBudgetsScreen() {
       return t('hhBudgetNotSet');
     }
     return t('hhBudgetPerMonth', {
-      amount: budget.monthlyLimit.toLocaleString('cs-CZ'),
+      amount: budget.monthlyLimit.toLocaleString(uiLocale()),
       symbol: currency.symbol,
     });
   };
@@ -285,7 +286,7 @@ export default function HouseholdBudgetsScreen() {
               <Text style={styles.summaryTitle}>{t('hhBudgetTotalMonthly')}</Text>
             </View>
             <Text style={styles.summaryAmount}>
-              {totalMonthlyBudget.toLocaleString('cs-CZ')} {currency.symbol}
+              {totalMonthlyBudget.toLocaleString(uiLocale())} {currency.symbol}
             </Text>
             <Text style={styles.summarySubtitle}>
               {t('hhBudgetTotalActive')}

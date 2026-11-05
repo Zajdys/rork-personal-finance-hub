@@ -40,6 +40,7 @@ import { getAllOwnerAccountNumbers } from '@/lib/owner-accounts-storage';
 import { isOwnCounterpartyAccount } from '@/utils/normalizeAccount';
 import { pluralPolozka, pluralTransakce } from '@/lib/plural-cs';
 import { useAsyncAction } from '@/hooks/use-async-action';
+import { categoryLabel } from '@/lib/category-labels';
 
 const { width, height } = Dimensions.get('window');
 
@@ -587,7 +588,7 @@ export default function BankStatementImportModal({
                   <Text style={[styles.catButtonLabel, { color: textSecondary }]}>{t('category')}</Text>
                   <View style={styles.catButtonRight}>
                     <Text style={[styles.catValue, { color: textPrimary }]} numberOfLines={1}>
-                      {row.category}
+                      {categoryLabel(row.category)}
                     </Text>
                     <ChevronDown color={textSecondary} size={18} style={{ marginLeft: 6 }} />
                   </View>

@@ -49,7 +49,7 @@ import {
   type PersonalRecurringChoice,
 } from '@/components/RecurringFrequencyField';
 import { useAddTransaction } from '@/hooks/useAddTransaction';
-import { appLocale } from '@/lib/app-locale';
+import { appLocale, uiLocale } from '@/lib/app-locale';
 
 type ParsedTxn = {
   type: 'income' | 'expense';
@@ -1145,10 +1145,10 @@ export default function AddTransactionScreen() {
                 <View key={`${p.title}-${idx}`} style={styles.previewItem} testID={`preview-item-${idx}`}>
                   <View style={styles.previewHeaderRow}>
                     <Text style={styles.previewBadge}>{p.type === 'income' ? t('income') : t('expense')}</Text>
-                    <Text style={styles.previewAmount}>{p.amount.toLocaleString('cs-CZ')} Kč</Text>
+                    <Text style={styles.previewAmount}>{p.amount.toLocaleString(uiLocale())} Kč</Text>
                   </View>
                   <Text style={styles.previewTitle}>{p.title}</Text>
-                  <Text style={styles.previewMeta}>{p.category} • {ymdToLocalDateNoon(transactionDateYmd(p.date)).toLocaleDateString('cs-CZ')}</Text>
+                  <Text style={styles.previewMeta}>{p.category} • {ymdToLocalDateNoon(transactionDateYmd(p.date)).toLocaleDateString(uiLocale())}</Text>
                 </View>
               ))}
               {preview.length > 50 ? (

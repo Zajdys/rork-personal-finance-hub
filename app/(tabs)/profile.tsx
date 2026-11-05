@@ -57,6 +57,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/use-theme';
 import { TERMS_OF_USE_URL } from '@/constants/legal-urls';
+import { uiLocale } from '@/lib/app-locale';
 
 function profileInitials(firstName: string, lastName: string, fallbackName: string, email: string): string {
   const f = firstName.trim();
@@ -74,7 +75,7 @@ function profileInitials(firstName: string, lastName: string, fallbackName: stri
 function formatCzkWhole(amount: number): string {
   const n = Math.round(amount);
   try {
-    return `${new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 0 }).format(n)} Kč`;
+    return `${new Intl.NumberFormat(uiLocale(), { maximumFractionDigits: 0 }).format(n)} Kč`;
   } catch {
     return `${n} Kč`;
   }

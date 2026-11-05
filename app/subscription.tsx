@@ -26,6 +26,7 @@ import { parseMoneyInput } from '@/lib/parse-money-input';
 import { AsyncButton } from '@/components/AsyncButton';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { SUBSCRIPTION_CATEGORY } from '@/lib/subscription-brands';
+import { categoryLabel } from '@/lib/category-labels';
 
 export default function EditSubscriptionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -380,7 +381,7 @@ export default function EditSubscriptionScreen() {
                         { color: isSelected ? 'white' : isDarkMode ? '#D1D5DB' : '#1F2937' },
                       ]}
                     >
-                      {category}
+                      {categoryLabel(category)}
                     </Text>
                     {isSelected && <Check color="white" size={16} style={styles.checkIcon} />}
                   </TouchableOpacity>

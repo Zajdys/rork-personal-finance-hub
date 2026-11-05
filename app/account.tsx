@@ -32,6 +32,7 @@ import {
 } from '@/store/revenuecat-store';
 import { useRouter } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { uiLocale } from '@/lib/app-locale';
 
 export default function AccountScreen() {
   const { isDarkMode } = useSettingsStore();
@@ -92,7 +93,7 @@ export default function AccountScreen() {
   const isSharedOnly = isHouseholdPremium && !isPremium;
   const planName = rcPlan === 'yearly' ? t('account.planYearly') : t('account.planMonthly');
   const renewText = rcExpiresAt
-    ? t('account.renewsOn', { date: new Date(rcExpiresAt).toLocaleDateString('cs-CZ') })
+    ? t('account.renewsOn', { date: new Date(rcExpiresAt).toLocaleDateString(uiLocale()) })
     : '';
   const subscriptionLabel = isPremium
     ? rcPlan && renewText
@@ -154,7 +155,7 @@ export default function AccountScreen() {
                 >
                   {t('account.memberSince', {
                     date: user?.registrationDate
-                      ? new Date(user.registrationDate).toLocaleDateString('cs-CZ')
+                      ? new Date(user.registrationDate).toLocaleDateString(uiLocale())
                       : t('account.unknown'),
                   })}
                 </Text>
