@@ -381,7 +381,7 @@ export default function DashboardScreen() {
   } = finance ?? {};
   const { getCurrentCurrency, notifications, userProfile, setUserProfile } = useSettingsStore();
   const { colors, isDark: isDarkMode } = useTheme();
-  const { t, language, updateCounter } = useLanguageStore();
+  const { t, tr, language, updateCounter } = useLanguageStore();
   const numberLocale = appLocale(language);
   const liabilitiesLabel = t('dashboardLiabilities');
   const householdLabel = t('household');
@@ -766,7 +766,7 @@ export default function DashboardScreen() {
       ? t('dashboardLiabilitiesPerMonth', {
           amount: formatMoneyWithSymbol(Math.round(monthPlan.fixedPlanned), numberLocale, currentCurrency.symbol),
         })
-      : 'Přidat';
+      : tr('Přidat', 'Add');
   const balance = dashboardReport.balance;
 
   const investPortfolios = useInvestmentStore((s) => s.portfolios);
@@ -1195,13 +1195,13 @@ export default function DashboardScreen() {
       onPress={() => safePush('/(tabs)/plan')}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel="Otevřít plán"
+      accessibilityLabel={tr('Otevřít plán', 'Open plan')}
     >
       {budgetCard.planned > 0 ? (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
-              {budgetCard.left >= 0 ? 'V rozpočtech zbývá' : 'Rozpočty přečerpány o'}
+              {budgetCard.left >= 0 ? tr('V rozpočtech zbývá', 'Left in budgets') : tr('Rozpočty přečerpány o', 'Budgets over by')}
             </Text>
             <ChevronRight color={colors.textSecondary} size={18} />
           </View>
@@ -1211,7 +1211,7 @@ export default function DashboardScreen() {
             {fmtKc(Math.abs(budgetCard.left))}
             {budgetCard.perDay != null ? (
               <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>
-                {`  ≈ ${fmtKc(budgetCard.perDay)} na den`}
+                {tr(`  ≈ ${fmtKc(budgetCard.perDay)} na den`, `  ≈ ${fmtKc(budgetCard.perDay)} per day`)}
               </Text>
             ) : null}
           </Text>
@@ -1225,17 +1225,27 @@ export default function DashboardScreen() {
             />
           </View>
           <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>
-            {`Utraceno ${fmtKc(budgetCard.spent)} z ${fmtKc(budgetCard.planned)}`}
+            {tr(`Utraceno ${fmtKc(budgetCard.spent)} z ${fmtKc(budgetCard.planned)}`, `Spent ${fmtKc(budgetCard.spent)} of ${fmtKc(budgetCard.planned)}`)}
             {planBudgetStats.over > 0
-              ? ` · ${planBudgetStats.over} ${planBudgetStats.over === 1 ? 'rozpočet přečerpaný' : planBudgetStats.over <= 4 ? 'rozpočty přečerpané' : 'rozpočtů přečerpaných'}`
+              ? ` · ${planBudgetStats.over} ${
+                  language === 'en'
+                    ? planBudgetStats.over === 1
+                      ? 'budget over'
+                      : 'budgets over'
+                    : planBudgetStats.over === 1
+                      ? 'rozpočet přečerpaný'
+                      : planBudgetStats.over <= 4
+                        ? 'rozpočty přečerpané'
+                        : 'rozpočtů přečerpaných'
+                }`
               : ''}
           </Text>
         </>
       ) : (
         <>
-          <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Nastav si rozpočty</Text>
+          <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Nastav si rozpočty', 'Set up your budgets')}</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4, lineHeight: 20 }}>
-            Urči si, kolik chceš měsíčně utratit za jídlo, dopravu nebo zábavu — tady uvidíš, kolik ti zbývá.
+            {tr('Urči si, kolik chceš měsíčně utratit za jídlo, dopravu nebo zábavu — tady uvidíš, kolik ti zbývá.', 'Decide how much you want to spend each month on food, transport or fun — you’ll see here how much is left.')}
           </Text>
         </>
       )}
@@ -1249,11 +1259,11 @@ export default function DashboardScreen() {
         onPress={() => safePush('/investice')}
         activeOpacity={0.85}
       >
-        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Investice (beta)</Text>
+        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Investice (beta)', 'Investments (beta)')}</Text>
         <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
           {investApproxValue > 0
-            ? `Hodnota portfolia ≈ ${Math.round(investApproxValue).toLocaleString(numberLocale)} ${currentCurrency.symbol || '€'}`
-            : `${investPortfolios.length} portfolií · otevřít přehled`}
+            ? `${tr('Hodnota portfolia', 'Portfolio value')} ≈ ${Math.round(investApproxValue).toLocaleString(numberLocale)} ${currentCurrency.symbol || '€'}`
+            : tr(`${investPortfolios.length} portfolií · otevřít přehled`, `${investPortfolios.length} portfolios · open overview`)}
         </Text>
       </TouchableOpacity>
     ) : (
@@ -1262,9 +1272,9 @@ export default function DashboardScreen() {
         onPress={() => safePush('/investice')}
         activeOpacity={0.85}
       >
-        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>Investice (beta)</Text>
+        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Investice (beta)', 'Investments (beta)')}</Text>
         <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
-          Sleduj portfolio a výnosy
+          {tr('Sleduj portfolio a výnosy', 'Track your portfolio and returns')}
         </Text>
       </TouchableOpacity>
     );
@@ -1362,7 +1372,7 @@ export default function DashboardScreen() {
                 style={[styles.headerAvatar, { marginRight: 10, borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)', overflow: 'hidden' }]}
                 onPress={() => safePush('/help-chat')}
                 accessibilityRole="button"
-                accessibilityLabel="Zeptej se MoneyBuddy"
+                accessibilityLabel={tr('Zeptej se MoneyBuddy', 'Ask MoneyBuddy')}
                 hitSlop={8}
               >
                 <BuddyAvatar size={36} />
@@ -1577,10 +1587,10 @@ export default function DashboardScreen() {
         >
           <View style={{ flex: 1 }}>
             <Text style={[styles.quickSetupBannerTitle, { color: colors.text }]}>
-              Dokonči nastavení – 1 minuta
+              {tr('Dokonči nastavení – 1 minuta', 'Finish setup – 1 minute')}
             </Text>
             <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-              Příjem, závazky a limity kategorií
+              {tr('Příjem, závazky a limity kategorií', 'Income, commitments and category limits')}
             </Text>
           </View>
           <TouchableOpacity
@@ -1589,7 +1599,7 @@ export default function DashboardScreen() {
               if (user?.id) void markQuickSetupBannerDismissed(user.id);
               setShowQuickSetupBanner(false);
             }}
-            accessibilityLabel="Zavřít"
+            accessibilityLabel={tr('Zavřít', 'Close')}
           >
             <X color={colors.textSecondary} size={18} />
           </TouchableOpacity>
@@ -1636,7 +1646,7 @@ export default function DashboardScreen() {
                 onPress={() => safePush('/(tabs)/plan')}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Otevřít plán"
+                accessibilityLabel={tr('Otevřít plán', 'Open plan')}
                 style={{
                   alignSelf: 'stretch',
                   marginTop: 14,
@@ -1648,8 +1658,8 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
                     {budgetCard.left >= 0
-                      ? `Rozpočty: zbývá ${fmtKc(budgetCard.left)}`
-                      : `Rozpočty: přečerpáno o ${fmtKc(Math.abs(budgetCard.left))}`}
+                      ? tr(`Rozpočty: zbývá ${fmtKc(budgetCard.left)}`, `Budgets: ${fmtKc(budgetCard.left)} left`)
+                      : tr(`Rozpočty: přečerpáno o ${fmtKc(Math.abs(budgetCard.left))}`, `Budgets: over by ${fmtKc(Math.abs(budgetCard.left))}`)}
                   </Text>
                   <ChevronRight color="#fff" size={18} />
                 </View>
@@ -1659,8 +1669,8 @@ export default function DashboardScreen() {
                   </View>
                   <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600' }}>
                     {budgetCard.perDay != null
-                      ? `≈ ${fmtKc(budgetCard.perDay)} na den`
-                      : `utraceno ${fmtKc(budgetCard.spent)} z ${fmtKc(budgetCard.planned)}`}
+                      ? tr(`≈ ${fmtKc(budgetCard.perDay)} na den`, `≈ ${fmtKc(budgetCard.perDay)} per day`)
+                      : tr(`utraceno ${fmtKc(budgetCard.spent)} z ${fmtKc(budgetCard.planned)}`, `spent ${fmtKc(budgetCard.spent)} of ${fmtKc(budgetCard.planned)}`)}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -1761,7 +1771,7 @@ export default function DashboardScreen() {
             {t('quickActions')}
           </Text>
           <TouchableOpacity onPress={() => setQuickActionsEditOpen(true)} hitSlop={10}>
-            <Text style={[styles.showMoreText, { color: colors.primary }]}>Upravit</Text>
+            <Text style={[styles.showMoreText, { color: colors.primary }]}>{tr('Upravit', 'Edit')}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.quickActionsGrid}>
