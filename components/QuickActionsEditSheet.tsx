@@ -246,7 +246,7 @@ export function QuickActionsEditSheet({
               {saving ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.saveBtnText}>Hotovo</Text>
+                <Text style={styles.saveBtnText}>{tr('Hotovo', 'Done')}</Text>
               )}
             </TouchableOpacity>
           </View>

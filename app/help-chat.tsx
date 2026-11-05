@@ -262,7 +262,7 @@ export default function HelpChatScreen() {
             disabled={!input.trim() || sending}
             style={[styles.sendBtn, { backgroundColor: colors.primary, opacity: !input.trim() || sending ? 0.4 : 1 }]}
             accessibilityRole="button"
-            accessibilityLabel="Odeslat"
+            accessibilityLabel={tr('Odeslat', 'Send')}
           >
             <Send color="#fff" size={18} />
           </TouchableOpacity>

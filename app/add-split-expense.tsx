@@ -73,7 +73,7 @@ export default function AddSplitExpenseScreen() {
 
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
 
   const groups = useSplitGroupsStore((s) => s.groups);
   const fetchGroups = useSplitGroupsStore((s) => s.fetchGroups);
@@ -611,7 +611,7 @@ export default function AddSplitExpenseScreen() {
         <InputAccessoryView nativeID={SPLIT_ACCESSORY_ID}>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
             <TouchableOpacity onPress={() => Keyboard.dismiss()} hitSlop={10}>
-              <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>Hotovo</Text>
+              <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>{tr('Hotovo', 'Done')}</Text>
             </TouchableOpacity>
           </View>
         </InputAccessoryView>

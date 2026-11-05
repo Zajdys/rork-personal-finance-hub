@@ -375,7 +375,7 @@ export function QuickAddTransactionSheet({
           <InputAccessoryView nativeID={QUICK_ADD_ACCESSORY_ID}>
             <View style={[styles.accessoryBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
               <TouchableOpacity onPress={() => Keyboard.dismiss()} hitSlop={10}>
-                <Text style={[styles.accessoryDone, { color: colors.primary }]}>Hotovo</Text>
+                <Text style={[styles.accessoryDone, { color: colors.primary }]}>{tr('Hotovo', 'Done')}</Text>
               </TouchableOpacity>
             </View>
           </InputAccessoryView>

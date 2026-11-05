@@ -65,7 +65,7 @@ export default function ForgotPasswordScreen() {
   const confirm = async () => {
     const token = code.replace(/\s/g, '');
     if (token.length < 6) {
-      setError('Zadej kód z e-mailu.');
+      setError(tr('Zadej kód z e-mailu.', 'Enter the code from the e-mail.'));
       return;
     }
     if (password.length < 6) {

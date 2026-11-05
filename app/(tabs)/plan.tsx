@@ -434,7 +434,7 @@ export default function PlanScreen() {
     Alert.alert(tr('Smazat rozpočet?', 'Delete budget?'), label, [
       { text: tr('Zrušit', 'Cancel'), style: 'cancel' },
       {
-        text: 'Smazat',
+        text: tr('Smazat', 'Delete'),
         style: 'destructive',
         onPress: () => {
           void removeBudget(user.id, editBudgetId).then(({ error }) => {
@@ -522,7 +522,7 @@ export default function PlanScreen() {
         });
       }
       setPaySheet(null);
-      showToast({ type: 'success', message: 'Platba upravena' });
+      showToast({ type: 'success', message: tr('Platba upravena', 'Payment updated') });
       await reload();
     } catch {
       showToast({ type: 'error', message: tr('Uložení selhalo', 'Save failed') });
@@ -607,7 +607,7 @@ export default function PlanScreen() {
       >
         {g.kind === 'emergency_fund' ? (
           <View style={styles.reserveBadge}>
-            <Text style={styles.reserveBadgeText}>Rezerva</Text>
+            <Text style={styles.reserveBadgeText}>{tr('Rezerva', 'Emergency fund')}</Text>
           </View>
         ) : null}
         {wide ? (
@@ -1073,7 +1073,7 @@ export default function PlanScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={[styles.sheetLabel, { color: muted }]}>Barva</Text>
+              <Text style={[styles.sheetLabel, { color: muted }]}>{tr('Barva', 'Colour')}</Text>
               <View style={styles.emojiGrid}>
                 {SAVINGS_GOAL_COLOR_OPTIONS.map((c) => (
                   <TouchableOpacity
@@ -1203,7 +1203,7 @@ export default function PlanScreen() {
                 onPress={() => void markPayPaid()}
                 disabled={savingSheet}
               >
-                <Text style={styles.sheetSaveText}>Zaplaceno ✓</Text>
+                <Text style={styles.sheetSaveText}>{tr('Zaplaceno ✓', 'Paid ✓')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={() => void cancelPay()}>
                 <Text style={{ color: '#EF4444', fontWeight: '700' }}>{tr('Zrušit platbu', 'Skip payment')}</Text>

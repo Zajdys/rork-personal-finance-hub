@@ -766,7 +766,7 @@ export function InvestmentPortfolioImportSheet({
               ) : null}
               {Object.keys(pendingRevolutPreview.cash).length > 0 ? (
                 <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>Hotovost</Text>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Hotovost', 'Cash')}</Text>
                   <View style={[styles.previewBlock, { borderColor: colors.border }]}>
                     {Object.entries(pendingRevolutPreview.cash).map(([ccy, amount]) => (
                       <Text key={ccy} style={[styles.previewLine, { color: colors.text }]}>
@@ -820,7 +820,7 @@ export function InvestmentPortfolioImportSheet({
                   </View>
                 </>
               ) : null}
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Hotovost</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Hotovost', 'Cash')}</Text>
               <View style={[styles.previewBlock, { borderColor: colors.border }]}>
                 {Object.entries(pendingXtbPreview.cash).map(([ccy, amount]) => (
                   <Text key={ccy} style={[styles.previewLine, { color: colors.text }]}>
@@ -965,8 +965,8 @@ export function InvestmentPortfolioImportSheet({
               />
               {pendingRevolutCsvText || pendingXtbFileContent ? (
                 <AsyncButton
-                  label="Importovat"
-                  loadingLabel="Importuji…"
+                  label={tr('Importovat', 'Import')}
+                  loadingLabel={tr('Importuji…', 'Importing…')}
                   onPress={() => finishImport(portfolioName)}
                   variant="solid"
                   solidColor={colors.primary}

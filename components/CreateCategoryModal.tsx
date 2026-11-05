@@ -122,7 +122,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
 
             {!isSub ? (
               <>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Ikonka</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Ikonka', 'Icon')}</Text>
                 <View style={styles.emojiGrid}>
                   {CATEGORY_EMOJIS.map((e) => {
                     const active = e === icon;
@@ -163,7 +163,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
                   />
                 </View>
 
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Barva</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Barva', 'Colour')}</Text>
                 <View style={styles.colorRow}>
                   {CATEGORY_COLORS.map((c) => (
                     <TouchableOpacity

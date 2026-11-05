@@ -373,7 +373,7 @@ export default function TransactionDetailScreen() {
       <View style={[styles.container, { backgroundColor: isDarkMode ? '#111827' : '#F8FAFC' }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.missing}>
-          <Text style={{ color: isDarkMode ? '#fff' : '#1F2937' }}>Transakce nenalezena.</Text>
+          <Text style={{ color: isDarkMode ? '#fff' : '#1F2937' }}>{tr('Transakce nenalezena.', 'Transaction not found.')}</Text>
           <TouchableOpacity style={styles.backBtnPlain} onPress={() => safeGoBack()}>
             <Text style={styles.backBtnPlainText}>{t('back')}</Text>
           </TouchableOpacity>

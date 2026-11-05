@@ -448,8 +448,8 @@ export default function ProfileScreen() {
           />
           <MenuButton
             icon={TrendingUp}
-            title="Investice (beta)"
-            subtitle="Portfolia a pozice"
+            title={tr('Investice (beta)', 'Investments (beta)')}
+            subtitle={tr('Portfolia a pozice', 'Portfolios and positions')}
             onPress={() => router.push('/investice')}
           />
           <MenuButton
