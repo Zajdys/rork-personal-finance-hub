@@ -21,11 +21,13 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth-store';
 import { supabase } from '@/lib/supabase';
 import { showToast } from '@/store/toast-store';
+import { useLanguageStore } from '@/store/language-store';
 
 const MIN_LEN = 6;
 
 export default function ChangePasswordScreen() {
   const { colors } = useTheme();
+  const { tr } = useLanguageStore();
   const router = useRouter();
   const { user } = useAuth();
   const email = user?.email ?? '';
@@ -40,26 +42,26 @@ export default function ChangePasswordScreen() {
 
   const save = async () => {
     setError('');
-    if (next.length < MIN_LEN) return setError(`Nové heslo musí mít aspoň ${MIN_LEN} znaků.`);
-    if (next !== confirm) return setError('Nová hesla se neshodují.');
-    if (next === current) return setError('Nové heslo je stejné jako současné.');
-    if (!email) return setError('Nepodařilo se zjistit e-mail účtu. Odhlas se a přihlas znovu.');
+    if (next.length < MIN_LEN) return setError(tr(`Nové heslo musí mít aspoň ${MIN_LEN} znaků.`, `Your new password must have at least ${MIN_LEN} characters.`));
+    if (next !== confirm) return setError(tr('Nová hesla se neshodují.', 'The new passwords don’t match.'));
+    if (next === current) return setError(tr('Nové heslo je stejné jako současné.', 'The new password is the same as the current one.'));
+    if (!email) return setError(tr('Nepodařilo se zjistit e-mail účtu. Odhlas se a přihlas znovu.', 'Couldn’t get your account e-mail. Sign out and sign in again.'));
     setBusy(true);
     try {
       const { error: signErr } = await supabase.auth.signInWithPassword({ email, password: current });
       if (signErr) {
-        setError('Současné heslo není správně.');
+        setError(tr('Současné heslo není správně.', 'Your current password is incorrect.'));
         return;
       }
       const { error: upErr } = await supabase.auth.updateUser({ password: next });
       if (upErr) {
         const msg = upErr.message.toLowerCase();
-        if (msg.includes('weak') || msg.includes('short')) setError('Heslo je moc slabé. Zkus delší nebo složitější.');
-        else if (msg.includes('same')) setError('Nové heslo je stejné jako současné.');
-        else setError('Heslo se nepodařilo změnit. Zkus to prosím znovu.');
+        if (msg.includes('weak') || msg.includes('short')) setError(tr('Heslo je moc slabé. Zkus delší nebo složitější.', 'The password is too weak. Try a longer or more complex one.'));
+        else if (msg.includes('same')) setError(tr('Nové heslo je stejné jako současné.', 'The new password is the same as the current one.'));
+        else setError(tr('Heslo se nepodařilo změnit. Zkus to prosím znovu.', 'Couldn’t change the password. Please try again.'));
         return;
       }
-      showToast({ type: 'success', message: '✓ Heslo změněno' });
+      showToast({ type: 'success', message: tr('✓ Heslo změněno', '✓ Password changed') });
       router.back();
     } finally {
       setBusy(false);
@@ -105,16 +107,16 @@ export default function ChangePasswordScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Změnit heslo" subtitle={email || 'Tvůj účet'} variant="gradient" />
+      <ScreenHeader title={tr('Změnit heslo', 'Change password')} subtitle={email || tr('Tvůj účet', 'Your account')} variant="gradient" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-          {Field({ label: 'Současné heslo', value: current, onChange: setCurrent, placeholder: 'Zadej současné heslo', autoComplete: 'current-password' })}
-          {Field({ label: 'Nové heslo', value: next, onChange: setNext, placeholder: `Aspoň ${MIN_LEN} znaků`, autoComplete: 'new-password' })}
-          {Field({ label: 'Nové heslo znovu', value: confirm, onChange: setConfirm, placeholder: 'Pro kontrolu', autoComplete: 'new-password' })}
+          {Field({ label: tr('Současné heslo', 'Current password'), value: current, onChange: setCurrent, placeholder: tr('Zadej současné heslo', 'Enter your current password'), autoComplete: 'current-password' })}
+          {Field({ label: tr('Nové heslo', 'New password'), value: next, onChange: setNext, placeholder: tr(`Aspoň ${MIN_LEN} znaků`, `At least ${MIN_LEN} characters`), autoComplete: 'new-password' })}
+          {Field({ label: tr('Nové heslo znovu', 'Repeat new password'), value: confirm, onChange: setConfirm, placeholder: tr('Pro kontrolu', 'To confirm'), autoComplete: 'new-password' })}
 
           <TouchableOpacity onPress={() => setShow((v) => !v)} style={styles.showRow} accessibilityRole="button">
             {show ? <EyeOff color={colors.primary} size={18} /> : <Eye color={colors.primary} size={18} />}
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>{show ? 'Skrýt hesla' : 'Zobrazit hesla'}</Text>
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>{show ? tr('Skrýt hesla', 'Hide passwords') : tr('Zobrazit hesla', 'Show passwords')}</Text>
           </TouchableOpacity>
 
           {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
@@ -125,7 +127,7 @@ export default function ChangePasswordScreen() {
             style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: canSave ? 1 : 0.45 }]}
             accessibilityRole="button"
           >
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Uložit nové heslo</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{tr('Uložit nové heslo', 'Save new password')}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -134,7 +136,7 @@ export default function ChangePasswordScreen() {
             accessibilityRole="button"
           >
             <KeyRound color={colors.textSecondary} size={16} />
-            <Text style={{ color: colors.textSecondary }}>Nepamatuješ si současné heslo? Pošleme ti kód na e-mail.</Text>
+            <Text style={{ color: colors.textSecondary }}>{tr('Nepamatuješ si současné heslo? Pošleme ti kód na e-mail.', 'Don’t remember your current password? We’ll e-mail you a code.')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -84,6 +84,7 @@ const DAY_PILL_VALUES: DaysBefore[] = [1, 2, 3];
 export default function NotificationsSettingsScreen() {
   const { notifications, setNotificationSetting } = useSettingsStore();
   const { t } = useLanguageStore();
+  const tr = useLanguageStore((s) => s.tr);
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const loans = useFinanceStore((s) => s.loans);
@@ -370,7 +371,7 @@ export default function NotificationsSettingsScreen() {
         {sub ? (
           onSubPress ? (
             <TouchableOpacity onPress={onSubPress} hitSlop={6}>
-              <Text style={[styles.sub, { color: colors.primary, fontWeight: '600' }]}>{sub} · změnit</Text>
+              <Text style={[styles.sub, { color: colors.primary, fontWeight: '600' }]}>{sub} · {tr('změnit', 'change')}</Text>
             </TouchableOpacity>
           ) : (
             <Text style={[styles.sub, { color: colors.textSecondary }]}>{sub}</Text>
@@ -451,13 +452,13 @@ export default function NotificationsSettingsScreen() {
 
         {/* Připomínky plateb — jedno nastavení „kdy“ pro všechny platby */}
         <View style={[...cardStyle, dimStyle]}>
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>Připomínky plateb</Text>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>{tr('Připomínky plateb', 'Payment reminders')}</Text>
           <Text style={[styles.sub, { color: colors.textSecondary, marginBottom: 6 }]}>
-            Upozorníme tě, než má odejít platba.
+            {tr('Upozorníme tě, než má odejít platba.', 'We’ll remind you before a payment is due.')}
           </Text>
           {hhLoaded ? (
             <SwitchRow
-              title="Pravidelné platby a domácnost"
+              title={tr('Pravidelné platby a domácnost', 'Regular payments & household')}
               value={hhEnabled && payments.enabled}
               disabled={subRowsDisabled || hhSaving}
               onChange={async (v) => {
@@ -467,7 +468,7 @@ export default function NotificationsSettingsScreen() {
             />
           ) : null}
           <SwitchRow
-            title="Předplatné"
+            title={tr('Předplatné', 'Subscriptions')}
             value={subsPref.enabled}
             disabled={subRowsDisabled}
             onChange={async (v) => {
@@ -479,7 +480,7 @@ export default function NotificationsSettingsScreen() {
           />
           {hasMortgage || loans.length > 0 ? (
             <SwitchRow
-              title="Splátky úvěrů a hypotéky"
+              title={tr('Splátky úvěrů a hypotéky', 'Loan & mortgage payments')}
               value={mortgage.enabled}
               disabled={subRowsDisabled}
               onChange={async (v) => {
@@ -492,14 +493,14 @@ export default function NotificationsSettingsScreen() {
           ) : null}
           {masterOn && (subsPref.enabled || mortgage.enabled || (hhEnabled && payments.enabled)) ? (
             <View style={[styles.subSettings, { borderTopColor: colors.border }]}>
-              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Kdy připomenout</Text>
+              <Text style={[styles.subLabel, { color: colors.textSecondary }]}>{tr('Kdy připomenout', 'When to remind')}</Text>
               <PillRow
                 value={payments.daysBefore}
                 disabled={false}
                 onChange={(d) => void setReminderTiming({ daysBefore: d })}
               />
               <View style={[styles.row, { marginTop: 12 }]}>
-                <Text style={[styles.subLabel, { color: colors.textSecondary, marginBottom: 0, flex: 1 }]}>V kolik</Text>
+                <Text style={[styles.subLabel, { color: colors.textSecondary, marginBottom: 0, flex: 1 }]}>{tr('V kolik', 'At what time')}</Text>
                 <TouchableOpacity
                   style={[styles.timeBtn, { borderColor: isDark ? '#475569' : '#E5E7EB' }]}
                   onPress={() => setShowPayTime((x) => !x)}
@@ -525,10 +526,10 @@ export default function NotificationsSettingsScreen() {
 
         {/* Rozpočty */}
         <View style={[...cardStyle, dimStyle]}>
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>Rozpočty</Text>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>{tr('Rozpočty', 'Budgets')}</Text>
           <SwitchRow
-            title="Blížíš se k limitu"
-            sub="Při 80 % a 100 % rozpočtu"
+            title={tr('Blížíš se k limitu', 'Approaching the limit')}
+            sub={tr('Při 80 % a 100 % rozpočtu', 'At 80 % and 100 % of the budget')}
             value={budgetAlerts.enabled}
             disabled={subRowsDisabled}
             onChange={async (v) => {
@@ -539,8 +540,8 @@ export default function NotificationsSettingsScreen() {
             }}
           />
           <SwitchRow
-            title="Týdenní souhrn"
-            sub="Každý pátek v 18:00"
+            title={tr('Týdenní souhrn', 'Weekly summary')}
+            sub={tr('Každý pátek v 18:00', 'Every Friday at 6 pm')}
             value={budgetWeekly.enabled}
             disabled={subRowsDisabled}
             onChange={async (v) => {
@@ -554,10 +555,10 @@ export default function NotificationsSettingsScreen() {
 
         {/* Ostatní */}
         <View style={[...cardStyle, dimStyle]}>
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>Ostatní</Text>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>{tr('Ostatní', 'Other')}</Text>
           <SwitchRow
-            title="Denní tip"
-            sub={tip.enabled ? `Každý den v ${tip.time}` : 'Krátký finanční tip'}
+            title={tr('Denní tip', 'Daily tip')}
+            sub={tip.enabled ? tr(`Každý den v ${tip.time}`, `Every day at ${tip.time}`) : tr('Krátký finanční tip', 'A short money tip')}
             value={tip.enabled}
             disabled={subRowsDisabled}
             onSubPress={tip.enabled && masterOn ? () => setShowTipTime((x) => !x) : undefined}
@@ -585,8 +586,8 @@ export default function NotificationsSettingsScreen() {
             />
           ) : null}
           <SwitchRow
-            title="Nové výdaje v Rozděl útratu"
-            sub="Když někdo přidá výdaj do skupiny"
+            title={tr('Nové výdaje v Rozděl útratu', 'New expenses in Split expenses')}
+            sub={tr('Když někdo přidá výdaj do skupiny', 'When someone adds an expense to a group')}
             value={splitExpensesNotif}
             disabled={!user?.id || splitSaving}
             onChange={async (v) => {
@@ -610,9 +611,9 @@ export default function NotificationsSettingsScreen() {
             <Text style={[styles.sectionHeading, { color: colors.text }]}>E-maily</Text>
             <View style={styles.row}>
               <View style={styles.textBlock}>
-                <Text style={[styles.title, { color: colors.text }]}>Tipy, novinky a nabídky</Text>
+                <Text style={[styles.title, { color: colors.text }]}>{tr('Tipy, novinky a nabídky', 'Tips, news & offers')}</Text>
                 <Text style={[styles.sub, { color: colors.textSecondary }]}>
-                  Občas ti pošleme e-mail s novinkami v aplikaci a nabídkami. Důležité e-maily k účtu (např. obnova hesla) chodí vždy.
+                  {tr('Občas ti pošleme e-mail s novinkami v aplikaci a nabídkami. Důležité e-maily k účtu (např. obnova hesla) chodí vždy.', 'We’ll occasionally e-mail you about app news and offers. Important account e-mails (e.g. password reset) are always sent.')}
                 </Text>
               </View>
               <Switch
