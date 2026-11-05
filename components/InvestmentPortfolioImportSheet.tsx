@@ -116,7 +116,7 @@ export function InvestmentPortfolioImportSheet({
   fetchT212Quotes,
 }: Props) {
   const { colors } = useTheme();
-  const { t } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const { households, activeHouseholdId } = useHouseholdActiveStore();
   const [step, setStep] = useState<Step>('choose');
   const [portfolioName, setPortfolioName] = useState('');
@@ -191,14 +191,14 @@ export function InvestmentPortfolioImportSheet({
   const finishImport = useCallback(
     async (name: string) => {
       if (!name.trim()) {
-        setError('Zadej název portfolia.');
+        setError(tr('Zadej název portfolia.', 'Enter a portfolio name.'));
         return;
       }
       setStep('loading');
       setError(null);
       try {
         if (visibility === 'shared' && !sharedHouseholdId) {
-          setError('Vyber domácnost pro společné portfolio.');
+          setError(tr('Vyber domácnost pro společné portfolio.', 'Choose a household for the shared portfolio.'));
           setStep('naming');
           return;
         }
@@ -338,13 +338,13 @@ export function InvestmentPortfolioImportSheet({
         );
       } catch (err) {
         console.error('[Import] eToro tx parse error:', err);
-        setError(`Chyba parsování transakcí: ${err instanceof Error ? err.message : String(err)}`);
+        setError(tr(`Chyba parsování transakcí: ${err instanceof Error ? err.message : String(err)}`, `Error parsing transactions: ${err instanceof Error ? err.message : String(err)}`));
         setStep('choose');
         return;
       }
 
       if (parseResult.transactions.length === 0) {
-        setError('Soubor byl načten, ale nebyly nalezeny žádné transakce v listu Aktivita na účtu.');
+        setError(tr('Soubor byl načten, ale nebyly nalezeny žádné transakce v listu Aktivita na účtu.', 'The file was loaded, but no transactions were found in the Account Activity sheet.'));
         setStep('choose');
         return;
       }
@@ -393,7 +393,7 @@ export function InvestmentPortfolioImportSheet({
       const fileContent = await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 });
       const detected = detectBrokerFromXlsxBytes(fileContent);
       if (detected === 'etoro') {
-        setError('Soubor vypadá jako eToro export — použijte tlačítko eToro XLSX.');
+        setError(tr('Soubor vypadá jako eToro export — použijte tlačítko eToro XLSX.', 'This file looks like an eToro export — use the eToro XLSX button.'));
         setStep('choose');
         return;
       }
@@ -409,7 +409,7 @@ export function InvestmentPortfolioImportSheet({
       }
 
       if (parseResult.transactions.length === 0) {
-        setError('V XTB souboru nebyly nalezeny žádné Cash Operations transakce.');
+        setError(tr('V XTB souboru nebyly nalezeny žádné Cash Operations transakce.', 'No Cash Operations transactions were found in the XTB file.'));
         setStep('choose');
         return;
       }
@@ -472,7 +472,7 @@ export function InvestmentPortfolioImportSheet({
 
       if (parseResult.transactions.length === 0) {
         setError(
-          'V CSV nebyly nalezeny žádné transakce. Ověř, že export obsahuje sloupec Action (Market buy / sell, Dividend, Deposit…).',
+          tr('V CSV nebyly nalezeny žádné transakce. Ověř, že export obsahuje sloupec Action (Market buy / sell, Dividend, Deposit…).', 'No transactions found in the CSV. Check that the export contains the Action column (Market buy / sell, Dividend, Deposit…).'),
         );
         setStep('choose');
         return;
@@ -524,7 +524,7 @@ export function InvestmentPortfolioImportSheet({
       const csvTexts = await Promise.all(assets.map((a) => readCSVFromUri(a.uri)));
       if (!csvTexts.some(isAnycoinCsv)) {
         setError(
-          'Soubor nevypadá jako Anycoin CSV (očekávám sloupce Date, Type, Amount, Currency, anycoin TX ID…).',
+          tr('Soubor nevypadá jako Anycoin CSV (očekávám sloupce Date, Type, Amount, Currency, anycoin TX ID…).', 'This file doesn’t look like an Anycoin CSV (expected columns Date, Type, Amount, Currency, anycoin TX ID…).'),
         );
         setStep('choose');
         return;
@@ -577,7 +577,7 @@ export function InvestmentPortfolioImportSheet({
       });
 
       if (transactions.length === 0) {
-        setError('V CSV nebyly nalezeny žádné Anycoin transakce.');
+        setError(tr('V CSV nebyly nalezeny žádné Anycoin transakce.', 'No Anycoin transactions found in the CSV.'));
         setStep('choose');
         return;
       }
@@ -597,7 +597,7 @@ export function InvestmentPortfolioImportSheet({
       setPendingAnycoinFileCount(csvTexts.length);
       setPortfolioName('Anycoin');
       setInfoHint(
-        `Držené BTC (Σ buy): ${summaryMutable.buy.unitsSum.toFixed(8)} · Vloženo: ${(summaryMutable.deposit.amountSum - Math.abs(summaryMutable.withdrawal.amountSum)).toFixed(0)} CZK`,
+        `${tr('Držené BTC', 'BTC held')} (Σ buy): ${summaryMutable.buy.unitsSum.toFixed(8)} · ${tr('Vloženo', 'Deposited')}: ${(summaryMutable.deposit.amountSum - Math.abs(summaryMutable.withdrawal.amountSum)).toFixed(0)} CZK`,
       );
       setStep('naming');
     } catch (e) {
@@ -643,7 +643,7 @@ export function InvestmentPortfolioImportSheet({
       const previewError = !parseResult.ok ? parseResult.error : null;
 
       if (parseResult.ok && parseResult.transactions.length === 0) {
-        setError('V CSV nebyly nalezeny žádné Revolut Invest transakce.');
+        setError(tr('V CSV nebyly nalezeny žádné Revolut Invest transakce.', 'No Revolut Invest transactions found in the CSV.'));
         setStep('choose');
         return;
       }
@@ -721,7 +721,7 @@ export function InvestmentPortfolioImportSheet({
                 disabled
               >
                 <Text style={[styles.optionText, { color: colors.textSecondary }]}>
-                  Ruční zadání (brzy)
+                  {tr('Ruční zadání (brzy)', 'Manual entry (soon)')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -730,12 +730,12 @@ export function InvestmentPortfolioImportSheet({
           {step === 'preview' && pendingRevolutPreview ? (
             <View style={styles.naming}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>
-                Náhled Revolut Invest ({formatCountNoun(pendingRevolutPreview.txCount, pluralTransakce)})
+                {tr('Náhled Revolut Invest', 'Revolut Invest preview')} ({formatCountNoun(pendingRevolutPreview.txCount, pluralTransakce, language)})
               </Text>
               {pendingRevolutPreview.unknownTypes.length > 0 || pendingRevolutPreview.error ? (
                 <Text style={styles.error}>
                   {pendingRevolutPreview.error ??
-                    `Neznámé typy: ${pendingRevolutPreview.unknownTypes.join(', ')}`}
+                    tr(`Neznámé typy: ${pendingRevolutPreview.unknownTypes.join(', ')}`, `Unknown types: ${pendingRevolutPreview.unknownTypes.join(', ')}`)}
                 </Text>
               ) : null}
               <View style={[styles.previewBlock, { borderColor: colors.border }]}>
@@ -748,13 +748,13 @@ export function InvestmentPortfolioImportSheet({
                   ))}
                 {Object.keys(pendingRevolutPreview.typeCounts).length === 0 ? (
                   <Text style={[styles.previewLine, { color: colors.textSecondary }]}>
-                    Žádné známé typy
+                    {tr('Žádné známé typy', 'No known types')}
                   </Text>
                 ) : null}
               </View>
               {Object.keys(pendingRevolutPreview.holdings).length > 0 ? (
                 <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>Pozice</Text>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Pozice', 'Positions')}</Text>
                   <View style={[styles.previewBlock, { borderColor: colors.border }]}>
                     {Object.entries(pendingRevolutPreview.holdings).map(([ticker, units]) => (
                       <Text key={ticker} style={[styles.previewLine, { color: colors.text }]}>
@@ -781,11 +781,11 @@ export function InvestmentPortfolioImportSheet({
                   style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
                   onPress={() => setStep('naming')}
                 >
-                  <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>Pokračovat</Text>
+                  <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>{tr('Pokračovat', 'Continue')}</Text>
                 </TouchableOpacity>
               ) : (
                 <Text style={[styles.txPreview, { color: colors.textSecondary }]}>
-                  Import není povolen, dokud CSV neobsahuje jen známé typy.
+                  {tr('Import není povolen, dokud CSV neobsahuje jen známé typy.', 'Import is disabled until the CSV contains only known types.')}
                 </Text>
               )}
             </View>
@@ -794,7 +794,7 @@ export function InvestmentPortfolioImportSheet({
           {step === 'preview' && pendingXtbPreview ? (
             <View style={styles.naming}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>
-                Náhled XTB ({formatCountNoun(pendingXtbPreview.txCount, pluralTransakce)})
+                {tr('Náhled XTB', 'XTB preview')} ({formatCountNoun(pendingXtbPreview.txCount, pluralTransakce, language)})
               </Text>
               {pendingXtbPreview.error ? (
                 <Text style={styles.error}>{pendingXtbPreview.error}</Text>
@@ -810,7 +810,7 @@ export function InvestmentPortfolioImportSheet({
               </View>
               {Object.keys(pendingXtbPreview.holdings).length > 0 ? (
                 <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>Pozice</Text>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Pozice', 'Positions')}</Text>
                   <View style={[styles.previewBlock, { borderColor: colors.border }]}>
                     {Object.entries(pendingXtbPreview.holdings).map(([ticker, units]) => (
                       <Text key={ticker} style={[styles.previewLine, { color: colors.text }]}>
@@ -829,11 +829,11 @@ export function InvestmentPortfolioImportSheet({
                 ))}
                 {pendingXtbPreview.cashBalance != null ? (
                   <Text style={[styles.previewLine, { color: colors.textSecondary }]}>
-                    Total (výpis): {pendingXtbPreview.cashBalance}
+                    {tr('Total (výpis)', 'Total (statement)')}: {pendingXtbPreview.cashBalance}
                   </Text>
                 ) : null}
                 <Text style={[styles.previewLine, { color: colors.textSecondary }]}>
-                  Realizovaný zisk: {pendingXtbPreview.realizedPl}
+                  {tr('Realizovaný zisk', 'Realised profit')}: {pendingXtbPreview.realizedPl}
                 </Text>
               </View>
               {!pendingXtbPreview.error ? (
@@ -841,7 +841,7 @@ export function InvestmentPortfolioImportSheet({
                   style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
                   onPress={() => setStep('naming')}
                 >
-                  <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>Pokračovat</Text>
+                  <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>{tr('Pokračovat', 'Continue')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -903,24 +903,24 @@ export function InvestmentPortfolioImportSheet({
                   })}
                 </View>
               ) : null}
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Název portfolia</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>{tr('Název portfolia', 'Portfolio name')}</Text>
               {pendingEtoroFileContents?.length ? (
                 <Text style={[styles.txPreview, { color: colors.textSecondary }]}>
-                  {formatCountNoun(pendingEtoroFileCount, pluralSoubor)},{' '}
-                  {formatCountNoun(pendingEtoroTxCount, pluralTransakce)} (upsert — lze přidávat další
-                  výpisy)
+                  {formatCountNoun(pendingEtoroFileCount, pluralSoubor, language)},{' '}
+                  {formatCountNoun(pendingEtoroTxCount, pluralTransakce, language)}{' '}
+                  {tr('(upsert — lze přidávat další výpisy)', '(upsert — you can add more statements)')}
                 </Text>
               ) : null}
               {pendingT212CsvTexts?.length ? (
                 <Text style={[styles.txPreview, { color: colors.textSecondary }]}>
-                  {formatCountNoun(pendingT212FileCount, pluralSoubor)},{' '}
-                  {formatCountNoun(pendingT212TxCount, pluralTransakce)} (upsert — lze přidávat další
-                  roční CSV)
+                  {formatCountNoun(pendingT212FileCount, pluralSoubor, language)},{' '}
+                  {formatCountNoun(pendingT212TxCount, pluralTransakce, language)}{' '}
+                  {tr('(upsert — lze přidávat další roční CSV)', '(upsert — you can add more yearly CSVs)')}
                 </Text>
               ) : null}
               {pendingRevolutCsvText && pendingRevolutPreview ? (
                 <Text style={[styles.txPreview, { color: colors.textSecondary }]}>
-                  {formatCountNoun(pendingRevolutPreview.txCount, pluralTransakce)}
+                  {formatCountNoun(pendingRevolutPreview.txCount, pluralTransakce, language)}
                   {Object.keys(pendingRevolutPreview.typeCounts).length
                     ? ` (${Object.entries(pendingRevolutPreview.typeCounts)
                         .map(([type, count]) => `${type}: ${count}`)
@@ -935,7 +935,7 @@ export function InvestmentPortfolioImportSheet({
               ) : null}
               {pendingXtbFileContent && pendingXtbPreview ? (
                 <Text style={[styles.txPreview, { color: colors.textSecondary }]}>
-                  {formatCountNoun(pendingXtbPreview.txCount, pluralTransakce)}
+                  {formatCountNoun(pendingXtbPreview.txCount, pluralTransakce, language)}
                   {Object.keys(pendingXtbPreview.typeCounts).length
                     ? ` (${Object.entries(pendingXtbPreview.typeCounts)
                         .map(([type, count]) => `${type}: ${count}`)
@@ -978,7 +978,7 @@ export function InvestmentPortfolioImportSheet({
                   style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
                   onPress={() => void finishImport(portfolioName)}
                 >
-                  <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>Uložit portfolio</Text>
+                  <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>{tr('Uložit portfolio', 'Save portfolio')}</Text>
                 </TouchableOpacity>
               )}
             </View>
