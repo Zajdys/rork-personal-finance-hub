@@ -32,6 +32,7 @@ import { formatKčGrouped } from '@/lib/quick-setup';
 import { showToast } from '@/store/toast-store';
 import { safeGoBack } from '@/lib/safe-back';
 import { uiLocale } from '@/lib/app-locale';
+import { useLanguageStore } from '@/store/language-store';
 
 function formatKc(n: number): string {
   return `${Math.round(n).toLocaleString(uiLocale())} Kč`;
@@ -83,6 +84,7 @@ export default function PlanGoalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
+  const { tr } = useLanguageStore();
   const router = useRouter();
   const addContribution = usePlanStore((s) => s.addContribution);
   const archiveGoal = usePlanStore((s) => s.archiveGoal);
@@ -129,12 +131,12 @@ export default function PlanGoalDetailScreen() {
     if (!user?.id || !goal) return;
     const n = parseMoneyInput(amountStr);
     if (n == null || n <= 0) {
-      Alert.alert('Neplatná částka');
+      Alert.alert(tr('Neplatná částka', 'Invalid amount'));
       return;
     }
     const signed = modalMode === 'withdraw' ? -n : n;
     if (modalMode === 'withdraw' && n > current) {
-      Alert.alert('Nelze vybrat víc, než je naspořeno');
+      Alert.alert(tr('Nelze vybrat víc, než je naspořeno', 'You can’t withdraw more than you’ve saved'));
       return;
     }
     setBusy(true);
@@ -146,7 +148,7 @@ export default function PlanGoalDetailScreen() {
     });
     setBusy(false);
     if (error) {
-      showToast({ type: 'error', message: 'Operace selhala' });
+      showToast({ type: 'error', message: tr('Operace selhala', 'Operation failed') });
       return;
     }
     setModalMode(null);
@@ -156,7 +158,7 @@ export default function PlanGoalDetailScreen() {
     void refreshPlan();
     showToast({
       type: 'success',
-      message: modalMode === 'withdraw' ? 'Výběr uložen' : 'Vklad uložen',
+      message: modalMode === 'withdraw' ? tr('Výběr uložen', 'Withdrawal saved') : tr('Vklad uložen', 'Deposit saved'),
     });
   };
 
@@ -164,7 +166,7 @@ export default function PlanGoalDetailScreen() {
     if (!user?.id || !goal) return;
     const t = parseMoneyInput(editTarget);
     if (!editName.trim() || t == null || t <= 0) {
-      Alert.alert('Vyplň název a cílovou částku');
+      Alert.alert(tr('Vyplň název a cílovou částku', 'Fill in the name and target amount'));
       return;
     }
     setBusy(true);
@@ -179,27 +181,27 @@ export default function PlanGoalDetailScreen() {
     });
     setBusy(false);
     if (error) {
-      showToast({ type: 'error', message: 'Uložení selhalo' });
+      showToast({ type: 'error', message: tr('Uložení selhalo', 'Saving failed') });
       return;
     }
     setModalMode(null);
     await reload();
     void refreshPlan();
-    showToast({ type: 'success', message: 'Cíl upraven' });
+    showToast({ type: 'success', message: tr('Cíl upraven', 'Goal updated') });
   };
 
   const onArchive = () => {
     if (!user?.id || !goal) return;
-    Alert.alert('Archivovat cíl?', goal.name, [
-      { text: 'Zrušit', style: 'cancel' },
+    Alert.alert(tr('Archivovat cíl?', 'Archive goal?'), goal.name, [
+      { text: tr('Zrušit', 'Cancel'), style: 'cancel' },
       {
-        text: 'Archivovat',
+        text: tr('Archivovat', 'Archive'),
         style: 'destructive',
         onPress: () => {
           void archiveGoal(user.id, goal.id).then(({ error }) => {
-            if (error) showToast({ type: 'error', message: 'Archivace selhala' });
+            if (error) showToast({ type: 'error', message: tr('Archivace selhala', 'Archiving failed') });
             else {
-              showToast({ type: 'success', message: 'Cíl archivován' });
+              showToast({ type: 'success', message: tr('Cíl archivován', 'Goal archived') });
               safeGoBack();
             }
           });
@@ -213,7 +215,7 @@ export default function PlanGoalDetailScreen() {
   if (loading) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
-        <ScreenHeader title="Cíl" variant="gradient" />
+        <ScreenHeader title={tr('Cíl', 'Goal')} variant="gradient" />
         <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
       </View>
     );
@@ -222,12 +224,12 @@ export default function PlanGoalDetailScreen() {
   if (!goal) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
-        <ScreenHeader title="Cíl" variant="gradient" />
+        <ScreenHeader title={tr('Cíl', 'Goal')} variant="gradient" />
         <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 40 }}>
-          Cíl nenalezen
+          {tr('Cíl nenalezen', 'Goal not found')}
         </Text>
         <TouchableOpacity onPress={() => router.replace('/(tabs)/plan')}>
-          <Text style={{ color: colors.primary, textAlign: 'center', marginTop: 12 }}>Zpět na Plán</Text>
+          <Text style={{ color: colors.primary, textAlign: 'center', marginTop: 12 }}>{tr('Zpět na Plán', 'Back to Plan')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -236,7 +238,7 @@ export default function PlanGoalDetailScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScreenHeader
-        title={goal.kind === 'emergency_fund' ? 'Rezerva' : goal.name}
+        title={goal.kind === 'emergency_fund' ? tr('Rezerva', 'Emergency fund') : goal.name}
         variant="gradient"
       />
       <ScrollView contentContainerStyle={styles.content}>
@@ -244,7 +246,7 @@ export default function PlanGoalDetailScreen() {
           <Text style={styles.emoji}>{goal.emoji}</Text>
           {goal.kind === 'emergency_fund' ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Rezerva</Text>
+              <Text style={styles.badgeText}>{tr('Rezerva', 'Emergency fund')}</Text>
             </View>
           ) : null}
           <CircularProgress
@@ -260,12 +262,12 @@ export default function PlanGoalDetailScreen() {
           </Text>
           {need != null && need > 0 ? (
             <Text style={{ color: colors.primary, fontWeight: '700', marginTop: 4 }}>
-              Odkládej {formatKc(need)} měsíčně
+              {tr(`Odkládej ${formatKc(need)} měsíčně`, `Set aside ${formatKc(need)} a month`)}
             </Text>
           ) : null}
           {goal.deadline ? (
             <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
-              do{' '}
+              {tr('do', 'by')}{' '}
               {new Date(`${goal.deadline}T12:00:00`).toLocaleDateString(uiLocale(), {
                 day: 'numeric',
                 month: 'long',
@@ -284,7 +286,7 @@ export default function PlanGoalDetailScreen() {
               setModalMode('deposit');
             }}
           >
-            <Text style={styles.actionText}>+ Vložit</Text>
+            <Text style={styles.actionText}>{tr('+ Vložit', '+ Deposit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: '#EF4444' }]}
@@ -294,7 +296,7 @@ export default function PlanGoalDetailScreen() {
               setModalMode('withdraw');
             }}
           >
-            <Text style={styles.actionText}>− Vybrat</Text>
+            <Text style={styles.actionText}>{tr('− Vybrat', '− Withdraw')}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.actions}>
@@ -302,28 +304,28 @@ export default function PlanGoalDetailScreen() {
             style={[styles.actionBtnOutline, { borderColor: colors.border }]}
             onPress={() => setModalMode('edit')}
           >
-            <Text style={{ color: colors.text, fontWeight: '700' }}>Upravit</Text>
+            <Text style={{ color: colors.text, fontWeight: '700' }}>{tr('Upravit', 'Edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtnOutline, { borderColor: colors.border }]}
             onPress={onArchive}
           >
-            <Text style={{ color: '#EF4444', fontWeight: '700' }}>Archivovat</Text>
+            <Text style={{ color: '#EF4444', fontWeight: '700' }}>{tr('Archivovat', 'Archive')}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.section, { color: colors.text }]}>Historie</Text>
+        <Text style={[styles.section, { color: colors.text }]}>{tr('Historie', 'History')}</Text>
         <View style={[styles.list, { backgroundColor: cardBg }]}>
           {contribs.length === 0 ? (
             <Text style={{ color: colors.textSecondary, textAlign: 'center', padding: 20 }}>
-              Zatím žádné pohyby
+              {tr('Zatím žádné pohyby', 'No activity yet')}
             </Text>
           ) : (
             contribs.map((c) => (
               <View key={c.id} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontWeight: '600' }}>
-                    {c.amount >= 0 ? 'Vklad' : 'Výběr'}
+                    {c.amount >= 0 ? tr('Vklad', 'Deposit') : tr('Výběr', 'Withdrawal')}
                     {c.note ? ` · ${c.note}` : ''}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
@@ -357,17 +359,17 @@ export default function PlanGoalDetailScreen() {
             <View style={[styles.sheet, { backgroundColor: colors.background }]}>
               <Text style={[styles.sheetTitle, { color: colors.text }]}>
                 {modalMode === 'deposit'
-                  ? 'Vložit'
+                  ? tr('Vložit', 'Deposit')
                   : modalMode === 'withdraw'
-                    ? 'Vybrat'
-                    : 'Upravit cíl'}
+                    ? tr('Vybrat', 'Withdraw')
+                    : tr('Upravit cíl', 'Edit goal')}
               </Text>
               {modalMode === 'edit' ? (
                 <>
                   <TextInput
                     value={editName}
                     onChangeText={setEditName}
-                    placeholder="Název"
+                    placeholder={tr('Název', 'Name')}
                     placeholderTextColor={colors.textSecondary}
                     style={[
                       styles.input,
@@ -382,7 +384,7 @@ export default function PlanGoalDetailScreen() {
                     value={editTarget}
                     onChangeText={(t) => setEditTarget(formatKčGrouped(t))}
                     keyboardType="number-pad"
-                    placeholder="Cílová částka"
+                    placeholder={tr('Cílová částka', 'Target amount')}
                     placeholderTextColor={colors.textSecondary}
                     style={[
                       styles.input,
@@ -398,7 +400,7 @@ export default function PlanGoalDetailScreen() {
                     onPress={() => void submitEdit()}
                     disabled={busy}
                   >
-                    <Text style={styles.saveText}>Uložit</Text>
+                    <Text style={styles.saveText}>{tr('Uložit', 'Save')}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -407,7 +409,7 @@ export default function PlanGoalDetailScreen() {
                     value={amountStr}
                     onChangeText={(t) => setAmountStr(formatKčGrouped(t))}
                     keyboardType="number-pad"
-                    placeholder="Částka"
+                    placeholder={tr('Částka', 'Amount')}
                     placeholderTextColor={colors.textSecondary}
                     style={[
                       styles.input,
@@ -421,7 +423,7 @@ export default function PlanGoalDetailScreen() {
                   <TextInput
                     value={note}
                     onChangeText={setNote}
-                    placeholder="Poznámka (volitelné)"
+                    placeholder={tr('Poznámka (volitelné)', 'Note (optional)')}
                     placeholderTextColor={colors.textSecondary}
                     style={[
                       styles.input,
