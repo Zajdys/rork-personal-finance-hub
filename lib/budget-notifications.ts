@@ -14,6 +14,9 @@ import {
   loadNotifBudgetWeeklyPrefs,
 } from '@/lib/notifications-preferences';
 import { useSettingsStore } from '@/store/settings-store';
+import { trNow, currentLanguage } from '@/store/language-store';
+import { uiLocale } from '@/lib/app-locale';
+import { categoryLabel } from '@/lib/category-labels';
 import { showToast } from '@/store/toast-store';
 
 const SENT_KEY = (userId: string) => `budget_notif_sent_v1:${userId}`;
@@ -46,7 +49,7 @@ async function saveSent(userId: string, map: SentMap): Promise<void> {
 }
 
 function budgetLabel(b: UserBudget): string {
-  return b.label?.trim() || b.category;
+  return b.label?.trim() || categoryLabel(b.category);
 }
 
 function budgetEmoji(b: UserBudget): string {
@@ -69,13 +72,13 @@ function spentForBudget(
 }
 
 function formatKc(n: number): string {
-  return `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
+  return `${Math.round(n).toLocaleString(uiLocale())} Kč`;
 }
 
 async function ensureBudgetChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_BUDGET, {
-    name: 'Upozornění na rozpočty',
+    name: trNow('Upozornění na rozpočty', 'Budget alerts'),
     importance: Notifications.AndroidImportance.DEFAULT,
   });
 }
@@ -141,7 +144,7 @@ export async function checkBudgetThresholdNotifications(userId: string): Promise
         const over = spent - b.amount;
         await deliverBudgetAlert(
           `⚠️ ${emoji} ${label}`,
-          `rozpočet přečerpán o ${formatKc(over)}`,
+          trNow(`rozpočet přečerpán o ${formatKc(over)}`, `budget exceeded by ${formatKc(over)}`),
         );
         sent[key] = true;
         // 80 % taky označíme, ať neposíláme obě
@@ -153,10 +156,15 @@ export async function checkBudgetThresholdNotifications(userId: string): Promise
       if (!sent[key]) {
         const remain = Math.max(0, b.amount - spent);
         const daysNoun =
-          daysLeft > 0 ? ` na ${daysLeft} ${pluralDen(daysLeft)}` : '';
+          daysLeft > 0
+            ? trNow(` na ${daysLeft} ${pluralDen(daysLeft)}`, ` for ${daysLeft} ${pluralDen(daysLeft, currentLanguage())}`)
+            : '';
         await deliverBudgetAlert(
           `${emoji} ${label}`,
-          `utraceno ${formatKc(spent)} z ${formatKc(b.amount)} · zbývá ${formatKc(remain)}${daysNoun}`,
+          trNow(
+            `utraceno ${formatKc(spent)} z ${formatKc(b.amount)} · zbývá ${formatKc(remain)}${daysNoun}`,
+            `spent ${formatKc(spent)} of ${formatKc(b.amount)} · ${formatKc(remain)} left${daysNoun}`,
+          ),
         );
         sent[key] = true;
         changed = true;
@@ -204,14 +212,17 @@ export async function scheduleBudgetWeeklySummaryIfEnabled(userId: string): Prom
 
   const body =
     budgets.length === 0
-      ? `Tento týden: utraceno ${formatKc(spentMonth)}`
-      : `Tento týden: utraceno ${formatKc(spentMonth)}, rozpočty: ${ok} v pořádku, ${over} přes`;
+      ? trNow(`Tento měsíc zatím: utraceno ${formatKc(spentMonth)}`, `This month so far: spent ${formatKc(spentMonth)}`)
+      : trNow(
+          `Tento měsíc zatím: utraceno ${formatKc(spentMonth)}, rozpočty: ${ok} v pořádku, ${over} přes`,
+          `This month so far: spent ${formatKc(spentMonth)}, budgets: ${ok} on track, ${over} over`,
+        );
 
   await ensureBudgetChannel();
   await Notifications.scheduleNotificationAsync({
     identifier: BUDGET_WEEKLY_NOTIFICATION_ID,
     content: {
-      title: '📊 Týdenní souhrn rozpočtů',
+      title: trNow('📊 Týdenní souhrn rozpočtů', '📊 Weekly budget summary'),
       body,
       data: { kind: 'budget_weekly' },
       ...(Platform.OS === 'android' ? { android: { channelId: ANDROID_CHANNEL_BUDGET } } : {}),

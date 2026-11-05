@@ -35,6 +35,10 @@ export default function AppearanceSettingsScreen() {
     async (newLanguage: Language) => {
       await setLanguage(newLanguage);
       refreshDailyTip();
+      // Naplánované notifikace přegenerovat v novém jazyce.
+      void import('@/lib/reschedule-all-local-notifications').then((m) =>
+        m.rescheduleAllLocalNotificationsIfPushEnabled().catch(() => {}),
+      );
     },
     [setLanguage, refreshDailyTip],
   );

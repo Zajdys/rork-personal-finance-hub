@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
 import { DAILY_TIP_KEYS } from '@/constants/daily-tip-keys';
-import { TRANSLATIONS, useLanguageStore } from '@/store/language-store';
+import { TRANSLATIONS, useLanguageStore, trNow } from '@/store/language-store';
+import { uiLocale } from '@/lib/app-locale';
 import { useSettingsStore } from '@/store/settings-store';
 import type { LoanItem, SubscriptionItem } from '@/store/finance-store';
 import {
@@ -63,7 +64,7 @@ function reminderBeforePayment(paymentDate: Date, daysBefore: number, timeStr: s
 }
 
 function formatCsDate(d: Date): string {
-  return d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function parseLoanStartDate(loan: LoanItem): Date {
@@ -74,19 +75,19 @@ function parseLoanStartDate(loan: LoanItem): Date {
 async function ensureAndroidChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_HOUSEHOLD, {
-    name: 'Pravidelné výdaje domácnosti',
+    name: trNow('Pravidelné výdaje domácnosti', 'Household regular expenses'),
     importance: Notifications.AndroidImportance.DEFAULT,
   });
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_SUBS, {
-    name: 'Měsíční předplatné',
+    name: trNow('Měsíční předplatné', 'Monthly subscriptions'),
     importance: Notifications.AndroidImportance.DEFAULT,
   });
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_MORTGAGE, {
-    name: 'Splátky hypotéky',
+    name: trNow('Splátky hypotéky', 'Mortgage payments'),
     importance: Notifications.AndroidImportance.DEFAULT,
   });
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_TIP, {
-    name: 'Denní tip MoneyBuddy',
+    name: trNow('Denní tip MoneyBuddy', 'MoneyBuddy daily tip'),
     importance: Notifications.AndroidImportance.DEFAULT,
   });
 }
@@ -328,8 +329,11 @@ export async function rescheduleAllLocalNotifications(params: RescheduleAllParam
             if (triggerAt.getTime() > now.getTime() && slot < maxSlots) {
               await Notifications.scheduleNotificationAsync({
                 content: {
-                  title: '💸 Nezapomeň zaplatit!',
-                  body: `${row.name} — ${Number(row.amount).toLocaleString('cs-CZ')} Kč je splatný ${formatCsDate(dueDate)}`,
+                  title: trNow('💸 Nezapomeň zaplatit!', '💸 Don’t forget to pay!'),
+                  body: trNow(
+                    `${row.name} — ${Number(row.amount).toLocaleString(uiLocale())} Kč je splatný ${formatCsDate(dueDate)}`,
+                    `${row.name} — ${Number(row.amount).toLocaleString(uiLocale())} Kč is due on ${formatCsDate(dueDate)}`,
+                  ),
                   data: { kind: 'household_recurring', recurringId: row.id, dueDate: dueIso },
                   ...(Platform.OS === 'android'
                     ? { android: { channelId: ANDROID_CHANNEL_HOUSEHOLD } }
@@ -350,7 +354,10 @@ export async function rescheduleAllLocalNotifications(params: RescheduleAllParam
               await Notifications.scheduleNotificationAsync({
                 content: {
                   title: 'MoneyBuddy',
-                  body: `⚠️ ${row.name} ${Number(row.amount).toLocaleString('cs-CZ')} Kč nebyl zaplacen!`,
+                  body: trNow(
+                    `⚠️ ${row.name} ${Number(row.amount).toLocaleString(uiLocale())} Kč nebyl zaplacen!`,
+                    `⚠️ ${row.name} ${Number(row.amount).toLocaleString(uiLocale())} Kč hasn’t been paid!`,
+                  ),
                   data: { kind: 'household_overdue', recurringId: row.id, dueDate: dueIso },
                   ...(Platform.OS === 'android'
                     ? { android: { channelId: ANDROID_CHANNEL_HOUSEHOLD } }
@@ -376,8 +383,11 @@ export async function rescheduleAllLocalNotifications(params: RescheduleAllParam
             if (triggerAt.getTime() > now.getTime() && slot < maxSlots) {
               await Notifications.scheduleNotificationAsync({
                 content: {
-                  title: '💸 Nezapomeň zaplatit!',
-                  body: `${row.name} — ${Number(row.amount).toLocaleString('cs-CZ')} Kč je splatný ${formatCsDate(nextDue)}`,
+                  title: trNow('💸 Nezapomeň zaplatit!', '💸 Don’t forget to pay!'),
+                  body: trNow(
+                    `${row.name} — ${Number(row.amount).toLocaleString(uiLocale())} Kč je splatný ${formatCsDate(nextDue)}`,
+                    `${row.name} — ${Number(row.amount).toLocaleString(uiLocale())} Kč is due on ${formatCsDate(nextDue)}`,
+                  ),
                   data: { kind: 'household_recurring', recurringId: row.id },
                   ...(Platform.OS === 'android'
                     ? { android: { channelId: ANDROID_CHANNEL_HOUSEHOLD } }
@@ -463,11 +473,11 @@ async function schedulePersonalRecurringReminders(
       const dueDate = new Date(yy!, mm! - 1, dd!, 12, 0, 0, 0);
       const triggerAt = reminderBeforePayment(dueDate, daysBefore, timeStr);
       if (triggerAt.getTime() > now.getTime()) {
-        const amt = Number(rule.amount).toLocaleString('cs-CZ');
+        const amt = Number(rule.amount).toLocaleString(uiLocale());
         await Notifications.scheduleNotificationAsync({
           content: {
             title: 'MoneyBuddy',
-            body: `Zítra: ${rule.title} ${amt} ${currencyLabel}`,
+            body: trNow(`Zítra: ${rule.title} ${amt} ${currencyLabel}`, `Tomorrow: ${rule.title} ${amt} ${currencyLabel}`),
             data: {
               kind: 'personal_recurring',
               recurringId: rule.id,
@@ -505,11 +515,18 @@ async function scheduleSubscriptionReminders(
       const triggerAt = reminderBeforePayment(pay, daysBefore, time);
       if (triggerAt.getTime() <= now.getTime()) continue;
       const dayWord =
-        daysBefore === 1 ? 'Zítra' : daysBefore === 2 ? 'Za 2 dny' : 'Za 3 dny';
+        daysBefore === 1
+          ? trNow('Zítra', 'Tomorrow')
+          : daysBefore === 2
+            ? trNow('Za 2 dny', 'In 2 days')
+            : trNow('Za 3 dny', 'In 3 days');
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'MoneyBuddy',
-          body: `${dayWord} ti strhnou ${s.name} ${s.amount.toLocaleString('cs-CZ')} ${currencyLabel}`,
+          body: trNow(
+            `${dayWord} ti strhnou ${s.name} ${s.amount.toLocaleString(uiLocale())} ${currencyLabel}`,
+            `${dayWord}: ${s.name} ${s.amount.toLocaleString(uiLocale())} ${currencyLabel} will be charged`,
+          ),
           data: { kind: 'subscription_reminder', subscriptionId: s.id },
           ...(Platform.OS === 'android' ? { android: { channelId: ANDROID_CHANNEL_SUBS } } : {}),
         },
@@ -540,14 +557,17 @@ async function scheduleMortgageReminders(
     const payments = nextBillingDatesAfter(now, dom, 6);
     const label =
       loan.name?.trim() ||
-      (loan.loanType === 'mortgage' ? 'Hypotéka' : 'Závazek');
+      (loan.loanType === 'mortgage' ? trNow('Hypotéka', 'Mortgage') : trNow('Závazek', 'Commitment'));
     for (const pay of payments) {
       const triggerAt = reminderBeforePayment(pay, daysBefore, time);
       if (triggerAt.getTime() <= now.getTime()) continue;
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: loan.loanType === 'mortgage' ? '🏠 Splátka hypotéky' : '💳 Blížící se platba',
-          body: `${label}: ${loan.monthlyPayment.toLocaleString('cs-CZ')} ${currencyLabel} — splatnost ${formatCsDate(pay)}`,
+          title:
+            loan.loanType === 'mortgage'
+              ? trNow('🏠 Splátka hypotéky', '🏠 Mortgage payment')
+              : trNow('💳 Blížící se platba', '💳 Upcoming payment'),
+          body: `${label}: ${loan.monthlyPayment.toLocaleString(uiLocale())} ${currencyLabel} — ${trNow('splatnost', 'due')} ${formatCsDate(pay)}`,
           data: { kind: 'mortgage_reminder', loanId: loan.id },
           ...(Platform.OS === 'android' ? { android: { channelId: ANDROID_CHANNEL_MORTGAGE } } : {}),
         },

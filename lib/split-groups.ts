@@ -6,6 +6,7 @@ import {
   type SplitExpenseCategoryId,
 } from '@/lib/split-expense-categories';
 import { parseMoneyInput } from '@/lib/parse-money-input';
+import { trNow } from '@/store/language-store';
 
 export type { SplitExpenseCategoryId } from '@/lib/split-expense-categories';
 export {
@@ -37,7 +38,7 @@ async function ensureSplitAuthSession(): Promise<{ session: Session | null; erro
   }
   if (!data.session?.access_token || !data.session.user?.id) {
     console.error('[SplitGroups auth] chybí user access token — request by šel jen s anon apikey');
-    return { session: null, error: new Error('Přihlášení vypršelo, přihlas se znovu') };
+    return { session: null, error: new Error(trNow('Přihlášení vypršelo, přihlas se znovu', 'Your session expired, please sign in again')) };
   }
   return { session: data.session, error: null };
 }
@@ -284,8 +285,8 @@ export function buildExpenseShareRows(
   splitType: SplitExpenseSplitType,
   shares: AddExpenseShareInput[],
 ): { member_id: string; amount_owed: number }[] {
-  if (!shares.length) throw new Error('Výdaj musí mít alespoň jednoho účastníka');
-  if (!(amount > 0)) throw new Error('Částka musí být kladná');
+  if (!shares.length) throw new Error(trNow('Výdaj musí mít alespoň jednoho účastníka', 'The expense must have at least one participant'));
+  if (!(amount > 0)) throw new Error(trNow('Částka musí být kladná', 'The amount must be positive'));
 
   if (splitType === 'equal') {
     const n = shares.length;
@@ -304,7 +305,7 @@ export function buildExpenseShareRows(
     }));
     const sum = roundMoney(rows.reduce((a, r) => a + r.amount_owed, 0));
     if (Math.abs(sum - amount) > 0.02) {
-      throw new Error(`Součet přesných částek (${sum}) se neshoduje s výdajem (${amount})`);
+      throw new Error(trNow(`Součet přesných částek (${sum}) se neshoduje s výdajem (${amount})`, `The exact amounts (${sum}) don’t add up to the expense (${amount})`));
     }
     return rows;
   }
@@ -312,7 +313,7 @@ export function buildExpenseShareRows(
   if (splitType === 'percentage') {
     const pctSum = shares.reduce((a, s) => a + s.value, 0);
     if (Math.abs(pctSum - 100) > 0.05) {
-      throw new Error(`Součet procent musí být 100 (teď ${pctSum})`);
+      throw new Error(trNow(`Součet procent musí být 100 (teď ${pctSum})`, `Percentages must add up to 100 (now ${pctSum})`));
     }
     const rows = shares.map((s, i) => {
       if (i < shares.length - 1) {
@@ -328,9 +329,9 @@ export function buildExpenseShareRows(
 
   // shares (váhy — celá kladná čísla)
   const weightSum = shares.reduce((a, s) => a + s.value, 0);
-  if (!(weightSum > 0)) throw new Error('Součet podílů musí být kladný');
+  if (!(weightSum > 0)) throw new Error(trNow('Součet podílů musí být kladný', 'The sum of shares must be positive'));
   if (shares.some((s) => !Number.isInteger(s.value) || s.value <= 0)) {
-    throw new Error('Podíly musí být kladná celá čísla');
+    throw new Error(trNow('Podíly musí být kladná celá čísla', 'Shares must be positive whole numbers'));
   }
   const rows = shares.map((s, i) => {
     if (i < shares.length - 1) {
@@ -478,7 +479,7 @@ export async function createSplitGroupRemote(params: {
   try {
     const { session, error: authErr } = await ensureSplitAuthSession();
     if (authErr || !session) {
-      return { group: null, member: null, error: authErr ?? new Error('Přihlášení vypršelo, přihlas se znovu') };
+      return { group: null, member: null, error: authErr ?? new Error(trNow('Přihlášení vypršelo, přihlas se znovu', 'Your session expired, please sign in again')) };
     }
     // RLS with check: created_by = auth.uid() — musí sedět s JWT, ne s libovolným params.userId
     const authUserId = session.user.id;
@@ -502,7 +503,7 @@ export async function createSplitGroupRemote(params: {
 
     if (gErr || !groupRow) {
       if (gErr) logSupabaseError('createSplitGroup', 'split_groups', gErr);
-      return { group: null, member: null, error: new Error(gErr?.message ?? 'Nepodařilo se vytvořit rozdělení') };
+      return { group: null, member: null, error: new Error(gErr?.message ?? trNow('Nepodařilo se vytvořit rozdělení', 'Couldn’t create the split group')) };
     }
 
     const group = mapGroup(groupRow as Record<string, unknown>);
@@ -520,7 +521,7 @@ export async function createSplitGroupRemote(params: {
     if (mErr || !memberRow) {
       if (mErr) logSupabaseError('createSplitGroupMember', 'split_group_members', mErr);
       await supabase.from('split_groups').delete().eq('id', group.id);
-      return { group: null, member: null, error: new Error(mErr?.message ?? 'Nepodařilo se přidat tvůrce') };
+      return { group: null, member: null, error: new Error(mErr?.message ?? trNow('Nepodařilo se přidat tvůrce', 'Couldn’t add the creator')) };
     }
 
     return {
@@ -546,7 +547,7 @@ export async function joinSplitGroupByCodeRemote(params: {
 
     const code = params.code.trim();
     if (!/^\d{6}$/.test(code)) {
-      return { group: null, error: new Error('Zadej platný 6místný kód') };
+      return { group: null, error: new Error(trNow('Zadej platný 6místný kód', 'Enter a valid 6-digit code')) };
     }
 
     const { data, error } = await supabase.rpc('join_split_group_by_code', {
@@ -561,7 +562,7 @@ export async function joinSplitGroupByCodeRemote(params: {
 
     const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
     if (!row?.id) {
-      return { group: null, error: new Error('Nepodařilo se připojit k rozdělení') };
+      return { group: null, error: new Error(trNow('Nepodařilo se připojit k rozdělení', 'Couldn’t join the split group')) };
     }
 
     return { group: mapGroup(row), error: null };
@@ -595,7 +596,7 @@ export async function updateSplitGroupArchiveRemote(
       if (error) logSupabaseError('updateSplitGroupArchive', 'split_groups', error);
       return {
         group: null,
-        error: new Error(error?.message ?? 'Nepodařilo se změnit stav archivace'),
+        error: new Error(error?.message ?? trNow('Nepodařilo se změnit stav archivace', 'Couldn’t change the archive state')),
       };
     }
 
@@ -629,7 +630,7 @@ export async function addSplitGroupMemberRemote(params: {
 
     if (error || !data) {
       if (error) logSupabaseError('addSplitMember', 'split_group_members', error);
-      return { member: null, error: new Error(error?.message ?? 'Nepodařilo se přidat člena') };
+      return { member: null, error: new Error(error?.message ?? trNow('Nepodařilo se přidat člena', 'Couldn’t add the member')) };
     }
     return { member: mapMember(data as Record<string, unknown>), error: null };
   } catch (err) {
@@ -774,7 +775,7 @@ export async function addSplitExpenseRemote(params: {
   try {
     const { session, error: authErr } = await ensureSplitAuthSession();
     if (authErr || !session) {
-      return { expense: null, error: authErr ?? new Error('Přihlášení vypršelo, přihlas se znovu') };
+      return { expense: null, error: authErr ?? new Error(trNow('Přihlášení vypršelo, přihlas se znovu', 'Your session expired, please sign in again')) };
     }
 
     const category = normalizeSplitExpenseCategory(
@@ -799,7 +800,7 @@ export async function addSplitExpenseRemote(params: {
 
     if (eErr || !expenseRow) {
       if (eErr) logSupabaseError('addSplitExpense', 'split_expenses', eErr);
-      return { expense: null, error: new Error(eErr?.message ?? 'Nepodařilo se uložit výdaj') };
+      return { expense: null, error: new Error(eErr?.message ?? trNow('Nepodařilo se uložit výdaj', 'Couldn’t save the expense')) };
     }
 
     const expenseId = String((expenseRow as Record<string, unknown>).id);
@@ -866,7 +867,7 @@ export async function updateSplitExpenseRemote(params: {
 
     if (eErr || !expenseRow) {
       if (eErr) logSupabaseError('updateSplitExpense', 'split_expenses', eErr);
-      return { expense: null, error: new Error(eErr?.message ?? 'Nepodařilo se upravit výdaj') };
+      return { expense: null, error: new Error(eErr?.message ?? trNow('Nepodařilo se upravit výdaj', 'Couldn’t update the expense')) };
     }
 
     const { error: delErr } = await supabase
@@ -974,7 +975,7 @@ export async function addSplitSettlementRemote(params: {
       if (error) logSupabaseError('addSplitSettlement', 'split_settlements', error);
       return {
         settlement: null,
-        error: new Error(error?.message ?? 'Nepodařilo se uložit vyrovnání'),
+        error: new Error(error?.message ?? trNow('Nepodařilo se uložit vyrovnání', 'Couldn’t save the settlement')),
       };
     }
     return { settlement: mapSettlement(data as Record<string, unknown>), error: null };

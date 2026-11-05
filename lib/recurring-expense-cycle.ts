@@ -1,3 +1,5 @@
+import { currentLanguage } from '@/store/language-store';
+
 /** Frekvence pravidelných výdajů domácnosti (hodnoty v DB). */
 export type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly' | 'biannual' | 'yearly';
 
@@ -97,6 +99,21 @@ const MONTH_GENITIVE_CS = [
 ];
 
 const WEEKDAY_SHORT_CS = ['neděle', 'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota'];
+const WEEKDAY_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTH_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 /** 1 = pondělí … 7 = neděle (uložení v DB pro týdenní). */
 export function weekdayCsToJs(weekday1to7: number): number {
@@ -254,29 +271,30 @@ export function formatRecurringScheduleSubtitle(f: RecurringCycleFields): string
   const dueDay = f.dueDay;
   const dm = f.dueMonth;
   const wd = resolveIsoWeekday(f);
+  const en = currentLanguage() === 'en';
+  const nth = (d: number) => (en ? `day ${d}` : `${d}. den`);
 
   if (freq === 'weekly') {
     const weekday = wd ?? Math.min(Math.max(dueDay || 1, 1), 7);
     const js = weekdayCsToJs(weekday);
-    const name = WEEKDAY_SHORT_CS[js];
-    return `každý týden • ${name}`;
+    return en ? `every week • ${WEEKDAY_EN[js]}` : `každý týden • ${WEEKDAY_SHORT_CS[js]}`;
   }
   if (freq === 'monthly') {
-    return `každý měsíc • ${dueDay}. den`;
+    return en ? `every month • ${nth(dueDay)}` : `každý měsíc • ${nth(dueDay)}`;
   }
   if (freq === 'quarterly') {
-    return `každé 3 měsíce • ${dueDay}. den`;
+    return en ? `every 3 months • ${nth(dueDay)}` : `každé 3 měsíce • ${nth(dueDay)}`;
   }
   if (freq === 'biannual') {
-    return `každých 6 měsíců • ${dueDay}. den`;
+    return en ? `every 6 months • ${nth(dueDay)}` : `každých 6 měsíců • ${nth(dueDay)}`;
   }
   if (freq === 'yearly' && dm != null && dm >= 1 && dm <= 12) {
-    return `každý rok • ${dueDay}. ${MONTH_GENITIVE_CS[dm - 1]}`;
+    return en ? `every year • ${MONTH_EN[dm - 1]} ${dueDay}` : `každý rok • ${dueDay}. ${MONTH_GENITIVE_CS[dm - 1]}`;
   }
   if (freq === 'yearly') {
-    return `každý rok • ${dueDay}. den`;
+    return en ? `every year • ${nth(dueDay)}` : `každý rok • ${nth(dueDay)}`;
   }
-  return `každý měsíc • ${dueDay}. den`;
+  return en ? `every month • ${nth(dueDay)}` : `každý měsíc • ${nth(dueDay)}`;
 }
 
 /** Příští měsíční splatnost (den v měsíci), od `from` včetně. */

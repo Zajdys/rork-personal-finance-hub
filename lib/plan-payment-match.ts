@@ -11,6 +11,8 @@ import {
   updatePersonalRecurringRule,
 } from '@/lib/personal-recurring';
 import { toYyyyMmDd } from '@/lib/transaction-date';
+import { trNow } from '@/store/language-store';
+import { uiLocale } from '@/lib/app-locale';
 import { useFinanceStore, type LoanItem, type Transaction } from '@/store/finance-store';
 
 const LINKS_KEY = (userId: string) => `plan_payment_links_v1:${userId}`;
@@ -315,7 +317,11 @@ export function formatPlanMatchToast(matches: PlanPaymentMatch[]): string {
   if (matches.length === 0) return '';
   if (matches.length === 1) {
     const m = matches[0]!;
-    return `✓ ${m.title} ${Math.round(m.amount).toLocaleString('cs-CZ')} Kč označeny jako zaplacené`;
+    const amt = Math.round(m.amount).toLocaleString(uiLocale());
+    return trNow(`✓ ${m.title} ${amt} Kč označeno jako zaplacené`, `✓ ${m.title} ${amt} Kč marked as paid`);
   }
-  return `✓ ${matches.length} pravidelných plateb označeno jako zaplacené`;
+  return trNow(
+    `✓ ${matches.length} pravidelných plateb označeno jako zaplacené`,
+    `✓ ${matches.length} regular payments marked as paid`,
+  );
 }

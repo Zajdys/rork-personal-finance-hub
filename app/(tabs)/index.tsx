@@ -671,8 +671,8 @@ export default function DashboardScreen() {
   });
 
   const tipArticle = useMemo(
-    () => getDailyTipArticle(dailyTipKey),
-    [dailyTipKey]
+    () => getDailyTipArticle(dailyTipKey, language === 'en' ? 'en' : 'cs'),
+    [dailyTipKey, language]
   );
   const currentCurrency = getCurrentCurrency();
 

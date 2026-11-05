@@ -2,6 +2,7 @@
  * Mapuje syrové síťové chyby na krátkou CS hlášku pro uživatele.
  * Raw error vždy loguj zvlášť (console) — tento helper ho nemění.
  */
+import { currentLanguage } from '@/store/language-store';
 
 export type UserFacingErrorKind = 'offline' | 'connection' | 'retry';
 
@@ -9,6 +10,12 @@ const MESSAGES: Record<UserFacingErrorKind, string> = {
   offline: 'Nejsi online. Zkontroluj připojení k internetu.',
   connection: 'Nepodařilo se načíst data, zkontroluj připojení.',
   retry: 'Nepodařilo se načíst. Zkus to znovu.',
+};
+
+const MESSAGES_EN: Record<UserFacingErrorKind, string> = {
+  offline: 'You’re offline. Check your internet connection.',
+  connection: 'Couldn’t load data, check your connection.',
+  retry: 'Couldn’t load. Please try again.',
 };
 
 function errorText(error: unknown): string {
@@ -56,7 +63,8 @@ export function classifyUserFacingError(error: unknown): UserFacingErrorKind {
 
 /** Přátelská CS hláška — nikdy nevrací stack / syrový HTTP text. */
 export function toUserFacingMessage(error: unknown): string {
-  return MESSAGES[classifyUserFacingError(error)];
+  const kind = classifyUserFacingError(error);
+  return currentLanguage() === 'en' ? MESSAGES_EN[kind] : MESSAGES[kind];
 }
 
 /**

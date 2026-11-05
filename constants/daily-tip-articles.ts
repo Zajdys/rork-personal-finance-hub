@@ -1,4 +1,5 @@
 import type { DailyTipKey } from './daily-tip-keys';
+import { DAILY_TIP_ARTICLES_EN } from './daily-tip-articles-en';
 
 export type DailyTipArticle = {
   title: string;
@@ -278,6 +279,6 @@ export const DAILY_TIP_ARTICLES: Record<DailyTipKey, DailyTipArticle> = {
   },
 };
 
-export function getDailyTipArticle(key: DailyTipKey): DailyTipArticle {
-  return DAILY_TIP_ARTICLES[key];
+export function getDailyTipArticle(key: DailyTipKey, lang: 'cs' | 'en' = 'cs'): DailyTipArticle {
+  return (lang === 'en' ? DAILY_TIP_ARTICLES_EN[key] : undefined) ?? DAILY_TIP_ARTICLES[key];
 }
