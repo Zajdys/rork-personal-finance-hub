@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAsyncAction } from '@/hooks/use-async-action';
+import { trNow } from '@/store/language-store';
 
 export type AsyncButtonVariant = 'primary' | 'success' | 'danger' | 'solid';
 
@@ -46,7 +47,7 @@ export type AsyncButtonProps = {
 export function AsyncButton({
   onPress,
   label,
-  loadingLabel = 'Ukládám…',
+  loadingLabel = trNow('Ukládám…', 'Saving…'),
   variant = 'primary',
   solidColor = '#667eea',
   disabled = false,

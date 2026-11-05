@@ -112,7 +112,7 @@ export default function ProfileScreen() {
   const savedTotalLocal = useSavePendingStore((s) => s.savedTotal);
   const loadSaveStore = useSavePendingStore((s) => s.loadFromStorage);
   const { colors } = useTheme();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -442,8 +442,8 @@ export default function ProfileScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profileSectionMyMoney')}</Text>
           <MenuButton
             icon={Wallet}
-            title="Upravit plán"
-            subtitle="Příjem, nájem a energie, úvěry a rozpočty"
+            title={tr('Upravit plán', 'Edit plan')}
+            subtitle={tr('Příjem, nájem a energie, úvěry a rozpočty', 'Income, rent & energy, loans and budgets')}
             onPress={() => router.push({ pathname: '/quick-setup', params: { edit: '1' } })}
           />
           <MenuButton

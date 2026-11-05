@@ -156,7 +156,7 @@ export default function AuthScreen() {
   const [marketingOk, setMarketingOk] = useState(false);
 
   const { login, register } = useAuth();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -301,7 +301,7 @@ export default function AuthScreen() {
                 style={styles.forgotBtn}
                 hitSlop={8}
               >
-                <Text style={styles.forgotText}>Zapomněl jsi heslo?</Text>
+                <Text style={styles.forgotText}>{tr('Zapomněl jsi heslo?', 'Forgot password?')}</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -339,7 +339,7 @@ export default function AuthScreen() {
                     {marketingOk ? <Check color="#fff" size={14} strokeWidth={3} /> : null}
                   </View>
                   <Text style={styles.checkLabel}>
-                    Chci dostávat tipy, novinky a nabídky MoneyBuddy e-mailem (nepovinné, odhlásíš se kdykoli)
+                    {tr('Chci dostávat tipy, novinky a nabídky MoneyBuddy e-mailem (nepovinné, odhlásíš se kdykoli)', 'I want to receive MoneyBuddy tips, news and offers by e-mail (optional, unsubscribe any time)')}
                   </Text>
                 </Pressable>
               </View>

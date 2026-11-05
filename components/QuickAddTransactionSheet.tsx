@@ -63,7 +63,7 @@ export function QuickAddTransactionSheet({
   onSaved,
 }: QuickAddTransactionSheetProps) {
   const { colors } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const { getCurrentCurrency } = useSettingsStore();
   const currency = getCurrentCurrency();
   const insets = useSafeAreaInsets();
@@ -215,16 +215,16 @@ export function QuickAddTransactionSheet({
                   }}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel="Nahrát výpis z banky"
+                  accessibilityLabel={tr('Nahrát výpis z banky', 'Upload bank statement')}
                   style={[styles.importBanner, { backgroundColor: colors.muted, borderColor: colors.primary }]}
                 >
                   <View style={[styles.importIcon, { backgroundColor: colors.primary }]}>
                     <FileUp color="#fff" size={20} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>Nahrát výpis z banky</Text>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>{tr('Nahrát výpis z banky', 'Upload bank statement')}</Text>
                     <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                      Načte všechny platby najednou (PDF nebo CSV)
+                      {tr('Načte všechny platby najednou (PDF nebo CSV)', 'Loads all payments at once (PDF or CSV)')}
                     </Text>
                   </View>
                   <ChevronRight color={colors.textSecondary} size={20} />
@@ -350,7 +350,7 @@ export function QuickAddTransactionSheet({
                       router.push('/(tabs)/add');
                     }}
                   >
-                    <Text style={[styles.moreLink, { color: colors.primary }]}>Další možnosti</Text>
+                    <Text style={[styles.moreLink, { color: colors.primary }]}>{tr('Další možnosti', 'More options')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}

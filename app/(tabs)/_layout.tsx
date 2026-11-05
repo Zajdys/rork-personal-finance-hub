@@ -51,7 +51,7 @@ function TabIconWithLock({
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const { isHouseholdPremium } = usePremium();
   const showHouseholdLock = !isHouseholdPremium;
   const quickAdd = useQuickAddSheetStore();
@@ -93,7 +93,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="plan"
         options={{
-          title: 'Plán',
+          title: tr('Plán', 'Plan'),
           tabBarIcon: ({ color, size }) => <Target color={color} size={size} />,
         }}
       />

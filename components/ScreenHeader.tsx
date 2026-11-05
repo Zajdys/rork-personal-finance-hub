@@ -16,6 +16,7 @@ import { ChevronLeft, X } from 'lucide-react-native';
 import { router, type Href } from 'expo-router';
 import { useTheme } from '@/hooks/use-theme';
 import { DEFAULT_BACK_FALLBACK } from '@/lib/safe-back';
+import { useLanguageStore } from '@/store/language-store';
 
 const BTN = 40;
 const HIT = Math.max(0, (44 - BTN) / 2);
@@ -75,6 +76,7 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { tr } = useLanguageStore();
   const isGradient = variant === 'gradient';
   const light = lightContent ?? isGradient;
 
@@ -106,7 +108,7 @@ export function ScreenHeader({
             style={[styles.roundBtn, { backgroundColor: btnBg }]}
             hitSlop={{ top: HIT, bottom: HIT, left: HIT, right: HIT }}
             accessibilityRole="button"
-            accessibilityLabel="Zpět"
+            accessibilityLabel={tr('Zpět', 'Back')}
             testID="screen-header-back"
           >
             <ChevronLeft color={iconColor} size={24} strokeWidth={2.25} />
@@ -132,7 +134,7 @@ export function ScreenHeader({
             style={[styles.roundBtn, { backgroundColor: btnBg }]}
             hitSlop={{ top: HIT, bottom: HIT, left: HIT, right: HIT }}
             accessibilityRole="button"
-            accessibilityLabel="Zavřít"
+            accessibilityLabel={tr('Zavřít', 'Close')}
             testID="screen-header-close"
           >
             <X color={iconColor} size={20} strokeWidth={2.25} />

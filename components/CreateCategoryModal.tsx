@@ -18,6 +18,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
+import { categoryLabel } from '@/lib/category-labels';
+import { useLanguageStore } from '@/store/language-store';
 
 export const CATEGORY_EMOJIS: string[] = [
   '🛒', '🍽️', '☕', '🍺', '🍕', '🥗',
@@ -48,6 +50,7 @@ type Props = {
 
 export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate }: Props) {
   const { colors } = useTheme();
+  const { tr } = useLanguageStore();
   const isSub = !!parentCategory;
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('🛒');
@@ -90,10 +93,10 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
           <Text style={[styles.title, { color: colors.text }]}>
-            {isSub ? `Nová podkategorie` : 'Nová kategorie'}
+            {isSub ? tr('Nová podkategorie', 'New subcategory') : tr('Nová kategorie', 'New category')}
           </Text>
           {isSub ? (
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>Patří pod: {parentCategory}</Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>{tr('Patří pod', 'Belongs to')}: {categoryLabel(parentCategory)}</Text>
           ) : null}
 
           <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: listMaxH }} contentContainerStyle={{ paddingBottom: 8 }}>
@@ -107,7 +110,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder={isSub ? 'Např. Benzín, Oběd v práci…' : 'Název, např. Kluby, Vaping, Golf…'}
+                placeholder={isSub ? tr('Např. Benzín, Oběd v práci…', 'E.g. Fuel, Lunch at work…') : tr('Název, např. Kluby, Vaping, Golf…', 'Name, e.g. Clubs, Vaping, Golf…')}
                 placeholderTextColor={colors.textSecondary}
                 style={[styles.nameInput, { color: colors.text }]}
                 autoFocus
@@ -144,7 +147,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
                 </View>
                 <View style={[styles.customEmojiRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                   <Text style={{ color: colors.textSecondary, fontSize: 13, flex: 1 }}>
-                    Jiná ikonka? Ťukni sem a vyber emoji z klávesnice 🙂
+                    {tr('Jiná ikonka? Ťukni sem a vyber emoji z klávesnice 🙂', 'Another icon? Tap here and pick an emoji from the keyboard 🙂')}
                   </Text>
                   <TextInput
                     value={customEmoji}
@@ -178,7 +181,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
 
           <View style={styles.actions}>
             <TouchableOpacity onPress={onClose} style={[styles.btn, { backgroundColor: colors.surface }]}>
-              <Text style={{ color: colors.text, fontWeight: '700' }}>Zrušit</Text>
+              <Text style={{ color: colors.text, fontWeight: '700' }}>{tr('Zrušit', 'Cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={save}
@@ -186,7 +189,7 @@ export function CreateCategoryModal({ visible, parentCategory, onClose, onCreate
               style={[styles.btn, { backgroundColor: colors.primary, opacity: canSave ? 1 : 0.4 }]}
               testID="create-category-save"
             >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Uložit</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{tr('Uložit', 'Save')}</Text>
             </TouchableOpacity>
           </View>
         </View>

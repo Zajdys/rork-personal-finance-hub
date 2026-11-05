@@ -152,7 +152,7 @@ function canDeletePortfolio(portfolio: InvestmentPortfolio, userId: string | und
 function InvesticeTabScreenContent() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const numberLocale = appLocale(language);
@@ -458,7 +458,7 @@ function InvesticeTabScreenContent() {
   const handleImportReady = useCallback(
     async (data: PendingPortfolioImport) => {
       if (!user?.id) {
-        Alert.alert(t('importPortfolio'), 'Pro uložení portfolia se přihlaste.');
+        Alert.alert(t('importPortfolio'), tr('Pro uložení portfolia se přihlas.', 'Sign in to save the portfolio.'));
         return;
       }
 

@@ -13,6 +13,7 @@ import {
 import { ArrowLeft } from 'lucide-react-native';
 import { type Href } from 'expo-router';
 import { safeGoBack, DEFAULT_BACK_FALLBACK } from '@/lib/safe-back';
+import { trNow } from '@/store/language-store';
 
 export type BackButtonProps = {
   color?: string;
@@ -33,7 +34,7 @@ export function BackButton({
   onPress,
   style,
   hitSlop = 12,
-  accessibilityLabel = 'Zpět',
+  accessibilityLabel = trNow('Zpět', 'Back'),
   testID,
 }: BackButtonProps) {
   return (

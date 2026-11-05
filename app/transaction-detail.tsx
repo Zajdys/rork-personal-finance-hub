@@ -58,7 +58,7 @@ export default function TransactionDetailScreen() {
     customCategories,
   } = useFinanceStore();
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const currency = getCurrentCurrency();
 
   const transaction = useMemo(() => transactions.find((t) => t.id === id), [transactions, id]);
@@ -612,7 +612,7 @@ export default function TransactionDetailScreen() {
               activeOpacity={0.85}
             >
               <Text style={[styles.receiptFullPreviewText, { color: isDarkMode ? '#E5E7EB' : '#374151' }]}>
-                Zobrazit celou účtenku
+                {tr('Zobrazit celou účtenku', 'Show full receipt')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity

@@ -9,6 +9,7 @@ import { X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { safePush } from '@/lib/safe-navigate';
 import { BuddyAvatar } from '@/components/BuddyAvatar';
+import { useLanguageStore } from '@/store/language-store';
 
 export const HELP_CHAT_INTRO_KEY = 'mb_help_chat_intro_seen_v2';
 
@@ -22,6 +23,7 @@ export async function markHelpChatIntroSeen(): Promise<void> {
 
 export function HelpChatIntroCard({ style }: { style?: StyleProp<ViewStyle> }) {
   const { colors } = useTheme();
+  const { tr } = useLanguageStore();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -53,13 +55,13 @@ export function HelpChatIntroCard({ style }: { style?: StyleProp<ViewStyle> }) {
         }}
         style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.primary + '66' }]}
         accessibilityRole="button"
-        accessibilityLabel="Zeptej se MoneyBuddy, průvodce aplikací"
+        accessibilityLabel={tr('Zeptej se MoneyBuddy, průvodce aplikací', 'Ask MoneyBuddy, the app guide')}
       >
         <BuddyAvatar size={22} />
         <Text style={[styles.text, { color: colors.text }]} numberOfLines={1}>
-          Nevíš si rady? Zeptej se mě
+          {tr('Nevíš si rady? Zeptej se mě', 'Not sure? Ask me')}
         </Text>
-        <TouchableOpacity onPress={dismiss} hitSlop={12} accessibilityRole="button" accessibilityLabel="Zavřít">
+        <TouchableOpacity onPress={dismiss} hitSlop={12} accessibilityRole="button" accessibilityLabel={tr('Zavřít', 'Close')}>
           <X color={colors.textSecondary} size={14} />
         </TouchableOpacity>
       </TouchableOpacity>

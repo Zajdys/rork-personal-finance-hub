@@ -33,7 +33,7 @@ import { PRIVACY_POLICY_URL, SECURITY_URL, TERMS_OF_USE_URL } from '@/constants/
 
 export default function PrivacySettingsScreen() {
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const { user } = useAuth();
   const router = useRouter();
   const [biometricsOn, setBiometricsOn] = useState(false);
@@ -216,11 +216,11 @@ export default function PrivacySettingsScreen() {
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.content}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Účet</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{tr('Účet', 'Account')}</Text>
           <PrivacyItem
             icon={KeyRound}
-            title="Změnit heslo"
-            subtitle="Nastav si nové heslo k účtu"
+            title={tr('Změnit heslo', 'Change password')}
+            subtitle={tr('Nastav si nové heslo k účtu', 'Set a new password for your account')}
             onPress={() => router.push('/change-password')}
           />
 
