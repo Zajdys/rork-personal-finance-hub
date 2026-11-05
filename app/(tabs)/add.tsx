@@ -50,6 +50,7 @@ import {
 } from '@/components/RecurringFrequencyField';
 import { useAddTransaction } from '@/hooks/useAddTransaction';
 import { appLocale, uiLocale } from '@/lib/app-locale';
+import { categoryLabel } from '@/lib/category-labels';
 
 type ParsedTxn = {
   type: 'income' | 'expense';
@@ -163,7 +164,7 @@ export default function AddTransactionScreen() {
   } = useFinanceStore();
   const [importingPreview, setImportingPreview] = useState<boolean>(false);
   const { addPoints, showBuddyMessage } = useBuddyStore();
-  const { t, language } = useLanguageStore();
+  const { t, tr, language } = useLanguageStore();
   const { saveTransaction, isSaving: isSavingTx } = useAddTransaction();
 
   const resetCategoryUi = useCallback(() => {
@@ -261,7 +262,7 @@ export default function AddTransactionScreen() {
         // Jedním požadavkem (dřív 1 požadavek na položku → u účtenky s 12 položkami ~1 min).
         const { getAuthUserId: getUid, insertManualTransactionsBatch } = await import('@/lib/supabase-transactions');
         const uidForInsert = await getUid();
-        if (!uidForInsert) throw new Error('Nejsi přihlášený.');
+        if (!uidForInsert) throw new Error(tr('Nejsi přihlášený.', 'You are not signed in.'));
         const { insertedIds, error: insertErr } = await insertManualTransactionsBatch(candidates, uidForInsert);
         if (insertErr) throw insertErr;
         const insertedSet = new Set(insertedIds);
@@ -988,7 +989,7 @@ export default function AddTransactionScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
               <ActivityIndicator size="small" color={colors.primary} />
               <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-                Stahuji kurz ČNB…
+                {tr('Stahuji kurz ČNB…', 'Fetching the ČNB exchange rate…')}
               </Text>
             </View>
           ) : null}
@@ -1148,7 +1149,7 @@ export default function AddTransactionScreen() {
                     <Text style={styles.previewAmount}>{p.amount.toLocaleString(uiLocale())} Kč</Text>
                   </View>
                   <Text style={styles.previewTitle}>{p.title}</Text>
-                  <Text style={styles.previewMeta}>{p.category} • {ymdToLocalDateNoon(transactionDateYmd(p.date)).toLocaleDateString(uiLocale())}</Text>
+                  <Text style={styles.previewMeta}>{categoryLabel(p.category)} • {ymdToLocalDateNoon(transactionDateYmd(p.date)).toLocaleDateString(uiLocale())}</Text>
                 </View>
               ))}
               {preview.length > 50 ? (
