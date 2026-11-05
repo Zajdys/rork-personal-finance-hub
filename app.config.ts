@@ -9,7 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: isProd ? 'MoneyBuddy' : 'MoneyBuddy Dev',
   slug: 'personal-finance-hub-gfsbvu1',
-  version: '1.0.0',
+  version: '1.1.0',
   orientation: 'portrait',
   icon: './assets/images/app-icon-1024.png',
   scheme: 'moneybuddy',
