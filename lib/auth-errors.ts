@@ -6,6 +6,7 @@ export type AuthErrorKind =
   | 'user_already_exists'
   | 'invalid_credentials'
   | 'weak_password'
+  | 'email_not_confirmed'
   | 'generic';
 
 export function classifyAuthError(error: unknown): AuthErrorKind {
@@ -29,6 +30,14 @@ export function classifyAuthError(error: unknown): AuthErrorKind {
     blob.includes('user already exists')
   ) {
     return 'user_already_exists';
+  }
+  if (
+    code === 'email_not_confirmed' ||
+    blob.includes('email_not_confirmed') ||
+    blob.includes('email not confirmed') ||
+    blob.includes('email address not confirmed')
+  ) {
+    return 'email_not_confirmed';
   }
   if (
     blob.includes('invalid_credentials') ||
@@ -57,7 +66,13 @@ export function authErrorI18nKey(kind: AuthErrorKind): string {
       return 'auth.errorInvalidCredentials';
     case 'weak_password':
       return 'auth.errorWeakPassword';
+    case 'email_not_confirmed':
+      return 'auth.errorEmailNotConfirmed';
     default:
       return 'auth.errorGeneric';
   }
+}
+
+export function isEmailNotConfirmedError(error: unknown): boolean {
+  return classifyAuthError(error) === 'email_not_confirmed';
 }

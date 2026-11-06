@@ -18,6 +18,7 @@ import { ChevronLeft, Mail, KeyRound, Lock } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { showToast } from '@/store/toast-store';
 import { useLanguageStore } from '@/store/language-store';
+import { validateRegistrationPassword } from '@/lib/password-validation';
 
 const GRADIENT_BG: [string, string, string] = ['#1a0533', '#120a3d', '#0d1b4b'];
 const MUTED = 'rgba(255,255,255,0.55)';
@@ -68,8 +69,9 @@ export default function ForgotPasswordScreen() {
       setError(tr('Zadej kód z e-mailu.', 'Enter the code from the e-mail.'));
       return;
     }
-    if (password.length < 6) {
-      setError(tr('Nové heslo musí mít aspoň 6 znaků.', 'Your new password must have at least 6 characters.'));
+    const pwdErr = validateRegistrationPassword(password);
+    if (pwdErr) {
+      setError(pwdErr);
       return;
     }
     setBusy(true);
@@ -158,7 +160,7 @@ export default function ForgotPasswordScreen() {
                 <Lock color="rgba(255,255,255,0.4)" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder={tr('Nové heslo (min. 6 znaků)', 'New password (min. 6 characters)')}
+                  placeholder={tr('Nové heslo (min. 8 znaků, písmeno a číslice)', 'New password (8+ characters, letter and digit)')}
                   placeholderTextColor={MUTED}
                   value={password}
                   onChangeText={setPassword}

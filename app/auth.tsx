@@ -34,15 +34,16 @@ import BrandLogo from '@/components/BrandLogo';
 import { useAsyncAction } from '@/hooks/use-async-action';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal-urls';
 import { useRegisterIntentStore } from '@/store/register-intent-store';
+import { validateRegistrationPassword } from '@/lib/password-validation';
 
-/** Souhlas s marketingem (GDPR) — uloží se k uživateli s datem souhlasu. */
+/** Souhlas s marketingem (GDPR) — uloží se k uživateli s datem souhlasu (až po session). */
 async function saveMarketingConsent(value: boolean): Promise<void> {
   try {
     const { supabase } = await import('@/lib/supabase');
     const { data } = await supabase.auth.getUser();
     const uid = data.user?.id;
     if (!uid) return;
-    // Řádek v `users` může vzniknout až chvilku po registraci → max. 3 pokusy.
+    // Řádek v `users` může vzniknout až chvilku po ověření → max. 3 pokusy.
     for (let attempt = 0; attempt < 3; attempt++) {
       const { data: rows } = await supabase
         .from('users')
@@ -173,7 +174,13 @@ export default function AuthScreen() {
       return;
     }
 
-    if (password.length < 6) {
+    if (!isLogin) {
+      const pwdErr = validateRegistrationPassword(password);
+      if (pwdErr) {
+        setError(pwdErr);
+        return;
+      }
+    } else if (password.length < 6) {
       setError(t('auth.passwordMinLength'));
       return;
     }
@@ -189,11 +196,32 @@ export default function AuthScreen() {
       if (isLogin) {
         const result = await login(email, password);
         if (!result.success) {
+          if (result.emailNotConfirmed) {
+            router.replace({
+              pathname: '/verify-email',
+              params: {
+                email: email.trim().toLowerCase(),
+                resend: '1',
+              },
+            } as never);
+            return;
+          }
           setError(result.error || t('auth.invalidCredentials'));
         }
         // Po úspěšném loginu NEnavigovat — root _layout gate rozhodne.
       } else {
         const result = await register(email, password, name);
+        if (result.success && result.needsEmailVerification) {
+          router.replace({
+            pathname: '/verify-email',
+            params: {
+              email: email.trim().toLowerCase(),
+              name: name.trim(),
+              marketing: marketingOk ? '1' : '0',
+            },
+          } as never);
+          return;
+        }
         if (result.success) {
           if (marketingOk) {
             void saveMarketingConsent(true);

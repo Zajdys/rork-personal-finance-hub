@@ -5,8 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { flushPendingOnboardingProfileSync } from '@/lib/onboarding-completion';
 import { clearLocalStorageAfterAccountDeletion, invokeDeleteAccountEdge } from '@/lib/account-deletion';
-import { authErrorI18nKey, classifyAuthError } from '@/lib/auth-errors';
+import { authErrorI18nKey, classifyAuthError, isEmailNotConfirmedError } from '@/lib/auth-errors';
 import { fetchTermsAccepted, upsertTermsConsent } from '@/lib/terms-consent';
+import { validateRegistrationPassword } from '@/lib/password-validation';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { useFinanceStore } from '@/store/finance-store';
 import { useSettingsStore } from '@/store/settings-store';
@@ -130,6 +131,51 @@ export async function syncLocalFinanceDataForAuthUser(userId: string | null): Pr
     ]);
     await AsyncStorage.setItem('last_user_id', userId);
   }
+}
+
+/**
+ * public.users + user_profiles až když existuje session (po verifyOtp / přihlášení).
+ * Upsert — bezpečné při opakování.
+ */
+async function ensureUserRowsAfterSession(params: {
+  userId: string;
+  email: string;
+  displayName: string;
+  /** Nová registrace: onboarding hotový, welcome tour ne, souhlas s podmínkami (zaškrtnutý při registraci). */
+  newRegistration?: boolean;
+}): Promise<{ termsOk: boolean }> {
+  const { userId, email, displayName, newRegistration } = params;
+  const row: Record<string, unknown> = {
+    id: userId,
+    email,
+    display_name: displayName,
+  };
+  if (newRegistration) {
+    row.onboarding_completed = true;
+    row.welcome_tour_completed = false;
+  }
+  // Přihlášení: řádek jen doplnit, když chybí (nepřepisovat jméno z „Upravit profil“).
+  const { error: profileError } = newRegistration
+    ? await supabase.from('users').upsert(row)
+    : await supabase.from('users').upsert(row, { onConflict: 'id', ignoreDuplicates: true });
+  if (profileError) {
+    console.error('[auth] users upsert failed', profileError);
+    Alert.alert(
+      useLanguageStore.getState().t('error'),
+      useLanguageStore.getState().t('auth.consentSaveFailed' as 'auth.errorGeneric'),
+    );
+  }
+  // Souhlas s podmínkami jen u registrace (při přihlášení rozhodne gate accept-terms).
+  if (!newRegistration) return { termsOk: false };
+  const consent = await upsertTermsConsent(userId);
+  if (!consent.ok) {
+    console.error('[auth] terms consent upsert failed', consent.message);
+    Alert.alert(
+      useLanguageStore.getState().t('error'),
+      useLanguageStore.getState().t('auth.consentSaveFailed' as 'auth.errorGeneric'),
+    );
+  }
+  return { termsOk: consent.ok };
 }
 
 async function readUserGateFlagsFromSupabase(userId: string): Promise<{
@@ -268,80 +314,32 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return true;
   }, [handleInvalidRefreshToken]);
 
-  const login = useCallback(async (email: string, password: string): Promise<{
-    success: boolean;
-    error?: string;
-    onboardingCompleted?: boolean;
-    welcomeTourCompleted?: boolean;
-  }> => {
-    try {
-      const safeEmail = String(email ?? '').trim().toLowerCase();
-      const safePassword = String(password ?? '').trim();
+  const establishAuthenticatedSession = useCallback(
+    async (params: {
+      userId: string;
+      email: string;
+      name: string;
+      createdAt: string;
+      onboardingCompleted: boolean;
+      welcomeTourCompleted: boolean;
+      termsAccepted: boolean;
+      clearLocalFinance?: boolean;
+    }): Promise<User> => {
+      const {
+        userId,
+        email,
+        name,
+        createdAt,
+        onboardingCompleted,
+        welcomeTourCompleted,
+        termsAccepted,
+        clearLocalFinance,
+      } = params;
 
-      console.log('[auth] login → signInWithPassword (input)', {
-        email: safeEmail,
-        passwordLength: safePassword.length,
-      });
-
-      if (!safeEmail || !safePassword) {
-        console.warn('[auth] login rejected: empty email or password');
-        return { success: false, error: 'Vyplňte email a heslo' };
-      }
-      if (safeEmail.length > 100 || safePassword.length > 100) {
-        console.warn('[auth] login rejected: email or password too long');
-        return { success: false, error: 'Údaje jsou příliš dlouhé' };
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: safeEmail,
-        password: safePassword,
-      });
-
-      if (error) {
-        console.error('[auth] signInWithPassword error (full)', {
-          message: error.message,
-          name: error.name,
-          status: (error as { status?: number }).status,
-          code: (error as { code?: string }).code,
-          raw: error,
-        });
-        return { success: false, error: translateAuthError(error) };
-      }
-
-      if (!data.user) {
-        console.error('[auth] signInWithPassword: no data.user in response', { data });
-        return { success: false, error: 'Neplatná odpověď serveru' };
-      }
-
-      console.log('[auth] signInWithPassword ok', {
-        userId: data.user.id,
-        hasSession: Boolean(data.session),
-        emailConfirmedAt: data.user.email_confirmed_at,
-      });
-
-      const userId = data.user.id;
-      const createdAt = data.user.created_at ?? new Date().toISOString();
-      const profileName =
-        (typeof data.user.user_metadata?.name === 'string' && data.user.user_metadata.name) ||
-        (typeof data.user.user_metadata?.display_name === 'string' && data.user.user_metadata.display_name) ||
-        safeEmail.split('@')[0] ||
-        'User';
-
-      let onboardingCompleted = false;
-      let welcomeTourCompleted = false;
-      let termsAccepted = false;
-      try {
-        const flags = await readUserGateFlagsFromSupabase(userId);
-        onboardingCompleted = flags.onboardingCompleted;
-        welcomeTourCompleted = flags.welcomeTourCompleted;
-        termsAccepted = flags.termsAccepted;
-      } catch (e) {
-        console.error('[auth] readUserGateFlagsFromSupabase failed (login continues)', e);
-      }
-      const newUser: User = {
+      const baseUser: User = {
         id: userId,
-        email: safeEmail,
-        name: profileName,
+        email,
+        name,
         registrationDate: createdAt,
         onboardingCompleted,
         welcomeTourCompleted,
@@ -353,7 +351,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         },
       };
 
-      setUser(newUser);
+      setUser(baseUser);
       setIsAuthenticated(true);
       setGateFlagsReady(true);
       setIsLoading(false);
@@ -363,7 +361,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         useRevenueCatStore.getState().customerInfo,
       );
       const withSub: User = {
-        ...newUser,
+        ...baseUser,
         subscription: {
           active: premium || isDevForcePremium(),
           plan: premium ? plan : null,
@@ -382,9 +380,123 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         }),
       );
 
-      await syncLocalFinanceDataForAuthUser(userId);
+      if (clearLocalFinance) {
+        await AsyncStorage.multiRemove([
+          'finance_transactions',
+          'finance_goals',
+          'finance_reports',
+          'finance_subscriptions',
+          'finance_custom_categories',
+          'finance_loans',
+          'ignored_detected_subscriptions',
+        ]);
+        await AsyncStorage.setItem('last_user_id', userId);
+      } else {
+        await syncLocalFinanceDataForAuthUser(userId);
+      }
 
       invalidRefreshHandledRef.current = false;
+      return withSub;
+    },
+    [],
+  );
+
+  const login = useCallback(async (email: string, password: string): Promise<{
+    success: boolean;
+    error?: string;
+    emailNotConfirmed?: boolean;
+    onboardingCompleted?: boolean;
+    welcomeTourCompleted?: boolean;
+  }> => {
+    try {
+      const safeEmail = String(email ?? '').trim().toLowerCase();
+      const safePassword = String(password ?? '').trim();
+
+      console.log('[auth] login → signInWithPassword (input)', {
+        email: safeEmail,
+        passwordLength: safePassword.length,
+      });
+
+      if (!safeEmail || !safePassword) {
+        console.warn('[auth] login rejected: empty email or password');
+        return { success: false, error: 'Vyplňte email a heslo' };
+      }
+      if (safeEmail.length > 100 || safePassword.length > 100) {
+        console.warn('[auth] login rejected: email or password too long');
+        return { success: false, error: trNow('Údaje jsou příliš dlouhé', 'The details are too long') };
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: safeEmail,
+        password: safePassword,
+      });
+
+      if (error) {
+        console.error('[auth] signInWithPassword error (full)', {
+          message: error.message,
+          name: error.name,
+          status: (error as { status?: number }).status,
+          code: (error as { code?: string }).code,
+          raw: error,
+        });
+        if (isEmailNotConfirmedError(error)) {
+          return {
+            success: false,
+            emailNotConfirmed: true,
+            error: translateAuthError(error),
+          };
+        }
+        return { success: false, error: translateAuthError(error) };
+      }
+
+      if (!data.user) {
+        console.error('[auth] signInWithPassword: no data.user in response', { data });
+        return { success: false, error: trNow('Neplatná odpověď serveru', 'Invalid server response') };
+      }
+
+      console.log('[auth] signInWithPassword ok', {
+        userId: data.user.id,
+        hasSession: Boolean(data.session),
+        emailConfirmedAt: data.user.email_confirmed_at,
+      });
+
+      const userId = data.user.id;
+      const createdAt = data.user.created_at ?? new Date().toISOString();
+      const profileName =
+        (typeof data.user.user_metadata?.name === 'string' && data.user.user_metadata.name) ||
+        (typeof data.user.user_metadata?.display_name === 'string' && data.user.user_metadata.display_name) ||
+        safeEmail.split('@')[0] ||
+        'User';
+
+      // Řádky v DB až se session (upsert — např. po potvrzení odkazem v e-mailu).
+      const { termsOk } = await ensureUserRowsAfterSession({
+        userId,
+        email: safeEmail,
+        displayName: profileName,
+      });
+
+      let onboardingCompleted = false;
+      let welcomeTourCompleted = false;
+      let termsAccepted = termsOk;
+      try {
+        const flags = await readUserGateFlagsFromSupabase(userId);
+        onboardingCompleted = flags.onboardingCompleted;
+        welcomeTourCompleted = flags.welcomeTourCompleted;
+        termsAccepted = flags.termsAccepted || termsOk;
+      } catch (e) {
+        console.error('[auth] readUserGateFlagsFromSupabase failed (login continues)', e);
+      }
+
+      const withSub = await establishAuthenticatedSession({
+        userId,
+        email: safeEmail,
+        name: profileName,
+        createdAt,
+        onboardingCompleted,
+        welcomeTourCompleted,
+        termsAccepted,
+      });
+
       console.log('[auth] login completed', {
         userId: withSub.id,
         onboardingCompleted,
@@ -397,9 +509,17 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.error('[auth] login unexpected error', error);
       return { success: false, error: translateAuthError(error) };
     }
-  }, []);
+  }, [establishAuthenticatedSession]);
 
-  const register = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
+  const register = useCallback(async (
+    email: string,
+    password: string,
+    name: string,
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    needsEmailVerification?: boolean;
+  }> => {
     try {
       const safeEmail = String(email ?? '').trim().toLowerCase();
       const safePassword = String(password ?? '').trim();
@@ -409,7 +529,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return { success: false, error: 'Vyplňte všechna pole' };
       }
       if (safeEmail.length > 100 || safePassword.length > 100 || safeName.length > 100) {
-        return { success: false, error: 'Údaje jsou příliš dlouhé' };
+        return { success: false, error: trNow('Údaje jsou příliš dlouhé', 'The details are too long') };
+      }
+
+      const pwdErr = validateRegistrationPassword(safePassword);
+      if (pwdErr) {
+        return { success: false, error: pwdErr };
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -439,103 +564,112 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         hasSession: Boolean(data.session),
         emailConfirmedAt: authUser.email_confirmed_at,
       });
+
+      // Confirm email zapnuté → žádná session → nepokračuj do appky, žádné DB řádky.
       if (!data.session) {
-        console.warn(
-          '[auth] register: no session returned — Supabase may require email confirmation before signInWithPassword works. Check Auth → Providers → Email → Confirm email.'
-        );
+        return { success: true, needsEmailVerification: true };
       }
+
       const userId = authUser.id;
       const createdAt = authUser.created_at ?? new Date().toISOString();
 
-      const consent = await upsertTermsConsent(userId);
-      if (!consent.ok) {
-        console.error('[auth] terms consent upsert failed', consent.message);
-        Alert.alert(
-          useLanguageStore.getState().t('error'),
-          useLanguageStore.getState().t('auth.consentSaveFailed' as 'auth.errorGeneric'),
-        );
-      }
-
-      // Onboarding dotazník je vyřazený z flow — rovnou welcome-tour.
-      const newUser: User = {
-        id: userId,
+      const { termsOk } = await ensureUserRowsAfterSession({
+        userId,
         email: safeEmail,
-        name: safeName,
-        registrationDate: createdAt,
-        onboardingCompleted: true,
-        welcomeTourCompleted: false,
-        termsAccepted: consent.ok,
-        subscription: {
-          active: false,
-          plan: null,
-          expiresAt: null,
-        },
-      };
-
-      const { error: profileError } = await supabase.from('users').upsert({
-        id: userId,
-        email: safeEmail,
-        display_name: safeName,
-        onboarding_completed: true,
-        welcome_tour_completed: false,
+        displayName: safeName,
+        newRegistration: true,
       });
-      if (profileError) {
-        console.error('[auth] profile upsert failed', profileError);
-        Alert.alert(
-          useLanguageStore.getState().t('error'),
-          useLanguageStore.getState().t('auth.consentSaveFailed' as 'auth.errorGeneric'),
-        );
-      }
 
       await writeLocalWelcomeTourCompleted(userId, false);
-      setUser(newUser);
-      setIsAuthenticated(true);
-      setGateFlagsReady(true);
-      setIsLoading(false);
+      await establishAuthenticatedSession({
+        userId,
+        email: safeEmail,
+        name: safeName,
+        createdAt,
+        onboardingCompleted: true,
+        welcomeTourCompleted: false,
+        termsAccepted: termsOk,
+        clearLocalFinance: true,
+      });
 
-      const premium = await useRevenueCatStore.getState().refreshPremium(userId);
-      const { plan, expiresAt } = planFromCustomerInfo(
-        useRevenueCatStore.getState().customerInfo,
-      );
-      const withSub: User = {
-        ...newUser,
-        subscription: {
-          active: premium || isDevForcePremium(),
-          plan: premium ? plan : null,
-          expiresAt: premium ? expiresAt : null,
-        },
-      };
-      setUser(withSub);
-      setHasActiveSubscription(withSub.subscription.active);
-
-      await storage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          user: withSub,
-          isAuthenticated: true,
-          hasActiveSubscription: withSub.subscription.active,
-        }),
-      );
-
-      // Při registraci nového účtu vždy vymaž lokální data
-      await AsyncStorage.multiRemove([
-        'finance_transactions',
-        'finance_goals',
-        'finance_reports',
-        'finance_subscriptions',
-        'finance_custom_categories',
-        'finance_loans',
-        'ignored_detected_subscriptions',
-      ]);
-      await AsyncStorage.setItem('last_user_id', userId);
-
-      invalidRefreshHandledRef.current = false;
       return { success: true };
     } catch (error) {
       console.error('Registration error:', error);
       return { success: false, error: translateAuthError(error) };
     }
-  }, []);
+  }, [establishAuthenticatedSession]);
+
+  /**
+   * Ověření 6místného kódu z e-mailu (po registraci / email_not_confirmed).
+   * Po úspěchu vytvoří users + user_profiles a přihlásí.
+   */
+  const completeEmailVerification = useCallback(async (params: {
+    email: string;
+    token: string;
+    name?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const safeEmail = String(params.email ?? '').trim().toLowerCase();
+      const token = String(params.token ?? '').replace(/\s/g, '');
+      if (!safeEmail || token.length < 6) {
+        return { success: false, error: useLanguageStore.getState().t('auth.verifyCodeRequired') };
+      }
+
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: safeEmail,
+        token,
+        type: 'email',
+      });
+      if (error) {
+        console.error('[auth] verifyOtp failed', error);
+        return {
+          success: false,
+          error: trNow(
+            'Kód není správný nebo už vypršel. Nech si poslat nový.',
+            'The code is wrong or has expired. Request a new one.',
+          ),
+        };
+      }
+      const authUser = data.user;
+      if (!authUser || !data.session) {
+        return { success: false, error: useLanguageStore.getState().t('auth.verifyFailed') };
+      }
+
+      const userId = authUser.id;
+      const createdAt = authUser.created_at ?? new Date().toISOString();
+      const profileName =
+        (params.name && String(params.name).trim()) ||
+        (typeof authUser.user_metadata?.name === 'string' && authUser.user_metadata.name) ||
+        (typeof authUser.user_metadata?.display_name === 'string' &&
+          authUser.user_metadata.display_name) ||
+        safeEmail.split('@')[0] ||
+        'User';
+
+      const { termsOk } = await ensureUserRowsAfterSession({
+        userId,
+        email: safeEmail,
+        displayName: profileName,
+        newRegistration: true,
+      });
+
+      await writeLocalWelcomeTourCompleted(userId, false);
+      await establishAuthenticatedSession({
+        userId,
+        email: safeEmail,
+        name: profileName,
+        createdAt,
+        onboardingCompleted: true,
+        welcomeTourCompleted: false,
+        termsAccepted: termsOk,
+        clearLocalFinance: true,
+      });
+
+      return { success: true };
+    } catch (e) {
+      console.error('[auth] completeEmailVerification', e);
+      return { success: false, error: translateAuthError(e) };
+    }
+  }, [establishAuthenticatedSession]);
 
   const logout = useCallback(async (): Promise<void> => {
     intentionalLogoutRef.current = true;
@@ -816,6 +950,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     hasActiveSubscription,
     login,
     register,
+    completeEmailVerification,
     logout,
     deleteAccount,
     acceptTermsConsent,
@@ -832,6 +967,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     hasActiveSubscription,
     login,
     register,
+    completeEmailVerification,
     logout,
     deleteAccount,
     acceptTermsConsent,

@@ -168,6 +168,8 @@ const PRE_APP_SEGMENTS = new Set([
   'landing',
   'auth',
   'register',
+  'verify-email',
+  'forgot-password',
   'accept-terms',
   'welcome-tour',
   'choose-subscription',
@@ -195,6 +197,7 @@ function RootLayoutNav() {
       rootSegment === 'landing' ||
       rootSegment === 'auth' ||
       rootSegment === 'register' ||
+      rootSegment === 'verify-email' ||
       rootSegment === 'forgot-password' ||
       rootSegment === 'privacy-policy';
 
@@ -297,6 +300,7 @@ function RootLayoutNav() {
         <Stack.Screen name="auth" options={{ title: t('screenLogin'), headerShown: false }} />
         <Stack.Screen name="register" options={{ title: t('screenRegister'), headerShown: false }} />
         <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-email" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="privacy-policy" options={{ title: t('privacyPolicyModalTitle'), headerShown: false }} />
       </Stack>
     );

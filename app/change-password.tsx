@@ -22,8 +22,9 @@ import { useAuth } from '@/store/auth-store';
 import { supabase } from '@/lib/supabase';
 import { showToast } from '@/store/toast-store';
 import { useLanguageStore } from '@/store/language-store';
+import { PASSWORD_MIN_LENGTH, validateRegistrationPassword } from '@/lib/password-validation';
 
-const MIN_LEN = 6;
+const MIN_LEN = PASSWORD_MIN_LENGTH;
 
 export default function ChangePasswordScreen() {
   const { colors } = useTheme();
@@ -42,7 +43,8 @@ export default function ChangePasswordScreen() {
 
   const save = async () => {
     setError('');
-    if (next.length < MIN_LEN) return setError(tr(`Nové heslo musí mít aspoň ${MIN_LEN} znaků.`, `Your new password must have at least ${MIN_LEN} characters.`));
+    const pwdErr = validateRegistrationPassword(next);
+    if (pwdErr) return setError(pwdErr);
     if (next !== confirm) return setError(tr('Nová hesla se neshodují.', 'The new passwords don’t match.'));
     if (next === current) return setError(tr('Nové heslo je stejné jako současné.', 'The new password is the same as the current one.'));
     if (!email) return setError(tr('Nepodařilo se zjistit e-mail účtu. Odhlas se a přihlas znovu.', 'Couldn’t get your account e-mail. Sign out and sign in again.'));
@@ -111,7 +113,7 @@ export default function ChangePasswordScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
           {Field({ label: tr('Současné heslo', 'Current password'), value: current, onChange: setCurrent, placeholder: tr('Zadej současné heslo', 'Enter your current password'), autoComplete: 'current-password' })}
-          {Field({ label: tr('Nové heslo', 'New password'), value: next, onChange: setNext, placeholder: tr(`Aspoň ${MIN_LEN} znaků`, `At least ${MIN_LEN} characters`), autoComplete: 'new-password' })}
+          {Field({ label: tr('Nové heslo', 'New password'), value: next, onChange: setNext, placeholder: tr(`Aspoň ${MIN_LEN} znaků, písmeno a číslice`, `${MIN_LEN}+ characters, a letter and a digit`), autoComplete: 'new-password' })}
           {Field({ label: tr('Nové heslo znovu', 'Repeat new password'), value: confirm, onChange: setConfirm, placeholder: tr('Pro kontrolu', 'To confirm'), autoComplete: 'new-password' })}
 
           <TouchableOpacity onPress={() => setShow((v) => !v)} style={styles.showRow} accessibilityRole="button">
