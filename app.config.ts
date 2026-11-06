@@ -39,16 +39,31 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/images/app-icon-512.png',
+      foregroundImage: './assets/images/android-adaptive-foreground.png',
+      backgroundImage: './assets/images/android-adaptive-background.png',
+      monochromeImage: './assets/images/android-adaptive-monochrome.png',
       backgroundColor: '#8B5CF6',
     },
     package: isProd ? 'cz.moneybuddy.app' : 'cz.moneybuddy.app.dev',
+    // Soubory (výpisy, fotky) přes systémový výběr → žádný přístup k úložišti / médiím.
     permissions: [
-      'android.permission.READ_EXTERNAL_STORAGE',
-      'android.permission.WRITE_EXTERNAL_STORAGE',
       'android.permission.INTERNET',
       'android.permission.CAMERA',
       'android.permission.POST_NOTIFICATIONS',
+      'android.permission.USE_BIOMETRIC',
+    ],
+    blockedPermissions: [
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
+      'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      'android.permission.RECORD_AUDIO',
+      'android.permission.ACCESS_COARSE_LOCATION',
+      'android.permission.ACCESS_FINE_LOCATION',
+      'android.permission.ACCESS_BACKGROUND_LOCATION',
+      'android.permission.SYSTEM_ALERT_WINDOW',
     ],
   },
   web: {
