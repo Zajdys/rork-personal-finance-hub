@@ -1,7 +1,7 @@
 /**
  * „Zeptej se MoneyBuddy“ — AI průvodce aplikací (Claude Haiku).
  *
- * POST { messages: [{ role: 'user'|'assistant', content: string }], language?: 'cs'|'en' }  (posledních ~10)
+ * POST { messages: [{ role: 'user'|'assistant', content: string }], language?: 'cs'|'en', platform?: 'ios'|'android' }  (posledních ~10)
  * Authorization: Bearer <user JWT> (verify_jwt = true)
  * → { reply: string, actions: string[] }   actions = klíče obrazovek k otevření
  *
