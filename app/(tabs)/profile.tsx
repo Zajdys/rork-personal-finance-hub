@@ -14,7 +14,7 @@ import {
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusRefresh } from '@/hooks/useFocusRefresh';
-import { StatusBar } from 'expo-status-bar';
+import { FocusStatusBar } from '@/components/FocusStatusBar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -328,7 +328,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
-      <StatusBar style="light" />
+      <FocusStatusBar style="light" />
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}

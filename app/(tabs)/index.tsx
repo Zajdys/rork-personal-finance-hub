@@ -12,6 +12,7 @@ import {
   Pressable,
   RefreshControl,
   Image,
+  AppState,
 } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -22,7 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
+import { FocusStatusBar } from '@/components/FocusStatusBar';
 import { BlurView } from 'expo-blur';
 import {
   PlusCircle,
@@ -383,6 +384,14 @@ export default function DashboardScreen() {
   const { getCurrentCurrency, notifications, userProfile, setUserProfile } = useSettingsStore();
   const { colors, isDark: isDarkMode } = useTheme();
   const { t, tr, language, updateCounter } = useLanguageStore();
+  // Přepočet pozdravu / data po návratu z pozadí.
+  const [foregroundTick, setForegroundTick] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') setForegroundTick((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
   const numberLocale = appLocale(language);
   const liabilitiesLabel = t('dashboardLiabilities');
   const householdLabel = t('household');
@@ -1318,7 +1327,9 @@ export default function DashboardScreen() {
   const timeGreeting = t(timeOfDayGreetingKey(new Date().getHours()));
   const todayDateLabel = useMemo(
     () => formatDashboardTodayDate(numberLocale),
-    [numberLocale, updateCounter],
+    // foregroundTick: po návratu appky z pozadí (např. druhý den) přepočítat datum i pozdrav.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [numberLocale, updateCounter, foregroundTick],
   );
   const avatarInitialsRaw = profileInitials(userProfile.firstName, userProfile.lastName);
   const emailInitial = (user?.email ?? '').trim().charAt(0).toUpperCase();
@@ -1327,7 +1338,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={[styles.rootFill, { backgroundColor: colors.background }]}>
-      <StatusBar style="light" />
+      <FocusStatusBar style="light" />
       <Animated.View style={[styles.collapsingHeader, collapsingHeaderStyle]}>
         <View
           pointerEvents="none"
@@ -1482,7 +1493,8 @@ export default function DashboardScreen() {
                   key={slide.id}
                   style={[
                     styles.warningContainer,
-                    { width: ALERT_CAROUSEL_WIDTH },
+                    // Neprůhledný podklad: na Androidu jinak elevation stín prosvítá přes poloprůhledný gradient (šedý rámeček).
+                    { width: ALERT_CAROUSEL_WIDTH, backgroundColor: colors.card },
                   ]}
                 >
                   <LinearGradient

@@ -26,6 +26,7 @@ import {
   reauthenticateWithPassword,
   type HouseholdDeletionWarning,
 } from '@/lib/account-deletion';
+import { IS_ANDROID_STORE, MANAGE_SUBSCRIPTIONS_URL } from '@/lib/store-platform';
 
 export default function PrivacyDataManagementScreen() {
   const { colors } = useTheme();
@@ -229,11 +230,11 @@ export default function PrivacyDataManagementScreen() {
                   ]}
                 >
                   <Text style={[styles.warningLine, { color: colors.text }]}>
-                    {t('privacyDeleteAppleSubWarning')}
+                    {t(IS_ANDROID_STORE ? 'privacyDeleteGoogleSubWarning' : 'privacyDeleteAppleSubWarning')}
                   </Text>
                   <TouchableOpacity
                     style={[styles.secondaryBtn, { backgroundColor: colors.card, marginTop: 10 }]}
-                    onPress={() => void Linking.openURL('https://apps.apple.com/account/subscriptions')}
+                    onPress={() => void Linking.openURL(MANAGE_SUBSCRIPTIONS_URL)}
                     disabled={deleting}
                   >
                     <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>

@@ -44,6 +44,7 @@ import {
 import { useRegisterIntentStore } from '@/store/register-intent-store';
 import { suppressNextTabsRedirect } from '@/lib/nav-guards';
 import { uiLocale } from '@/lib/app-locale';
+import { IS_ANDROID_STORE } from '@/lib/store-platform';
 
 const STICKY_CTA_BLOCK = 132;
 
@@ -415,7 +416,7 @@ export default function ChooseSubscriptionScreen() {
 
         {sortedPackages.length > 0 ? (
           <Text style={[styles.autoRenewText, { color: colors.textSecondary }]}>
-            {t('chooseSubscription.autoRenew')}
+            {t(IS_ANDROID_STORE ? 'chooseSubscription.autoRenewAndroid' : 'chooseSubscription.autoRenew')}
           </Text>
         ) : null}
 

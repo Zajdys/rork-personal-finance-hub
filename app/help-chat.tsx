@@ -103,7 +103,7 @@ export default function HelpChatScreen() {
       let reply: Msg;
       try {
         const { data, error } = await supabase.functions.invoke('help-chat', {
-          body: { messages: next.map((m) => ({ role: m.role, content: m.content })), language },
+          body: { messages: next.map((m) => ({ role: m.role, content: m.content })), language, platform: Platform.OS },
         });
         if (error) {
           let status: number | undefined;

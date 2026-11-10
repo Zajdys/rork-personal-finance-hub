@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
   const uid = userData?.user?.id;
   if (userErr || !uid) return json(401, { error: 'unauthorized' });
 
-  let body: { messages?: { role?: string; content?: string }[]; language?: string };
+  let body: { messages?: { role?: string; content?: string }[]; language?: string; platform?: string };
   try {
     body = await req.json();
   } catch {
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
   if (typeof used === 'number' && used < 0) return json(429, { error: 'daily limit', limit: -used });
 
   const lang = body.language === 'en' ? 'en' : 'cs';
-  const langBlock =
+  let langBlock =
     lang === 'en'
       ? 'LANGUAGE: The user has the app set to English. Reply in English (informal, friendly), even though the instructions above are in Czech. ' +
         'Use the English screen names: Přehled = Overview, Plán = Plan, Domácnost = Household, Profil = Profile, Pravidelné platby = Regular payments, ' +
@@ -121,6 +121,13 @@ Deno.serve(async (req) => {
         'Soukromí a bezpečnost = Privacy & Security, Rozděl útratu = Split expenses, Ušetři = Save, Investice = Investments, Měsíční report = Monthly report, ' +
         'Můj účet = My account, Změnit heslo = Change password, Nahrát výpis = Upload statement. Keep the [[open:key]] keys unchanged.'
       : 'JAZYK: Odpovídej česky (pokud se uživatel výslovně neptá v jiném jazyce).';
+
+  if (body.platform === 'android') {
+    langBlock +=
+      lang === 'en'
+        ? ' PLATFORM: The user has an Android phone. Subscriptions are handled by Google Play (Google Play → Payments & subscriptions → Subscriptions), purchases belong to the Google account (not Apple ID), and the app lock uses fingerprint/face unlock instead of Face ID. Never mention iPhone settings or Apple ID.'
+        : ' PLATFORMA: Uživatel má Android. Předplatné spravuje Google Play (Google Play → Platby a předplatná → Předplatná), nákupy patří k účtu Google (ne Apple ID) a zámek appky používá otisk prstu / odemknutí obličejem místo Face ID. Nikdy nezmiňuj Nastavení iPhonu ani Apple ID.';
+  }
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30_000);

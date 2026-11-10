@@ -63,6 +63,7 @@ import {
 } from '@/lib/plan-payment-match';
 import { uiLocale } from '@/lib/app-locale';
 import { categoryLabel } from '@/lib/category-labels';
+import { FocusStatusBar } from '@/components/FocusStatusBar';
 
 const BUDGET_EMOJI_OPTIONS: string[] = Array.from(new Set([
   ...SAVINGS_GOAL_EMOJI_OPTIONS,
@@ -255,13 +256,19 @@ export default function PlanScreen() {
   const reload = useCallback(async () => {
     if (!user?.id) return;
     // Paralelně — dřív se příjem načítal až po celém plánu (karta se točila desítky sekund).
-    const [, status, { rules }] = await Promise.all([
+    // allSettled: při výpadku sítě se karta nesmí točit donekonečna.
+    const [, statusRes, rulesRes] = await Promise.allSettled([
       loadPlan(user.id),
       loadQuickSetupStatus(user.id),
       fetchPersonalRecurringRules(user.id),
     ]);
-    setExpectedIncome(status.expectedMonthlyIncome ?? 0);
+    const status = statusRes.status === 'fulfilled' ? statusRes.value : null;
+    const rules = rulesRes.status === 'fulfilled' ? rulesRes.value.rules : [];
+    if (status) setExpectedIncome(status.expectedMonthlyIncome ?? 0);
     setIncomeLoaded(true);
+    if (statusRes.status === 'rejected' || rulesRes.status === 'rejected') {
+      console.warn('[plan] reload partially failed', statusRes, rulesRes);
+    }
 
     const activeExp = (rules ?? []).filter((r) => r.active && r.type === 'expense');
     setRecurringRules(activeExp);
@@ -274,7 +281,7 @@ export default function PlanScreen() {
     horizon.setHours(23, 59, 59, 999);
     const today0 = startOfDay(now);
     const items: UpcomingPay[] = [];
-    const links = await loadPlanPaymentLinks(user.id);
+    const links = await loadPlanPaymentLinks(user.id).catch(() => ({ byOccurrence: {} as Record<string, unknown> }));
 
     for (const loan of loans ?? []) {
       const pay = Number(loan.monthlyPayment) || 0;
@@ -675,6 +682,7 @@ export default function PlanScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <FocusStatusBar style="light" />
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}

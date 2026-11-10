@@ -28,6 +28,7 @@ import {
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
 import { useLanguageStore } from '@/store/language-store';
+import { IS_ANDROID_STORE, MANAGE_SUBSCRIPTIONS_URL } from '@/lib/store-platform';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -97,11 +98,15 @@ const FAQ: FaqGroup[] = [
       },
       {
         q: 'Jak zruším předplatné?',
-        a: 'Předplatné spravuje Apple: Profil → Můj účet → Spravovat předplatné, nebo Nastavení iPhonu → tvoje jméno → Předplatná → MoneyBuddy. Zrušit ho můžeš kdykoli, Premium ti vydrží do konce zaplaceného období.',
+        a: IS_ANDROID_STORE
+          ? 'Předplatné spravuje Google Play: Profil → Můj účet → Spravovat předplatné, nebo Google Play → Platby a předplatná → Předplatná → MoneyBuddy. Zrušit ho můžeš kdykoli, Premium ti vydrží do konce zaplaceného období.'
+          : 'Předplatné spravuje Apple: Profil → Můj účet → Spravovat předplatné, nebo Nastavení iPhonu → tvoje jméno → Předplatná → MoneyBuddy. Zrušit ho můžeš kdykoli, Premium ti vydrží do konce zaplaceného období.',
       },
       {
         q: 'Koupil jsem Premium, ale nemám ho.',
-        a: 'Profil → Můj účet → „Obnovit předchozí nákupy“. Předplatné patří k Apple ID — musíš být přihlášený stejným Apple ID, kterým jsi platil.',
+        a: IS_ANDROID_STORE
+          ? 'Profil → Můj účet → „Obnovit předchozí nákupy“. Předplatné patří k účtu Google — musíš být v Google Play přihlášený stejným účtem, kterým jsi platil.'
+          : 'Profil → Můj účet → „Obnovit předchozí nákupy“. Předplatné patří k Apple ID — musíš být přihlášený stejným Apple ID, kterým jsi platil.',
       },
     ],
   },
@@ -122,7 +127,7 @@ const FAQ: FaqGroup[] = [
       },
       {
         q: 'Jak smažu účet?',
-        a: 'Profil → Soukromí a bezpečnost → Smazat účet. Smazání je nevratné a odstraní všechna tvoje data. Aktivní předplatné je potřeba zrušit zvlášť u Applu.',
+        a: 'Profil → Soukromí a bezpečnost → Smazat účet. Smazání je nevratné a odstraní všechna tvoje data. Aktivní předplatné je potřeba zrušit zvlášť u ' + (IS_ANDROID_STORE ? 'Google Play.' : 'Applu.'),
       },
     ],
   },
@@ -189,11 +194,15 @@ const FAQ_EN: FaqGroup[] = [
       },
       {
         q: 'How do I cancel my subscription?',
-        a: 'Subscriptions are managed by Apple: Profile → My account → Manage subscription, or iPhone Settings → your name → Subscriptions → MoneyBuddy. You can cancel any time; Premium stays active until the end of the paid period.',
+        a: IS_ANDROID_STORE
+          ? 'Subscriptions are managed by Google Play: Profile → My account → Manage subscription, or Google Play → Payments & subscriptions → Subscriptions → MoneyBuddy. You can cancel any time; Premium stays active until the end of the paid period.'
+          : 'Subscriptions are managed by Apple: Profile → My account → Manage subscription, or iPhone Settings → your name → Subscriptions → MoneyBuddy. You can cancel any time; Premium stays active until the end of the paid period.',
       },
       {
         q: 'I bought Premium but don’t have it.',
-        a: 'Profile → My account → “Restore purchases”. The subscription belongs to your Apple ID — you must be signed in with the same Apple ID you paid with.',
+        a: IS_ANDROID_STORE
+          ? 'Profile → My account → “Restore purchases”. The subscription belongs to your Google account — you must be signed in to Google Play with the same account you paid with.'
+          : 'Profile → My account → “Restore purchases”. The subscription belongs to your Apple ID — you must be signed in with the same Apple ID you paid with.',
       },
     ],
   },
@@ -214,7 +223,7 @@ const FAQ_EN: FaqGroup[] = [
       },
       {
         q: 'How do I delete my account?',
-        a: 'Profile → Privacy & Security → Delete account. Deletion is permanent and removes all your data. An active subscription must be cancelled separately with Apple.',
+        a: 'Profile → Privacy & Security → Delete account. Deletion is permanent and removes all your data. An active subscription must be cancelled separately with ' + (IS_ANDROID_STORE ? 'Google Play.' : 'Apple.'),
       },
     ],
   },
@@ -253,8 +262,8 @@ export default function HelpSupportScreen() {
     {
       icon: CreditCard,
       title: tr('Předplatné', 'Subscription'),
-      sub: tr('Spravovat u Applu', 'Manage with Apple'),
-      onPress: () => void Linking.openURL('https://apps.apple.com/account/subscriptions'),
+      sub: IS_ANDROID_STORE ? tr('Spravovat v Google Play', 'Manage in Google Play') : tr('Spravovat u Applu', 'Manage with Apple'),
+      onPress: () => void Linking.openURL(MANAGE_SUBSCRIPTIONS_URL),
     },
     {
       icon: ShieldCheck,

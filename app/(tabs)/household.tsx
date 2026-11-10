@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FocusStatusBar } from '@/components/FocusStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
@@ -190,6 +191,7 @@ function HouseholdTabScreenContent() {
   if (switcher.loading) {
     return (
       <View style={[styles.loadingWrap, { backgroundColor: colors.background }]}>
+        <FocusStatusBar style={isDark ? 'light' : 'dark'} />
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -209,6 +211,7 @@ function HouseholdTabScreenContent() {
 
     return (
       <>
+        <FocusStatusBar style={isDark ? 'light' : 'dark'} />
         <ScrollView
           style={[styles.container, { backgroundColor: colors.background }]}
           contentContainerStyle={[
@@ -372,6 +375,7 @@ function HouseholdTabScreenContent() {
 
   return (
     <>
+      <FocusStatusBar style="light" />
       <ScrollView
         ref={mainScrollRef}
         style={[styles.container, { backgroundColor: colors.background }]}

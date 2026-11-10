@@ -1581,6 +1581,8 @@ export const TRANSLATIONS = {
     'chooseSubscription.redeemCode': 'Uplatnit slevový kód',
     'chooseSubscription.autoRenew':
       'Předplatné se automaticky obnovuje za cenu zvoleného plánu, pokud ho nezrušíš alespoň 24 h před koncem období. Platba se strhne z Apple ID. Zrušit můžeš kdykoli v Nastavení → Apple ID → Předplatná.',
+    'chooseSubscription.autoRenewAndroid':
+      'Předplatné se automaticky obnovuje za cenu zvoleného plánu, dokud ho nezrušíš. Platba se strhne z tvého účtu Google Play. Zrušit můžeš kdykoli v Google Play → Platby a předplatná → Předplatná.',
     'chooseSubscription.termsLink': 'Podmínky užívání',
     'chooseSubscription.privacyLink': 'Zásady ochrany osobních údajů',
 
@@ -1914,6 +1916,8 @@ export const TRANSLATIONS = {
     privacyDeleteAccountConfirm: 'Opravdu chceš smazat účet? Tato akce je nevratná.',
     privacyDeleteAppleSubWarning:
       'Smazáním účtu se nezruší předplatné u Apple. Zruš ho v Nastavení → Apple ID → Předplatná.',
+    privacyDeleteGoogleSubWarning:
+      'Smazáním účtu se nezruší předplatné v Google Play. Zruš ho v Google Play → Platby a předplatná → Předplatná.',
     privacyDeleteManageSubscription: 'Spravovat předplatné',
     privacyDeletionFailed: 'Smazání selhalo',
     privacyUnknownError: 'Neznámá chyba',
@@ -4235,6 +4239,8 @@ export const TRANSLATIONS = {
     'chooseSubscription.redeemCode': 'Redeem offer code',
     'chooseSubscription.autoRenew':
       'Subscription renews automatically at the price of the selected plan unless you cancel at least 24 hours before the period ends. Payment is charged to your Apple ID. Cancel anytime in Settings → Apple ID → Subscriptions.',
+    'chooseSubscription.autoRenewAndroid':
+      'Subscription renews automatically at the price of the selected plan until you cancel. Payment is charged to your Google Play account. Cancel anytime in Google Play → Payments & subscriptions → Subscriptions.',
     'chooseSubscription.termsLink': 'Terms of Use',
     'chooseSubscription.privacyLink': 'Privacy Policy',
 
@@ -4568,6 +4574,8 @@ export const TRANSLATIONS = {
     privacyDeleteAccountConfirm: 'Are you sure you want to delete your account? This action is irreversible.',
     privacyDeleteAppleSubWarning:
       'Deleting your account does not cancel your Apple subscription. Cancel it in Settings → Apple ID → Subscriptions.',
+    privacyDeleteGoogleSubWarning:
+      'Deleting your account does not cancel your Google Play subscription. Cancel it in Google Play → Payments & subscriptions → Subscriptions.',
     privacyDeleteManageSubscription: 'Manage subscription',
     privacyDeletionFailed: 'Deletion failed',
     privacyUnknownError: 'Unknown error',
