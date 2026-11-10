@@ -135,10 +135,10 @@ export default function PrivacyPolicyScreen() {
           <Bullet colors={colors}>Apple / Google (technické údaje a platby přes obchod s aplikacemi)</Bullet>
         </Section>
 
-        <Section title="6. Automatické napojení banky" colors={colors}>
+        <Section title="6. Napojení banky" colors={colors}>
           <Body colors={colors}>
-            Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně
-            (PDF/CSV) nebo přes Fio API token.
+            Aplikace se nepřipojuje přímo k tvému bankovnímu účtu. Výpisy nahráváš ručně (PDF/CSV) nebo
+            přes Fio API token, který si sám vygeneruješ ve svém internetovém bankovnictví.
           </Body>
         </Section>
 
