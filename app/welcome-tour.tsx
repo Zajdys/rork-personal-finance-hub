@@ -34,7 +34,6 @@ import { useLanguageStore } from '@/store/language-store';
 import { useAuth } from '@/store/auth-store';
 import { getIsPremiumSnapshot } from '@/hooks/usePremium';
 import BrandLogo from '@/components/BrandLogo';
-import { BANK_SYNC_ENABLED } from '@/constants/feature-flags';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -388,11 +387,9 @@ export default function WelcomeTourScreen() {
       },
       {
         key: 'import' as const,
-        title: BANK_SYNC_ENABLED
-          ? t('welcomeTourGridImportTitle')
-          : t('welcomeTourGridImportTitlePdf'),
-        body: BANK_SYNC_ENABLED ? t('welcomeTourImport') : t('welcomeTourImportPdf'),
-        icon: BANK_SYNC_ENABLED ? Landmark : FileUp,
+        title: t('welcomeTourGridImportTitlePdf'),
+        body: t('welcomeTourImportPdf'),
+        icon: FileUp,
         iconColor: '#BBF7D0',
         cardStyle: styles.featureCardImport,
         iconStyle: styles.featureIconImport,
@@ -490,21 +487,13 @@ export default function WelcomeTourScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.ctaBtnHalf, styles.ctaSecondary]}
-                onPress={() =>
-                  void finishAndGo(BANK_SYNC_ENABLED ? '/bank-accounts' : '/bank-import')
-                }
+                onPress={() => void finishAndGo('/bank-import')}
                 disabled={busy}
                 activeOpacity={0.9}
               >
-                {BANK_SYNC_ENABLED ? (
-                  <Landmark color="#E9D5FF" size={22} />
-                ) : (
-                  <FileUp color="#E9D5FF" size={22} />
-                )}
+                <FileUp color="#E9D5FF" size={22} />
                 <Text style={[styles.ctaBtnText, { color: '#E9D5FF' }]}>
-                  {BANK_SYNC_ENABLED
-                    ? t('welcomeTourConnectBank')
-                    : t('welcomeTourUploadStatement')}
+                  {t('welcomeTourUploadStatement')}
                 </Text>
               </TouchableOpacity>
             </View>

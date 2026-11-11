@@ -36,8 +36,8 @@ Data mohou být zpřístupněna pouze těmto zpracovatelům v rozsahu nutném pr
 - Yahoo Finance (tržní ceny investic; neodesíláme osobní údaje)
 - Apple / Google (technické údaje a platby přes obchod s aplikacemi)
 
-6. Automatické napojení banky
-Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token.
+6. Napojení banky
+Aplikace se nepřipojuje přímo k tvému bankovnímu účtu. Výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token, který si sám vygeneruješ ve svém internetovém bankovnictví.
 
 7. Vaše práva
 Máte právo na:

@@ -198,11 +198,11 @@ export default function PrivacyPolicyScreen() {
           </Bullet>
         </Section>
 
-        <Section title={tr('6. Automatické napojení banky', '6. Automatic bank connection')} colors={colors}>
+        <Section title={tr('6. Napojení banky', '6. Bank connection')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'Automatické napojení bank připravujeme; v aktuální verzi se nepoužívá – výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token.',
-              'Automatic bank connection is in preparation; it isn’t used in the current version – you upload statements manually (PDF/CSV) or via a Fio API token.',
+              'Aplikace se nepřipojuje přímo k tvému bankovnímu účtu. Výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token, který si sám vygeneruješ ve svém internetovém bankovnictví.',
+              'The app does not connect directly to your bank account. You upload statements manually (PDF/CSV) or via a Fio API token that you generate yourself in your internet banking.',
             )}
           </Body>
         </Section>

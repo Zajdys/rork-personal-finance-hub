@@ -31,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSPhotoLibraryUsageDescription:
         'MoneyBuddy potřebuje přístup k fotkám pro nahrání účtenek a avatara.',
       NSCameraUsageDescription:
-        'MoneyBuddy potřebuje kameru pro focení účtenek.',
+        'MoneyBuddy potřebuje kameru, abys mohl vyfotit účtenku a přiložit ji k výdaji, nebo si nastavit profilovou fotku.',
       NSUserNotificationsUsageDescription:
         'MoneyBuddy ti pošle připomínky na splatnosti, předplatné a sdílené výdaje.',
       ITSAppUsesNonExemptEncryption: false,
@@ -87,7 +87,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         photosPermission:
           'MoneyBuddy potřebuje přístup k fotkám pro nahrání účtenek a avatara.',
-        cameraPermission: 'MoneyBuddy potřebuje kameru pro focení účtenek.',
+        cameraPermission: 'MoneyBuddy potřebuje kameru, abys mohl vyfotit účtenku a přiložit ji k výdaji, nebo si nastavit profilovou fotku.',
         // Mikrofon se v appce nepoužívá — nevynucovat RECORD_AUDIO.
         microphonePermission: false,
       },

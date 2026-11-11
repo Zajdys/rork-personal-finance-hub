@@ -1269,7 +1269,7 @@ export default function DashboardScreen() {
         onPress={() => safePush('/investice')}
         activeOpacity={0.85}
       >
-        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Investice (beta)', 'Investments (beta)')}</Text>
+        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Investice', 'Investments')}</Text>
         <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
           {investApproxValue > 0
             ? `${tr('Hodnota portfolia', 'Portfolio value')} ≈ ${Math.round(investApproxValue).toLocaleString(numberLocale)} ${currentCurrency.symbol || '€'}`
@@ -1282,7 +1282,7 @@ export default function DashboardScreen() {
         onPress={() => safePush('/investice')}
         activeOpacity={0.85}
       >
-        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Investice (beta)', 'Investments (beta)')}</Text>
+        <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{tr('Investice', 'Investments')}</Text>
         <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
           {tr('Sleduj portfolio a výnosy', 'Track your portfolio and returns')}
         </Text>
