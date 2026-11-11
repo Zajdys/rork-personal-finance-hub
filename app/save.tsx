@@ -14,9 +14,10 @@ import {
   Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { PiggyBank, Timer, Briefcase, ChevronRight, TrendingUp } from 'lucide-react-native';
+import { PiggyBank, Timer, Briefcase, ChevronRight } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
 import { useSettingsStore } from '@/store/settings-store';
 import { useLanguageStore } from '@/store/language-store';
@@ -44,7 +45,10 @@ const DEFAULT_ANNUAL_RETURN = 7;
 const DEFAULT_YEARS = 10;
 const DEFAULT_HOURS_PER_MONTH = 160;
 const DEFAULT_COOLDOWN_HOURS = 24;
-const DEFAULT_DECISION_HOUR = 9;
+const WORKDAY_HOURS = 8;
+const COOLDOWN_OPTIONS = [24, 72, 168] as const;
+/** Mzda a parametry výpočtu se pamatují, ať se nemusí zadávat u každé věci. */
+const CALC_SETTINGS_KEY = 'moneybuddy_save_calc_v1';
 
 const INTEREST_PRESETS = [
   { labelKey: 'savePresetSavings' as const, value: 3 },
@@ -54,19 +58,12 @@ const INTEREST_PRESETS = [
 
 const formatCurrency = (value: number) => value.toLocaleString(uiLocale());
 
-function hoursToHoursMinutes(hours: number): { h: number; m: number } {
-  const totalM = Math.max(0, Math.round(hours * 60));
-  const h = Math.floor(totalM / 60);
-  const m = totalM % 60;
-  return { h, m };
-}
-
 type WageMode = 'hourly' | 'monthly';
 
 function SaveScreenContent() {
   const router = useRouter();
   const { getCurrentCurrency } = useSettingsStore();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const { colors, isDark: isDarkMode } = useTheme();
   const { user } = useAuth();
   const currency = getCurrentCurrency();
@@ -77,14 +74,15 @@ function SaveScreenContent() {
   const incrementSavedTotal = useSavePendingStore((s) => s.incrementSavedTotal);
   const [title, setTitle] = useState<string>('');
   const [price, setPrice] = useState<string>('');
-  const [wageMode, setWageMode] = useState<WageMode>('hourly');
+  const [wageMode, setWageMode] = useState<WageMode>('monthly');
   const [hourlyWage, setHourlyWage] = useState<string>('');
   const [monthlyIncome, setMonthlyIncome] = useState<string>('');
   const [hoursPerMonth, setHoursPerMonth] = useState<string>(DEFAULT_HOURS_PER_MONTH.toString());
   const [annualReturn, setAnnualReturn] = useState<string>(DEFAULT_ANNUAL_RETURN.toString());
   const [years, setYears] = useState<string>(DEFAULT_YEARS.toString());
-  const [decisionDate, setDecisionDate] = useState<string>('');
-  const [decisionTime, setDecisionTime] = useState<string>('');
+  const [cooldownHours, setCooldownHours] = useState<number>(DEFAULT_COOLDOWN_HOURS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [nowTick, setNowTick] = useState<number>(Date.now());
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [dbSavedTotal, setDbSavedTotal] = useState(0);
@@ -130,16 +128,42 @@ function SaveScreenContent() {
     return () => clearInterval(interval);
   }, []);
 
+  // Načtení / uložení nastavení výpočtu (mzda, výnos, roky).
   useEffect(() => {
-    if (decisionDate || decisionTime) return;
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(DEFAULT_DECISION_HOUR, 0, 0, 0);
-    const dateString = `${String(tomorrow.getDate()).padStart(2, '0')}.${String(tomorrow.getMonth() + 1).padStart(2, '0')}.${tomorrow.getFullYear()}`;
-    const timeString = `${String(tomorrow.getHours()).padStart(2, '0')}:${String(tomorrow.getMinutes()).padStart(2, '0')}`;
-    setDecisionDate(dateString);
-    setDecisionTime(timeString);
-  }, [decisionDate, decisionTime]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CALC_SETTINGS_KEY);
+        if (cancelled) return;
+        if (raw) {
+          const v = JSON.parse(raw) as Partial<Record<string, string>>;
+          if (v.wageMode === 'hourly' || v.wageMode === 'monthly') setWageMode(v.wageMode);
+          if (typeof v.hourlyWage === 'string') setHourlyWage(v.hourlyWage);
+          if (typeof v.monthlyIncome === 'string') setMonthlyIncome(v.monthlyIncome);
+          if (typeof v.hoursPerMonth === 'string') setHoursPerMonth(v.hoursPerMonth);
+          if (typeof v.annualReturn === 'string') setAnnualReturn(v.annualReturn);
+          if (typeof v.years === 'string') setYears(v.years);
+        } else {
+          setSettingsOpen(true);
+        }
+      } catch {
+        // ignore – výchozí hodnoty
+      } finally {
+        if (!cancelled) setSettingsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    void AsyncStorage.setItem(
+      CALC_SETTINGS_KEY,
+      JSON.stringify({ wageMode, hourlyWage, monthlyIncome, hoursPerMonth, annualReturn, years }),
+    ).catch(() => {});
+  }, [settingsLoaded, wageMode, hourlyWage, monthlyIncome, hoursPerMonth, annualReturn, years]);
 
   const formatYearsCs = useCallback(
     (n: number): string => {
@@ -164,9 +188,28 @@ function SaveScreenContent() {
     [t],
   );
 
-  const formatWorkHours = useCallback(
-    (h: number, m: number) => t('saveWorkHours', { h, m }),
-    [t],
+
+
+  /** „1 den a 2 hodiny“ – dny počítané jako 8hodinové pracovní dny. */
+  const formatWorkTime = useCallback(
+    (hours: number): string => {
+      const totalMin = Math.max(0, Math.round(hours * 60));
+      if (totalMin < 60) return tr(`${totalMin} min`, `${totalMin} min`);
+      const days = Math.floor(totalMin / (WORKDAY_HOURS * 60));
+      const restMin = totalMin - days * WORKDAY_HOURS * 60;
+      const h = Math.floor(restMin / 60);
+      const m = restMin % 60;
+      const csPl = (n: number, one: string, few: string, many: string) =>
+        n === 1 ? one : n >= 2 && n <= 4 ? few : many;
+      const parts: string[] = [];
+      if (days > 0) parts.push(tr(`${days} ${csPl(days, 'den', 'dny', 'dní')}`, `${days} ${days === 1 ? 'day' : 'days'}`));
+      if (h > 0) parts.push(tr(`${h} ${csPl(h, 'hodina', 'hodiny', 'hodin')}`, `${h} ${h === 1 ? 'hour' : 'hours'}`));
+      if (days === 0 && m > 0) parts.push(tr(`${m} min`, `${m} min`));
+      if (parts.length === 0) return tr('0 min', '0 min');
+      const last = parts.pop()!;
+      return parts.length ? `${parts.join(', ')} ${tr('a', 'and')} ${last}` : last;
+    },
+    [tr],
   );
 
   const parsedPrice = useMemo<number>(() => parseMoneyInput(price) ?? 0, [price]);
@@ -192,7 +235,16 @@ function SaveScreenContent() {
     return parsedPrice / parsedHourlyWage;
   }, [parsedPrice, parsedHourlyWage]);
 
-  const timeParts = useMemo(() => hoursToHoursMinutes(hoursNeeded), [hoursNeeded]);
+  const wageReady = parsedHourlyWage > 0;
+
+  /** Podíl na měsíčním příjmu (jen když známe měsíční příjem). */
+  const incomeSharePct = useMemo<number | null>(() => {
+    if (parsedPrice <= 0) return null;
+    const hours = parseDecimalInput(hoursPerMonth, 2) ?? DEFAULT_HOURS_PER_MONTH;
+    const monthly = wageMode === 'monthly' ? parseMoneyInput(monthlyIncome) ?? 0 : parsedHourlyWage * hours;
+    if (monthly <= 0) return null;
+    return (parsedPrice / monthly) * 100;
+  }, [parsedPrice, wageMode, monthlyIncome, hoursPerMonth, parsedHourlyWage]);
 
   const futureValue = useMemo<number>(() => {
     if (parsedPrice <= 0 || parsedAnnualReturn <= 0 || parsedYears <= 0) return 0;
@@ -248,6 +300,7 @@ function SaveScreenContent() {
         return false;
       }
       if (!title.trim() || parsedPrice <= 0 || parsedHourlyWage <= 0) {
+        if (parsedHourlyWage <= 0) setSettingsOpen(true);
         Alert.alert(t('error'), t('saveFillRequired'));
         return false;
       }
@@ -291,23 +344,6 @@ function SaveScreenContent() {
     ],
   );
 
-  const parseDecisionDateTime = useCallback((): Date | null => {
-    if (!decisionDate || !decisionTime) return null;
-    const dateParts = decisionDate.split('.');
-    const timePartsLocal = decisionTime.split(':');
-    if (dateParts.length !== 3 || timePartsLocal.length < 2) return null;
-    const day = parseInt(dateParts[0] ?? '', 10);
-    const month = parseInt(dateParts[1] ?? '', 10);
-    const year = parseInt(dateParts[2] ?? '', 10);
-    const hours = parseInt(timePartsLocal[0] ?? '', 10);
-    const minutes = parseInt(timePartsLocal[1] ?? '', 10);
-    if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-    if (day <= 0 || month <= 0 || month > 12 || year < 2024) return null;
-    const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
-    if (Number.isNaN(date.getTime())) return null;
-    return date;
-  }, [decisionDate, decisionTime]);
 
   const scheduleReminder = useCallback(async (item: SavePendingItem) => {
     try {
@@ -347,15 +383,7 @@ function SaveScreenContent() {
       Alert.alert(t('error'), t('saveFillRequired'));
       return false;
     }
-    const decisionDateTime = parseDecisionDateTime();
-    if (!decisionDateTime) {
-      Alert.alert(t('error'), t('saveInvalidDateTime'));
-      return false;
-    }
-    if (decisionDateTime.getTime() <= Date.now()) {
-      Alert.alert(t('error'), t('saveFutureRequired'));
-      return false;
-    }
+    const remindAt = Date.now() + cooldownHours * 3600 * 1000;
     const item: SavePendingItem = {
       id: `${Date.now()}`,
       title: title.trim(),
@@ -363,12 +391,12 @@ function SaveScreenContent() {
       hoursNeeded,
       futureValue,
       createdAt: Date.now(),
-      remindAt: decisionDateTime.getTime(),
+      remindAt,
     };
     addPendingItem(item);
     scheduleReminder(item);
     return true;
-  }, [title, parsedPrice, parsedHourlyWage, parseDecisionDateTime, hoursNeeded, futureValue, scheduleReminder, addPendingItem, t]);
+  }, [title, parsedPrice, parsedHourlyWage, cooldownHours, hoursNeeded, futureValue, scheduleReminder, addPendingItem, t]);
 
   const handleNotBuy = useCallback(async () => {
     const ok = await recordDecision('saved');
@@ -438,7 +466,7 @@ function SaveScreenContent() {
         </View>
       </LinearGradient>
 
-      {/* Co chceš koupit + živé výsledky */}
+      {/* Co chceš koupit */}
       <View
         style={[
           styles.card,
@@ -467,268 +495,223 @@ function SaveScreenContent() {
           style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
           testID="save-price"
         />
-
-        <View style={[styles.liveBlock, { backgroundColor: colors.muted }]}>
-          {hoursNeeded > 0 ? (
-            <Text style={[styles.liveLine, { color: colors.text }]}>
-              {t('saveWorkCost', {
-                hours: formatWorkHours(timeParts.h, timeParts.m),
-              })}
-              <Text style={[styles.liveHint, { color: colors.textSecondary }]}>
-                {' '}
-                {t('saveWorkCostHint', { hours: hoursNeeded.toFixed(1) })}
-              </Text>
+        {settingsLoaded && !wageReady ? (
+          <Pressable
+            onPress={() => setSettingsOpen(true)}
+            style={[styles.wageHint, { backgroundColor: colors.muted }]}
+          >
+            <Briefcase size={18} color={colors.primary} />
+            <Text style={[styles.wageHintText, { color: colors.text }]}>
+              {tr(
+                'Nastav si jednou svůj příjem níže a uvidíš, kolik práce tě každá věc stojí.',
+                'Set your income once below to see how much work each thing costs you.',
+              )}
             </Text>
-          ) : (
-            <Text style={[styles.livePlaceholder, { color: colors.textSecondary }]}>
-              {t('saveWorkPlaceholder')}
-            </Text>
-          )}
-          {futureValue > 0 && parsedYears > 0 ? (
-            <Text style={[styles.liveLine, styles.liveLineSecond, { color: colors.text }]}>
-              {t('saveFutureValue', {
-                years: formatYearsCs(parsedYears),
-                amount: formatCurrency(Math.round(futureValue)),
-                symbol: currency.symbol,
-                rate: presetLabelForReturn,
-              })}
-            </Text>
-          ) : parsedPrice > 0 ? (
-            <Text style={[styles.livePlaceholder, styles.liveLineSecond, { color: colors.textSecondary }]}>
-              {t('saveFutureHint')}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Mzda — kompaktně */}
-        <Text style={[styles.compactSectionLabel, { color: colors.textSecondary }]}>{t('saveWage')}</Text>
-        <View style={[styles.segmented, { backgroundColor: colors.muted }]}>
-          {(
-            [
-              { id: 'hourly' as const, label: t('saveHourly') },
-              { id: 'monthly' as const, label: t('saveMonthly') },
-            ] as const
-          ).map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.segment,
-                wageMode === item.id && { backgroundColor: colors.primary },
-              ]}
-              onPress={() => setWageMode(item.id)}
-              testID={`save-wage-${item.id}`}
-            >
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: colors.textSecondary },
-                  wageMode === item.id && { color: colors.onPrimary, fontWeight: '700' },
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {wageMode === 'hourly' ? (
-          <TextInput
-            value={hourlyWage}
-            onChangeText={setHourlyWage}
-            placeholder={t('saveHourlyWagePlaceholder', { symbol: currency.symbol })}
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="decimal-pad"
-            style={[styles.inputCompact, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            testID="save-hourly"
-          />
-        ) : (
-          <View style={styles.row}>
-            <TextInput
-              value={monthlyIncome}
-              onChangeText={setMonthlyIncome}
-              placeholder={t('saveMonthlyIncomePlaceholder', { symbol: currency.symbol })}
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="decimal-pad"
-              style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-              testID="save-monthly"
-            />
-            <TextInput
-              value={hoursPerMonth}
-              onChangeText={setHoursPerMonth}
-              placeholder={t('saveHoursPerMonth')}
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="decimal-pad"
-              style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-              testID="save-hours-per-month"
-            />
-          </View>
-        )}
-
-        {/* Budoucí hodnota */}
-        <Text style={[styles.cardTitleSpaced, { color: colors.text }]}>{t('saveFutureValueTitle')}</Text>
-        <View style={styles.presetRow}>
-          {INTEREST_PRESETS.map((p) => {
-            const active = Math.abs(parsedAnnualReturn - p.value) < 0.001;
-            return (
-              <TouchableOpacity
-                key={p.labelKey}
-                style={[
-                  styles.presetChip,
-                  {
-                    borderColor: active ? colors.primary : colors.border,
-                    backgroundColor: active ? colors.primary + '22' : colors.surface,
-                  },
-                ]}
-                onPress={() => setAnnualReturn(String(p.value))}
-              >
-                <Text style={[styles.presetChipText, { color: active ? colors.primary : colors.text }]}>{t(p.labelKey)}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <View style={styles.row}>
-          <View style={styles.rowInput}>
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              {t('saveAnnualReturnLabel')}
-            </Text>
-            <Pressable
-              onPress={() => annualReturnInputRef.current?.focus()}
-              style={[
-                styles.inputCompact,
-                styles.inputWithSuffix,
-                { borderColor: colors.border, backgroundColor: colors.surface },
-              ]}
-            >
-              <TextInput
-                ref={annualReturnInputRef}
-                value={annualReturn}
-                onChangeText={setAnnualReturn}
-                placeholder={t('saveAnnualReturnPlaceholder')}
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-                style={[styles.inputInner, { color: colors.text }]}
-                testID="save-annual-return"
-              />
-              <Text style={[styles.inputSuffix, { color: colors.textSecondary }]}>%</Text>
-            </Pressable>
-          </View>
-          <View style={styles.rowInput}>
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              {t('savePeriodLabel')}
-            </Text>
-            <Pressable
-              onPress={() => yearsInputRef.current?.focus()}
-              style={[
-                styles.inputCompact,
-                styles.inputWithSuffix,
-                { borderColor: colors.border, backgroundColor: colors.surface },
-              ]}
-            >
-              <TextInput
-                ref={yearsInputRef}
-                value={years}
-                onChangeText={setYears}
-                placeholder={t('savePeriodPlaceholder')}
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-                style={[styles.inputInner, { color: colors.text }]}
-                testID="save-years"
-              />
-              <Text style={[styles.inputSuffix, { color: colors.textSecondary }]}>
-                {yearsUnitLabel(years)}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-        <View style={[styles.futureResult, { backgroundColor: colors.muted }]}>
-          <Briefcase size={18} color={colors.primary} style={{ marginRight: 8 }} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.futureResultLabel, { color: colors.textSecondary }]}>{t('saveCompoundInterest')}</Text>
-            {futureValue > 0 && parsedYears > 0 ? (
-              <Text style={[styles.futureResultValue, { color: colors.text }]}>
-                {formatCurrency(Math.round(futureValue))} {currency.symbol}
-              </Text>
-            ) : (
-              <Text style={[styles.futureResultDash, { color: colors.textSecondary }]}>—</Text>
-            )}
-          </View>
-        </View>
+          </Pressable>
+        ) : null}
       </View>
 
       {showResults ? (
+        <>
+          <LinearGradient
+            colors={['#8B5CF6', '#4F46E5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.worthCard, { shadowColor: shadowSoft }]}
+            testID="save-worth-card"
+          >
+            <Text style={styles.worthEyebrow}>{tr('STOJÍ TO ZA TO?', 'IS IT WORTH IT?')}</Text>
+            <Text style={styles.worthItem} numberOfLines={1}>
+              {title.trim()} · {formatCurrency(parsedPrice)} {currency.symbol}
+            </Text>
+
+            <Text style={styles.worthLabel}>{tr('Tohle tě stojí', 'This costs you')}</Text>
+            <Text style={styles.worthBig} adjustsFontSizeToFit numberOfLines={2}>
+              {formatWorkTime(hoursNeeded)}
+            </Text>
+            <Text style={styles.worthSub}>
+              {tr('práce (pracovní den = 8 h)', 'of work (8-hour workdays)')}
+              {incomeSharePct != null && incomeSharePct >= 1
+                ? tr(
+                    ` · ${Math.round(incomeSharePct)} % měsíčního příjmu`,
+                    ` · ${Math.round(incomeSharePct)} % of your monthly income`,
+                  )
+                : ''}
+            </Text>
+
+            {futureValue > 0 && parsedYears > 0 ? (
+              <>
+                <View style={styles.worthDivider} />
+                <Text style={styles.worthLabel}>
+                  {tr(
+                    `Kdybys peníze odložil, za ${formatYearsCs(parsedYears)} by z nich mohlo být`,
+                    `Set aside instead, in ${formatYearsCs(parsedYears)} it could grow to`,
+                  )}
+                </Text>
+                <Text style={styles.worthBig2}>
+                  {formatCurrency(Math.round(futureValue))} {currency.symbol}
+                </Text>
+                <Text style={styles.worthNote}>
+                  {tr(
+                    `Ilustrační výpočet (${presetLabelForReturn}). Nejde o investiční doporučení.`,
+                    `Illustration only (${presetLabelForReturn}). Not investment advice.`,
+                  )}
+                </Text>
+              </>
+            ) : null}
+          </LinearGradient>
+
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                shadowColor: shadowSoft,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.decisionBtn, styles.decisionBtnSaved, { opacity: savingDecision ? 0.7 : 1 }]}
+              onPress={() => void handleNotBuy()}
+              disabled={savingDecision}
+              activeOpacity={0.88}
+              testID="save-not-buy"
+            >
+              <Text style={styles.decisionBtnText}>
+                {tr(`Nekoupím a ušetřím ${formatCurrency(parsedPrice)} ${currency.symbol}`, `Don’t buy, save ${formatCurrency(parsedPrice)} ${currency.symbol}`)}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.row}>
+              <TouchableOpacity
+                style={[styles.decisionBtnOutline, styles.rowInput, { borderColor: colors.border, opacity: savingDecision ? 0.7 : 1 }]}
+                onPress={() => void handleBuy()}
+                disabled={savingDecision}
+                activeOpacity={0.88}
+                testID="save-buy"
+              >
+                <Text style={[styles.decisionBtnOutlineText, { color: colors.text }]}>{tr('Koupím', 'Buy it')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.decisionBtnOutline, styles.rowInput, { borderColor: colors.primary, opacity: savingDecision ? 0.7 : 1 }]}
+                onPress={() => void handleThink()}
+                disabled={savingDecision}
+                activeOpacity={0.88}
+                testID="save-think"
+              >
+                <Text style={[styles.decisionBtnOutlineText, { color: colors.primary }]}>{tr('Rozmyslím si', 'Think it over')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.cooldownRow}>
+              <Text style={[styles.cooldownLabel, { color: colors.textSecondary }]}>
+                {tr('Připomenout za:', 'Remind me in:')}
+              </Text>
+              {COOLDOWN_OPTIONS.map((h) => {
+                const active = cooldownHours === h;
+                const label =
+                  h === 24 ? tr('24 h', '24 h') : h === 72 ? tr('3 dny', '3 days') : tr('týden', '1 week');
+                return (
+                  <TouchableOpacity
+                    key={h}
+                    onPress={() => setCooldownHours(h)}
+                    style={[
+                      styles.quickChip,
+                      {
+                        borderColor: active ? colors.primary : colors.border,
+                        backgroundColor: active ? colors.primary + '22' : colors.surface,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.quickChipText, { color: active ? colors.primary : colors.text }]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {householdId ? (
+              <View style={[styles.partnerRow, { borderTopColor: colors.border }]}>
+                <Text style={[styles.partnerLabel, { color: colors.text }]}>{t('saveConsultPartner')}</Text>
+                <Switch
+                  value={consultPartner}
+                  onValueChange={setConsultPartner}
+                  trackColor={{ false: colors.muted, true: colors.primary }}
+                  thumbColor={Platform.OS === 'android' ? (consultPartner ? colors.onPrimary : colors.card) : undefined}
+                />
+              </View>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+
+      {pendingItems.length > 0 ? (
         <View
           style={[
             styles.card,
-            styles.resultCard,
             {
               backgroundColor: colors.card,
-              borderColor: colors.primary + '55',
+              borderColor: colors.border,
               shadowColor: shadowSoft,
             },
           ]}
         >
-          <Text style={[styles.resultTitle, { color: colors.text }]}>{t('saveWorthItTitle')}</Text>
-
-          <View style={[styles.resultMetric, { backgroundColor: colors.muted }]}>
-            <Text style={[styles.resultMetricText, { color: colors.text }]}>
-              {t('saveResultWork', { hours: formatWorkHours(timeParts.h, timeParts.m) })}
+          <View style={styles.rowIconTitle}>
+            <Timer size={20} color={colors.primary} />
+            <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 0 }]}>
+              {tr('Rozmýšlíš si', 'Thinking it over')}
             </Text>
           </View>
-
-          {futureValue > 0 && parsedYears > 0 ? (
-            <View style={[styles.resultMetric, { backgroundColor: colors.muted }]}>
-              <TrendingUp size={18} color={colors.primary} style={{ marginRight: 8 }} />
-              <Text style={[styles.resultMetricText, { color: colors.text, flex: 1 }]}>
-                {t('saveResultInvest', {
-                  amount: formatCurrency(Math.round(futureValue)),
+        {pendingItems.map((item) => {
+          const remainingMs = item.remindAt - nowTick;
+          const clampedMs = Math.max(0, remainingMs);
+          const remainingHours = Math.floor(clampedMs / 3600000);
+          const remainingMinutes = Math.floor((clampedMs % 3600000) / 60000);
+          const isReady = clampedMs <= 0;
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() =>
+                router.push({ pathname: '/save-pending-detail', params: { id: item.id } })
+              }
+              style={({ pressed }) => [
+                styles.listRow,
+                { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.92 : 1 },
+              ]}
+              testID={`save-pending-row-${item.id}`}
+            >
+              <View style={styles.listRowTop}>
+                <Text style={[styles.listTitle, { color: colors.text }]} numberOfLines={1}>
+                  {item.title}
+                </Text>
+                <View style={styles.listRowRight}>
+                  {isReady ? (
+                    <Timer color={colors.success} size={20} />
+                  ) : (
+                    <Timer color={colors.warning} size={20} />
+                  )}
+                  <ChevronRight color={colors.textSecondary} size={22} />
+                </View>
+              </View>
+              <Text style={[styles.listMeta, { color: colors.textSecondary }]}>
+                {t('savePendingWorkHours', {
+                  price: formatCurrency(item.price),
                   symbol: currency.symbol,
-                  years: formatYearsCs(parsedYears),
+                  hours: item.hoursNeeded.toFixed(1),
                 })}
               </Text>
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            style={[styles.decisionBtn, styles.decisionBtnSaved, { opacity: savingDecision ? 0.7 : 1 }]}
-            onPress={() => void handleNotBuy()}
-            disabled={savingDecision}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.decisionBtnText}>{t('saveBtnNotBuy')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.decisionBtn, styles.decisionBtnBought, { opacity: savingDecision ? 0.7 : 1 }]}
-            onPress={() => void handleBuy()}
-            disabled={savingDecision}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.decisionBtnText}>{t('saveBtnBuy')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.decisionBtn, { backgroundColor: colors.primary, opacity: savingDecision ? 0.7 : 1 }]}
-            onPress={() => void handleThink()}
-            disabled={savingDecision}
-            activeOpacity={0.88}
-          >
-            <Text style={[styles.decisionBtnText, { color: colors.onPrimary }]}>{t('saveBtnThink')}</Text>
-          </TouchableOpacity>
-
-          {householdId ? (
-            <View style={[styles.partnerRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.partnerLabel, { color: colors.text }]}>{t('saveConsultPartner')}</Text>
-              <Switch
-                value={consultPartner}
-                onValueChange={setConsultPartner}
-                trackColor={{ false: colors.muted, true: colors.primary }}
-                thumbColor={Platform.OS === 'android' ? (consultPartner ? colors.onPrimary : colors.card) : undefined}
-              />
-            </View>
-          ) : null}
+              <Text style={[styles.listCountdown, { color: isReady ? colors.success : colors.warning }]}>
+                {isReady
+                  ? t('saveTimeToDecide')
+                  : t('saveRemaining', { hours: remainingHours, minutes: remainingMinutes })}
+              </Text>
+            </Pressable>
+          );
+        })}
         </View>
       ) : null}
 
-      {/* Rozmyslet */}
+      {/* Nastavení výpočtu – pamatuje se */}
       <View
         style={[
           styles.card,
@@ -739,124 +722,180 @@ function SaveScreenContent() {
           },
         ]}
       >
-        <View style={styles.rowIconTitle}>
-          <Timer size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 0 }]}>{t('saveRemindDecision')}</Text>
-        </View>
-        <Text style={[styles.helper, { color: colors.textSecondary }]}>
-          {t('saveRemindHint')}
-        </Text>
-        <View style={styles.row}>
-          <TextInput
-            value={decisionDate}
-            onChangeText={setDecisionDate}
-            placeholder="DD.MM.RRRR"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numbers-and-punctuation"
-            style={[styles.input, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            testID="save-decision-date"
+        <Pressable onPress={() => setSettingsOpen((v) => !v)} style={styles.settingsHeader} testID="save-settings-toggle">
+          <Briefcase size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.settingsTitle, { color: colors.text }]}>
+              {tr('Nastavení výpočtu', 'Calculation settings')}
+            </Text>
+            <Text style={[styles.settingsSummary, { color: colors.textSecondary }]} numberOfLines={1}>
+              {wageReady
+                ? `${formatCurrency(Math.round(parsedHourlyWage))} ${currency.symbol}/h · ${presetLabelForReturn} · ${formatYearsCs(parsedYears)}`
+                : tr('Zadej svůj příjem', 'Enter your income')}
+            </Text>
+          </View>
+          <ChevronRight
+            size={20}
+            color={colors.textSecondary}
+            style={{ transform: [{ rotate: settingsOpen ? '90deg' : '0deg' }] }}
           />
-          <TextInput
-            value={decisionTime}
-            onChangeText={setDecisionTime}
-            placeholder="HH:MM"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numbers-and-punctuation"
-            style={[styles.input, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            testID="save-decision-time"
-          />
-        </View>
-        <View style={styles.quickRow}>
-          <TouchableOpacity
-            style={[styles.quickChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() => {
-              const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              tomorrow.setHours(DEFAULT_DECISION_HOUR, 0, 0, 0);
-              const dateString = `${String(tomorrow.getDate()).padStart(2, '0')}.${String(tomorrow.getMonth() + 1).padStart(2, '0')}.${tomorrow.getFullYear()}`;
-              setDecisionDate(dateString);
-              setDecisionTime('09:00');
-            }}
-            testID="save-quick-tomorrow"
-          >
-            <Text style={[styles.quickChipText, { color: colors.primary }]}>{t('saveTomorrow9')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() => {
-              const later = new Date();
-              later.setHours(later.getHours() + DEFAULT_COOLDOWN_HOURS);
-              const dateString = `${String(later.getDate()).padStart(2, '0')}.${String(later.getMonth() + 1).padStart(2, '0')}.${later.getFullYear()}`;
-              const timeString = `${String(later.getHours()).padStart(2, '0')}:${String(later.getMinutes()).padStart(2, '0')}`;
-              setDecisionDate(dateString);
-              setDecisionTime(timeString);
-            }}
-            testID="save-quick-24h"
-          >
-            <Text style={[styles.quickChipText, { color: colors.primary }]}>{t('saveIn24h')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.ctaButton, { backgroundColor: colors.primary }]}
-          onPress={() => void handleThink()}
-          activeOpacity={0.88}
-          testID="save-add-cooldown"
-        >
-          <Text style={[styles.ctaButtonText, { color: colors.onPrimary }]}>{t('screenThinkItOver')}</Text>
-        </TouchableOpacity>
-
-        {pendingItems.length > 0 && (
-          <View style={[styles.pendingSection, { borderTopColor: colors.border }]}>
-            <Text style={[styles.listHeading, { color: colors.text }]}>{t('saveSavedByDecision')}</Text>
-            {pendingItems.map((item) => {
-              const remainingMs = item.remindAt - nowTick;
-              const clampedMs = Math.max(0, remainingMs);
-              const remainingHours = Math.floor(clampedMs / 3600000);
-              const remainingMinutes = Math.floor((clampedMs % 3600000) / 60000);
-              const isReady = clampedMs <= 0;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() =>
-                    router.push({ pathname: '/save-pending-detail', params: { id: item.id } })
-                  }
-                  style={({ pressed }) => [
-                    styles.listRow,
-                    { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.92 : 1 },
+        </Pressable>
+        {settingsOpen ? (
+          <View style={{ marginTop: 14 }}>
+          {/* Mzda — kompaktně */}
+          <Text style={[styles.compactSectionLabel, { color: colors.textSecondary }]}>{t('saveWage')}</Text>
+          <View style={[styles.segmented, { backgroundColor: colors.muted }]}>
+            {(
+              [
+                { id: 'hourly' as const, label: t('saveHourly') },
+                { id: 'monthly' as const, label: t('saveMonthly') },
+              ] as const
+            ).map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.segment,
+                  wageMode === item.id && { backgroundColor: colors.primary },
+                ]}
+                onPress={() => setWageMode(item.id)}
+                testID={`save-wage-${item.id}`}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: colors.textSecondary },
+                    wageMode === item.id && { color: colors.onPrimary, fontWeight: '700' },
                   ]}
-                  testID={`save-pending-row-${item.id}`}
                 >
-                  <View style={styles.listRowTop}>
-                    <Text style={[styles.listTitle, { color: colors.text }]} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <View style={styles.listRowRight}>
-                      {isReady ? (
-                        <Timer color={colors.success} size={20} />
-                      ) : (
-                        <Timer color={colors.warning} size={20} />
-                      )}
-                      <ChevronRight color={colors.textSecondary} size={22} />
-                    </View>
-                  </View>
-                  <Text style={[styles.listMeta, { color: colors.textSecondary }]}>
-                    {t('savePendingWorkHours', {
-                      price: formatCurrency(item.price),
-                      symbol: currency.symbol,
-                      hours: item.hoursNeeded.toFixed(1),
-                    })}
-                  </Text>
-                  <Text style={[styles.listCountdown, { color: isReady ? colors.success : colors.warning }]}>
-                    {isReady
-                      ? t('saveTimeToDecide')
-                      : t('saveRemaining', { hours: remainingHours, minutes: remainingMinutes })}
-                  </Text>
-                </Pressable>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {wageMode === 'hourly' ? (
+            <TextInput
+              value={hourlyWage}
+              onChangeText={setHourlyWage}
+              placeholder={t('saveHourlyWagePlaceholder', { symbol: currency.symbol })}
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="decimal-pad"
+              style={[styles.inputCompact, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+              testID="save-hourly"
+            />
+          ) : (
+            <View style={styles.row}>
+              <TextInput
+                value={monthlyIncome}
+                onChangeText={setMonthlyIncome}
+                placeholder={t('saveMonthlyIncomePlaceholder', { symbol: currency.symbol })}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                testID="save-monthly"
+              />
+              <TextInput
+                value={hoursPerMonth}
+                onChangeText={setHoursPerMonth}
+                placeholder={t('saveHoursPerMonth')}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                testID="save-hours-per-month"
+              />
+            </View>
+          )}
+
+          {/* Budoucí hodnota */}
+          <Text style={[styles.cardTitleSpaced, { color: colors.text }]}>{t('saveFutureValueTitle')}</Text>
+          <View style={styles.presetRow}>
+            {INTEREST_PRESETS.map((p) => {
+              const active = Math.abs(parsedAnnualReturn - p.value) < 0.001;
+              return (
+                <TouchableOpacity
+                  key={p.labelKey}
+                  style={[
+                    styles.presetChip,
+                    {
+                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? colors.primary + '22' : colors.surface,
+                    },
+                  ]}
+                  onPress={() => setAnnualReturn(String(p.value))}
+                >
+                  <Text style={[styles.presetChipText, { color: active ? colors.primary : colors.text }]}>{t(p.labelKey)}</Text>
+                </TouchableOpacity>
               );
             })}
           </View>
-        )}
+          <View style={styles.row}>
+            <View style={styles.rowInput}>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                {t('saveAnnualReturnLabel')}
+              </Text>
+              <Pressable
+                onPress={() => annualReturnInputRef.current?.focus()}
+                style={[
+                  styles.inputCompact,
+                  styles.inputWithSuffix,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+              >
+                <TextInput
+                  ref={annualReturnInputRef}
+                  value={annualReturn}
+                  onChangeText={setAnnualReturn}
+                  placeholder={t('saveAnnualReturnPlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.inputInner, { color: colors.text }]}
+                  testID="save-annual-return"
+                />
+                <Text style={[styles.inputSuffix, { color: colors.textSecondary }]}>%</Text>
+              </Pressable>
+            </View>
+            <View style={styles.rowInput}>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                {t('savePeriodLabel')}
+              </Text>
+              <Pressable
+                onPress={() => yearsInputRef.current?.focus()}
+                style={[
+                  styles.inputCompact,
+                  styles.inputWithSuffix,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+              >
+                <TextInput
+                  ref={yearsInputRef}
+                  value={years}
+                  onChangeText={setYears}
+                  placeholder={t('savePeriodPlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.inputInner, { color: colors.text }]}
+                  testID="save-years"
+                />
+                <Text style={[styles.inputSuffix, { color: colors.textSecondary }]}>
+                  {yearsUnitLabel(years)}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+          <View style={[styles.futureResult, { backgroundColor: colors.muted }]}>
+            <Briefcase size={18} color={colors.primary} style={{ marginRight: 8 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.futureResultLabel, { color: colors.textSecondary }]}>{t('saveCompoundInterest')}</Text>
+              {futureValue > 0 && parsedYears > 0 ? (
+                <Text style={[styles.futureResultValue, { color: colors.text }]}>
+                  {formatCurrency(Math.round(futureValue))} {currency.symbol}
+                </Text>
+              ) : (
+                <Text style={[styles.futureResultDash, { color: colors.textSecondary }]}>—</Text>
+              )}
+            </View>
+          </View>
+          </View>
+        ) : null}
       </View>
 
       {decisions.length > 0 ? (
@@ -1198,6 +1237,61 @@ const styles = StyleSheet.create({
   listMeta: { fontSize: 13, marginTop: 6 },
   listCountdown: { fontSize: 13, fontWeight: '700', marginTop: 8 },
   listRowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  wageHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  wageHintText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '500' },
+  worthCard: {
+    borderRadius: 20,
+    padding: 22,
+    marginBottom: 14,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  worthEyebrow: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  worthItem: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginTop: 6, marginBottom: 16 },
+  worthLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500' },
+  worthBig: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', letterSpacing: -0.5, marginTop: 2 },
+  worthSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 },
+  worthDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    marginVertical: 16,
+  },
+  worthBig2: { color: '#FFFFFF', fontSize: 26, fontWeight: '800', marginTop: 2 },
+  worthNote: { color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 6, lineHeight: 15 },
+  decisionBtnOutline: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  decisionBtnOutlineText: { fontSize: 15, fontWeight: '700' },
+  cooldownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  cooldownLabel: { fontSize: 13, fontWeight: '600' },
+  settingsHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  settingsTitle: { fontSize: 16, fontWeight: '700' },
+  settingsSummary: { fontSize: 12, marginTop: 2 },
   resultCard: {
     borderWidth: 1.5,
   },
