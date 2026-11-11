@@ -45,6 +45,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#8B5CF6',
     },
     package: isProd ? 'cz.moneybuddy.app' : 'cz.moneybuddy.app.dev',
+    // Firebase (FCM) kvůli push notifikacím — soubor obsahuje jen produkční balíček.
+    ...(isProd ? { googleServicesFile: './google-services.json' } : {}),
     // Soubory (výpisy, fotky) přes systémový výběr → žádný přístup k úložišti / médiím.
     permissions: [
       'android.permission.INTERNET',
