@@ -26,6 +26,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: isProd ? 'cz.moneybuddy.app' : 'cz.moneybuddy.app.dev',
     usesIcloudStorage: true,
     infoPlist: {
+      // App Store zobrazí podporované jazyky podle těchto klíčů (jinak jen „English“).
+      CFBundleDevelopmentRegion: 'cs',
+      CFBundleLocalizations: ['cs', 'en'],
       NSFaceIDUsageDescription:
         'MoneyBuddy použije Face ID k ochraně aplikace po návratu z pozadí.',
       NSPhotoLibraryUsageDescription:
