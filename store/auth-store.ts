@@ -565,6 +565,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         emailConfirmedAt: authUser.email_confirmed_at,
       });
 
+      // E-mail už existuje: Supabase kvůli ochraně proti zjišťování účtů vrátí 200
+      // s „falešným“ uživatelem bez identit a bez session. Nepokračuj – pošli na přihlášení.
+      if (!data.session && Array.isArray(authUser.identities) && authUser.identities.length === 0) {
+        return {
+          success: false,
+          error: useLanguageStore.getState().t('auth.errorUserExists' as 'auth.errorUserExists'),
+        };
+      }
+
       // Confirm email zapnuté → žádná session → nepokračuj do appky, žádné DB řádky.
       if (!data.session) {
         return { success: true, needsEmailVerification: true };
