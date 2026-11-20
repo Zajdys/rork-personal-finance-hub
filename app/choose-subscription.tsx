@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Linking,
   Pressable,
+  AppState,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +34,8 @@ import {
   getOfferings,
   purchasePackage,
   restorePurchases,
+  presentAppleCodeRedemptionSheet,
+  isRevenueCatTestStore,
   getCustomerInfo,
   hasPremiumAccess,
   loginUser,
@@ -185,6 +189,37 @@ export default function ChooseSubscriptionScreen() {
       Alert.alert(t('error'), t('chooseSubscription.restoreFailed'));
     },
   });
+
+  /** iOS: uplatnění promo kódu (Offer Code, např. z Instagramu). Po návratu z App Store sheetu ověříme Premium. */
+  const redeemCode = React.useCallback(async () => {
+    try {
+      await presentAppleCodeRedemptionSheet();
+    } catch (e) {
+      console.warn('[Paywall] Code redemption sheet failed', e);
+      Alert.alert(t('error'), t('chooseSubscription.redeemFailed'));
+      return;
+    }
+    let done = false;
+    const check = async () => {
+      if (done) return;
+      const info = await getCustomerInfo().catch(() => null);
+      if (info && hasPremiumAccess(info)) {
+        done = true;
+        sub.remove();
+        await finishPremiumSuccess('purchase');
+      }
+    };
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void check();
+    });
+    setTimeout(() => {
+      void check();
+    }, 4000);
+    setTimeout(() => {
+      done = true;
+      sub.remove();
+    }, 5 * 60_000);
+  }, [finishPremiumSuccess, t]);
 
   React.useEffect(() => {
     if (user?.id) {
@@ -418,6 +453,19 @@ export default function ChooseSubscriptionScreen() {
           <Text style={[styles.autoRenewText, { color: colors.textSecondary }]}>
             {t(IS_ANDROID_STORE ? 'chooseSubscription.autoRenewAndroid' : 'chooseSubscription.autoRenew')}
           </Text>
+        ) : null}
+
+        {Platform.OS === 'ios' && !isRevenueCatTestStore() ? (
+          <Pressable
+            onPress={() => void redeemCode()}
+            disabled={isBusy}
+            style={{ alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 15 }}>
+              {t('chooseSubscription.redeemCode')}
+            </Text>
+          </Pressable>
         ) : null}
 
         <View style={styles.legalLinksRow}>

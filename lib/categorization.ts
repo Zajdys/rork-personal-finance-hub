@@ -30,7 +30,7 @@ import type { ClassifyImportResult } from '@/lib/classify-import-category';
  * 3 — 2026-03-23: false Převod (účet-only) zrušen; ATM vklad vs výběr;
  *     Původní částka z RB hlavičky; nové kategorie + slovník (Telefon, Splátky, …).
  */
-export const CATEGORIZATION_VERSION = 10;
+export const CATEGORIZATION_VERSION = 11;
 
 export type CategorySource =
   | 'user'

@@ -98,10 +98,23 @@ export function isAtmOrCashDescription(text: string): boolean {
   );
 }
 
+/** Příjmová kategorie pro platby od soukromých osob. */
+export const INCOME_FROM_PEOPLE_CATEGORY = 'Od lidí';
+
 export function looksLikePersonCounterparty(name: string | null | undefined): boolean {
   const n = (name || '').trim();
   if (!n || n.length < 3) return false;
   if (COMPANY_HINT.test(n)) return false;
+  const f = n.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  if (/pojistovn|pojisteni|pojistka|\bbanka\b/.test(f)) return false;
+  // Instituce a firmy bez právní formy v názvu (zkrácené názvy z výpisů)
+  if (/\d/.test(n)) return false;
+  if (
+    /(sporitelna|pojistov|\bspol\b|\bmesto\b|\bobec\b|\burad\b|magistrat|financni|\bcssz\b|\bvzp\b|\bzps\b|\bcez\b|nadace|\bskola\b|univerzit)/.test(
+      f,
+    )
+  )
+    return false;
   if (/^(odchozí|příchozí|platba|revolut|trading)/i.test(n)) return false;
   const letters = n.replace(/[^A-Za-zÁ-ž]/g, '');
   if (letters.length < 3) return false;
@@ -303,6 +316,21 @@ export function classifyImportRow(
   }
 
   if (input.type === 'income' && !input.isRefund) {
+    // Příchozí platba od soukromé osoby (účet protistrany + jméno) → „Od lidí“
+    if (
+      (!input.category || input.category === 'Ostatní') &&
+      input.counterpartyAccount &&
+      looksLikePersonCounterparty(input.counterpartyName)
+    ) {
+      return {
+        category: INCOME_FROM_PEOPLE_CATEGORY,
+        merchantKey: null,
+        description:
+          (input.counterpartyName || input.description || input.title || '').trim() || 'Bez popisu',
+        counterpartyName: input.counterpartyName ?? null,
+        source: 'special',
+      };
+    }
     return {
       category: input.category || 'Ostatní',
       merchantKey: null,

@@ -68,6 +68,7 @@ const EN: Record<string, string> = {
   'Freelance': 'Freelance',
   'Dary': 'Gifts',
   'Vklad hotovosti': 'Cash deposit',
+  'Od lidí': 'From people',
 
   // Starší / domácnost / rozdělení útraty
   'Splátky úvěrů': 'Loan payments',

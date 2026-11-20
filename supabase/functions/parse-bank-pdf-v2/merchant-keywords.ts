@@ -113,6 +113,12 @@ export const MERCHANT_KEYWORD_RULES: KeywordRule[] = [
     category: 'Předplatné',
     keywords: ['SUBSCRIPTION', 'MEMBERSHIP'],
   },
+  // Doplněno 11/2026 podle importu Raiffeisenbank (časté položky v „Ostatní“)
+  { category: 'Nákupy', keywords: ['SHOPTET', 'IWANT', 'SUNNYSOFT', 'PLAZA'] },
+  { category: 'Jídlo', subcategory: 'Kavárny', keywords: ['KAFE'] },
+  { category: 'Jídlo', subcategory: 'Potraviny', keywords: ['CUKROVINKY'] },
+  { category: 'Volný čas', subcategory: 'Sport', keywords: ['STRELNICE'] },
+  { category: 'Auto a doprava', subcategory: 'Parkování a dálnice', keywords: ['PARKIT', 'MRPARKIT'] },
 ];
 
 function normalizeHaystack(raw: string): string {

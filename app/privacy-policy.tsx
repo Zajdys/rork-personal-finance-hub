@@ -227,8 +227,8 @@ export default function PrivacyPolicyScreen() {
         <Section title={tr('8. Bankovní výpisy (PDF / CSV)', '8. Bank statements (PDF / CSV)')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'PDF a CSV výpisy jsou zpracovány na našich serverech (Supabase Edge Function) nebo na zařízení pouze za účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.',
-              'PDF and CSV statements are processed on our servers (Supabase Edge Function) or on your device solely to extract transactions. PDF files are not stored permanently.',
+              'PDF a CSV výpisy jsou zpracovány na našich serverech (Supabase, EU) nebo na zařízení pouze za účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.',
+              'PDF and CSV statements are processed on our servers (Supabase, EU) or on your device solely to extract transactions. PDF files are not stored permanently.',
             )}
           </Body>
         </Section>

@@ -110,6 +110,7 @@ export const INCOME_CATEGORY_LIST = [
   { name: 'Investice', icon: '📈', color: '#F59E0B' },
   { name: 'Dary', icon: '🎁', color: '#EC4899' },
   { name: 'Vklad hotovosti', icon: '💵', color: '#65A30D' },
+  { name: 'Od lidí', icon: '👥', color: '#0EA5E9' },
   { name: 'Ostatní', icon: '💰', color: '#6B7280' },
 ] as const;
 

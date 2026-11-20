@@ -501,7 +501,7 @@ export const TRANSLATIONS = {
     // Bank import
     bankImportScreenTitle: 'Import výpisu',
     bankImportHeroTitle: 'Import bankovního výpisu',
-    bankImportHeroDescription: 'CSV export (Fio, ČSOB, Česká spořitelna, KB, Raiffeisen, Moneta, mBank) zpracuje aplikace v zařízení. PDF se odešle na Supabase Edge Function — text se extrahuje na serveru, transakce se rozpoznají a roztřídí do kategorií. Před importem je můžeš v náhledu upravit.',
+    bankImportHeroDescription: 'Nahraj PDF nebo CSV výpis ze své banky. Transakce rozpoznáme a roztřídíme do kategorií a před importem je můžeš v náhledu zkontrolovat a upravit. PDF se bezpečně zpracuje na našem serveru a neukládáme ho.',
     bankImportPickFiles: 'Vybrat CSV nebo PDF',
     bankImportFilePickFailed: 'Nepodařilo se získat soubor(y).',
     bankImportSelectCsvOrPdf: 'Vyber soubor(y) CSV nebo PDF.',
@@ -1210,6 +1210,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.planYearly': 'Roční',
     'chooseSubscription.planMonthly': 'Měsíční',
     'chooseSubscription.restoreShort': 'Obnovit nákupy',
+    'chooseSubscription.redeemFailed': 'Okno pro zadání kódu se nepodařilo otevřít. Zkus to prosím znovu.',
     'chooseSubscription.termsShort': 'Podmínky',
     'chooseSubscription.privacyShort': 'Soukromí',
     'premium.tryFreeTrial': 'Vyzkoušet 14 dní zdarma',
@@ -1554,7 +1555,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.retry': 'Zkusit znovu',
     'chooseSubscription.selectPlan': 'Vybrat plán',
     'chooseSubscription.restore': 'Obnovit předchozí nákupy',
-    'chooseSubscription.redeemCode': 'Uplatnit slevový kód',
+    'chooseSubscription.redeemCode': 'Mám promo kód',
     'chooseSubscription.autoRenew':
       'Předplatné se automaticky obnovuje za cenu zvoleného plánu, pokud ho nezrušíš alespoň 24 h před koncem období. Platba se strhne z Apple ID. Zrušit můžeš kdykoli v Nastavení → Apple ID → Předplatná.',
     'chooseSubscription.autoRenewAndroid':
@@ -3132,7 +3133,7 @@ export const TRANSLATIONS = {
     // Bank import
     bankImportScreenTitle: 'Statement Import',
     bankImportHeroTitle: 'Bank Statement Import',
-    bankImportHeroDescription: 'CSV exports (Fio, ČSOB, Czech Savings Bank, KB, Raiffeisen, Moneta, mBank) are processed on your device. PDFs are sent to a Supabase Edge Function — text is extracted on the server, transactions are recognized and categorized. You can edit them in the preview before importing.',
+    bankImportHeroDescription: 'Upload a PDF or CSV statement from your bank. We recognize your transactions and sort them into categories, and you can review and edit them in the preview before importing. PDFs are processed securely on our server and are not stored.',
     bankImportPickFiles: 'Select CSV or PDF',
     bankImportFilePickFailed: 'Failed to get file(s).',
     bankImportSelectCsvOrPdf: 'Select CSV or PDF file(s).',
@@ -3841,6 +3842,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.planYearly': 'Yearly',
     'chooseSubscription.planMonthly': 'Monthly',
     'chooseSubscription.restoreShort': 'Restore purchases',
+    'chooseSubscription.redeemFailed': 'Could not open the code redemption sheet. Please try again.',
     'chooseSubscription.termsShort': 'Terms',
     'chooseSubscription.privacyShort': 'Privacy',
     'premium.tryFreeTrial': 'Try 14 days free',
@@ -4185,7 +4187,7 @@ export const TRANSLATIONS = {
     'chooseSubscription.retry': 'Try again',
     'chooseSubscription.selectPlan': 'Select plan',
     'chooseSubscription.restore': 'Restore previous purchases',
-    'chooseSubscription.redeemCode': 'Redeem offer code',
+    'chooseSubscription.redeemCode': 'I have a promo code',
     'chooseSubscription.autoRenew':
       'Subscription renews automatically at the price of the selected plan unless you cancel at least 24 hours before the period ends. Payment is charged to your Apple ID. Cancel anytime in Settings → Apple ID → Subscriptions.',
     'chooseSubscription.autoRenewAndroid':

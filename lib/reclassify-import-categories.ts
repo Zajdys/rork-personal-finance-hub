@@ -13,6 +13,8 @@ import { lookupMerchantDictionary } from '@/lib/merchant-dictionary';
 import {
   buildCounterpartyNameByAccount,
   classifyImportRow,
+  INCOME_FROM_PEOPLE_CATEGORY,
+  looksLikePersonCounterparty,
   withBackfilledCounterpartyName,
   type ClassifyImportInput,
 } from '@/lib/classify-import-category';
@@ -149,6 +151,26 @@ export async function reclassifyExistingImportTransactions(
   for (const r of rows) {
     if (r.category === 'Převod') continue;
     if (r.category === LOAN_PAYMENT_CATEGORY) continue;
+    if (r.type === 'income' && !r.is_refund) {
+      // Příjem v „Ostatní“ od soukromé osoby → „Od lidí“ (jen automaticky zařazené, ne ruční)
+      const incomeOstatni = !r.category || r.category === 'Ostatní';
+      if (
+        incomeOstatni &&
+        r.category_source !== 'user' &&
+        r.counterparty_account &&
+        looksLikePersonCounterparty(r.counterparty_name || r.description)
+      ) {
+        classified.set(r.id, {
+          category: INCOME_FROM_PEOPLE_CATEGORY,
+          subcategory: null,
+          category_source: mapClassifySourceToCategorySource('special'),
+          merchant_key: r.merchant_key,
+          title: (r.description || '').slice(0, 200),
+          description: r.description || '',
+        });
+      }
+      continue;
+    }
     if (r.type !== 'expense' && !r.is_refund) continue;
 
     const label = (r.description || r.counterparty_name || '').trim();
