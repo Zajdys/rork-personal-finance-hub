@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   Alert,
   Modal,
@@ -13,8 +13,10 @@ import {
   Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus, Check, ChevronRight } from 'lucide-react-native';
+import { Pause, Play, Pencil, Trash2, Plus, Check, ChevronRight } from 'lucide-react-native';
 import { safePush } from '@/lib/safe-navigate';
+import { LinearGradient } from 'expo-linear-gradient';
+import { buildExpenseCategoriesRecord, buildIncomeCategoriesRecord } from '@/constants/categories';
 import { recurringToMonthly } from '@/lib/supabase-plan';
 import { useFinanceStore, type Transaction } from '@/store/finance-store';
 import {
@@ -70,6 +72,14 @@ function frequencyLabelKey(
       return 'personalRecurring.everyMonth';
   }
 }
+
+const LOAN_EMOJI: Record<string, string> = {
+  mortgage: '🏦',
+  car: '🚗',
+  personal: '💳',
+  student: '🎓',
+  other: '📄',
+};
 
 export default function PersonalRecurringScreen() {
   const { user } = useAuth();
@@ -282,13 +292,26 @@ export default function PersonalRecurringScreen() {
     [user?.id, monthStatus, addTransactions, deleteTransaction, load, t, transactions, curY, curM],
   );
 
-  const monthlyTotal = useMemo(() => {
-    const recurring = (displayRules ?? [])
-      .filter((r) => r.active && r.type === 'expense')
-      .reduce((sum, r) => sum + recurringToMonthly(r.amount, r.frequency), 0);
-    const loanSum = (loans ?? []).reduce((sum, l) => sum + (Number(l.monthlyPayment) || 0), 0);
-    return recurring + loanSum;
-  }, [displayRules, loans]);
+  const expenseRules = useMemo(() => displayRules.filter((r) => r.type === 'expense'), [displayRules]);
+  const incomeRules = useMemo(() => displayRules.filter((r) => r.type === 'income'), [displayRules]);
+  const expenseMonthly = useMemo(
+    () => expenseRules.filter((r) => r.active).reduce((sum, r) => sum + recurringToMonthly(r.amount, r.frequency), 0),
+    [expenseRules],
+  );
+  const incomeMonthly = useMemo(
+    () => incomeRules.filter((r) => r.active).reduce((sum, r) => sum + recurringToMonthly(r.amount, r.frequency), 0),
+    [incomeRules],
+  );
+  const loansMonthly = useMemo(
+    () => (loans ?? []).reduce((sum, l) => sum + (Number(l.monthlyPayment) || 0), 0),
+    [loans],
+  );
+  const monthlyTotal = expenseMonthly + loansMonthly;
+  const fmtMoney = (v: number) => formatMoneyWithSymbol(Math.round(v), numberLocale, currency.symbol);
+  const monthName = nowD.toLocaleDateString(numberLocale, { month: 'long' }).replace(/^./, (c) => c.toUpperCase());
+  const expenseCats = useMemo(() => buildExpenseCategoriesRecord(), []);
+  const incomeCats = useMemo(() => buildIncomeCategoriesRecord(), []);
+
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#111827' : '#F8FAFC' }]}>
@@ -322,137 +345,186 @@ export default function PersonalRecurringScreen() {
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
-      ) : sorted.length === 0 ? (
+      ) : sorted.length === 0 && (loans ?? []).length === 0 ? (
         <EmptyState
           title={t('personalRecurring.emptyTitle')}
           description={t('personalRecurring.emptyBody')}
         />
       ) : (
-        <FlatList
-          data={displayRules}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          ListHeaderComponent={
-            monthStatus.size > 0 ? (
-              <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 10 }}>
-                {`${nowD.toLocaleDateString(numberLocale, { month: 'long' }).replace(/^./, (c) => c.toUpperCase())}: zaplaceno ${paidCount} z ${monthStatus.size}`}
-              </Text>
-            ) : null
-          }
-          ListFooterComponent={
-            (loans ?? []).length > 0 ? (
-              <View style={{ marginTop: 14 }}>
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {/* Souhrn */}
+          <LinearGradient
+            colors={[colors.gradientStart, colors.gradientEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.summary}
+          >
+            <Text style={styles.summaryKicker}>{tr('MĚSÍČNĚ PLATÍŠ', 'YOU PAY MONTHLY')}</Text>
+            <Text style={styles.summaryTotal}>{fmtMoney(monthlyTotal)}</Text>
+            {monthStatus.size > 0 ? (
+              <>
+                <View style={styles.summaryBarTrack}>
+                  <View
+                    style={[
+                      styles.summaryBarFill,
+                      { width: `${Math.round((paidCount / monthStatus.size) * 100)}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.summaryProgress}>
+                  {tr(
+                    `${monthName}: zaplaceno ${paidCount} z ${monthStatus.size}`,
+                    `${monthName}: ${paidCount} of ${monthStatus.size} paid`,
+                  )}
+                </Text>
+              </>
+            ) : null}
+            <View style={styles.summaryStats}>
+              <View style={styles.summaryStat}>
+                <Text style={styles.summaryStatLabel}>{tr('Pravidelné výdaje', 'Regular expenses')}</Text>
+                <Text style={styles.summaryStatValue}>{fmtMoney(expenseMonthly)}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryStat}>
+                <Text style={styles.summaryStatLabel}>{tr('Splátky úvěrů', 'Loan repayments')}</Text>
+                <Text style={styles.summaryStatValue}>{fmtMoney(loansMonthly)}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          {/* Pravidelné výdaje / příjmy */}
+          {([
+            ['expense', tr('Pravidelné výdaje', 'Regular expenses'), expenseRules, expenseMonthly],
+            ['income', tr('Pravidelné příjmy', 'Regular income'), incomeRules, incomeMonthly],
+          ] as const).map(([kind, label, list, sum]) =>
+            list.length === 0 ? null : (
+              <View key={kind} style={styles.section}>
+                <View style={styles.sectionHead}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{label}</Text>
+                  <Text style={[styles.sectionSum, { color: colors.textSecondary }]}>
+                    {kind === 'income' ? '+' : ''}
+                    {fmtMoney(sum)}
+                  </Text>
+                </View>
+                <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  {list.map((item, idx) => {
+                    const st = monthStatus.get(item.id);
+                    const icon =
+                      (item.type === 'income' ? incomeCats : expenseCats)[item.category]?.icon ?? '🔁';
+                    const sub = !item.active
+                      ? t('personalRecurring.paused')
+                      : st?.paid
+                        ? `✓ ${tr('zaplaceno', 'paid')} ${fmtDay(String(st.paid.date).slice(0, 10))}`
+                        : st
+                          ? tr(`splatné ${fmtDay(st.due)}`, `due ${fmtDay(st.due)}`)
+                          : tr(`příště ${fmtDay(item.nextDate.slice(0, 10))}`, `next ${fmtDay(item.nextDate.slice(0, 10))}`);
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => setMenuRule(item)}
+                        activeOpacity={0.75}
+                        style={[
+                          styles.row,
+                          idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                          { opacity: item.active ? 1 : 0.5 },
+                        ]}
+                      >
+                        {st ? (
+                          <TouchableOpacity
+                            onPress={() => void togglePaid(item)}
+                            disabled={busyId === item.id}
+                            hitSlop={10}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: Boolean(st.paid) }}
+                            accessibilityLabel={`${item.title} ${tr('zaplaceno', 'paid')}`}
+                            style={[
+                              styles.checkCircle,
+                              st.paid
+                                ? { backgroundColor: '#10B981', borderColor: '#10B981' }
+                                : { borderColor: colors.border },
+                            ]}
+                          >
+                            {busyId === item.id ? (
+                              <ActivityIndicator size="small" color={colors.primary} />
+                            ) : st.paid ? (
+                              <Check color="#fff" size={16} strokeWidth={3} />
+                            ) : null}
+                          </TouchableOpacity>
+                        ) : null}
+                        <View style={[styles.rowIcon, { backgroundColor: colors.muted }]}>
+                          <Text style={{ fontSize: 18 }}>{icon}</Text>
+                        </View>
+                        <View style={styles.cardMain}>
+                          <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          <Text
+                            style={{ color: st?.paid ? '#10B981' : colors.textSecondary, fontSize: 12.5, marginTop: 2 }}
+                            numberOfLines={1}
+                          >
+                            {t(frequencyLabelKey(item.frequency))} · {sub}
+                          </Text>
+                        </View>
+                        <Text style={[styles.rowAmount, { color: item.type === 'income' ? '#10B981' : colors.text }]}>
+                          {item.type === 'income' ? '+' : ''}
+                          {fmtMoney(item.amount)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ),
+          )}
+
+          {/* Splátky úvěrů */}
+          {(loans ?? []).length > 0 ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
                 <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
                   {tr('Splátky úvěrů', 'Loan repayments')}
                 </Text>
-                {(loans ?? []).map((loan) => (
+                <Text style={[styles.sectionSum, { color: colors.textSecondary }]}>{fmtMoney(loansMonthly)}</Text>
+              </View>
+              <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                {(loans ?? []).map((loan, idx) => (
                   <TouchableOpacity
                     key={loan.id}
                     onPress={() => safePush('/loans')}
-                    activeOpacity={0.8}
-                    style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  >
-                    <View style={styles.cardMain}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-                        {loan.name || tr('Úvěr', 'Loan')}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                        {formatMoneyWithSymbol(Number(loan.monthlyPayment) || 0, numberLocale, currency.symbol)} ·{' '}
-                        {tr('každý měsíc', 'every month')}
-                      </Text>
-                    </View>
-                    <ChevronRight color={colors.textSecondary} size={18} />
-                  </TouchableOpacity>
-                ))}
-                <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>
-                    {tr('Celkem měsíčně', 'Total per month')}
-                  </Text>
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
-                    {formatMoneyWithSymbol(monthlyTotal, numberLocale, currency.symbol)}
-                  </Text>
-                </View>
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => {
-            const nextLabel = (() => {
-              try {
-                const [y, m, d] = item.nextDate.split('-').map(Number);
-                return new Date(y!, m! - 1, d!).toLocaleDateString(numberLocale, {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                });
-              } catch {
-                return item.nextDate;
-              }
-            })();
-            return (
-              <View
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    opacity: item.active ? 1 : 0.55,
-                  },
-                ]}
-              >
-                {monthStatus.has(item.id) ? (
-                  <TouchableOpacity
-                    onPress={() => void togglePaid(item)}
-                    disabled={busyId === item.id}
-                    hitSlop={10}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: Boolean(monthStatus.get(item.id)?.paid) }}
-                    accessibilityLabel={`${item.title} zaplaceno`}
+                    activeOpacity={0.75}
                     style={[
-                      styles.checkCircle,
-                      monthStatus.get(item.id)?.paid
-                        ? { backgroundColor: '#10B981', borderColor: '#10B981' }
-                        : { borderColor: colors.border },
+                      styles.row,
+                      idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
                     ]}
                   >
-                    {busyId === item.id ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : monthStatus.get(item.id)?.paid ? (
-                      <Check color="#fff" size={16} strokeWidth={3} />
-                    ) : null}
+                    <View style={[styles.rowIcon, { backgroundColor: colors.muted }]}>
+                      <Text style={{ fontSize: 18 }}>{LOAN_EMOJI[loan.loanType] ?? '🏦'}</Text>
+                    </View>
+                    <View style={styles.cardMain}>
+                      <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+                        {loan.name || tr('Úvěr', 'Loan')}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 12.5, marginTop: 2 }}>
+                        {t('personalRecurring.everyMonth')}
+                      </Text>
+                    </View>
+                    <Text style={[styles.rowAmount, { color: colors.text }]}>
+                      {fmtMoney(Number(loan.monthlyPayment) || 0)}
+                    </Text>
+                    <ChevronRight color={colors.textSecondary} size={16} />
                   </TouchableOpacity>
-                ) : null}
-                <View style={styles.cardMain}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                    {formatMoneyWithSymbol(item.amount, numberLocale, currency.symbol)} ·{' '}
-                    {t(frequencyLabelKey(item.frequency))}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    {!item.active
-                      ? t('personalRecurring.paused')
-                      : monthStatus.get(item.id)?.paid
-                        ? `✓ ${tr('zaplaceno', 'paid')} ${fmtDay(String(monthStatus.get(item.id)!.paid!.date).slice(0, 10))}${monthStatus.get(item.id)!.paid!.recurringId === item.id ? '' : tr(' · podle výpisu', ' · from statement')}`
-                        : monthStatus.has(item.id)
-                          ? tr(
-                              `splatné ${fmtDay(monthStatus.get(item.id)!.due)} · odškrtni, až zaplatíš`,
-                              `due ${fmtDay(monthStatus.get(item.id)!.due)} · tick it off once paid`,
-                            )
-                          : t('personalRecurring.nextDate', { date: nextLabel })}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setMenuRule(item)}
-                  hitSlop={10}
-                  style={[styles.moreBtn, { backgroundColor: colors.muted }]}
-                >
-                  <MoreHorizontal color={colors.textSecondary} size={18} />
-                </TouchableOpacity>
+                ))}
               </View>
-            );
-          }}
-        />
+            </View>
+          ) : null}
+
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            {tr(
+              'Klepnutím na platbu ji upravíš. Kolečkem označíš, že je tento měsíc zaplacená.',
+              'Tap a payment to edit it. Use the circle to mark it as paid this month.',
+            )}
+          </Text>
+        </ScrollView>
       )}
 
       <Modal visible={!!menuRule} transparent animationType="fade" onRequestClose={() => setMenuRule(null)}>
@@ -552,7 +624,27 @@ export default function PersonalRecurringScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: 16, paddingBottom: 40 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionSum: { fontSize: 13, fontWeight: '700' },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4 },
+  section: { marginTop: 22 },
+  group: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 14, gap: 12 },
+  rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { fontSize: 15.5, fontWeight: '700' },
+  rowAmount: { fontSize: 15.5, fontWeight: '800' },
+  hint: { fontSize: 12.5, textAlign: 'center', marginTop: 18, paddingHorizontal: 20, lineHeight: 18 },
+  summary: { borderRadius: 22, padding: 20 },
+  summaryKicker: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
+  summaryTotal: { color: '#fff', fontSize: 38, fontWeight: '900', letterSpacing: -1, marginTop: 4 },
+  summaryBarTrack: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)', marginTop: 14, overflow: 'hidden' },
+  summaryBarFill: { height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  summaryProgress: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '600', marginTop: 8 },
+  summaryStats: { flexDirection: 'row', marginTop: 16, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: 12 },
+  summaryStat: { flex: 1 },
+  summaryDivider: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.35)', marginHorizontal: 12 },
+  summaryStatLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
+  summaryStatValue: { color: '#fff', fontSize: 17, fontWeight: '800', marginTop: 2 },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
