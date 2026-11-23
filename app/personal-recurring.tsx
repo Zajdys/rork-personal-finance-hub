@@ -13,7 +13,9 @@ import {
   Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus, Check } from 'lucide-react-native';
+import { Pause, Play, Pencil, Trash2, MoreHorizontal, Plus, Check, ChevronRight } from 'lucide-react-native';
+import { safePush } from '@/lib/safe-navigate';
+import { recurringToMonthly } from '@/lib/supabase-plan';
 import { useFinanceStore, type Transaction } from '@/store/finance-store';
 import {
   addUnmatchedPair,
@@ -182,6 +184,7 @@ export default function PersonalRecurringScreen() {
 
   // --- Zaplaceno tento měsíc (jako v Domácnosti) ---
   const transactions = useFinanceStore((st) => st.transactions);
+  const loans = useFinanceStore((st) => st.loans);
   const addTransactions = useFinanceStore((st) => st.addTransactions);
   const deleteTransaction = useFinanceStore((st) => st.deleteTransaction);
   const nowD = new Date();
@@ -279,6 +282,14 @@ export default function PersonalRecurringScreen() {
     [user?.id, monthStatus, addTransactions, deleteTransaction, load, t, transactions, curY, curM],
   );
 
+  const monthlyTotal = useMemo(() => {
+    const recurring = (displayRules ?? [])
+      .filter((r) => r.active && r.type === 'expense')
+      .reduce((sum, r) => sum + recurringToMonthly(r.amount, r.frequency), 0);
+    const loanSum = (loans ?? []).reduce((sum, l) => sum + (Number(l.monthlyPayment) || 0), 0);
+    return recurring + loanSum;
+  }, [displayRules, loans]);
+
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#111827' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -326,6 +337,42 @@ export default function PersonalRecurringScreen() {
               <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 10 }}>
                 {`${nowD.toLocaleDateString(numberLocale, { month: 'long' }).replace(/^./, (c) => c.toUpperCase())}: zaplaceno ${paidCount} z ${monthStatus.size}`}
               </Text>
+            ) : null
+          }
+          ListFooterComponent={
+            (loans ?? []).length > 0 ? (
+              <View style={{ marginTop: 14 }}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                  {tr('Splátky úvěrů', 'Loan repayments')}
+                </Text>
+                {(loans ?? []).map((loan) => (
+                  <TouchableOpacity
+                    key={loan.id}
+                    onPress={() => safePush('/loans')}
+                    activeOpacity={0.8}
+                    style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  >
+                    <View style={styles.cardMain}>
+                      <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+                        {loan.name || tr('Úvěr', 'Loan')}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                        {formatMoneyWithSymbol(Number(loan.monthlyPayment) || 0, numberLocale, currency.symbol)} ·{' '}
+                        {tr('každý měsíc', 'every month')}
+                      </Text>
+                    </View>
+                    <ChevronRight color={colors.textSecondary} size={18} />
+                  </TouchableOpacity>
+                ))}
+                <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>
+                    {tr('Celkem měsíčně', 'Total per month')}
+                  </Text>
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
+                    {formatMoneyWithSymbol(monthlyTotal, numberLocale, currency.symbol)}
+                  </Text>
+                </View>
+              </View>
             ) : null
           }
           renderItem={({ item }) => {
@@ -505,6 +552,15 @@ export default function PersonalRecurringScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: 16, paddingBottom: 40 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 14,
+    marginTop: 6,
+  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
