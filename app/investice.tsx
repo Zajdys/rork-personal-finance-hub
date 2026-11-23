@@ -910,117 +910,88 @@ function InvesticeTabScreenContent() {
                 </>
               ) : (
                 <>
-                  {summary.total_deposits < 0 ? (
-                    <>
-                      <SummaryRow
-                        label={t('investDepositedGross')}
-                        value={formatMoney(
-                          summary.total_deposits_gross,
-                          displayCurrency,
-                          numberLocale,
-                        )}
-                        colors={colors}
-                      />
-                      <SummaryRow
-                        label={t('investWithdrawn')}
-                        value={formatMoney(
-                          summary.total_withdrawals,
-                          displayCurrency,
-                          numberLocale,
-                        )}
-                        colors={colors}
-                      />
-                    </>
-                  ) : (
-                    <SummaryRow
-                      label={t('investDeposits')}
-                      value={formatMoney(summary.total_deposits, displayCurrency, numberLocale)}
-                      colors={colors}
-                    />
-                  )}
-                  <SummaryRow
-                    label={t('investCurrentValue')}
-                    value={
-                      marketValueReady
-                        ? formatMoney(summary.total_current_value, displayCurrency, numberLocale)
-                        : t('investLoadingPrices')
-                    }
-                    colors={colors}
-                    large
-                    muted={!marketValueReady}
-                  />
-                  <Text style={[styles.pricesDelayedHint, { color: colors.textSecondary }]}>
-                    {t('investValuesDisclaimer')}
+                  {/* Aktuální hodnota + zisk */}
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                    {t('investCurrentValue')}
                   </Text>
-                  {marketValueReady && pricesUpdatedLabel ? (
-                    <Text style={[styles.pricesDelayedHint, { color: colors.textSecondary }]}>
-                      {t('investPricesDelayedHint', { time: pricesUpdatedLabel })}
-                    </Text>
-                  ) : null}
-                  {cashBalanceEntries.length > 0 ? (
-                    <View style={styles.cashBalancesBlock}>
-                      <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
-                        {t('investCash')}
+                  <Text
+                    style={[styles.heroValue, { color: marketValueReady ? colors.text : colors.textSecondary }]}
+                  >
+                    {marketValueReady
+                      ? formatMoney(summary.total_current_value, displayCurrency, numberLocale)
+                      : t('investLoadingPrices')}
+                  </Text>
+                  {marketValueReady ? (
+                    <View
+                      style={[
+                        styles.returnChip,
+                        { backgroundColor: (summary.total_return >= 0 ? GREEN : RED) + '22' },
+                      ]}
+                    >
+                      <Text style={[styles.returnChipText, { color: summary.total_return >= 0 ? GREEN : RED }]}>
+                        {summary.total_return >= 0 ? '▲ +' : '▼ '}
+                        {formatMoney(summary.total_return, displayCurrency, numberLocale)}
+                        {summary.total_return_pct != null
+                          ? ` (${summary.total_return_pct >= 0 ? '+' : ''}${summary.total_return_pct.toLocaleString(numberLocale, { maximumFractionDigits: 1 })} %)`
+                          : ''}
                       </Text>
-                      {cashBalanceEntries.map(([ccy, amt]) => (
-                        <View key={ccy} style={styles.cashBalanceRow}>
-                          <Text style={[styles.cashBalanceCcy, { color: colors.textSecondary }]}>
-                            {ccy}
+                    </View>
+                  ) : null}
+
+                  {/* Klíčová čísla */}
+                  <View style={styles.statGrid}>
+                    {(summary.total_deposits < 0
+                      ? [
+                          [t('investDepositedGross'), summary.total_deposits_gross],
+                          [t('investWithdrawn'), summary.total_withdrawals],
+                        ]
+                      : [[t('investDeposits'), summary.total_deposits]]
+                    )
+                      .concat([
+                        [t('investRealizedPnl'), summary.total_realized_pnl],
+                        [t('investDividends'), summary.total_dividends],
+                      ])
+                      .map(([label, val]) => (
+                        <View key={String(label)} style={[styles.statCell, { backgroundColor: colors.muted }]}>
+                          <Text style={[styles.statLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                            {label}
                           </Text>
-                          <Text style={[styles.cashBalanceAmt, { color: colors.text }]}>
-                            {formatCashAmount(amt, ccy, numberLocale)}
+                          <Text style={[styles.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
+                            {formatMoney(Number(val) || 0, displayCurrency, numberLocale)}
                           </Text>
                         </View>
                       ))}
-                      {cashCzkTotal != null ? (
-                        <Text style={[styles.cashBalanceCzk, { color: colors.textSecondary }]}>
-                          {t('investCashApproxCzk', {
-                            amount: formatMoney(cashCzkTotal, 'CZK', numberLocale),
-                          })}
-                        </Text>
-                      ) : null}
+                  </View>
+
+                  {/* Hotovost */}
+                  {cashBalanceEntries.some(([, amt]) => Math.abs(amt) > 0.009) ? (
+                    <View style={styles.cashLine}>
+                      <Text style={[styles.cashLineLabel, { color: colors.textSecondary }]}>{t('investCash')}</Text>
+                      <Text style={[styles.cashLineValue, { color: colors.text }]}>
+                        {cashBalanceEntries
+                          .filter(([, amt]) => Math.abs(amt) > 0.009)
+                          .map(([ccy, amt]) => formatCashAmount(amt, ccy, numberLocale))
+                          .join(' · ')}
+                        {cashCzkTotal != null && !(cashBalanceEntries.length === 1 && cashBalanceEntries[0]![0] === 'CZK')
+                          ? `  (≈ ${formatMoney(cashCzkTotal, 'CZK', numberLocale)})`
+                          : ''}
+                      </Text>
                     </View>
                   ) : null}
-                  {summary.cash_balance < -0.009 ? (
+                  {cashBalanceEntries.some(([, amt]) => amt < -0.009) ? (
                     <Text style={[styles.negCashHint, { color: colors.textSecondary }]}>
                       {t('investNegativeCashHint', {
                         amount: formatMoney(summary.cash_balance, displayCurrency, numberLocale),
                       })}
                     </Text>
                   ) : null}
-                  <View style={styles.returnRow}>
-                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
-                      {t('investTotalReturn')}
-                    </Text>
-                    {marketValueReady ? (
-                      <Text
-                        style={[
-                          styles.returnValue,
-                          { color: summary.total_return >= 0 ? GREEN : RED },
-                        ]}
-                      >
-                        {summary.total_return >= 0 ? '+' : ''}
-                        {formatMoney(summary.total_return, displayCurrency, numberLocale)}
-                        {summary.total_return_pct != null
-                          ? ` (${summary.total_return_pct >= 0 ? '+' : ''}${summary.total_return_pct.toLocaleString(numberLocale, { maximumFractionDigits: 1 })}%)`
-                          : ''}
-                      </Text>
-                    ) : (
-                      <Text style={[styles.returnValue, { color: colors.textSecondary }]}>
-                        {t('investLoadingPrices')}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.subSummaryRow}>
-                    <Text style={[styles.subSummaryText, { color: colors.textSecondary }]}>
-                      {t('investRealizedPnl')}:{' '}
-                      {formatMoney(summary.total_realized_pnl, displayCurrency, numberLocale)}
-                    </Text>
-                    <Text style={[styles.subSummaryText, { color: colors.textSecondary }]}>
-                      {t('investDividends')}:{' '}
-                      {formatMoney(summary.total_dividends, displayCurrency, numberLocale)}
-                    </Text>
-                  </View>
+
+                  {/* Jedna poznámka o cenách */}
+                  <Text style={[styles.footnote, { color: colors.textSecondary }]}>
+                    {marketValueReady && pricesUpdatedLabel
+                      ? t('investPricesDelayedHint', { time: pricesUpdatedLabel })
+                      : t('investValuesDisclaimer')}
+                  </Text>
                 </>
               )}
               {portfolioView.quotesLoading ? (
@@ -1681,6 +1652,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255,255,255,0.9)',
   },
+  heroValue: { fontSize: 36, fontWeight: '900', letterSpacing: -1 },
+  returnChip: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 11, marginTop: 8 },
+  returnChipText: { fontSize: 14, fontWeight: '800' },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  statCell: { flexGrow: 1, flexBasis: '30%', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+  statLabel: { fontSize: 12, fontWeight: '600' },
+  statValue: { fontSize: 15, fontWeight: '800', marginTop: 3 },
+  cashLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
+  cashLineLabel: { fontSize: 13, fontWeight: '600' },
+  cashLineValue: { fontSize: 14, fontWeight: '700', flexShrink: 1, textAlign: 'right', marginLeft: 12 },
+  footnote: { fontSize: 11.5, marginTop: 14, opacity: 0.8 },
   pricesDelayedHint: {
     marginTop: 6,
     marginBottom: 4,

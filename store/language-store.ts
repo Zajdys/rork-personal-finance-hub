@@ -2166,7 +2166,7 @@ export const TRANSLATIONS = {
     investValuesDisclaimer:
       'Hodnoty jsou orientační. Ceny se mohou opožďovat a lišit od tvého brokera.',
     investPricesDelayedHint:
-      'Ceny jsou orientační, se zpožděním až 15 min. Aktualizováno {{time}}',
+      'Orientační ceny, zpoždění až 15 min · aktualizováno {{time}}',
     investChangeImport: 'Změnit import',
     investAssets: 'Aktiva',
     investProfitToday: 'Zisk dnes',
