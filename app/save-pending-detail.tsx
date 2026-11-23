@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Timer } from 'lucide-react-native';
 import { useSavePendingStore } from '@/store/save-pending-store';
@@ -23,13 +23,15 @@ import { safeGoBack } from '@/lib/safe-back';
 import { randomUUID } from '@/lib/random-uuid';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { uiLocale } from '@/lib/app-locale';
+import { SavedCelebration, type SavedCelebrationData } from '@/components/SavedCelebration';
+import { formatWorkTime } from '@/lib/work-time';
 
 const formatCurrency = (value: number) => value.toLocaleString(uiLocale());
 
 export default function SavePendingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, isDark: isDarkMode } = useTheme();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const currency = useSettingsStore((s) => s.getCurrentCurrency());
   const { user } = useAuth();
   const pendingItems = useSavePendingStore((s) => s.pendingItems);
@@ -37,6 +39,8 @@ export default function SavePendingDetailScreen() {
   const loadFromStorage = useSavePendingStore((s) => s.loadFromStorage);
   const removePendingItem = useSavePendingStore((s) => s.removePendingItem);
   const incrementSavedTotal = useSavePendingStore((s) => s.incrementSavedTotal);
+  const savedTotal = useSavePendingStore((s) => s.savedTotal);
+  const [celebration, setCelebration] = useState<SavedCelebrationData | null>(null);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
 
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -115,14 +119,42 @@ export default function SavePendingDetailScreen() {
         futureValue: item.futureValue,
       });
     }
+    let years = 0;
+    try {
+      const raw = await AsyncStorage.getItem('moneybuddy_save_calc_v1');
+      const v = raw ? (JSON.parse(raw) as { years?: string }) : null;
+      const n = v?.years ? Number(String(v.years).replace(',', '.')) : 0;
+      if (Number.isFinite(n) && n > 0) years = n;
+    } catch {
+      // nastavení výpočtu není povinné
+    }
+    setCelebration({
+      title: item.title,
+      price: item.price,
+      hoursNeeded: item.hoursNeeded,
+      futureValue: item.futureValue,
+      years,
+      savedTotal: savedTotal + item.price,
+    });
     incrementSavedTotal(item.price);
     removePendingItem(item.id);
-    Alert.alert(
-      t('saveSavedTitle'),
-      t('saveSavedBody', { amount: formatCurrency(item.price), symbol: currency.symbol }),
-      [{ text: t('saveOk'), onPress: () => safeGoBack() }],
+  }, [item, user?.id, incrementSavedTotal, removePendingItem, savedTotal]);
+
+  if (celebration) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ flex: 1, backgroundColor: '#047857' }} />
+        <SavedCelebration
+          data={celebration}
+          onClose={() => {
+            setCelebration(null);
+            safeGoBack();
+          }}
+        />
+      </>
     );
-  }, [item, user?.id, incrementSavedTotal, removePendingItem, currency.symbol, t]);
+  }
 
   if (!isLoaded) {
     return (
@@ -186,6 +218,13 @@ export default function SavePendingDetailScreen() {
               hours: item.hoursNeeded.toFixed(1),
             })}
           </Text>
+          {item.hoursNeeded > 0 ? (
+            <Text style={[styles.workLine, { color: colors.text }]}>
+              {tr('To je ', 'That is ')}
+              <Text style={{ fontWeight: '800' }}>{formatWorkTime(item.hoursNeeded, tr)}</Text>
+              {tr(' práce', ' of work')}
+            </Text>
+          ) : null}
 
           <View style={[styles.timerBlock, { backgroundColor: colors.muted }]}>
             <Timer size={22} color={colors.warning} style={{ marginBottom: 8 }} />
@@ -247,6 +286,7 @@ const styles = StyleSheet.create({
   },
   itemTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
   priceLine: { fontSize: 15, marginTop: 10 },
+  workLine: { fontSize: 16, marginTop: 8 },
   timerBlock: {
     marginTop: 20,
     borderRadius: 12,

@@ -10,8 +10,6 @@ import {
   Platform,
   Pressable,
   Switch,
-  Modal,
-  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,6 +38,7 @@ import {
 } from '@/store/save-pending-store';
 import { PremiumGateScreen } from '@/components/PremiumGate';
 import { uiLocale } from '@/lib/app-locale';
+import { SavedCelebration, type SavedCelebrationData } from '@/components/SavedCelebration';
 
 const DEFAULT_ANNUAL_RETURN = 7;
 const DEFAULT_YEARS = 10;
@@ -88,11 +87,9 @@ function SaveScreenContent() {
   const [dbSavedTotal, setDbSavedTotal] = useState(0);
   const [decisions, setDecisions] = useState<SaveDecisionRow[]>([]);
   const [consultPartner, setConsultPartner] = useState(false);
-  const [celebrationVisible, setCelebrationVisible] = useState(false);
-  const [celebrationAmount, setCelebrationAmount] = useState(0);
+  const [savedCelebration, setSavedCelebration] = useState<SavedCelebrationData | null>(null);
+  const savedTotalForCelebration = useSavePendingStore((s) => s.savedTotal);
   const [savingDecision, setSavingDecision] = useState(false);
-  const celebrationScale = useRef(new Animated.Value(0.6)).current;
-  const celebrationOpacity = useRef(new Animated.Value(0)).current;
   const annualReturnInputRef = useRef<TextInput>(null);
   const yearsInputRef = useRef<TextInput>(null);
 
@@ -261,25 +258,6 @@ function SaveScreenContent() {
     [title, parsedPrice, parsedHourlyWage],
   );
 
-  const showCelebration = useCallback(
-    (amount: number) => {
-      setCelebrationAmount(amount);
-      setCelebrationVisible(true);
-      celebrationScale.setValue(0.6);
-      celebrationOpacity.setValue(0);
-      Animated.parallel([
-        Animated.spring(celebrationScale, { toValue: 1, friction: 5, useNativeDriver: true }),
-        Animated.timing(celebrationOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-      ]).start();
-    },
-    [celebrationOpacity, celebrationScale],
-  );
-
-  const hideCelebration = useCallback(() => {
-    Animated.timing(celebrationOpacity, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => {
-      setCelebrationVisible(false);
-    });
-  }, [celebrationOpacity]);
 
   const maybeNotifyPartners = useCallback(async () => {
     if (!consultPartner || !householdId || !user?.id || !title.trim()) return;
@@ -399,12 +377,20 @@ function SaveScreenContent() {
   }, [title, parsedPrice, parsedHourlyWage, cooldownHours, hoursNeeded, futureValue, scheduleReminder, addPendingItem, t]);
 
   const handleNotBuy = useCallback(async () => {
+    const snapshot: SavedCelebrationData = {
+      title: title.trim(),
+      price: parsedPrice,
+      hoursNeeded,
+      futureValue,
+      years: parsedYears,
+      savedTotal: savedTotalForCelebration + parsedPrice,
+    };
     const ok = await recordDecision('saved');
     if (!ok) return;
-    showCelebration(parsedPrice);
+    setSavedCelebration(snapshot);
     setTitle('');
     setPrice('');
-  }, [recordDecision, showCelebration, parsedPrice]);
+  }, [recordDecision, title, parsedPrice, hoursNeeded, futureValue, parsedYears, savedTotalForCelebration]);
 
   const handleBuy = useCallback(async () => {
     const ok = await recordDecision('bought');
@@ -967,32 +953,7 @@ function SaveScreenContent() {
       <View style={{ height: 32 }} />
     </ScrollView>
 
-    <Modal visible={celebrationVisible} transparent animationType="none" onRequestClose={hideCelebration}>
-      <Pressable style={styles.celebrationOverlay} onPress={hideCelebration}>
-        <Animated.View
-          style={[
-            styles.celebrationCard,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.success,
-              opacity: celebrationOpacity,
-              transform: [{ scale: celebrationScale }],
-            },
-          ]}
-        >
-          <Text style={styles.celebrationEmoji}>🎉</Text>
-          <Text style={[styles.celebrationTitle, { color: colors.text }]}>
-            {t('saveGreatDecision', {
-              amount: formatCurrency(celebrationAmount),
-              symbol: currency.symbol,
-            })}
-          </Text>
-          <TouchableOpacity style={[styles.celebrationBtn, { backgroundColor: colors.success }]} onPress={hideCelebration}>
-            <Text style={styles.celebrationBtnText}>{t('saveOk')}</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+    <SavedCelebration data={savedCelebration} onClose={() => setSavedCelebration(null)} />
     </>
   );
 }
