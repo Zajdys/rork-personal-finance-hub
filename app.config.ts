@@ -69,6 +69,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.ACCESS_FINE_LOCATION',
       'android.permission.ACCESS_BACKGROUND_LOCATION',
       'android.permission.SYSTEM_ALERT_WINDOW',
+      // Reklamní ID nepoužíváme (žádné reklamy ani analytika) → v Google Play deklarace „Ne“.
+      'com.google.android.gms.permission.AD_ID',
     ],
   },
   web: {
