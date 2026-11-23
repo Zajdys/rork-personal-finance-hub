@@ -971,6 +971,14 @@ export default function PlanScreen() {
           {isLoading ? <ActivityIndicator style={{ marginTop: 16 }} color={colors.primary} /> : null}
         </View>
       </ScrollView>
+      {/* Krytí pod stavovým řádkem, ať obsah při scrollu nejede pod hodiny */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[colors.gradientStart, colors.gradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top }}
+      />
 
       {/* Budget sheet */}
       <Modal visible={budgetSheet} transparent animationType="slide" onRequestClose={() => setBudgetSheet(false)}>
