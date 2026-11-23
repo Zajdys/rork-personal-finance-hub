@@ -76,7 +76,12 @@ export function SavedCelebration({ data, onClose }: Props) {
           <Animated.Text style={[styles.emoji, { transform: [{ scale: emojiScale }] }]}>🎉</Animated.Text>
 
           <Animated.View
-            style={{ opacity: contentOpacity, transform: [{ translateY: contentShift }], alignItems: 'center' }}
+            style={{
+              opacity: contentOpacity,
+              transform: [{ translateY: contentShift }],
+              alignItems: 'center',
+              alignSelf: 'stretch',
+            }}
           >
             <Text style={styles.kicker}>{tr('SKVĚLÉ ROZHODNUTÍ', 'GREAT DECISION')}</Text>
             <Text style={styles.amount}>
@@ -164,7 +169,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   statIcon: { fontSize: 22, marginRight: 12 },
-  statText: { color: '#fff', fontSize: 16, flex: 1, lineHeight: 22 },
+  statText: { color: '#fff', fontSize: 16, flex: 1, flexShrink: 1, lineHeight: 22 },
   statStrong: { fontWeight: '800' },
   button: { backgroundColor: '#fff', borderRadius: 18, paddingVertical: 17, alignItems: 'center' },
   buttonText: { color: '#047857', fontSize: 17, fontWeight: '800' },
