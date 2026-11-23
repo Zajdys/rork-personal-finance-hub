@@ -773,15 +773,20 @@ function SaveScreenContent() {
             ))}
           </View>
           {wageMode === 'hourly' ? (
-            <TextInput
-              value={hourlyWage}
-              onChangeText={setHourlyWage}
-              placeholder={t('saveHourlyWagePlaceholder', { symbol: currency.symbol })}
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="decimal-pad"
-              style={[styles.inputCompact, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-              testID="save-hourly"
-            />
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                {t('saveHourlyWagePlaceholder', { symbol: currency.symbol })}
+              </Text>
+              <TextInput
+                value={hourlyWage}
+                onChangeText={setHourlyWage}
+                placeholder="200"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.inputCompact, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                testID="save-hourly"
+              />
+            </View>
           ) : (
             <View style={styles.row}>
               <View style={styles.rowInput}>
