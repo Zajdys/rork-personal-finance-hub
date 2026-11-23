@@ -784,24 +784,34 @@ function SaveScreenContent() {
             />
           ) : (
             <View style={styles.row}>
-              <TextInput
-                value={monthlyIncome}
-                onChangeText={setMonthlyIncome}
-                placeholder={t('saveMonthlyIncomePlaceholder', { symbol: currency.symbol })}
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-                style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-                testID="save-monthly"
-              />
-              <TextInput
-                value={hoursPerMonth}
-                onChangeText={setHoursPerMonth}
-                placeholder={t('saveHoursPerMonth')}
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-                style={[styles.inputCompact, styles.rowInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-                testID="save-hours-per-month"
-              />
+              <View style={styles.rowInput}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                  {t('saveMonthlyIncomePlaceholder', { symbol: currency.symbol })}
+                </Text>
+                <TextInput
+                  value={monthlyIncome}
+                  onChangeText={setMonthlyIncome}
+                  placeholder="35 000"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.inputCompact, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                  testID="save-monthly"
+                />
+              </View>
+              <View style={styles.rowInput}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                  {t('saveHoursPerMonth')}
+                </Text>
+                <TextInput
+                  value={hoursPerMonth}
+                  onChangeText={setHoursPerMonth}
+                  placeholder="160"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.inputCompact, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                  testID="save-hours-per-month"
+                />
+              </View>
             </View>
           )}
 
