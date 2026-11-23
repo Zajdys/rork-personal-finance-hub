@@ -22,6 +22,7 @@ import {
   GraduationCap,
   CreditCard,
   Trash2,
+  Pencil,
   ChevronDown,
   ChevronUp,
   Calculator,
@@ -49,7 +50,7 @@ export default function LoansScreen() {
   const { loans, getLoanProgress, deleteLoan, isLoaded: financeLoaded } = useFinanceStore();
   const loansLoading = !financeLoaded;
   const { isDarkMode, getCurrentCurrency } = useSettingsStore();
-  const { t } = useLanguageStore();
+  const { t, tr } = useLanguageStore();
   const { colors } = useTheme();
   const currentCurrency = getCurrentCurrency();
 
@@ -325,6 +326,14 @@ export default function LoansScreen() {
                             {getLoanTypeLabel(loan.loanType)}
                           </Text>
                         </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.editIconButton}
+                        onPress={() => safePush(`/edit-loan?id=${loan.id}`)}
+                        accessibilityLabel={tr('Upravit úvěr', 'Edit loan')}
+                        testID={`loan-edit-${loan.id}`}
+                      >
+                        <Pencil color="#8B5CF6" size={18} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.deleteIconButton}
@@ -614,6 +623,15 @@ const styles = StyleSheet.create({
   },
   loanEmoji: {
     fontSize: 32,
+  },
+  editIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(139, 92, 246, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   deleteIconButton: {
     width: 36,
