@@ -519,10 +519,12 @@ export default function PersonalRecurringScreen() {
           ) : null}
 
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            {tr(
-              'Klepnutím na platbu ji upravíš. Kolečkem označíš, že je tento měsíc zaplacená.',
-              'Tap a payment to edit it. Use the circle to mark it as paid this month.',
-            )}
+            {monthStatus.size > 0
+              ? tr(
+                  'Klepnutím na platbu ji upravíš. Kolečkem označíš, že je tento měsíc zaplacená.',
+                  'Tap a payment to edit it. Use the circle to mark it as paid this month.',
+                )
+              : tr('Klepnutím na platbu ji upravíš nebo pozastavíš.', 'Tap a payment to edit or pause it.')}
           </Text>
         </ScrollView>
       )}
