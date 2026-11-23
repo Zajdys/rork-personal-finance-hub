@@ -117,7 +117,12 @@ function formatMoney(
 ): string {
   if (value == null || !Number.isFinite(value)) return '—';
   const info = CURRENCIES[currency];
-  return `${value.toLocaleString(locale, { maximumFractionDigits: 2 })} ${info.symbol}`;
+  const rounded = Math.round(value * 100) / 100;
+  const isWhole = Math.abs(rounded - Math.round(rounded)) < 1e-9;
+  return `${rounded.toLocaleString(locale, {
+    minimumFractionDigits: isWhole ? 0 : 2,
+    maximumFractionDigits: isWhole ? 0 : 2,
+  })} ${info.symbol}`;
 }
 
 function formatCashAmount(value: number, currency: string, locale: string): string {
@@ -942,18 +947,18 @@ function InvesticeTabScreenContent() {
                   <View style={styles.statGrid}>
                     {(summary.total_deposits < 0
                       ? [
-                          [t('investDepositedGross'), summary.total_deposits_gross],
-                          [t('investWithdrawn'), summary.total_withdrawals],
+                          [tr('Vloženo', 'Deposited'), summary.total_deposits_gross],
+                          [tr('Vybráno', 'Withdrawn'), summary.total_withdrawals],
                         ]
-                      : [[t('investDeposits'), summary.total_deposits]]
+                      : [[tr('Vloženo', 'Deposited'), summary.total_deposits]]
                     )
                       .concat([
-                        [t('investRealizedPnl'), summary.total_realized_pnl],
+                        [tr('Zisk z prodejů', 'Realized'), summary.total_realized_pnl],
                         [t('investDividends'), summary.total_dividends],
                       ])
                       .map(([label, val]) => (
                         <View key={String(label)} style={[styles.statCell, { backgroundColor: colors.muted }]}>
-                          <Text style={[styles.statLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                          <Text style={[styles.statLabel, { color: colors.textSecondary }]} numberOfLines={2}>
                             {label}
                           </Text>
                           <Text style={[styles.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>

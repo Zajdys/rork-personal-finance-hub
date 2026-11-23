@@ -19,7 +19,8 @@ const PERIOD_LABELS: Record<SnapshotPeriod, string> = {
 const GREEN = '#16A34A';
 const RED = '#DC2626';
 
-function formatAxisMoney(n: number, locale: string): string {
+function formatAxisMoney(raw: number, locale: string): string {
+  const n = Math.abs(raw) < 0.5 ? 0 : raw;
   if (Math.abs(n) >= 1_000_000) {
     return `${(n / 1_000_000).toLocaleString(locale, { maximumFractionDigits: 1 })}M`;
   }
@@ -200,7 +201,7 @@ export function PortfolioValueChart({
         <View>
           <View style={styles.chartMeta}>
             <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>
-              {formatAxisMoney(geometry.minV, locale)} – {formatAxisMoney(geometry.maxV, locale)}
+              {`${formatAxisMoney(geometry.minV, locale)} – ${formatAxisMoney(geometry.maxV, locale)}`}
             </Text>
             <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>
               {formatAxisDate(geometry.first.date, locale)} →{' '}
