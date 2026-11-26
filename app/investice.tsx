@@ -771,7 +771,7 @@ function InvesticeTabScreenContent() {
           brokerTabs={brokerTabs}
           brokerFilter={brokerFilter}
           colors={colors}
-          t={t}
+          t={t as (key: string, ...args: any[]) => string}
           onSelect={setBrokerFilter}
           onLongPressBroker={handleBrokerTabLongPress}
         />
@@ -878,7 +878,7 @@ function InvesticeTabScreenContent() {
             colors={colors}
             isDark={isDark}
             storeLoading={storeLoading}
-            t={t}
+            t={t as (key: string, ...args: any[]) => string}
             onImport={openImportSheet}
             onAddTransaction={openAddTxSheet}
             canAddTransaction={manualTxPortfolio != null}

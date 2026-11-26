@@ -123,7 +123,7 @@ export default function InvestmentPositionDetailScreen() {
   /** Jedno id, nebo CSV idček (záložka brokera s více portfolii). Prázdné = Vše. */
   const portfolioIdsKey = (portfolioIdRaw ?? '')
     .split(',')
-    .map((s) => s.trim())
+    .map((s: string) => s.trim())
     .filter(Boolean)
     .sort()
     .join(',');

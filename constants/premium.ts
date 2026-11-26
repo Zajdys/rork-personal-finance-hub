@@ -22,7 +22,6 @@ export type PremiumFeatureId =
   | 'save'
   | 'monthly_report'
   | 'investments'
-  | 'bank_sync'
   | 'unlimited_imports';
 
 export const PREMIUM_FEATURE_META: Record<
@@ -60,10 +59,6 @@ export const PREMIUM_FEATURE_META: Record<
   investments: {
     titleKey: 'premium.featureInvestTitle',
     blurbKey: 'premium.featureInvestBlurb',
-  },
-  bank_sync: {
-    titleKey: 'premium.featureBankSyncTitle',
-    blurbKey: 'premium.featureBankSyncBlurb',
   },
   unlimited_imports: {
     titleKey: 'premium.featureImportsTitle',

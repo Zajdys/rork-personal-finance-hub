@@ -63,7 +63,7 @@ Rozděl útratu: Profil → Rozděl útratu (nebo Rychlé akce) — skupiny s ka
 
 Ušetři: Rychlé akce → Ušetři — zapíšeš, co sis rozmyslel koupit, ukáže, kolik hodin práce by to stálo a kolik by to vyneslo investované; sleduje ušetřené peníze (Premium).
 
-Investice (beta): Profil → Investice — import exportu z eToro (XLSX), Trading 212 (CSV), XTB (Excel); hodnota portfolia, zisk, dividendy v Kč/EUR/USD.
+Investice: Profil → Investice — import exportu z eToro (XLSX), Trading 212 (CSV), XTB (Excel); hodnota portfolia, zisk, dividendy v Kč/EUR/USD.
 
 Měsíční report: Rychlé akce → Měsíční report — příjmy, výdaje, bilance, trend za 6 měsíců, kategorie; přepínač Měsíc/Rok (Premium).
 

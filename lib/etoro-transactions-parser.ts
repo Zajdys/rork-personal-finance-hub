@@ -273,7 +273,6 @@ export function parseEtoroTransactionsXlsx(
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(activitySheet, {
     defval: '',
     raw: false,
-    cellDates: true,
   });
 
   const transactions: ParsedEtoroTransaction[] = [];

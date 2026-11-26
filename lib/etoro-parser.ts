@@ -183,7 +183,6 @@ function parseTickersFromWorkbook(workbook: XLSX.WorkBook): ParsedTickerAgg[] {
 
   const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: '',
-    cellDates: true,
     raw: false,
   });
   if (__DEV__) console.log('[eToro parser] Raw data rows:', rawData.length);
