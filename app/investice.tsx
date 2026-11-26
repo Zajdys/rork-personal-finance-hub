@@ -759,11 +759,6 @@ function InvesticeTabScreenContent() {
         variant="gradient"
         title={t('investments')}
         subtitle={!showEmpty ? t('investTrackPortfolio') : undefined}
-        right={
-          <View style={styles.betaBadge}>
-            <Text style={styles.betaBadgeText}>BETA</Text>
-          </View>
-        }
       />
 
       {showContent && !showEmpty && brokerTabs.length > 0 ? (

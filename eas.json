@@ -30,6 +30,16 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "simulator": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "production"
+      },
+      "environment": "production",
+      "ios": {
+        "simulator": true
+      }
     }
   },
   "submit": {
