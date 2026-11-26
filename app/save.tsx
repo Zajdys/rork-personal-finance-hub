@@ -895,6 +895,9 @@ function SaveScreenContent() {
               )}
             </View>
           </View>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 16, marginTop: 8 }}>
+            {t('saveFutureDisclaimer')}
+          </Text>
           </View>
         ) : null}
       </View>
