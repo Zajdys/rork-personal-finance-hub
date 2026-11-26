@@ -38,7 +38,14 @@ export async function clearLocalStorageAfterAccountDeletion(): Promise<void> {
     'buddy_points',
     'buddy_completed_lessons',
     'buddy_gaming_stats',
+    'fio_token',
   ]);
+  try {
+    const { clearFioToken } = await import('@/lib/fio-token-storage');
+    await clearFioToken();
+  } catch {
+    /* ignore */
+  }
 }
 
 export type DeleteAccountResult = { ok: true } | { ok: false; message: string };

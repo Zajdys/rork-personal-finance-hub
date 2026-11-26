@@ -222,27 +222,25 @@ export default function PrivacyDataManagementScreen() {
                 {t('privacyDeleteAccountConfirm')}
               </Text>
 
-              {Platform.OS === 'ios' ? (
-                <View
-                  style={[
-                    styles.warningBox,
-                    { backgroundColor: colors.muted, borderColor: colors.border, marginTop: 12 },
-                  ]}
+              <View
+                style={[
+                  styles.warningBox,
+                  { backgroundColor: colors.muted, borderColor: colors.border, marginTop: 12 },
+                ]}
+              >
+                <Text style={[styles.warningLine, { color: colors.text }]}>
+                  {t(IS_ANDROID_STORE ? 'privacyDeleteGoogleSubWarning' : 'privacyDeleteAppleSubWarning')}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, { backgroundColor: colors.card, marginTop: 10 }]}
+                  onPress={() => void Linking.openURL(MANAGE_SUBSCRIPTIONS_URL)}
+                  disabled={deleting}
                 >
-                  <Text style={[styles.warningLine, { color: colors.text }]}>
-                    {t(IS_ANDROID_STORE ? 'privacyDeleteGoogleSubWarning' : 'privacyDeleteAppleSubWarning')}
+                  <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>
+                    {t('privacyDeleteManageSubscription')}
                   </Text>
-                  <TouchableOpacity
-                    style={[styles.secondaryBtn, { backgroundColor: colors.card, marginTop: 10 }]}
-                    onPress={() => void Linking.openURL(MANAGE_SUBSCRIPTIONS_URL)}
-                    disabled={deleting}
-                  >
-                    <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>
-                      {t('privacyDeleteManageSubscription')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
+                </TouchableOpacity>
+              </View>
 
               {loadingWarnings ? (
                 <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />

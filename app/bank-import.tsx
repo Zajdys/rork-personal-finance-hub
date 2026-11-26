@@ -193,7 +193,8 @@ export default function BankImportScreen() {
   useEffect(() => {
     // Fio sync je Premium funkce — free uživatelům neprobíhá ani auto-sync.
     if (!isPremium) return;
-    AsyncStorage.getItem('fio_token').then(async (t) => {
+    void import('@/lib/fio-token-storage').then(({ getFioToken }) =>
+      getFioToken().then(async (t) => {
       if (t) {
         setFioToken(t);
         setFioSaved(true);
@@ -219,7 +220,8 @@ export default function BankImportScreen() {
           console.log('[bank-import auto fio-sync] raw error:', e);
         }
       }
-    });
+    }),
+    );
   }, [isPremium]);
 
   // Jednorázově odeber hypotéční účet z vlastních účtů (nesmí být Převod)
@@ -795,7 +797,8 @@ export default function BankImportScreen() {
     }
     if (!fioToken.trim()) return;
     try {
-      await AsyncStorage.setItem('fio_token', fioToken.trim());
+      const { setFioToken: persistFioToken } = await import('@/lib/fio-token-storage');
+      await persistFioToken(fioToken.trim());
       const { data: { user } } = await supabase.auth.getUser();
       const { data: sessionData } = await supabase.auth.getSession();
       if (!user?.id || !sessionData.session?.access_token) {

@@ -61,9 +61,9 @@ export default function PrivacyPolicyScreen() {
         contentContainerStyle={styles.pad}
         showsVerticalScrollIndicator
       >
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>MoneyBuddy – Czech Finance</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>MoneyBuddy</Text>
         <Text style={[styles.updated, { color: colors.textSecondary }]}>
-          {tr('Poslední aktualizace: 29. 10. 2026', 'Last updated: 29 October 2026')}
+          {tr('Poslední aktualizace: 26. 11. 2026', 'Last updated: 26 November 2026')}
         </Text>
         {language === 'en' ? (
           <Text style={[styles.updated, { color: colors.textSecondary, marginTop: -8 }]}>
@@ -75,174 +75,299 @@ export default function PrivacyPolicyScreen() {
           <Text style={[styles.webLinkText, { color: colors.primary }]}>{PRIVACY_POLICY_URL}</Text>
         </Pressable>
 
-        <Section title={tr('1. Správce osobních údajů', '1. Data controller')} colors={colors}>
+        <Section title={tr('1. Správce', '1. Controller')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'Aplikaci MoneyBuddy provozuje Jan Hájek (dále jen „my“ nebo „správce“).',
-              'The MoneyBuddy app is operated by Jan Hájek (“we” or the “controller”).',
+              'Správcem osobních údajů je Jan Hájek, IČO 30080568, Komenského 481, 332 03 Šťáhlavy, provozovatel aplikace MoneyBuddy a webu moneybuddy.cz. Kontakt pro otázky k osobním údajům: privacy@moneybuddy.cz. Pověřence pro ochranu osobních údajů jsme nejmenovali, protože to zákon nevyžaduje.',
+              'The controller is Jan Hájek, business ID (IČO) 30080568, Komenského 481, 332 03 Šťáhlavy, Czech Republic, operator of the MoneyBuddy app and moneybuddy.cz. Privacy contact: privacy@moneybuddy.cz. No data protection officer has been appointed as none is required by law.',
             )}
+          </Body>
+        </Section>
+
+        <Section title={tr('2. Jaké údaje zpracováváme', '2. Data we process')} colors={colors}>
+          <Bullet colors={colors}>
+            {tr(
+              'Účet: e-mail, jméno nebo přezdívka, heslo (jen v zašifrované podobě), profilová fotka, pokud ji nahraješ, souhlasy a datum registrace.',
+              'Account: email, name or nickname, password (stored only in hashed form), profile photo if you upload one, consents and registration date.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Finanční údaje, které zadáš nebo nahraješ: transakce, kategorie, rozpočty, cíle, pravidelné platby, sdílené výdaje, investice, fotky účtenek přiložené k výdajům.',
+              'Financial data you enter or import: transactions, categories, budgets, goals, recurring payments, shared expenses, investments, receipt photos attached to expenses.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Bankovní výpisy (PDF/CSV) a exporty od brokerů: zpracujeme je jen pro načtení transakcí, soubor samotný neukládáme.',
+              'Bank statements (PDF/CSV) and broker exports: processed only to read the transactions; the file itself is not stored.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Fio API token: pokud ho zadáš, je uložený v tvém zařízení a použije se jen ke stažení tvých transakcí z Fio banky.',
+              'Fio API token: if you enter it, it is stored on your device and used only to download your own Fio bank transactions.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Domácnost a skupiny: údaje, které sdílíš s partnerem nebo členy skupiny, a jména lidí, které do skupiny přidáš.',
+              'Household and groups: data you share with your partner or group members, and names of people you add to a group.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Předplatné: anonymní identifikátor zákazníka, stav a historie předplatného z App Store nebo Google Play. Údaje o platební kartě nemáme.',
+              'Subscription: an anonymous customer identifier and subscription status and history from the App Store or Google Play. We have no payment card details.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'AI průvodce: text otázek, které napíšeš, a počet dotazů za den.',
+              'AI guide: the text of questions you type and the number of questions per day.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Technické údaje: typ zařízení, verze systému a aplikace, token pro push notifikace, záznamy o chybách a přihlášení.',
+              'Technical data: device type, OS and app version, push notification token, error and sign-in logs.',
+            )}
+          </Bullet>
+          <Body colors={colors}>
             {'\n'}
-            {tr('Kontakt', 'Contact')}:{' '}
-            <Text style={{ color: colors.primary }} onPress={() => openUrl('mailto:privacy@moneybuddy.cz')}>
-              privacy@moneybuddy.cz
-            </Text>
+            {tr(
+              'Nezpracováváme údaje o poloze, kontakty z telefonu, reklamní identifikátory ani údaje pro cílenou reklamu.',
+              'We do not process location data, phone contacts, advertising identifiers or data for targeted advertising.',
+            )}
           </Body>
         </Section>
 
-        <Section title={tr('2. Jaké údaje zpracováváme', '2. What data we process')} colors={colors}>
+        <Section title={tr('3. Proč a na jakém základě', '3. Purposes and legal bases')} colors={colors}>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>{tr('Údaje účtu:', 'Account data:')}</Text>{' '}
-            {tr('e-mailová adresa, jméno (volitelné)', 'e-mail address, name (optional)')}
-          </Bullet>
-          <Bullet colors={colors}>
-            <Text style={styles.bold}>{tr('Finanční data:', 'Financial data:')}</Text>{' '}
             {tr(
-              'transakce, příjmy, výdaje, investice které sami zadáte',
-              'transactions, income, expenses and investments you enter yourself',
+              'Vytvoření účtu, evidence financí, přehledy, import, synchronizace s Fio – plnění smlouvy (čl. 6 odst. 1 písm. b) GDPR).',
+              'Account, financial records, overviews, imports, Fio sync – performance of contract (Art. 6(1)(b) GDPR).',
             )}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>{tr('Technické údaje:', 'Technical data:')}</Text>{' '}
-            {tr('typ zařízení, verze OS, anonymní identifikátor', 'device type, OS version, anonymous identifier')}
-          </Bullet>
-          <Bullet colors={colors}>
-            <Text style={styles.bold}>{tr('Předplatné:', 'Subscription:')}</Text>{' '}
             {tr(
-              'stav nákupu přes App Store / Google Play (RevenueCat)',
-              'purchase status via the App Store / Google Play (RevenueCat)',
+              'Domácnost a skupiny – plnění smlouvy; sdílíš jen to, co sám nastavíš.',
+              'Household and groups – performance of contract; only what you choose to share.',
             )}
           </Bullet>
           <Bullet colors={colors}>
-            <Text style={styles.bold}>{tr('Notifikace:', 'Notifications:')}</Text>{' '}
-            {tr('push token zařízení (Expo)', 'device push token (Expo)')}
-          </Bullet>
-          <Bullet colors={colors}>
-            <Text style={styles.bold}>{tr('E-maily s novinkami:', 'Newsletter e-mails:')}</Text>{' '}
             {tr(
-              'jen s tvým výslovným souhlasem (zaškrtnutí při registraci nebo v Profil → Notifikace). Souhlas můžeš kdykoli odvolat tamtéž nebo odkazem v patičce každého e-mailu.',
-              'only with your explicit consent (a checkbox at sign-up or in Profile → Notifications). You can withdraw consent at any time in the same place or via the link in the footer of every e-mail.',
+              'Předplatné a obnovení nákupů – plnění smlouvy.',
+              'Subscription and restoring purchases – performance of contract.',
             )}
           </Bullet>
-        </Section>
-
-        <Section title={tr('3. Proč údaje zpracováváme', '3. Why we process data')} colors={colors}>
           <Bullet colors={colors}>
-            {tr('Poskytování služeb aplikace (správa financí, synchronizace)', 'Providing the app’s services (managing finances, sync)')}
+            {tr(
+              'AI průvodce – plnění smlouvy, jen když funkci použiješ.',
+              'AI guide – performance of contract, only when you use it.',
+            )}
           </Bullet>
           <Bullet colors={colors}>
-            {tr('Sdílení dat v rámci domácnosti (pokud tuto funkci využíváte)', 'Sharing data within a household (if you use this feature)')}
+            {tr(
+              'Servisní e-maily (ověření e-mailu, reset hesla, uvítání, důležité změny) – plnění smlouvy.',
+              'Service emails (email verification, password reset, welcome, important changes) – performance of contract.',
+            )}
           </Bullet>
-          <Bullet colors={colors}>{tr('Správa předplatného a obnovení nákupů', 'Managing subscriptions and restoring purchases')}</Bullet>
-          <Bullet colors={colors}>{tr('Technická podpora a oprava chyb', 'Technical support and bug fixing')}</Bullet>
           <Bullet colors={colors}>
-            {tr('Připomínky splatností a předplatného (pokud je povolíte)', 'Payment and subscription reminders (if you enable them)')}
+            {tr(
+              'Připomínky a notifikace – plnění smlouvy, jen když je zapneš.',
+              'Reminders and notifications – performance of contract, only when you turn them on.',
+            )}
           </Bullet>
-        </Section>
-
-        <Section title={tr('4. Kde data ukládáme', '4. Where we store data')} colors={colors}>
+          <Bullet colors={colors}>
+            {tr(
+              'Newsletter, tipy a nabídky e-mailem – souhlas (čl. 6 odst. 1 písm. a) GDPR), lze kdykoli odvolat.',
+              'Newsletter, tips and offers by email – consent (Art. 6(1)(a) GDPR), can be withdrawn at any time.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Zabezpečení, prevence zneužití, oprava chyb a vyřízení tvých dotazů – oprávněný zájem (čl. 6 odst. 1 písm. f) GDPR).',
+              'Security, abuse prevention, bug fixing and handling your questions – legitimate interest (Art. 6(1)(f) GDPR).',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Účetní a daňové doklady – právní povinnost (čl. 6 odst. 1 písm. c) GDPR).',
+              'Accounting and tax records – legal obligation (Art. 6(1)(c) GDPR).',
+            )}
+          </Bullet>
           <Body colors={colors}>
-            {tr('Data jsou uložena na serverech Supabase (EU region).', 'Data is stored on Supabase servers (EU region).')}
             {'\n'}
-            {tr('Více informací', 'More information')}:{' '}
-            <Text style={{ color: colors.primary }} onPress={() => openUrl('https://supabase.com/privacy')}>
-              supabase.com/privacy
-            </Text>
+            {tr(
+              'Automatické zařazování transakcí do kategorií je jen pomocná funkce. Neděláme žádná automatizovaná rozhodnutí s právními nebo podobně závažnými účinky a nevytváříme profily pro reklamu.',
+              'Automatic categorisation of transactions is only a helper feature. We make no automated decisions with legal or similarly significant effects and do not build advertising profiles.',
+            )}
           </Body>
         </Section>
 
-        <Section title={tr('5. Sdílení dat / zpracovatelé', '5. Data sharing / processors')} colors={colors}>
+        <Section title={tr('4. Komu údaje předáváme', '4. Recipients')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'Vaše data NESDÍLÍME s třetími stranami za účelem reklamy.',
-              'We do NOT share your data with third parties for advertising.',
+              'Údaje neprodáváme a nesdílíme pro reklamu. Používáme tyto zpracovatele, kteří s nimi smí nakládat jen podle našich pokynů:',
+              'We do not sell data or share it for advertising. We use these processors, who may handle data only on our instructions:',
             )}
+          </Body>
+          <Bullet colors={colors}>
+            {tr(
+              'Supabase – databáze, přihlašování, úložiště souborů, serverové funkce (EU)',
+              'Supabase – database, authentication, file storage, server functions (EU)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Brevo (Sendinblue SAS) – servisní e-maily a newsletter (EU, Francie)',
+              'Brevo (Sendinblue SAS) – service emails and newsletter (EU, France)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'RevenueCat – správa a ověření předplatného (USA)',
+              'RevenueCat – subscription management and verification (USA)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Expo (650 Industries) – doručování push notifikací (USA)',
+              'Expo (650 Industries) – push notification delivery (USA)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Anthropic – odpovědi AI průvodce, jen text otázky, žádná finanční data (USA)',
+              'Anthropic – AI guide answers, question text only, no financial data (USA)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Apple, Google – distribuce aplikace a platby za předplatné, samostatní správci (EU / USA)',
+              'Apple, Google – app distribution and subscription payments, independent controllers (EU / USA)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Framer – hosting webu moneybuddy.cz (EU / USA)',
+              'Framer – hosting of moneybuddy.cz (EU / USA)',
+            )}
+          </Bullet>
+          <Body colors={colors}>
             {'\n'}
-            {tr('Zpracovatelé v rozsahu nutném pro provoz:', 'Processors, to the extent necessary to run the service:')}
+            {tr(
+              'Kurzy od ČNB a ceny z Yahoo Finance stahujeme bez osobních údajů. Anthropic podle svých podmínek nepoužívá otázky k trénování AI a po krátké době je maže.',
+              'Exchange rates from the Czech National Bank and prices from Yahoo Finance are fetched without personal data. Under its terms, Anthropic does not use questions to train AI and deletes them after a short period.',
+            )}
           </Body>
-          <Bullet colors={colors}>
-            {tr(
-              'Supabase (infrastruktura, databáze, autentizace) — EU',
-              'Supabase (infrastructure, database, authentication) — EU',
-            )}
-          </Bullet>
-          <Bullet colors={colors}>
-            {tr(
-              'RevenueCat (předplatné a ověření nákupů App Store / Google Play)',
-              'RevenueCat (subscriptions and App Store / Google Play purchase verification)',
-            )}
-          </Bullet>
-          <Bullet colors={colors}>{tr('Expo (doručování push notifikací)', 'Expo (push notification delivery)')}</Bullet>
-          <Bullet colors={colors}>
-            {tr(
-              'Anthropic (AI průvodce „Zeptej se MoneyBuddy“ — zpracuje jen text otázky, kterou sám napíšeš, bez tvých finančních dat; nepoužívá se k trénování)',
-              'Anthropic (the “Ask MoneyBuddy” AI guide — processes only the text of the question you type, without your financial data; not used for training)',
-            )}
-          </Bullet>
-          <Bullet colors={colors}>
-            {tr(
-              'Brevo (odesílání e-mailů — obnova hesla, uvítací e-mail a novinky, pokud k nim dáš souhlas) — EU',
-              'Brevo (sending e-mails — password reset, welcome e-mail and news if you consent) — EU',
-            )}
-          </Bullet>
-          <Bullet colors={colors}>
-            {tr('ČNB (veřejné kurzy měn; neodesíláme osobní údaje)', 'Czech National Bank (public exchange rates; no personal data sent)')}
-          </Bullet>
-          <Bullet colors={colors}>
-            {tr('Yahoo Finance (tržní ceny; neodesíláme osobní údaje)', 'Yahoo Finance (market prices; no personal data sent)')}
-          </Bullet>
-          <Bullet colors={colors}>
-            {tr(
-              'Apple / Google (technické údaje a platby přes obchod s aplikacemi)',
-              'Apple / Google (technical data and payments via the app store)',
-            )}
-          </Bullet>
         </Section>
 
-        <Section title={tr('6. Napojení banky', '6. Bank connection')} colors={colors}>
+        <Section title={tr('5. Předávání mimo EU', '5. Transfers outside the EU')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'Aplikace se nepřipojuje přímo k tvému bankovnímu účtu. Výpisy nahráváš ručně (PDF/CSV) nebo přes Fio API token, který si sám vygeneruješ ve svém internetovém bankovnictví.',
-              'The app does not connect directly to your bank account. You upload statements manually (PDF/CSV) or via a Fio API token that you generate yourself in your internet banking.',
+              'U zpracovatelů v USA je předání chráněné rozhodnutím Evropské komise o rámci EU–USA pro ochranu osobních údajů (Data Privacy Framework), pokud je zpracovatel certifikovaný, jinak standardními smluvními doložkami schválenými Evropskou komisí. Kopii záruk ti na vyžádání pošleme.',
+              "Transfers to processors in the USA are covered by the European Commission's EU–US Data Privacy Framework adequacy decision where the processor is certified, and otherwise by Standard Contractual Clauses approved by the European Commission. We will send you a copy of the safeguards on request.",
             )}
           </Body>
         </Section>
 
-        <Section title={tr('7. Vaše práva', '7. Your rights')} colors={colors}>
-          <Body colors={colors}>{tr('Máte právo na:', 'You have the right to:')}</Body>
+        <Section title={tr('6. Jak dlouho údaje uchováváme', '6. Retention')} colors={colors}>
           <Bullet colors={colors}>
             {tr(
-              'Přístup ke svým datům (Profil → Soukromí a bezpečnost → Správa dat)',
-              'Access your data (Profile → Privacy & Security → Data management)',
+              'Účet a finanční data: po dobu existence účtu. Po smazání účtu je ihned odstraníme, ze záloh zmizí nejpozději do 30 dnů.',
+              'Account and financial data: for as long as the account exists. After deletion they are removed immediately and disappear from backups within 30 days.',
             )}
           </Bullet>
           <Bullet colors={colors}>
             {tr(
-              'Smazání účtu a všech dat (Profil → Soukromí a bezpečnost → Správa dat → Smazat účet)',
-              'Delete your account and all data (Profile → Privacy & Security → Data management → Delete account)',
+              'Bankovní výpisy a exporty: neukládáme, jen je zpracujeme.',
+              'Bank statements and exports: not stored, only processed.',
             )}
           </Bullet>
-          <Bullet colors={colors}>{tr('Opravu nesprávných údajů', 'Correct inaccurate data')}</Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Kontakt pro newsletter: do odvolání souhlasu nebo smazání účtu.',
+              'Newsletter contact: until consent is withdrawn or the account is deleted.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Technické záznamy a logy: nejdéle 90 dní.',
+              'Technical records and logs: up to 90 days.',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Komunikace s podporou: 3 roky od vyřízení (kvůli případným nárokům).',
+              'Support communication: 3 years after resolution (for possible claims).',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Účetní doklady: po dobu stanovenou zákonem (zpravidla 10 let).',
+              'Accounting records: for the period required by law (usually 10 years).',
+            )}
+          </Bullet>
         </Section>
 
-        <Section title={tr('8. Bankovní výpisy (PDF / CSV)', '8. Bank statements (PDF / CSV)')} colors={colors}>
+        <Section title={tr('7. Tvoje práva', '7. Your rights')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'PDF a CSV výpisy jsou zpracovány na našich serverech (Supabase, EU) nebo na zařízení pouze za účelem extrakce transakcí. PDF soubory nejsou trvale ukládány.',
-              'PDF and CSV statements are processed on our servers (Supabase, EU) or on your device solely to extract transactions. PDF files are not stored permanently.',
+              'Máš právo na přístup ke svým údajům, opravu, výmaz, omezení zpracování, přenositelnost (export dat ve strojově čitelné podobě) a právo vznést námitku proti zpracování na základě oprávněného zájmu. Souhlas s newsletterem můžeš kdykoli odvolat v aplikaci nebo odkazem v každém e-mailu.',
+              'You have the right of access, rectification, erasure, restriction of processing, data portability (export in a machine-readable format) and the right to object to processing based on legitimate interest. You can withdraw newsletter consent at any time in the app or via the link in every email.',
+            )}
+            {'\n\n'}
+            {tr(
+              'Veškerá data si stáhneš v Profil → Soukromí a bezpečnost → Správa dat a tamtéž můžeš smazat účet. Ostatní žádosti piš na privacy@moneybuddy.cz, odpovíme do 30 dnů.',
+              'Download all your data in Profile → Privacy & Security → Data management, where you can also delete your account. Send other requests to privacy@moneybuddy.cz; we reply within 30 days.',
+            )}
+            {'\n\n'}
+            {tr(
+              'Máš také právo podat stížnost u Úřadu pro ochranu osobních údajů, Pplk. Sochora 27, 170 00 Praha 7, www.uoou.cz.',
+              'You may also lodge a complaint with the Czech Office for Personal Data Protection (ÚOOÚ), Pplk. Sochora 27, 170 00 Prague 7, www.uoou.cz.',
             )}
           </Body>
         </Section>
 
-        <Section title={tr('9. Investiční data', '9. Investment data')} colors={colors}>
+        <Section title={tr('8. Zabezpečení', '8. Security')} colors={colors}>
           <Body colors={colors}>
             {tr(
-              'Ceny akcií: Yahoo Finance API. Kurzy měn: veřejné API České národní banky (ČNB). Do těchto služeb neodesíláme osobní údaje.',
-              'Stock prices: Yahoo Finance API. Exchange rates: the public API of the Czech National Bank (ČNB). We don’t send personal data to these services.',
+              'Data jsou uložená v EU, přenášejí se šifrovaně (HTTPS) a každý uživatel má v databázi přístup jen ke svým údajům a k údajům, které s ním někdo sdílí. Aplikaci můžeš zamknout Face ID. Pokud by došlo k úniku dat s rizikem pro tebe, oznámíme ho ÚOOÚ do 72 hodin a tobě bez zbytečného odkladu.',
+              'Data is stored in the EU, transmitted encrypted (HTTPS), and each user can access only their own data and data others share with them. You can lock the app with Face ID. If a data breach poses a risk to you, we will notify ÚOOÚ within 72 hours and you without undue delay.',
             )}
           </Body>
         </Section>
 
-        <Section title={tr('10. Kontakt', '10. Contact')} colors={colors}>
+        <Section title={tr('9. Věk', '9. Age')} colors={colors}>
+          <Body colors={colors}>
+            {tr(
+              'Aplikace je určená osobám starším 18 let. Vědomě nezpracováváme údaje dětí.',
+              'The app is intended for people aged 18 and over. We do not knowingly process children\'s data.',
+            )}
+          </Body>
+        </Section>
+
+        <Section title={tr('10. Web a cookies', '10. Website and cookies')} colors={colors}>
+          <Body colors={colors}>
+            {tr(
+              'Web moneybuddy.cz používá jen technicky nezbytné cookies potřebné pro jeho zobrazení. Pokud začneme měřit návštěvnost nebo používat reklamní nástroje, vyžádáme si předem souhlas přes cookie lištu.',
+              'moneybuddy.cz uses only strictly necessary cookies required to display it. If we start measuring traffic or using advertising tools, we will ask for your consent in advance via a cookie banner.',
+            )}
+          </Body>
+        </Section>
+
+        <Section title={tr('11. Změny zásad', '11. Changes')} colors={colors}>
+          <Body colors={colors}>
+            {tr(
+              'O podstatných změnách tě informujeme v aplikaci nebo e-mailem. Aktuální verze je vždy na moneybuddy.cz/privacy.',
+              'We will inform you about material changes in the app or by email. The current version is always at moneybuddy.cz/privacy.',
+            )}
+          </Body>
+        </Section>
+
+        <Section title={tr('Kontakt', 'Contact')} colors={colors}>
           <Pressable onPress={() => openUrl('mailto:privacy@moneybuddy.cz')}>
             <Text style={[styles.contact, { color: colors.primary }]}>privacy@moneybuddy.cz</Text>
           </Pressable>

@@ -2,6 +2,7 @@
  * Brevo sync — volá DB trigger na public.users (pg_net):
  *  - event "insert": pošle uvítací e-mail (jednou, hlídá welcome_email_sent_at)
  *  - event "consent": přidá / odebere kontakt v Brevo seznamu podle users.marketing_consent
+ *  - event "delete": po smazání účtu smaže kontakt z Brevo (GDPR – výmaz); e-mail posílá trigger, řádek už neexistuje
  *
  * Deploy: supabase functions deploy brevo-sync --no-verify-jwt
  * Secrets: BREVO_API_KEY, BREVO_LIST_ID (+ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)
@@ -91,12 +92,24 @@ Deno.serve(async (req) => {
   const listId = Number(Deno.env.get('BREVO_LIST_ID') ?? '0');
   if (!apiKey) return json(500, { error: 'missing BREVO_API_KEY' });
 
-  let payload: { event?: string; user_id?: string };
+  let payload: { event?: string; user_id?: string; email?: string };
   try {
     payload = await req.json();
   } catch {
     return json(400, { error: 'bad json' });
   }
+  if (payload.event === 'delete') {
+    const delEmail = String(payload.email ?? '').trim().toLowerCase();
+    if (!delEmail.includes('@')) return json(200, { skipped: 'no email' });
+    const r = await fetch(`${BREVO}/contacts/${encodeURIComponent(delEmail)}?identifierType=email_id`, {
+      method: 'DELETE',
+      headers: { 'api-key': apiKey, Accept: 'application/json' },
+    });
+    // 404 = kontakt v Brevo není → nevadí
+    if (!r.ok && r.status !== 404) return json(502, { error: 'brevo delete failed', status: r.status, body: await r.text() });
+    return json(200, { ok: true, deleted: true });
+  }
+
   const uid = payload.user_id ?? '';
   if (!UUID_RE.test(uid)) return json(400, { error: 'bad user_id' });
 

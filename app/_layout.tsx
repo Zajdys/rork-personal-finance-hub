@@ -50,7 +50,8 @@ const queryClient = new QueryClient();
 const autoSyncFio = async () => {
   try {
     if (!getIsPremiumSnapshot()) return;
-    const token = await AsyncStorage.getItem('fio_token');
+    const { getFioToken } = await import('@/lib/fio-token-storage');
+    const token = await getFioToken();
     if (!token) return;
     const { data: { user } } = await supabase.auth.getUser();
     const { data: sessionData } = await supabase.auth.getSession();
@@ -415,15 +416,19 @@ export default function RootLayout() {
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
-    // Sync při startu
-    autoSyncFio();
+    void (async () => {
+      const { migrateFioTokenFromAsyncStorage } = await import('@/lib/fio-token-storage');
+      await migrateFioTokenFromAsyncStorage();
+      // Sync při startu (po migraci tokenu)
+      await autoSyncFio();
+    })();
 
     // Sync jen po skutečném background → active (ne inactive z document pickeru).
     const subscription = AppState.addEventListener('change', (nextState) => {
       const prev = appState.current;
       appState.current = nextState;
       if (prev === 'background' && nextState === 'active') {
-        autoSyncFio();
+        void autoSyncFio();
       }
     });
 

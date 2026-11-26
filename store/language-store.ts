@@ -1880,9 +1880,9 @@ export const TRANSLATIONS = {
     privacySharing: 'Sdílení',
     privacyDeleteAccountConfirm: 'Opravdu chceš smazat účet? Tato akce je nevratná.',
     privacyDeleteAppleSubWarning:
-      'Smazáním účtu se nezruší předplatné u Apple. Zruš ho v Nastavení → Apple ID → Předplatná.',
+      'Smazáním účtu se nezruší předplatné. Zruš ho zvlášť v Nastavení → [tvé jméno] → Předplatná.',
     privacyDeleteGoogleSubWarning:
-      'Smazáním účtu se nezruší předplatné v Google Play. Zruš ho v Google Play → Platby a předplatná → Předplatná.',
+      'Smazáním účtu se nezruší předplatné. Zruš ho zvlášť v Nastavení → [tvé jméno] → Předplatná.',
     privacyDeleteManageSubscription: 'Spravovat předplatné',
     privacyDeletionFailed: 'Smazání selhalo',
     privacyUnknownError: 'Neznámá chyba',
@@ -4500,9 +4500,9 @@ export const TRANSLATIONS = {
     privacySharing: 'Sharing',
     privacyDeleteAccountConfirm: 'Are you sure you want to delete your account? This action is irreversible.',
     privacyDeleteAppleSubWarning:
-      'Deleting your account does not cancel your Apple subscription. Cancel it in Settings → Apple ID → Subscriptions.',
+      'Deleting your account does not cancel your subscription. Cancel it separately in Settings → [your name] → Subscriptions.',
     privacyDeleteGoogleSubWarning:
-      'Deleting your account does not cancel your Google Play subscription. Cancel it in Google Play → Payments & subscriptions → Subscriptions.',
+      'Deleting your account does not cancel your subscription. Cancel it separately in Settings → [your name] → Subscriptions.',
     privacyDeleteManageSubscription: 'Manage subscription',
     privacyDeletionFailed: 'Deletion failed',
     privacyUnknownError: 'Unknown error',

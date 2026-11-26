@@ -689,6 +689,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       } catch (e) {
         console.warn('[auth] RevenueCat logOut', e);
       }
+      try {
+        const { clearFioToken } = await import('@/lib/fio-token-storage');
+        await clearFioToken();
+      } catch (e) {
+        console.warn('[auth] clearFioToken', e);
+      }
       useRevenueCatStore.getState().reset();
       const { useRegisterIntentStore } = await import('@/store/register-intent-store');
       useRegisterIntentStore.getState().clear();
