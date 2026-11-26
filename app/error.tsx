@@ -3,11 +3,13 @@
  * Root layout (`app/_layout.tsx`) re-exportuje stejný boundary + má class wrap celé appky.
  * Raw error jde jen do console — uživatel vidí přátelskou CS hlášku.
  */
+import { reportError } from '@/lib/sentry';
 import React from 'react';
 import { router, type ErrorBoundaryProps } from 'expo-router';
 import { FriendlyErrorFallback } from '@/components/FriendlyErrorFallback';
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  reportError(error);
   console.log('[ExpoRouter ErrorBoundary] raw error:', error);
   return <FriendlyErrorFallback onRetry={() => { void retry(); }} />;
 }

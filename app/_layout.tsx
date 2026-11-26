@@ -1,3 +1,4 @@
+import { Sentry, reportError } from '@/lib/sentry';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router, Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -89,6 +90,7 @@ class RootErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    reportError(error);
     console.log('[RootErrorBoundary] raw error:', error);
     console.log('[RootErrorBoundary] componentStack:', errorInfo?.componentStack);
 
@@ -406,7 +408,7 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const { loadSettings } = useSettingsStore();
   const { loadLanguage, isLoaded } = useLanguageStore();
   const loadFinanceData = useFinanceStore((state) => state.loadData);
@@ -545,3 +547,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

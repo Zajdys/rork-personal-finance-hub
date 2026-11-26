@@ -37,6 +37,7 @@ We do not sell data or share it for advertising. We use these processors, who ma
 - Anthropic – AI guide answers, question text only, no financial data (USA)
 - Apple, Google – app distribution and subscription payments, independent controllers (EU / USA)
 - Framer – hosting of moneybuddy.cz (EU / USA)
+- Sentry (Functional Software, Inc.) – app crash reporting: error type, device and version, without financial or personal data (data stored in the EU)
 
 Exchange rates from the Czech National Bank and prices from Yahoo Finance are fetched without personal data. Under its terms, Anthropic does not use questions to train AI and deletes them after a short period.
 

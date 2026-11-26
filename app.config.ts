@@ -107,6 +107,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
+    [
+      '@sentry/react-native/expo',
+      {
+        url: 'https://de.sentry.io/',
+        organization: 'moneybuddy-as',
+        project: 'moneybuddy',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

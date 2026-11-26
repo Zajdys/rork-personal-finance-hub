@@ -129,8 +129,8 @@ export default function PrivacyPolicyScreen() {
           </Bullet>
           <Bullet colors={colors}>
             {tr(
-              'Technické údaje: typ zařízení, verze systému a aplikace, token pro push notifikace, záznamy o chybách a přihlášení.',
-              'Technical data: device type, OS and app version, push notification token, error and sign-in logs.',
+              'Technické údaje: typ zařízení, verze systému a aplikace, token pro push notifikace, záznamy o chybách, pádech aplikace a přihlášení.',
+              'Technical data: device type, OS and app version, push notification token, error, crash and sign-in logs.',
             )}
           </Bullet>
           <Body colors={colors}>
@@ -253,6 +253,12 @@ export default function PrivacyPolicyScreen() {
             {tr(
               'Framer – hosting webu moneybuddy.cz (EU / USA)',
               'Framer – hosting of moneybuddy.cz (EU / USA)',
+            )}
+          </Bullet>
+          <Bullet colors={colors}>
+            {tr(
+              'Sentry (Functional Software, Inc.) – hlášení pádů aplikace: typ chyby, zařízení a verze, bez finančních a osobních údajů (data uložená v EU)',
+              'Sentry (Functional Software, Inc.) – app crash reporting: error type, device and version, without financial or personal data (data stored in the EU)',
             )}
           </Bullet>
           <Body colors={colors}>
