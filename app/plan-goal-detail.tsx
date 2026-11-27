@@ -139,6 +139,7 @@ export default function PlanGoalDetailScreen() {
       Alert.alert(tr('Nelze vybrat víc, než je naspořeno', 'You can’t withdraw more than you’ve saved'));
       return;
     }
+    const wasIncomplete = target > 0 && current < target;
     setBusy(true);
     const { error } = await addContribution({
       userId: user.id,
@@ -151,6 +152,8 @@ export default function PlanGoalDetailScreen() {
       showToast({ type: 'error', message: tr('Operace selhala', 'Operation failed') });
       return;
     }
+    const nextCurrent = current + signed;
+    const justCompleted = wasIncomplete && modalMode === 'deposit' && nextCurrent >= target;
     setModalMode(null);
     setAmountStr('');
     setNote('');
@@ -160,6 +163,14 @@ export default function PlanGoalDetailScreen() {
       type: 'success',
       message: modalMode === 'withdraw' ? tr('Výběr uložen', 'Withdrawal saved') : tr('Vklad uložen', 'Deposit saved'),
     });
+    if (justCompleted) {
+      try {
+        const { maybeAskForReview } = await import('@/lib/review-prompt');
+        void maybeAskForReview();
+      } catch (e) {
+        console.warn('[plan-goal] review prompt', e);
+      }
+    }
   };
 
   const submitEdit = async () => {

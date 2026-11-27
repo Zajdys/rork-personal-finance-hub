@@ -462,6 +462,12 @@ function RootLayout() {
       try {
         console.log('Initializing app...');
         await Promise.all([loadSettings(), loadLanguage()]);
+        try {
+          const { ensureReviewFirstInstallDate } = await import('@/lib/review-prompt');
+          await ensureReviewFirstInstallDate();
+        } catch (e) {
+          console.warn('[review] first install', e);
+        }
         const { data: sessionData } = await supabase.auth.getSession();
         const currentUserId = sessionData.session?.user?.id ?? null;
         await syncLocalFinanceDataForAuthUser(currentUserId);

@@ -1542,6 +1542,14 @@ export default function BankImportScreen() {
               const { showToast } = await import('@/store/toast-store');
               showToast({ type: 'success', message: summary });
             }
+            if (x > 0) {
+              try {
+                const { maybeAskForReview } = await import('@/lib/review-prompt');
+                void maybeAskForReview();
+              } catch (e) {
+                console.warn('[bank-import] review prompt', e);
+              }
+            }
             parseWarningsRef.current = [];
             setImportProgress(null);
             console.log('[import] krok 5 confirm complete');

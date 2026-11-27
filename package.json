@@ -1,7 +1,7 @@
 {
   "name": "expo-app",
   "main": "expo-router/entry",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "scripts": {
     "start": "bunx rork start -p jtp2rgz7sjrn35na7d59v --tunnel",
     "start-web": "bunx rork start -p jtp2rgz7sjrn35na7d59v --web --tunnel",
@@ -51,6 +51,7 @@
     "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
+    "expo-store-review": "~9.0.9",
     "expo-symbols": "~1.0.7",
     "expo-system-ui": "~6.0.8",
     "hono": "^4.9.6",
